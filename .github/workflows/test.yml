@@ -21,8 +21,8 @@ jobs:
       - name: Instalace závislostí
         run: pip install requests
 
-      - name: Počkej na Railway deploy (60s)
-        run: sleep 60
+      - name: Počkej na Railway deploy (10s)
+        run: sleep 10
 
       - name: Spusť E2E testy
         run: python test_flow.py
