@@ -35,8 +35,6 @@ def init_settings_from_env():
     if updates:
         db_save_settings(updates)
 
-init_settings_from_env()
-
 # ─────────────────────────────────────────────
 # Aplikace
 # ─────────────────────────────────────────────
@@ -71,6 +69,9 @@ def db_save_settings(s: dict):
     data = db_load()
     data["settings"] = {**data.get("settings", {}), **s}
     db_save(data)
+
+# Načti nastavení z env proměnných při startu
+init_settings_from_env()
 
 # ─────────────────────────────────────────────
 # Pydantic modely
