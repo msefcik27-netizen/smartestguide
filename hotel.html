@@ -321,6 +321,8 @@ function renderPortal() {
         ${row('Telefon recepce', 'phone', 'tel', h.phone, '+420 123 456 789')}
         ${row('E-mail', 'email', 'email', h.email, 'recepce@hotel.cz')}
         ${row('WhatsApp', 'whatsapp_number', 'tel', h.whatsapp_number, '+420 123 456 789')}
+        ${row('Adresa', 'address', 'text', h.address, 'Václavské náměstí 1, Praha')}
+        ${row('Kód země (CZ/SK/AT/DE...)', 'country', 'text', h.country, 'CZ')}
       </table>
     `)}
 
@@ -616,10 +618,10 @@ function calcPrice(beds){
 
 // ── Uložení ───────────────────────────────────
 async function saveAll() {
-  const numFields = ['bed_count', 'room_count'];
+  const numFields = ['bed_count', 'room_count', 'star_rating'];
   const textFields = ['checkin_time','checkout_time','breakfast_hours','lunch_hours','dinner_hours',
     'phone','email','whatsapp_number','restaurant_name','wellness_info','parking_info',
-    'description','extra_info'];
+    'description','extra_info','address','country'];
 
   const data = {};
   textFields.forEach(k => {
