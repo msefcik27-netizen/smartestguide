@@ -28,12 +28,23 @@
     /* Layout */
     .container{max-width:860px;margin:0 auto;padding:32px 24px}
 
-    /* Sekce */
-    .section{margin-bottom:28px}
-    .section-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
-    .section-icon{font-size:20px;width:36px;height:36px;background:rgba(108,99,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center}
-    .section-title{font-family:var(--font-head);font-size:15px;font-weight:600}
-    .section-desc{font-size:12px;color:var(--muted);margin-top:1px}
+    /* Sekce – accordion */
+    .section{margin-bottom:12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+    .section-head{display:flex;align-items:center;gap:10px;padding:14px 18px;cursor:pointer;user-select:none;transition:background .15s}
+    .section-head:hover{background:rgba(108,99,255,.06)}
+    .section-head.open{border-bottom:1px solid var(--border)}
+    .section-icon{font-size:18px;width:34px;height:34px;background:rgba(108,99,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .section-title{font-family:var(--font-head);font-size:14px;font-weight:600}
+    .section-desc{font-size:11px;color:var(--muted);margin-top:1px}
+    .section-chevron{margin-left:auto;font-size:12px;color:var(--muted);transition:transform .2s;flex-shrink:0}
+    .section-chevron.open{transform:rotate(180deg)}
+    .section-score{margin-left:8px;flex-shrink:0}
+    .score-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700}
+    .score-badge.full{background:rgba(46,204,135,.15);color:#2ecc87;border:1px solid rgba(46,204,135,.3)}
+    .score-badge.partial{background:rgba(255,170,51,.15);color:#ffaa33;border:1px solid rgba(255,170,51,.3)}
+    .score-badge.empty{background:rgba(255,79,106,.1);color:#ff4f6a;border:1px solid rgba(255,79,106,.2)}
+    .section-body{display:none;padding:16px 18px}
+    .section-body.open{display:block}
 
     /* Editovatelná tabulka */
     .edit-table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
@@ -252,6 +263,7 @@ function renderCompleteness(d) {
     motivText = `<div style="margin-top:12px;font-size:13px;color:var(--success)">✅ Skvělé! Profil je kompletně vyplněn.</div>`;
   }
 
+  _sectionIdx = 0;
   el.innerHTML = `
     <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -314,7 +326,7 @@ function renderPortal() {
         ${row('Počet lůžek', 'bed_count', 'number', h.bed_count, 'přesný počet lůžek')}
         ${row('Počet pokojů', 'room_count', 'number', h.room_count, '')}
       </table>
-    `)}
+    `, ['star_rating','checkin_time','checkout_time','breakfast_hours','bed_count'], true)}
 
     ${renderSection('📞', 'Kontaktní informace', 'Jak hosté mohou kontaktovat hotel', `
       <table class="edit-table">
@@ -324,7 +336,7 @@ function renderPortal() {
         ${row('Adresa', 'address', 'text', h.address, 'Václavské náměstí 1, Praha')}
         ${row('Kód země (CZ/SK/AT/DE...)', 'country', 'text', h.country, 'CZ')}
       </table>
-    `)}
+    `, ['phone','email','address'])}
 
     ${renderSection('🍽️', 'Restaurace & wellness', 'Informace o stravování a relaxaci', `
       <table class="edit-table">
@@ -332,7 +344,7 @@ function renderPortal() {
         ${row('Wellness / Spa', 'wellness_info', 'text', h.wellness_info, 'např. Sauna, bazén, masáže – otevřeno 8–21')}
         ${row('Parkování', 'parking_info', 'text', h.parking_info, 'např. Bezplatné parkování před hotelem')}
       </table>
-    `)}
+    `, ['restaurant_name','wellness_info','parking_info'])}
 
     ${renderSection('✨', 'Vybavení hotelu', 'Co hotel nabízí – hosté se mohou zeptat', `
       <table class="edit-table">
@@ -344,7 +356,7 @@ function renderPortal() {
       <div style="font-size:11px;color:var(--muted);margin-top:8px;padding:0 4px">
         Příklady: WiFi zdarma, Bazén, Sauna, Fitness, Klimatizace, Parkování, Restaurace, Bar, Výtah, Pets allowed…
       </div>
-    `)}
+    `, ['amenities'])}
 
     ${renderSection('🏊', 'Služby hotelu', 'Fitness, bazén, spa, doprava', `
       <table class="edit-table">
@@ -359,7 +371,7 @@ function renderPortal() {
         ${row('Domácí mazlíčci', 'pets_policy', 'text', h.pets_policy, 'např. Povoleno, příplatek 200 Kč/noc')}
         ${row('Bezbariérový přístup', 'accessibility', 'text', h.accessibility, 'výtah, bezbariérové pokoje')}
       </table>
-    `)}
+    `, ['fitness_info','pool_info','spa_info','room_service_hours','laundry_info'])}
 
     ${renderSection('🍽️', 'Stravování — podrobnosti', 'Typ snídaně, bar, minibar', `
       <table class="edit-table">
@@ -368,7 +380,7 @@ function renderPortal() {
         ${row('Vegetariánská / Vegan', 'dietary_options', 'text', h.dietary_options, 'dostupné možnosti')}
         ${row('Mini bar na pokoji', 'minibar', 'text', h.minibar, 'např. Ano, doplňován denně')}
       </table>
-    `)}
+    `, ['breakfast_type','bar_info','dietary_options','minibar'])}
 
     ${renderSection('🗺️', 'Místa v okolí', 'Tipy na výlety a restaurace které doporučujete', `
       <table class="edit-table">
@@ -380,7 +392,7 @@ function renderPortal() {
       <div style="font-size:11px;color:var(--muted);margin-top:8px;padding:0 4px">
         Příklady: Restaurace U Zlaté hvězdy (5 min), Hrad Veveří (20 km), Aquapark Delfín…
       </div>
-    `)}
+    `, ['nearby_places'])}
 
     ${renderSection('🔌', 'Embed widget — vložit na web', 'Přidejte chat tlačítko na web vašeho hotelu', `
       <div style="margin-bottom:16px;font-size:14px;color:var(--muted);line-height:1.7">
@@ -395,14 +407,14 @@ function renderPortal() {
         <button onclick="copyEmbedCode()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer">📋 Kopírovat kód</button>
         <button onclick="previewWidget()" style="background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px 18px;font-size:13px;cursor:pointer">👁 Náhled</button>
       </div>
-    `)}
+    `, [])}
 
     ${renderSection('📝', 'Popis a další informace', 'Co byste chtěli hostům sdělit navíc', `
       <table class="edit-table">
         ${rowTextarea('Popis hotelu', 'description', h.description, 'Stručný popis hotelu pro hosty…')}
         ${rowTextarea('Další informace', 'extra_info', h.extra_info, 'Speciální akce, house rules, zajímavosti…')}
       </table>
-    `)}
+    `, ['description'])}
 
     ${renderSection('🍽️', 'Menu — odkaz na jídelní lístek', 'Přidejte URL odkaz na menu vaší restaurace', `
       <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">
@@ -415,7 +427,7 @@ function renderPortal() {
             ${url?`<button onclick="clearMenuUrl(${i})" style="background:rgba(255,79,106,.1);border:1px solid rgba(255,79,106,.3);border-radius:6px;padding:8px 12px;color:var(--danger);cursor:pointer;font-size:12px">✕</button>`:''}
           </div>`).join('')}
       </div>
-    `)}
+    `, [])}
 
     ${renderSection('✨', 'Vlastní informace pro Alexe', 'Přidejte cokoliv co hosté chtějí vědět — Alex to použije při odpovědích', `
       <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">
@@ -432,7 +444,7 @@ function renderPortal() {
           <button onclick="addCf()" style="background:rgba(108,99,255,.1);border:1px solid rgba(108,99,255,.3);border-radius:8px;padding:10px 18px;color:var(--accent);cursor:pointer;font-size:13px;font-weight:600">+ Přidat další informaci pro Alexe</button>
         </div>
       </div>
-    `)}
+    `, [])}
 
   <div id="invoices-section" style="margin-top:0"></div>
   <div id="analytics-section"></div>
@@ -448,14 +460,49 @@ function renderPortal() {
   });
 }
 
-function renderSection(icon, title, desc, content) {
-  return `<div class="section">
-    <div class="section-head">
+// Accordion sekce se scoring
+let _sectionIdx = 0;
+function renderSection(icon, title, desc, content, fields, defaultOpen) {
+  const id = 'sec-' + (_sectionIdx++);
+  // Spočítej score sekce
+  let scoreBadge = '';
+  if (fields && fields.length) {
+    const filled = fields.filter(k => {
+      const el = document.getElementById('f-' + k);
+      if (el) return el.value.trim() !== '';
+      // Tag inputs
+      const tags = document.querySelectorAll('#tags-' + k + ' .tag-item');
+      return tags.length > 0;
+    }).length;
+    const pct = Math.round(filled / fields.length * 100);
+    const cls = pct === 100 ? 'full' : pct > 0 ? 'partial' : 'empty';
+    const emoji = pct === 100 ? '✓' : pct > 0 ? '◑' : '○';
+    scoreBadge = `<span class="section-score"><span class="score-badge ${cls}">${emoji} ${filled}/${fields.length}</span></span>`;
+  }
+  const isOpen = defaultOpen ? 'open' : '';
+  return `<div class="section" id="${id}">
+    <div class="section-head ${isOpen}" onclick="toggleSection('${id}')">
       <div class="section-icon">${icon}</div>
-      <div><div class="section-title">${title}</div><div class="section-desc">${desc}</div></div>
+      <div style="flex:1;min-width:0">
+        <div class="section-title">${title}</div>
+        <div class="section-desc">${desc}</div>
+      </div>
+      ${scoreBadge}
+      <span class="section-chevron ${isOpen}">▼</span>
     </div>
-    ${content}
+    <div class="section-body ${isOpen}">${content}</div>
   </div>`;
+}
+
+function toggleSection(id) {
+  const sec = document.getElementById(id);
+  const head = sec.querySelector('.section-head');
+  const body = sec.querySelector('.section-body');
+  const chev = sec.querySelector('.section-chevron');
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  head.classList.toggle('open', !isOpen);
+  chev.classList.toggle('open', !isOpen);
 }
 
 function row(label, key, type, val, placeholder) {
