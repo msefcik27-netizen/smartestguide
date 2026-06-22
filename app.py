@@ -892,6 +892,152 @@ def toggle_subscription(hotel_id: str, active: bool):
     db_save(db)
     return {"status": "ok", "subscription_active": active}
 
+@app.get("/api/hotels/{hotel_id}/flyer")
+def download_flyer(hotel_id: str, format: str = "a4", request: Request = None):
+    """Stáhne PDF leták. Format: a4, a5, rollup"""
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import A4, A5
+        from reportlab.lib.units import mm
+        from reportlab.lib.colors import HexColor
+        from io import BytesIO
+        import urllib.request
+        import unicodedata, re
+    except ImportError:
+        raise HTTPException(500, "reportlab není nainstalován")
+
+    db = db_load()
+    h = db["hotels"].get(hotel_id)
+    if not h:
+        raise HTTPException(404, "Hotel nenalezen")
+
+    base = get_base_url(request) if request else ""
+    guest_url = f"{base}/guest/{hotel_id}"
+
+    # Výběr velikosti stránky
+    if format == "a5":
+        W, H = A5
+    elif format == "rollup":
+        W, H = 85 * mm, 200 * mm
+    else:
+        W, H = A4
+
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=(W, H))
+
+    # Barvy
+    purple = HexColor("#6c63ff")
+    teal = HexColor("#00d4aa")
+    dark = HexColor("#1a1a2e")
+    gray = HexColor("#666666")
+    light = HexColor("#f7f7ff")
+
+    # Pozadí
+    c.setFillColor(HexColor("#0d0f1a"))
+    c.rect(0, 0, W, H, fill=1, stroke=0)
+
+    # Header gradient bar
+    c.setFillColor(purple)
+    c.rect(0, H - 8*mm, W, 8*mm, fill=1, stroke=0)
+
+    # Logo
+    c.setFillColor(HexColor("#ffffff"))
+    c.setFont("Helvetica-Bold", 18 if format != "rollup" else 24)
+    logo_y = H - 22*mm
+    c.drawCentredString(W/2, logo_y, "SmartestGuide")
+
+    # Název hotelu
+    name = h.get("name", "Hotel")
+    stars = "★" * (h.get("star_rating") or 0)
+    c.setFillColor(teal)
+    c.setFont("Helvetica-Bold", 20 if format != "rollup" else 28)
+    c.drawCentredString(W/2, logo_y - 12*mm, name)
+
+    if stars:
+        c.setFillColor(HexColor("#f5c518"))
+        c.setFont("Helvetica", 14)
+        c.drawCentredString(W/2, logo_y - 19*mm, stars)
+
+    # Čára
+    c.setStrokeColor(purple)
+    c.setLineWidth(1.5)
+    margin = 12*mm
+    c.line(margin, logo_y - 24*mm, W - margin, logo_y - 24*mm)
+
+    # QR kód
+    qr_size = 45*mm if format != "rollup" else 60*mm
+    qr_y = H/2 - qr_size/2 + 10*mm
+
+    try:
+        qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={guest_url}&bgcolor=ffffff&color=1a1a2e&margin=8"
+        qr_data = urllib.request.urlopen(qr_url, timeout=8).read()
+        from reportlab.lib.utils import ImageReader
+        from PIL import Image as PILImage
+        qr_img = PILImage.open(BytesIO(qr_data))
+        qr_reader = ImageReader(qr_img)
+        c.drawImage(qr_reader, W/2 - qr_size/2, qr_y, qr_size, qr_size)
+        # Rámeček kolem QR
+        c.setStrokeColor(purple)
+        c.setLineWidth(2)
+        c.roundRect(W/2 - qr_size/2 - 3*mm, qr_y - 3*mm, qr_size + 6*mm, qr_size + 6*mm, 4*mm, stroke=1, fill=0)
+    except Exception:
+        # Fallback pokud QR nelze stáhnout
+        c.setFillColor(HexColor("#ffffff"))
+        c.roundRect(W/2 - qr_size/2, qr_y, qr_size, qr_size, 4*mm, stroke=0, fill=1)
+        c.setFillColor(dark)
+        c.setFont("Helvetica", 9)
+        c.drawCentredString(W/2, qr_y + qr_size/2, "QR kód")
+
+    # Text nad QR
+    c.setFillColor(HexColor("#ffffff"))
+    c.setFont("Helvetica-Bold", 13 if format != "rollup" else 16)
+    c.drawCentredString(W/2, qr_y + qr_size + 8*mm, "Váš osobní AI concierge")
+    c.setFillColor(HexColor("#9ba0c0"))
+    c.setFont("Helvetica", 9 if format != "rollup" else 11)
+    c.drawCentredString(W/2, qr_y + qr_size + 3*mm, "Naskenujte a ptejte se na cokoliv")
+
+    # Text pod QR
+    c.setFillColor(teal)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawCentredString(W/2, qr_y - 8*mm, "24/7 · 14 jazyků · Bez instalace")
+
+    # Kontaktní info
+    info_y = qr_y - 16*mm
+    address = h.get("address", "")
+    phone = h.get("phone", "")
+    if address:
+        c.setFillColor(HexColor("#9ba0c0"))
+        c.setFont("Helvetica", 8)
+        c.drawCentredString(W/2, info_y, f"📍 {address[:50]}")
+        info_y -= 5*mm
+    if phone:
+        c.setFillColor(HexColor("#9ba0c0"))
+        c.setFont("Helvetica", 8)
+        c.drawCentredString(W/2, info_y, f"📞 {phone}")
+
+    # Footer
+    c.setFillColor(HexColor("#3a3f5a"))
+    c.rect(0, 0, W, 14*mm, fill=1, stroke=0)
+    c.setFillColor(HexColor("#6b6f8e"))
+    c.setFont("Helvetica", 7)
+    c.drawCentredString(W/2, 5*mm, "Powered by SmartestGuide · smartestguide.com")
+
+    c.save()
+    pdf_bytes = buf.getvalue()
+
+    # Bezpečné jméno souboru
+    raw_name = h.get("name", "hotel")
+    safe_name = unicodedata.normalize("NFKD", raw_name).encode("ascii", "ignore").decode("ascii")
+    safe_name = re.sub(r"[^a-zA-Z0-9-]", "-", safe_name).strip("-") or "hotel"
+    fname = f"letak-{format}-{safe_name}.pdf"
+
+    from fastapi.responses import StreamingResponse
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'}
+    )
+
 # ─────────────────────────────────────────────
 # Frontend – servíruje HTML přímo z Pythonu
 # ─────────────────────────────────────────────
