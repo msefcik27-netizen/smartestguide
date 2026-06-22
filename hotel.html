@@ -454,32 +454,28 @@ function renderPortal() {
   initTagInput('amenities');
   initTagInput('nearby_places');
 
+  // Spočítej scoring sekcí po renderování DOM
+  updateAllSectionScores();
+
   // Sleduj změny na všech inputech
   document.querySelectorAll('input,textarea').forEach(el => {
-    el.addEventListener('input', markChanged);
+    el.addEventListener('input', () => { markChanged(); updateAllSectionScores(); });
   });
 }
 
 // Accordion sekce se scoring
 let _sectionIdx = 0;
+let _sectionFields = {}; // uložíme fields pro každou sekci, scoring spočítáme po renderování
+
 function renderSection(icon, title, desc, content, fields, defaultOpen) {
   const id = 'sec-' + (_sectionIdx++);
-  // Spočítej score sekce
-  let scoreBadge = '';
-  if (fields && fields.length) {
-    const filled = fields.filter(k => {
-      const el = document.getElementById('f-' + k);
-      if (el) return el.value.trim() !== '';
-      // Tag inputs
-      const tags = document.querySelectorAll('#tags-' + k + ' .tag-item');
-      return tags.length > 0;
-    }).length;
-    const pct = Math.round(filled / fields.length * 100);
-    const cls = pct === 100 ? 'full' : pct > 0 ? 'partial' : 'empty';
-    const emoji = pct === 100 ? '✓' : pct > 0 ? '◑' : '○';
-    scoreBadge = `<span class="section-score"><span class="score-badge ${cls}">${emoji} ${filled}/${fields.length}</span></span>`;
-  }
+  // Ulož fields pro pozdější scoring (DOM ještě neexistuje)
+  if (fields && fields.length) _sectionFields[id] = fields;
   const isOpen = defaultOpen ? 'open' : '';
+  // Placeholder pro score badge – vyplní updateSectionScore() po renderování
+  const scorePlaceholder = fields && fields.length
+    ? `<span class="section-score" id="score-${id}"><span class="score-badge empty">○ 0/${fields.length}</span></span>`
+    : '';
   return `<div class="section" id="${id}">
     <div class="section-head ${isOpen}" onclick="toggleSection('${id}')">
       <div class="section-icon">${icon}</div>
@@ -487,11 +483,32 @@ function renderSection(icon, title, desc, content, fields, defaultOpen) {
         <div class="section-title">${title}</div>
         <div class="section-desc">${desc}</div>
       </div>
-      ${scoreBadge}
+      ${scorePlaceholder}
       <span class="section-chevron ${isOpen}">▼</span>
     </div>
     <div class="section-body ${isOpen}">${content}</div>
   </div>`;
+}
+
+function updateSectionScore(id) {
+  const fields = _sectionFields[id];
+  if (!fields) return;
+  const el = document.getElementById('score-' + id);
+  if (!el) return;
+  const filled = fields.filter(k => {
+    const inp = document.getElementById('f-' + k);
+    if (inp) return inp.value.trim() !== '';
+    const tags = document.querySelectorAll('#tags-' + k + ' .tag-item');
+    return tags.length > 0;
+  }).length;
+  const total = fields.length;
+  const cls = filled === total ? 'full' : filled > 0 ? 'partial' : 'empty';
+  const emoji = filled === total ? '✓' : filled > 0 ? '◑' : '○';
+  el.innerHTML = `<span class="score-badge ${cls}">${emoji} ${filled}/${total}</span>`;
+}
+
+function updateAllSectionScores() {
+  Object.keys(_sectionFields).forEach(id => updateSectionScore(id));
 }
 
 function toggleSection(id) {
