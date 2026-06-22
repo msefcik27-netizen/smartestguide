@@ -423,6 +423,8 @@ def portal_completeness(token: str):
     if not h:
         raise HTTPException(403, "Neplatny token")
     return hotel_completeness(h["id"])
+
+@app.get("/api/hotel-portal/me")
 def hotel_portal_me(token: str):
     h = find_hotel_by_token(token)
     if not h:
