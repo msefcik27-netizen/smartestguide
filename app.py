@@ -690,13 +690,13 @@ def success_page(hotel_id: str = "", request: Request = None):
 
     redirect_script = f"""
     <script>
-      // Automaticky přesměruj na portál po 5 sekundách
-      {'var countdown = 5; var el = document.getElementById("countdown"); var interval = setInterval(function(){ countdown--; el.textContent = countdown; if(countdown <= 0){ clearInterval(interval); window.location.href = "' + portal_url + '"; }}, 1000);' if portal_url else ''}
-    </script>""" if portal_url else ""
+      // Automaticky přesměruj na landing page po 5 sekundách
+      var countdown = 5; var el = document.getElementById("countdown"); var interval = setInterval(function(){{ countdown--; el.textContent = countdown; if(countdown <= 0){{ clearInterval(interval); window.location.href = "/landing"; }} }}, 1000);
+    </script>"""
 
-    portal_btn = f'<a href="{portal_url}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#6c63ff,#00d4aa);color:#fff;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;margin-bottom:12px">→ Přejít do hotelového portálu</a>' if portal_url else '<a href="/landing" style="display:inline-block;padding:12px 28px;background:#6c63ff;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Zpět na hlavní stránku</a>'
+    portal_btn = f'<a href="{portal_url}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#6c63ff,#00d4aa);color:#fff;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;margin-bottom:12px">→ Přejít do hotelového portálu</a><br>' if portal_url else ''
 
-    countdown_html = f'<p style="font-size:13px;color:#7a7fa8;margin-top:8px">Automatické přesměrování za <span id="countdown">5</span> sekund…</p>' if portal_url else ''
+    countdown_html = '<p style="font-size:13px;color:#7a7fa8;margin-top:8px">Automatické přesměrování za <span id="countdown">5</span> sekund…</p>'
 
     return f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
