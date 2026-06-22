@@ -120,7 +120,7 @@
   </div>
 </div>
 
-<div class="container" id="completeness-banner" style="max-width:700px;margin:16px auto 0"></div>
+<div class="container" id="completeness-banner" style="max-width:700px;margin:16px 0 0"></div>
 
 <div class="container" id="main-container">
   <div class="page-msg"><div class="loader"></div><p style="margin-top:16px;color:var(--muted)">Načítám data hotelu…</p></div>
@@ -338,13 +338,42 @@ function renderPortal() {
       </table>
     `, ['phone','email','address'])}
 
-    ${renderSection('🍽️', 'Restaurace & wellness', 'Informace o stravování a relaxaci', `
+    ${renderSection('🍽️', 'Restaurace', 'Název, stravování, menu', `
       <table class="edit-table">
         ${row('Název restaurace', 'restaurant_name', 'text', h.restaurant_name, '')}
-        ${row('Wellness / Spa', 'wellness_info', 'text', h.wellness_info, 'např. Sauna, bazén, masáže – otevřeno 8–21')}
+        ${row('Typ snídaně', 'breakfast_type', 'text', h.breakfast_type, 'např. Bufet, À la carte, Kontinentální')}
+        ${row('Bar / Lobby bar', 'bar_info', 'text', h.bar_info, 'např. Otevřeno 10:00–24:00')}
+        ${row('Vegetariánská / Vegan', 'dietary_options', 'text', h.dietary_options, 'dostupné možnosti')}
+        ${row('Mini bar na pokoji', 'minibar', 'text', h.minibar, 'např. Ano, doplňován denně')}
         ${row('Parkování', 'parking_info', 'text', h.parking_info, 'např. Bezplatné parkování před hotelem')}
       </table>
-    `, ['restaurant_name','wellness_info','parking_info'])}
+      <div style="margin-top:16px;font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+        💡 <strong style="color:var(--text)">Menu:</strong> Vložte odkaz na jídelní lístek. Přidejte až 5 odkazů (snídaně, oběd, večeře, nápojový lístek…)
+      </div>
+      <div id="menu-urls-container">
+        ${(h.menu_urls||[]).concat(['','','']).slice(0,5).map((url,i)=>`
+          <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+            <input type="url" id="menu-url-${i}" value="${esc(url)}" placeholder="https://www.restaurace.cz/menu" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:10px 14px;outline:none" oninput="markChanged()">
+            ${url?`<button onclick="clearMenuUrl(${i})" style="background:rgba(255,79,106,.1);border:1px solid rgba(255,79,106,.3);border-radius:6px;padding:8px 12px;color:var(--danger);cursor:pointer;font-size:12px">✕</button>`:''}
+          </div>`).join('')}
+      </div>
+    `, ['restaurant_name','breakfast_type','bar_info'])}
+
+    ${renderSection('🏊', 'Služby hotelu & Wellness', 'Fitness, bazén, spa, doprava', `
+      <table class="edit-table">
+        ${row('Wellness / Spa info', 'wellness_info', 'text', h.wellness_info, 'např. Sauna, bazén, masáže – otevřeno 8–21')}
+        ${row('Fitness / Gym', 'fitness_info', 'text', h.fitness_info, 'např. Otevřeno 6:00–22:00, vstup zdarma')}
+        ${row('Bazén', 'pool_info', 'text', h.pool_info, 'např. Krytý bazén, 25m, otevřeno celoročně')}
+        ${row('Spa / Masáže', 'spa_info', 'text', h.spa_info, 'např. Thajské masáže, rezervace na recepci')}
+        ${row('Room service', 'room_service_hours', 'text', h.room_service_hours, 'např. 0–24h, menu na pokoji')}
+        ${row('Prádelna / Čistírna', 'laundry_info', 'text', h.laundry_info, 'např. Výdej do 24h, expresní 4h')}
+        ${row('Půjčovna kol', 'bike_rental', 'text', h.bike_rental, 'cena a dostupnost')}
+        ${row('Transfer / Shuttle', 'transfer_info', 'text', h.transfer_info, 'např. Shuttle na letiště, taxi')}
+        ${row('Kongresový sál', 'congress_info', 'text', h.congress_info, 'kapacita a vybavení')}
+        ${row('Domácí mazlíčci', 'pets_policy', 'text', h.pets_policy, 'např. Povoleno, příplatek 200 Kč/noc')}
+        ${row('Bezbariérový přístup', 'accessibility', 'text', h.accessibility, 'výtah, bezbariérové pokoje')}
+      </table>
+    `, ['wellness_info','fitness_info','pool_info','spa_info','room_service_hours'])}
 
     ${renderSection('✨', 'Vybavení hotelu', 'Co hotel nabízí – hosté se mohou zeptat', `
       <table class="edit-table">
@@ -358,30 +387,6 @@ function renderPortal() {
       </div>
     `, ['amenities'])}
 
-    ${renderSection('🏊', 'Služby hotelu', 'Fitness, bazén, spa, doprava', `
-      <table class="edit-table">
-        ${row('Fitness / Gym', 'fitness_info', 'text', h.fitness_info, 'např. Otevřeno 6:00–22:00, vstup zdarma')}
-        ${row('Bazén', 'pool_info', 'text', h.pool_info, 'např. Krytý bazén, 25m, otevřeno celoročně')}
-        ${row('Spa / Masáže', 'spa_info', 'text', h.spa_info, 'např. Thajské masáže, rezervace na recepci')}
-        ${row('Room service', 'room_service_hours', 'text', h.room_service_hours, 'např. 0–24h, menu na pokoji')}
-        ${row('Prádelna / Čistírna', 'laundry_info', 'text', h.laundry_info, 'např. Výdej do 24h, expresní 4h')}
-        ${row('Půjčovna kol', 'bike_rental', 'text', h.bike_rental, 'cena a dostupnost')}
-        ${row('Transfer / Shuttle', 'transfer_info', 'text', h.transfer_info, 'např. Shuttle na letiště, taxi')}
-        ${row('Kongresový sál', 'congress_info', 'text', h.congress_info, 'kapacita a vybavení')}
-        ${row('Domácí mazlíčci', 'pets_policy', 'text', h.pets_policy, 'např. Povoleno, příplatek 200 Kč/noc')}
-        ${row('Bezbariérový přístup', 'accessibility', 'text', h.accessibility, 'výtah, bezbariérové pokoje')}
-      </table>
-    `, ['fitness_info','pool_info','spa_info','room_service_hours','laundry_info'])}
-
-    ${renderSection('🍽️', 'Stravování — podrobnosti', 'Typ snídaně, bar, minibar', `
-      <table class="edit-table">
-        ${row('Typ snídaně', 'breakfast_type', 'text', h.breakfast_type, 'např. Bufet, À la carte, Kontinentální')}
-        ${row('Bar / Lobby bar', 'bar_info', 'text', h.bar_info, 'např. Otevřeno 10:00–24:00')}
-        ${row('Vegetariánská / Vegan', 'dietary_options', 'text', h.dietary_options, 'dostupné možnosti')}
-        ${row('Mini bar na pokoji', 'minibar', 'text', h.minibar, 'např. Ano, doplňován denně')}
-      </table>
-    `, ['breakfast_type','bar_info','dietary_options','minibar'])}
-
     ${renderSection('🗺️', 'Místa v okolí', 'Tipy na výlety a restaurace které doporučujete', `
       <table class="edit-table">
         <tr>
@@ -393,6 +398,13 @@ function renderPortal() {
         Příklady: Restaurace U Zlaté hvězdy (5 min), Hrad Veveří (20 km), Aquapark Delfín…
       </div>
     `, ['nearby_places'])}
+
+    ${renderSection('📝', 'Popis a další informace', 'Co byste chtěli hostům sdělit navíc', `
+      <table class="edit-table">
+        ${rowTextarea('Popis hotelu', 'description', h.description, 'Stručný popis hotelu pro hosty…')}
+        ${rowTextarea('Další informace', 'extra_info', h.extra_info, 'Speciální akce, house rules, zajímavosti…')}
+      </table>
+    `, ['description'])}
 
     ${renderSection('🔌', 'Embed widget — vložit na web', 'Přidejte chat tlačítko na web vašeho hotelu', `
       <div style="margin-bottom:16px;font-size:14px;color:var(--muted);line-height:1.7">
@@ -406,26 +418,6 @@ function renderPortal() {
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button onclick="copyEmbedCode()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer">📋 Kopírovat kód</button>
         <button onclick="previewWidget()" style="background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px 18px;font-size:13px;cursor:pointer">👁 Náhled</button>
-      </div>
-    `, [])}
-
-    ${renderSection('📝', 'Popis a další informace', 'Co byste chtěli hostům sdělit navíc', `
-      <table class="edit-table">
-        ${rowTextarea('Popis hotelu', 'description', h.description, 'Stručný popis hotelu pro hosty…')}
-        ${rowTextarea('Další informace', 'extra_info', h.extra_info, 'Speciální akce, house rules, zajímavosti…')}
-      </table>
-    `, ['description'])}
-
-    ${renderSection('🍽️', 'Menu — odkaz na jídelní lístek', 'Přidejte URL odkaz na menu vaší restaurace', `
-      <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">
-        💡 <strong style="color:var(--text)">Tip:</strong> Vložte odkaz na váš jídelní lístek. Alex bude hostům sdělovat kde menu najdou a může ho popsat. Přidejte až 5 odkazů (snídaně, oběd, večeře, nápojový lístek…)
-      </div>
-      <div id="menu-urls-container">
-        ${(h.menu_urls||[]).concat(['','','']).slice(0,5).map((url,i)=>`
-          <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
-            <input type="url" id="menu-url-${i}" value="${esc(url)}" placeholder="https://www.restaurace.cz/menu" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:10px 14px;outline:none" oninput="markChanged()">
-            ${url?`<button onclick="clearMenuUrl(${i})" style="background:rgba(255,79,106,.1);border:1px solid rgba(255,79,106,.3);border-radius:6px;padding:8px 12px;color:var(--danger);cursor:pointer;font-size:12px">✕</button>`:''}
-          </div>`).join('')}
       </div>
     `, [])}
 
