@@ -678,23 +678,63 @@ async def register_hotel(req: RegistrationRequest, request: Request):
 # Success page po platbě
 # ─────────────────────────────────────────────
 @app.get("/success", response_class=HTMLResponse)
-def success_page(hotel_id: str = ""):
-    return """<!DOCTYPE html>
+def success_page(hotel_id: str = "", request: Request = None):
+    # Načti portal token pro přesměrování
+    portal_url = ""
+    if hotel_id:
+        db = db_load()
+        h = db["hotels"].get(hotel_id)
+        if h and h.get("hotel_token"):
+            base = get_base_url(request) if request else ""
+            portal_url = f"{base}/hotel?token={h['hotel_token']}"
+
+    redirect_script = f"""
+    <script>
+      // Automaticky přesměruj na portál po 5 sekundách
+      {'var countdown = 5; var el = document.getElementById("countdown"); var interval = setInterval(function(){ countdown--; el.textContent = countdown; if(countdown <= 0){ clearInterval(interval); window.location.href = "' + portal_url + '"; }}, 1000);' if portal_url else ''}
+    </script>""" if portal_url else ""
+
+    portal_btn = f'<a href="{portal_url}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#6c63ff,#00d4aa);color:#fff;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;margin-bottom:12px">→ Přejít do hotelového portálu</a>' if portal_url else '<a href="/landing" style="display:inline-block;padding:12px 28px;background:#6c63ff;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Zpět na hlavní stránku</a>'
+
+    countdown_html = f'<p style="font-size:13px;color:#7a7fa8;margin-top:8px">Automatické přesměrování za <span id="countdown">5</span> sekund…</p>' if portal_url else ''
+
+    return f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <title>Platba úspěšná – SmartestGuide</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
 <style>
-  body{font-family:Inter,sans-serif;background:#0d0f1a;color:#e8eaf6;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
-  .box{background:#1e2135;border:1px solid #2a2f4a;border-radius:16px;padding:48px;text-align:center;max-width:480px}
-  h1{font-size:28px;margin-bottom:12px;color:#2ecc87}
-  p{color:#7a7fa8;line-height:1.6;margin-bottom:24px}
-  a{display:inline-block;padding:12px 28px;background:#6c63ff;color:#fff;border-radius:8px;text-decoration:none;font-weight:600}
-</style></head>
-<body><div class="box">
-  <div style="font-size:56px;margin-bottom:16px">🎉</div>
+  *{{box-sizing:border-box;margin:0;padding:0}}
+  body{{font-family:Inter,sans-serif;background:#0d0f1a;color:#e8eaf6;display:flex;align-items:center;justify-content:center;min-height:100vh}}
+  .box{{background:#1e2135;border:1px solid #2a2f4a;border-radius:20px;padding:52px 44px;text-align:center;max-width:500px;width:90%}}
+  h1{{font-size:26px;margin-bottom:14px;color:#2ecc87;font-weight:700}}
+  .steps{{text-align:left;background:#161828;border-radius:12px;padding:20px 24px;margin:24px 0;display:flex;flex-direction:column;gap:12px}}
+  .step{{display:flex;align-items:center;gap:12px;font-size:14px;color:#9ba0c0}}
+  .step .icon{{font-size:20px;width:28px;text-align:center;flex-shrink:0}}
+  .step.done{{color:#2ecc87}}
+  .step.active{{color:#e8eaf6;font-weight:600}}
+  .step.pending{{color:#6b6f8e}}
+</style>
+</head>
+<body>
+<div class="box">
+  <div style="font-size:60px;margin-bottom:20px">🎉</div>
   <h1>Platba proběhla úspěšně!</h1>
-  <p>Váš hotel byl zaregistrován. Brzy vám zašleme přístupový odkaz do hotelového portálu na email.</p>
-  <a href="/landing">Zpět na hlavní stránku</a>
-</div></body></html>"""
+  <p style="color:#7a7fa8;font-size:15px;line-height:1.7;margin-bottom:20px">Váš hotel byl zaregistrován v systému SmartestGuide. Nyní doplňte údaje o hotelu v portálu.</p>
+
+  <div class="steps">
+    <div class="step done"><span class="icon">✅</span> Registrace dokončena</div>
+    <div class="step done"><span class="icon">✅</span> Platba přijata</div>
+    <div class="step active"><span class="icon">⚡</span> Importujeme data z vašeho webu…</div>
+    <div class="step pending"><span class="icon">📝</span> Doplňte údaje v portálu</div>
+    <div class="step pending"><span class="icon">🖨️</span> Vytiskněte QR plakát</div>
+    <div class="step pending"><span class="icon">🏨</span> Hosté začínají chatovat s Alexem</div>
+  </div>
+
+  {portal_btn}
+  {countdown_html}
+</div>
+{redirect_script}
+</body></html>"""
 
 async def auto_scrape_after_payment(hotel_id: str, hotel_url: str):
     """Po úspěšné platbě automaticky naskenuje web hotelu a doplní data do DB."""
@@ -977,17 +1017,6 @@ async def translate_menu(req: TranslateMenuRequest):
     reply = r.json()["content"][0]["text"]
     return {"status": "ok", "reply": reply}
 
-@app.get("/success", response_class=HTMLResponse)
-def success_page(hotel_id: str = ""):
-    return """<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Platba úspěšná – SmartestGuide</title>
-<style>body{font-family:Inter,sans-serif;background:#0d0f1a;color:#e8eaf6;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}.box{background:#1e2135;border:1px solid #2a2f4a;border-radius:16px;padding:48px;text-align:center;max-width:480px}h1{font-size:28px;margin-bottom:12px;color:#2ecc87}p{color:#7a7fa8;line-height:1.6;margin-bottom:24px}a{display:inline-block;padding:12px 28px;background:#6c63ff;color:#fff;border-radius:8px;text-decoration:none;font-weight:600}</style>
-</head><body><div class="box">
-<div style="font-size:56px;margin-bottom:16px">🎉</div>
-<h1>Platba proběhla úspěšně!</h1>
-<p>Váš hotel byl zaregistrován. Brzy vám zašleme přístupový odkaz do hotelového portálu na email.</p>
-<a href="/landing">Zpět na hlavní stránku</a>
-</div></body></html>"""
 
 # Vrátí portal link pro existující hotel (+ vygeneruje token pokud chybí)
 @app.get("/api/hotels/{hotel_id}/portal-link")
