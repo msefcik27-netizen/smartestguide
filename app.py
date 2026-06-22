@@ -759,6 +759,12 @@ def serve_guest(hotel_id: str):
     with open(html_path, "r", encoding="utf-8") as f:
         return f.read()
 
+@app.get("/sw.js")
+def serve_sw():
+    """Prázdný Service Worker – zabraňuje 404 chybě."""
+    from fastapi.responses import Response
+    return Response(content="// SmartestGuide SW", media_type="application/javascript")
+
 # ─────────────────────────────────────────────
 # Guest API
 # ─────────────────────────────────────────────

@@ -571,6 +571,9 @@ function detectLangFromText(text){
   for(const [lang,re] of Object.entries(patterns)){
     if(re.test(text)) return lang;
   }
+  // Pokud text neobsahuje speciální znaky a obsahuje anglická slova → en
+  const enWords = /\b(i|you|the|is|are|can|do|have|what|where|when|how|please|help|need|want|and|or|not|park|there|here|hotel|room|breakfast|check|wifi)\b/i;
+  if(enWords.test(text)) return 'en';
   return null;
 }
 
