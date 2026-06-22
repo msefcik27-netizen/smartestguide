@@ -60,9 +60,14 @@ def test_basic():
             r = requests.get(f"{BASE}{path}", timeout=10)
             content = r.text
             errors = []
-            # Počet script tagů musí sedět
-            if content.count("<script") != content.count("</script>"):
-                errors.append("Nekompletní script tag")
+            # Počet script tagů musí sedět – ignoruj escaped varianty v JS stringech
+            open_tags = len(re.findall(r'<script(?:\s[^>]*)?>(?!.*\\\/script>)', content))
+            close_tags = len(re.findall(r'<\/script>', content))
+            # Přesnější: spočítej jen reálné HTML script tagy (ne ty v JS stringech s \/)
+            real_open = len(re.findall(r'<script(?:\s[^>]*)?>\s', content))
+            real_close = len(re.findall(r'\s*<\/script>', content))
+            if real_open != real_close:
+                errors.append(f"Nekompletní script tag ({real_open} open vs {real_close} close)")
             # Extrahuj JS bloky a hledej extra závorky
             scripts = re.findall(r'<script[^>]*>(.*?)</script>', content, re.DOTALL)
             for script in scripts:
