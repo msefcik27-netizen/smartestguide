@@ -19,6 +19,25 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ─────────────────────────────────────────────
+# Auto-načtení konfigurace z environment variables
+# ─────────────────────────────────────────────
+def init_settings_from_env():
+    """Při startu načte klíče z env proměnných do DB pokud tam ještě nejsou."""
+    updates = {}
+    if os.getenv("ANTHROPIC_API_KEY") and os.getenv("ANTHROPIC_API_KEY").startswith("sk-ant-"):
+        updates["anthropic_api_key"] = os.getenv("ANTHROPIC_API_KEY")
+    if os.getenv("STRIPE_SECRET_KEY"):
+        updates["stripe_secret_key"] = os.getenv("STRIPE_SECRET_KEY")
+    if os.getenv("STRIPE_PAYMENT_LINK"):
+        updates["stripe_payment_link"] = os.getenv("STRIPE_PAYMENT_LINK")
+    if os.getenv("STRIPE_WEBHOOK_SECRET"):
+        updates["stripe_webhook_secret"] = os.getenv("STRIPE_WEBHOOK_SECRET")
+    if updates:
+        db_save_settings(updates)
+
+init_settings_from_env()
+
+# ─────────────────────────────────────────────
 # Aplikace
 # ─────────────────────────────────────────────
 app = FastAPI(title="SmartestGuide", version="0.2.0")
