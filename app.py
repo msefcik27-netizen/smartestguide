@@ -128,7 +128,28 @@ def get_settings():
         "has_stripe_key": bool(s.get("stripe_secret_key")),
         "stripe_payment_link": s.get("stripe_payment_link", ""),
         "stripe_key_preview": ("sk_test_..." + s["stripe_secret_key"][-6:]) if s.get("stripe_secret_key") else None,
+        "pricing_base": s.get("pricing_base", 300),
+        "pricing_threshold": s.get("pricing_threshold", 100),
+        "pricing_per_bed": s.get("pricing_per_bed", 3),
     }
+
+class PricingSettingsRequest(BaseModel):
+    pricing_base: int = 300
+    pricing_threshold: int = 100
+    pricing_per_bed: float = 3.0
+
+@app.post("/api/settings/pricing")
+def save_pricing_settings(req: PricingSettingsRequest):
+    if req.pricing_base < 1:
+        raise HTTPException(400, "Základní cena musí být kladná")
+    if req.pricing_threshold < 1:
+        raise HTTPException(400, "Limit lůžek musí být kladný")
+    db_save_settings({
+        "pricing_base": req.pricing_base,
+        "pricing_threshold": req.pricing_threshold,
+        "pricing_per_bed": req.pricing_per_bed,
+    })
+    return {"status": "ok"}
 
 class StripeSettingsRequest(BaseModel):
     stripe_secret_key: str
@@ -611,7 +632,12 @@ def generate_qr(hotel_id: str, request: Request):
 def pricing(beds: int):
     if beds <= 0:
         raise HTTPException(400, "Počet lůžek musí být kladný")
-    price = 300 if beds <= 100 else 300 + (beds - 100) * 3
+    s = db_get_settings()
+    base = s.get("pricing_base", 300)
+    threshold = s.get("pricing_threshold", 100)
+    per_bed = s.get("pricing_per_bed", 3)
+    price = base if beds <= threshold else base + (beds - threshold) * per_bed
+    price = int(price)
     return {"beds": beds, "monthly_eur": price, "quarterly_eur": price * 3,
             "note": "Zaváděcí cena – při objednání v prvních 3 měsících zůstane zachována"}
 

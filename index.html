@@ -253,16 +253,41 @@
     <!-- CENÍK -->
     <div class="page" id="page-pricing">
       <div class="topbar"><div class="page-title">Ceník <small>kalkulačka</small></div></div>
-      <div class="card" style="max-width:480px">
-        <div class="section-label">Počet lůžek</div>
-        <input type="number" id="price-beds" min="1" max="9999" placeholder="Zadej počet lůžek" oninput="calcPrice()"/>
-        <div id="price-result" style="margin-top:20px"></div>
-        <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);font-size:13px;color:var(--muted);line-height:1.8">
-          <strong style="color:var(--text)">Ceník SmartestGuide:</strong><br>
-          1–100 lůžek: <strong style="color:var(--accent2)">300 EUR / 30 dní</strong><br>
-          101+: 300 EUR + <strong style="color:var(--accent2)">3 EUR za každé další lůžko</strong><br>
-          Minimální doba pronájmu: 3 měsíce
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;max-width:900px">
+
+        <!-- Kalkulačka -->
+        <div class="card">
+          <div class="section-label">Kalkulačka ceny</div>
+          <input type="number" id="price-beds" min="1" max="9999" placeholder="Zadej počet lůžek" oninput="calcPrice()"/>
+          <div id="price-result" style="margin-top:20px"></div>
+          <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);font-size:13px;color:var(--muted);line-height:1.8">
+            <strong style="color:var(--text)">Aktuální ceník:</strong><br>
+            1–<span id="pricing-threshold-label">100</span> lůžek: <strong style="color:var(--accent2)" id="pricing-base-label">300 EUR</strong> / 30 dní<br>
+            Nad limit: base + <strong style="color:var(--accent2)" id="pricing-per-label">3 EUR</strong> za každé další lůžko<br>
+            Minimální doba: 3 měsíce
+          </div>
         </div>
+
+        <!-- Editace cen -->
+        <div class="card">
+          <div class="section-label">Nastavení cen</div>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Změna se projeví v kalkulačce, tabulce hotelů i na landing page. Existující smlouvy se nemění.</p>
+          <div class="form-group" style="margin-bottom:12px">
+            <label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Základní cena (EUR/měsíc)</label>
+            <input type="number" id="pricing-base" placeholder="300" min="1" style="margin-top:6px"/>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px">Pro hotely do limitu lůžek</div>
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Limit lůžek (do kdy základní cena)</label>
+            <input type="number" id="pricing-threshold" placeholder="100" min="1" style="margin-top:6px"/>
+          </div>
+          <div class="form-group" style="margin-bottom:16px">
+            <label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Cena za každé další lůžko (EUR)</label>
+            <input type="number" id="pricing-per-bed" placeholder="3" min="0" step="0.5" style="margin-top:6px"/>
+          </div>
+          <button class="btn btn-primary" onclick="savePricingSettings()">💾 Uložit ceník</button>
+        </div>
+
       </div>
     </div>
 
@@ -476,6 +501,7 @@ function showPage(name){
   if(name==='dashboard'||name==='hotels')loadHotels();
   if(name==='settings'){loadKeyStatus();loadCompanySettings();}
   if(name==='billing')loadBilling();
+  if(name==='pricing')loadPricingSettings();
 }
 
 // ══ TOAST ════════════════════════════════════
@@ -1130,6 +1156,38 @@ async function calcPrice(){
     const d=await r.json();
     el.innerHTML=`<div class="price-pill"><div><div style="font-size:11px;color:var(--muted)">Měsíčně</div><div class="amount">${d.monthly_eur} EUR</div></div><div><div style="font-size:11px;color:var(--muted)">Čtvrtletně</div><div style="font-size:18px;font-weight:700;color:var(--accent)">${d.quarterly_eur} EUR</div></div></div><div style="font-size:12px;color:var(--muted);margin-top:8px">${d.note}</div>`;
   }catch(e){}
+}
+
+async function loadPricingSettings(){
+  try{
+    const r=await fetch(`${API}/api/settings`);
+    const d=await r.json();
+    const base=d.pricing_base||300;
+    const threshold=d.pricing_threshold||100;
+    const perBed=d.pricing_per_bed||3;
+    document.getElementById('pricing-base').value=base;
+    document.getElementById('pricing-threshold').value=threshold;
+    document.getElementById('pricing-per-bed').value=perBed;
+    document.getElementById('pricing-base-label').textContent=base+' EUR';
+    document.getElementById('pricing-threshold-label').textContent=threshold;
+    document.getElementById('pricing-per-label').textContent=perBed+' EUR';
+  }catch(e){}
+}
+
+async function savePricingSettings(){
+  const base=parseInt(document.getElementById('pricing-base').value)||300;
+  const threshold=parseInt(document.getElementById('pricing-threshold').value)||100;
+  const perBed=parseFloat(document.getElementById('pricing-per-bed').value)||3;
+  try{
+    const r=await fetch(`${API}/api/settings/pricing`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({pricing_base:base,pricing_threshold:threshold,pricing_per_bed:perBed})});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    addLog('ok',`Ceník uložen: ${base}€ do ${threshold} lůžek, +${perBed}€/lůžko`,'settings');
+    toast('✅ Ceník uložen!');
+    document.getElementById('pricing-base-label').textContent=base+' EUR';
+    document.getElementById('pricing-threshold-label').textContent=threshold;
+    document.getElementById('pricing-per-label').textContent=perBed+' EUR';
+  }catch(e){toast('Chyba: '+e.message,'err');}
 }
 
 // ══ DATA EXPORT / RESET ══════════════════════
