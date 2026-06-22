@@ -50,7 +50,7 @@ app.add_middleware(
 # ─────────────────────────────────────────────
 # Lokální JSON databáze
 # ─────────────────────────────────────────────
-DB_PATH = os.path.join(os.path.dirname(__file__), "data.json")
+DB_PATH = os.getenv("DATA_PATH", os.path.join(os.path.dirname(__file__), "data.json"))
 
 def db_load() -> dict:
     if os.path.exists(DB_PATH):
