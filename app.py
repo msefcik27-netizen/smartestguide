@@ -1490,3 +1490,301 @@ def get_portal_link(hotel_id: str, request: Request):
     token = db["hotels"][hotel_id]["hotel_token"]
     base = get_base_url(request)
     return {"status": "ok", "token": token, "portal_url": f"{base}/hotel?token={token}"}
+
+# ─────────────────────────────────────────────
+# Firemní údaje (dodavatel na faktuře)
+# ─────────────────────────────────────────────
+class CompanySettingsRequest(BaseModel):
+    company_name: Optional[str] = None
+    company_ico: Optional[str] = None
+    company_dic: Optional[str] = None
+    company_email: Optional[str] = None
+    company_phone: Optional[str] = None
+    company_address: Optional[str] = None
+    company_city: Optional[str] = None
+    company_bank: Optional[str] = None
+    company_iban: Optional[str] = None
+
+@app.get("/api/settings/company")
+def get_company_settings():
+    s = db_get_settings()
+    return {
+        "company_name":    s.get("company_name", ""),
+        "company_ico":     s.get("company_ico", ""),
+        "company_dic":     s.get("company_dic", ""),
+        "company_email":   s.get("company_email", ""),
+        "company_phone":   s.get("company_phone", ""),
+        "company_address": s.get("company_address", ""),
+        "company_city":    s.get("company_city", ""),
+        "company_bank":    s.get("company_bank", ""),
+        "company_iban":    s.get("company_iban", ""),
+    }
+
+@app.post("/api/settings/company")
+def save_company_settings(req: CompanySettingsRequest):
+    db_save_settings(req.model_dump(exclude_none=True))
+    return {"status": "ok"}
+
+# ─────────────────────────────────────────────
+# Faktury
+# ─────────────────────────────────────────────
+@app.get("/api/invoices")
+def list_invoices():
+    db = db_load()
+    invoices = list(db.get("invoices", {}).values())
+    invoices.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return {"status": "ok", "invoices": invoices}
+
+@app.post("/api/hotels/{hotel_id}/invoices/generate")
+def generate_invoice(hotel_id: str):
+    db = db_load()
+    if hotel_id not in db["hotels"]:
+        raise HTTPException(404, "Hotel nenalezen")
+    hotel = db["hotels"][hotel_id]
+    if not hotel.get("subscription_active"):
+        raise HTTPException(400, "Hotel nemá aktivní předplatné")
+
+    beds = hotel.get("bed_count") or hotel.get("subscription_paid_beds") or 0
+    s = db_get_settings()
+    base_price = s.get("pricing_base", 300)
+    threshold  = s.get("pricing_threshold", 100)
+    per_bed    = s.get("pricing_per_bed", 3)
+    price = base_price if beds <= threshold else base_price + (beds - threshold) * per_bed
+
+    now = datetime.utcnow()
+    # Číslo faktury: SG-YYYYMM-XXXX
+    if "invoices" not in db:
+        db["invoices"] = {}
+    month_prefix = f"SG-{now.strftime('%Y%m')}-"
+    month_count  = sum(1 for inv in db["invoices"].values() if inv.get("invoice_number", "").startswith(month_prefix))
+    invoice_number = f"{month_prefix}{month_count + 1:04d}"
+
+    period_from = now.replace(day=1).date().isoformat()
+    # Konec období = poslední den měsíce
+    import calendar
+    last_day = calendar.monthrange(now.year, now.month)[1]
+    period_to = now.replace(day=last_day).date().isoformat()
+
+    inv_id = str(uuid.uuid4())
+    invoice = {
+        "id":             inv_id,
+        "invoice_number": invoice_number,
+        "hotel_id":       hotel_id,
+        "hotel_name":     hotel.get("name", ""),
+        "hotel_address":  hotel.get("address", ""),
+        "hotel_email":    hotel.get("email", ""),
+        "beds":           beds,
+        "amount_eur":     round(price, 2),
+        "amount_local":   round(price, 2),
+        "currency_code":  "EUR",
+        "currency_symbol": "€",
+        "period_from":    period_from,
+        "period_to":      period_to,
+        "status":         "issued",
+        "created_at":     now.isoformat(),
+        "updated_at":     now.isoformat(),
+    }
+    db["invoices"][inv_id] = invoice
+    db_save(db)
+    return {"status": "ok", "invoice": invoice}
+
+@app.patch("/api/invoices/{invoice_id}/status")
+def update_invoice_status(invoice_id: str, status: str):
+    db = db_load()
+    if "invoices" not in db or invoice_id not in db["invoices"]:
+        raise HTTPException(404, "Faktura nenalezena")
+    if status not in ("issued", "paid", "cancelled"):
+        raise HTTPException(400, "Neplatný stav — povoleno: issued, paid, cancelled")
+    db["invoices"][invoice_id]["status"] = status
+    db["invoices"][invoice_id]["updated_at"] = datetime.utcnow().isoformat()
+    if status == "paid":
+        db["invoices"][invoice_id]["paid_at"] = datetime.utcnow().isoformat()
+    db_save(db)
+    return {"status": "ok", "invoice": db["invoices"][invoice_id]}
+
+@app.get("/api/invoices/{invoice_id}/pdf")
+def download_invoice_pdf(invoice_id: str):
+    from io import BytesIO
+    db = db_load()
+    if "invoices" not in db or invoice_id not in db["invoices"]:
+        raise HTTPException(404, "Faktura nenalezena")
+    inv = db["invoices"][invoice_id]
+    s   = db_get_settings()
+
+    # Použij stejný PDF engine jako leták (reportlab)
+    try:
+        from reportlab.pdfgen import canvas as rl_canvas
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors
+        from reportlab.lib.units import mm
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.pdfbase import pdfmetrics
+
+        FONT, FONTB = "Helvetica", "Helvetica-Bold"
+        for rp, bp in [
+            ("C:/Windows/Fonts/arial.ttf",  "C:/Windows/Fonts/arialbd.ttf"),
+            ("C:/WINDOWS/Fonts/arial.ttf",  "C:/WINDOWS/Fonts/arialbd.ttf"),
+        ]:
+            if os.path.exists(rp) and os.path.exists(bp):
+                try:
+                    pdfmetrics.registerFont(TTFont("INV", rp))
+                    pdfmetrics.registerFont(TTFont("INVB", bp))
+                    FONT, FONTB = "INV", "INVB"
+                    break
+                except Exception:
+                    pass
+        if FONT == "Helvetica":
+            lib_r = os.path.join(BASE_DIR, "fonts", "LiberationSans-Regular.ttf")
+            lib_b = os.path.join(BASE_DIR, "fonts", "LiberationSans-Bold.ttf")
+            if os.path.exists(lib_r):
+                try:
+                    pdfmetrics.registerFont(TTFont("INV", lib_r))
+                    pdfmetrics.registerFont(TTFont("INVB", lib_b))
+                    FONT, FONTB = "INV", "INVB"
+                except Exception:
+                    pass
+
+        W, H = A4
+        buf = BytesIO()
+        c = rl_canvas.Canvas(buf, pagesize=A4)
+
+        PURPLE = colors.HexColor("#6c63ff")
+        TEAL   = colors.HexColor("#00d4aa")
+        DARK   = colors.HexColor("#1a1a2e")
+        MUTED  = colors.HexColor("#7a7fa8")
+        LIGHT  = colors.HexColor("#f5f5ff")
+
+        # Hlavička – fialový pruh
+        c.setFillColor(PURPLE)
+        c.rect(0, H - 60*mm, W, 60*mm, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont(FONTB, 22)
+        c.drawString(20*mm, H - 22*mm, "SmartestGuide")
+        c.setFont(FONT, 10)
+        c.drawString(20*mm, H - 30*mm, "smartestguide.com")
+        c.setFont(FONTB, 28)
+        c.drawRightString(W - 20*mm, H - 22*mm, "FAKTURA")
+        c.setFont(FONT, 11)
+        c.drawRightString(W - 20*mm, H - 31*mm, inv.get("invoice_number", ""))
+
+        # Stav faktury
+        status_colors = {"issued": TEAL, "paid": colors.HexColor("#2ecc87"), "cancelled": MUTED}
+        status_labels = {"issued": "VYSTAVENA", "paid": "ZAPLACENA", "cancelled": "STORNOVÁNA"}
+        sc = status_colors.get(inv.get("status","issued"), MUTED)
+        c.setFillColor(sc)
+        c.setFont(FONTB, 10)
+        c.drawRightString(W - 20*mm, H - 40*mm, status_labels.get(inv.get("status","issued"), ""))
+
+        y = H - 75*mm
+
+        # Dodavatel / Odběratel
+        def draw_block(title, lines, x, y):
+            c.setFillColor(MUTED)
+            c.setFont(FONT, 8)
+            c.drawString(x, y, title.upper())
+            y -= 5*mm
+            c.setFillColor(DARK)
+            for i, line in enumerate(lines):
+                if not line: continue
+                c.setFont(FONTB if i == 0 else FONT, 10)
+                c.drawString(x, y, line)
+                y -= 5*mm
+            return y
+
+        co_lines = [
+            s.get("company_name", "SmartestGuide"),
+            s.get("company_address", ""),
+            s.get("company_city", ""),
+            f"IČO: {s.get('company_ico','')}" if s.get("company_ico") else "",
+            s.get("company_email", ""),
+        ]
+        hotel_lines = [
+            inv.get("hotel_name", ""),
+            inv.get("hotel_address", ""),
+            inv.get("hotel_email", ""),
+        ]
+        draw_block("Dodavatel", co_lines, 20*mm, y)
+        draw_block("Odběratel", hotel_lines, W/2, y)
+
+        y -= 35*mm
+
+        # Řádkový separátor
+        c.setStrokeColor(colors.HexColor("#e0e0f0"))
+        c.line(20*mm, y, W - 20*mm, y)
+        y -= 8*mm
+
+        # Detaily faktury
+        rows = [
+            ("Číslo faktury",     inv.get("invoice_number", "")),
+            ("Datum vystavení",   inv.get("created_at","")[:10]),
+            ("Fakturační období", f"{inv.get('period_from','')} – {inv.get('period_to','')}"),
+            ("Počet lůžek",       str(inv.get("beds", ""))),
+        ]
+        if inv.get("paid_at"):
+            rows.append(("Datum úhrady", inv["paid_at"][:10]))
+
+        for label, value in rows:
+            c.setFillColor(MUTED)
+            c.setFont(FONT, 9)
+            c.drawString(20*mm, y, label)
+            c.setFillColor(DARK)
+            c.setFont(FONT, 10)
+            c.drawRightString(W - 20*mm, y, value)
+            y -= 6*mm
+
+        y -= 6*mm
+        c.line(20*mm, y, W - 20*mm, y)
+        y -= 10*mm
+
+        # Předmět fakturace
+        c.setFillColor(MUTED)
+        c.setFont(FONT, 9)
+        c.drawString(20*mm, y, "PŘEDMĚT FAKTURACE")
+        y -= 6*mm
+        c.setFillColor(DARK)
+        c.setFont(FONT, 10)
+        c.drawString(20*mm, y, "SmartestGuide – měsíční předplatné (AI concierge)")
+        c.drawRightString(W - 20*mm, y, f"{inv.get('amount_eur', 0)} EUR")
+        y -= 15*mm
+
+        # Celková částka – zvýrazněný box
+        c.setFillColor(LIGHT)
+        c.rect(20*mm, y - 15*mm, W - 40*mm, 22*mm, fill=1, stroke=0)
+        c.setFillColor(PURPLE)
+        c.setFont(FONTB, 18)
+        c.drawCentredString(W/2, y - 8*mm, f"{inv.get('amount_local', 0)} {inv.get('currency_symbol','€')}")
+        c.setFillColor(MUTED)
+        c.setFont(FONT, 9)
+        c.drawCentredString(W/2, y - 13*mm, "Celková částka k úhradě")
+        y -= 30*mm
+
+        # Platební údaje
+        if s.get("company_bank") or s.get("company_iban"):
+            c.setFillColor(DARK)
+            c.setFont(FONTB, 10)
+            c.drawString(20*mm, y, "Platební údaje:")
+            y -= 6*mm
+            c.setFont(FONT, 10)
+            if s.get("company_bank"):
+                c.drawString(20*mm, y, f"Číslo účtu: {s['company_bank']}")
+                y -= 5*mm
+            if s.get("company_iban"):
+                c.drawString(20*mm, y, f"IBAN: {s['company_iban']}")
+
+        # Patička
+        c.setFillColor(MUTED)
+        c.setFont(FONT, 8)
+        c.drawCentredString(W/2, 15*mm, f"Faktura vystavena systémem SmartestGuide · {s.get('company_email','support@smartestguide.com')}")
+
+        c.save()
+        pdf_bytes = buf.getvalue()
+
+    except ImportError:
+        raise HTTPException(500, "reportlab není nainstalován")
+
+    safe_num = inv.get("invoice_number", invoice_id).replace("/", "-")
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="faktura-{safe_num}.pdf"'}
+    )
