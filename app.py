@@ -727,6 +727,24 @@ def serve_hotel_portal():
     with open(html_path, "r", encoding="utf-8") as f:
         return f.read()
 
+@app.get("/landing", response_class=HTMLResponse)
+def serve_landing():
+    html_path = os.path.join(os.path.dirname(__file__), "landing.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        return f.read()
+
+@app.get("/success", response_class=HTMLResponse)
+def success_page(hotel_id: str = ""):
+    return """<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Platba úspěšná – SmartestGuide</title>
+<style>body{font-family:Inter,sans-serif;background:#0d0f1a;color:#e8eaf6;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}.box{background:#1e2135;border:1px solid #2a2f4a;border-radius:16px;padding:48px;text-align:center;max-width:480px}h1{font-size:28px;margin-bottom:12px;color:#2ecc87}p{color:#7a7fa8;line-height:1.6;margin-bottom:24px}a{display:inline-block;padding:12px 28px;background:#6c63ff;color:#fff;border-radius:8px;text-decoration:none;font-weight:600}</style>
+</head><body><div class="box">
+<div style="font-size:56px;margin-bottom:16px">🎉</div>
+<h1>Platba proběhla úspěšně!</h1>
+<p>Váš hotel byl zaregistrován. Brzy vám zašleme přístupový odkaz do hotelového portálu na email.</p>
+<a href="/landing">Zpět na hlavní stránku</a>
+</div></body></html>"""
+
 # Vrátí portal link pro existující hotel (+ vygeneruje token pokud chybí)
 @app.get("/api/hotels/{hotel_id}/portal-link")
 def get_portal_link(hotel_id: str, request: Request):
