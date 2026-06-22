@@ -315,23 +315,31 @@
         </p>
         <div class="form-group" style="margin-bottom:10px">
           <label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Stripe Secret Key</label>
-          <input type="password" id="stripe-key-input" placeholder="sk_test_..." style="margin-top:5px"/>
+          <div style="font-size:11px;color:var(--accent);margin-bottom:4px;margin-top:3px">
+            📍 Najdeš na: <a href="https://dashboard.stripe.com/test/apikeys" target="_blank" style="color:var(--accent)">dashboard.stripe.com/test/apikeys</a> → Reveal test key
+          </div>
+          <input type="password" id="stripe-key-input" placeholder="sk_test_..." style="margin-top:2px"/>
         </div>
         <div class="form-group" style="margin-bottom:14px">
           <label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Payment Link URL</label>
-          <input type="text" id="stripe-link-input" placeholder="https://buy.stripe.com/test_..." style="margin-top:5px"/>
+          <div style="font-size:11px;color:var(--accent);margin-bottom:4px;margin-top:3px">
+            📍 Najdeš na: <a href="https://dashboard.stripe.com/test/payment-links" target="_blank" style="color:var(--accent)">dashboard.stripe.com/test/payment-links</a> → zkopíruj aktivní link
+          </div>
+          <input type="text" id="stripe-link-input" placeholder="https://buy.stripe.com/test_..." style="margin-top:2px" value="https://buy.stripe.com/test_7sY6oA2sr7Zo3jq6zGa3u01"/>
         </div>
         <div class="form-group" style="margin-bottom:14px">
           <label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Webhook Secret (volitelné)</label>
-          <input type="password" id="stripe-webhook-input" placeholder="whsec_..." style="margin-top:5px"/>
+          <div style="font-size:11px;color:var(--accent);margin-bottom:4px;margin-top:3px">
+            📍 Najdeš na: <a href="https://dashboard.stripe.com/test/workbench/webhooks" target="_blank" style="color:var(--accent)">dashboard.stripe.com → Workbench → Webhooks</a> → empowering-finesse → Signing secret → 👁
+          </div>
+          <input type="password" id="stripe-webhook-input" placeholder="whsec_..." style="margin-top:2px"/>
         </div>
         <button class="btn btn-primary" onclick="saveStripeSettings()">Uložit Stripe nastavení</button>
         <div style="margin-top:16px;padding:12px 14px;background:var(--surface);border-radius:8px;font-size:12px;color:var(--muted);line-height:1.8">
-          <strong style="color:var(--text)">Jak nastavit webhook (pro automatickou aktivaci):</strong><br>
-          1. Stripe Dashboard → Developers → Webhooks → Add endpoint<br>
-          2. URL: <code style="color:var(--accent2)">http://tvoje-domena.cz/api/stripe/webhook</code><br>
-          3. Events: <code style="color:var(--accent2)">checkout.session.completed</code><br>
-          4. Zkopíruj Webhook signing secret → vlož výše
+          <strong style="color:var(--text)">Webhook URL pro Stripe:</strong><br>
+          <code style="color:var(--accent2)" id="webhook-url-display">načítám…</code>
+          <button onclick="navigator.clipboard.writeText(document.getElementById('webhook-url-display').textContent).then(()=>toast('Zkopírováno!'))" class="btn btn-secondary" style="font-size:11px;padding:3px 8px;margin-left:8px">📋 Kopírovat</button><br><br>
+          <strong style="color:var(--text)">Events pro webhook:</strong> <code style="color:var(--accent2)">checkout.session.completed</code>, <code style="color:var(--accent2)">customer.subscription.deleted</code>, <code style="color:var(--accent2)">invoice.payment_succeeded</code>
         </div>
       </div>
 
@@ -503,8 +511,10 @@ async function loadKeyStatus(){
     document.getElementById('delete-key-btn').disabled=!has;
     document.getElementById('settings-badge').style.display=has?'none':'inline-block';
     document.getElementById('api-key-banner').className=has?'':'show';
-    addLog(has?'ok':'warn',has?`API klíč nastaven (${d.api_key_preview})`:'API klíč chybí','settings');
-    // Zvýrazni API key pole pokud chybí
+    // Zobraz webhook URL
+    const whEl = document.getElementById('webhook-url-display');
+    if(whEl) whEl.textContent = window.location.origin + '/api/stripe/webhook';
+    // Zvýrazni API key pole pokud chybí v DB
     highlightMissing('api-key-input', !has, 'API klíč není nastaven – scraping nebude fungovat');
     // Stripe status
     const stripeOk=d.has_stripe_key&&d.stripe_payment_link;
@@ -515,9 +525,15 @@ async function loadKeyStatus(){
       document.getElementById('stripe-dot').className='key-dot '+(stripeOk?'ok':'missing');
       document.getElementById('stripe-status-text').textContent=stripeOk?`Stripe nastaven (${d.stripe_key_preview})`:'Stripe není nastaven';
       if(d.stripe_payment_link) document.getElementById('stripe-link-input').value=d.stripe_payment_link;
-      // Zvýrazni chybějící Stripe pole
+      else if(!document.getElementById('stripe-link-input').value) document.getElementById('stripe-link-input').value='https://buy.stripe.com/test_7sY6oA2sr7Zo3jq6zGa3u01';
+      // Červená jen pokud opravdu chybí v DB (ne jen prázdné input pole)
       highlightMissing('stripe-key-input', stripeKeyMissing, 'Secret Key chybí – vlož sk_test_... nebo sk_live_...');
       highlightMissing('stripe-link-input', stripeLinkMissing, 'Payment Link chybí – vlož URL z Stripe Dashboardu');
+      // Pokud je klíč uložen v DB, zobraz placeholder místo prázdného pole
+      if(d.has_stripe_key){
+        const skEl = document.getElementById('stripe-key-input');
+        if(skEl && !skEl.value) skEl.placeholder = '••••••• (uložen: '+d.stripe_key_preview+')';
+      }
     }
   }catch(e){addLog('error','Nelze načíst nastavení: '+e.message,'settings');}
 }
