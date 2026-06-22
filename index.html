@@ -47,7 +47,7 @@
     .stat-value{font-family:var(--font-head);font-size:28px;font-weight:700;line-height:1}
     .stat-value.accent{color:var(--accent)} .stat-value.green{color:var(--success)} .stat-value.teal{color:var(--accent2)}
 
-    /* Import data from */
+    /* Scrape */
     .scrape-box{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:28px;margin-bottom:28px}
     .scrape-box h2{font-family:var(--font-head);font-size:16px;font-weight:600;margin-bottom:6px}
     .scrape-box p{color:var(--muted);font-size:13px;margin-bottom:20px}
@@ -101,7 +101,7 @@
     .price-pill .amount{font-family:var(--font-head);font-size:22px;font-weight:700;color:var(--accent2)}
     .price-pill .note{font-size:11px;color:var(--muted);margin-top:2px}
 
-    /* Import data from result */
+    /* Scrape result */
     .result-preview{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-top:20px;display:none}
     .result-preview.show{display:block}
     .result-preview h3{font-family:var(--font-head);font-size:15px;margin-bottom:14px;color:var(--accent2)}
@@ -511,7 +511,7 @@ const ADMIN_LANGS = {
     scrape_h2:"Enter hotel website URL",
     scrape_p:"The system will automatically download the hotel website and extract information using AI.",
     scrape_url:"https://www.hotel-example.com",scrape_name:"Hotel name (optional)",
-    scrape_btn:"Import data from",
+    scrape_btn:"Doplnit data",
     hotels_title:"Hotels",hotels_sub:"profile management",hotels_add:"+ Add hotel",
     col_name:"Name / URL / ★",col_country:"Country / Continent",col_beds:"Beds / Price",
     col_status:"Status",col_actions:"Actions",
@@ -533,7 +533,7 @@ const ADMIN_LANGS = {
     scrape_h2:"Hotel-Website URL eingeben",
     scrape_p:"Das System lädt die Hotel-Website herunter und extrahiert Informationen mit KI.",
     scrape_url:"https://www.hotel-beispiel.de",scrape_name:"Hotelname (optional)",
-    scrape_btn:"Import data fromn",
+    scrape_btn:"Daten importieren",
     hotels_title:"Hotels",hotels_sub:"Profilverwaltung",hotels_add:"+ Hotel hinzufügen",
     col_name:"Name / URL / ★",col_country:"Land / Kontinent",col_beds:"Betten / Preis",
     col_status:"Status",col_actions:"Aktionen",
@@ -661,7 +661,7 @@ function setAdminLang(lang) {
   const hdr = document.querySelector('#page-hotels thead tr');
   if(hdr) hdr.innerHTML = `<th>${T.col_name}</th><th>${T.col_country}</th><th>${T.col_beds}</th><th>${T.col_status}</th><th>${T.col_actions}</th>`;
 
-  // Import data from stránka
+  // Scrape stránka
   const scrapeH2 = document.querySelector('#page-scrape .scrape-box h2');
   if(scrapeH2) scrapeH2.textContent = T.scrape_h2;
   const scrapeP = document.querySelector('#page-scrape .scrape-box p');
@@ -990,15 +990,15 @@ function showScrapedResult(data){
   const form=document.getElementById('result-form');
   form.innerHTML=fields.map(([key,label,type])=>{
     const val=esc(data[key]||'');const full=type==='textarea'?' full':'';
-    const inp=type==='textarea'?`<textarea id="rf-${key}" oninput="updateImport data fromd('${key}',this.value)">${val}</textarea>`
-      :`<input type="${type}" id="rf-${key}" value="${val}" oninput="updateImport data fromd('${key}',this.value${type==='number'?',true':''})">`;
+    const inp=type==='textarea'?`<textarea id="rf-${key}" oninput="updateScraped('${key}',this.value)">${val}</textarea>`
+      :`<input type="${type}" id="rf-${key}" value="${val}" oninput="updateScraped('${key}',this.value${type==='number'?',true':''})">`;
     return`<div class="form-group${full}"><label>${label}</label>${inp}</div>`;
   }).join('');
   if(data.amenities?.length)form.innerHTML+=`<div class="form-group full"><label>Vybavení</label><div class="tags">${data.amenities.map(a=>`<span class="tag">${esc(a)}</span>`).join('')}</div></div>`;
   document.getElementById('scrape-result').classList.add('show');
 }
 
-function updateImport data fromd(key,val,isNum=false){
+function updateScraped(key,val,isNum=false){
   if(scraped_data)scraped_data[key]=isNum?(parseInt(val)||null):val;
   if(key==='bed_count'){const b=parseInt(val)||0;document.getElementById('result-price').textContent=calcPriceNum(b)+' EUR';document.getElementById('result-beds-info').textContent=b?`${b} lůžek`:'Doplň počet lůžek';}
 }
