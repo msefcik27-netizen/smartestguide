@@ -418,7 +418,10 @@ async function loadHotel(){
   }catch(e){
     if(cached){
       hotelData=JSON.parse(cached);
-      document.getElementById('offline-banner').classList.add('show');
+      // Zobraz offline banner jen pokud jsme skutečně offline
+      if(!navigator.onLine){
+        document.getElementById('offline-banner').classList.add('show');
+      }
     }else{
       showError('Hotel nebyl nalezen nebo nemá aktivní předplatné.','😔');
       return;
