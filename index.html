@@ -171,7 +171,7 @@
       <button class="lang-sw-btn" onclick="setAdminLang('it')">IT</button>
     </div>
     <div class="nav-item active" onclick="showPage('dashboard')"><span class="nav-icon">📊</span> Dashboard</div>
-    <div class="nav-item" onclick="showPage('import data from')"><span class="nav-icon">🔍</span> Přidat hotel</div>
+    <div class="nav-item" onclick="showPage('scrape')"><span class="nav-icon">🔍</span> Přidat hotel</div>
     <div class="nav-item" onclick="showPage('hotels')"><span class="nav-icon">🏨</span> Hotely</div>
     <div class="nav-item" onclick="showPage('pricing')"><span class="nav-icon">💶</span> Ceník</div>
     <div class="nav-item" onclick="showPage('settings')"><span class="nav-icon">⚙️</span> Nastavení<span class="nav-badge" id="settings-badge">!</span></div>
@@ -217,7 +217,7 @@
     </div>
 
     <!-- SCRAPE -->
-    <div class="page" id="page-import data from">
+    <div class="page" id="page-scrape">
       <div class="topbar"><div class="page-title">Přidat hotel <small>data import webu</small></div></div>
       <div class="import data from-box">
         <h2>Zadat URL webu hotelu</h2>
@@ -240,7 +240,7 @@
         <div class="form-grid" id="result-form"></div>
         <div style="margin-top:20px;display:flex;gap:12px">
           <button class="btn btn-primary" onclick="saveImport data fromd()">💾 Uložit hotel</button>
-          <button class="btn btn-secondary" onclick="clearImport data from()">✕ Zahodit</button>
+          <button class="btn btn-secondary" onclick="clearScrape()">✕ Zahodit</button>
         </div>
       </div>
     </div>
@@ -249,7 +249,7 @@
     <div class="page" id="page-hotels">
       <div class="topbar">
         <div class="page-title">Hotely <small>správa profilů</small></div>
-        <button class="btn btn-primary" onclick="showPage('import data from')">+ Přidat hotel</button>
+        <button class="btn btn-primary" onclick="showPage('scrape')">+ Přidat hotel</button>
       </div>
       <div class="card">
         <div class="table-wrap"><table><thead><tr><th>Název / URL / ★</th><th>Země / Světadíl</th><th>Lůžka / Cena</th><th>Stav</th><th>Akce</th></tr></thead><tbody id="hotels-tbody"></tbody></table></div>
@@ -626,7 +626,7 @@ function setAdminLang(lang) {
 
   // Nav položky
   const navItems = document.querySelectorAll('.nav-item');
-  const navKeys = ['dashboard','import data from','hotels','pricing','settings','billing','log'];
+  const navKeys = ['dashboard','scrape','hotels','pricing','settings','billing','log'];
   navItems.forEach((n,i) => {
     if(navKeys[i]) {
       const icon = n.querySelector('.nav-icon');
@@ -643,7 +643,7 @@ function setAdminLang(lang) {
     if(el) el.innerHTML = title + (sub ? ` <small>${sub}</small>` : '');
   };
   setTitle('dashboard', T.dash_title, T.dash_sub);
-  setTitle('import data from', T.import data from_title, T.import data from_sub);
+  setTitle('scrape', T.import data from_title, T.import data from_sub);
   setTitle('hotels', T.hotels_title, T.hotels_sub);
   setTitle('settings', T.settings_title, T.settings_sub);
   setTitle('billing', T.billing_title, T.billing_sub);
@@ -662,9 +662,9 @@ function setAdminLang(lang) {
   if(hdr) hdr.innerHTML = `<th>${T.col_name}</th><th>${T.col_country}</th><th>${T.col_beds}</th><th>${T.col_status}</th><th>${T.col_actions}</th>`;
 
   // Import data from stránka
-  const import data fromH2 = document.querySelector('#page-import data from .import data from-box h2');
+  const import data fromH2 = document.querySelector('#page-scrape .import data from-box h2');
   if(import data fromH2) import data fromH2.textContent = T.import data from_h2;
-  const import data fromP = document.querySelector('#page-import data from .import data from-box p');
+  const import data fromP = document.querySelector('#page-scrape .import data from-box p');
   if(import data fromP) import data fromP.textContent = T.import data from_p;
   const import data fromUrl = document.getElementById('import data from-url');
   if(import data fromUrl) import data fromUrl.placeholder = T.import data from_url;
@@ -709,7 +709,7 @@ function exportLog(){
 }
 
 // ══ NAV ══════════════════════════════════════
-const PAGES=['dashboard','import data from','hotels','pricing','settings','billing','log'];
+const PAGES=['dashboard','scrape','hotels','pricing','settings','billing','log'];
 function showPage(name){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -1011,11 +1011,11 @@ async function saveImport data fromd(){
     if(!r.ok)throw new Error('HTTP '+r.status);
     const d=await r.json();
     addLog('ok',`Hotel uložen: ${d.hotel?.name}`,'hotels',`ID: ${d.hotel?.id}`);
-    toast('🏨 Hotel uložen!');clearImport data from();showPage('hotels');
+    toast('🏨 Hotel uložen!');clearScrape();showPage('hotels');
   }catch(e){addLog('error','Chyba ukládání: '+e.message,'hotels');toast('Chyba: '+e.message,'err');}
 }
 
-function clearImport data from(){import data fromd_data=null;document.getElementById('import data from-result').classList.remove('show');document.getElementById('import data from-url').value='';document.getElementById('import data from-name').value='';}
+function clearScrape(){import data fromd_data=null;document.getElementById('import data from-result').classList.remove('show');document.getElementById('import data from-url').value='';document.getElementById('import data from-name').value='';}
 
 // ══ PANEL ════════════════════════════════════
 function openPanel(id){
