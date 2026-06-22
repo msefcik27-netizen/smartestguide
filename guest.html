@@ -903,7 +903,8 @@ window.addEventListener('beforeinstallprompt', e => {
   }
 });
 
-document.getElementById('pwa-install-btn').addEventListener('click', async () => {
+const _pwaInstallBtn = document.getElementById('pwa-install-btn');
+if(_pwaInstallBtn) _pwaInstallBtn.addEventListener('click', async () => {
   if(!deferredPrompt) return;
   deferredPrompt.prompt();
   const result = await deferredPrompt.userChoice;
