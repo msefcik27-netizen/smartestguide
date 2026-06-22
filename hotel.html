@@ -109,6 +109,8 @@
   </div>
 </div>
 
+<div class="container" id="completeness-banner" style="max-width:700px;margin:16px auto 0"></div>
+
 <div class="container" id="main-container">
   <div class="page-msg"><div class="loader"></div><p style="margin-top:16px;color:var(--muted)">Načítám data hotelu…</p></div>
 </div>
@@ -204,6 +206,7 @@ async function loadHotel() {
     const d = await r.json();
     hotelData = d.hotel;
     renderPortal();
+    loadCompleteness();
     loadPaymentSection();
     loadInvoicesSection();
     loadAnalytics();
@@ -215,6 +218,55 @@ async function loadHotel() {
         <p>${e.message === 'Neplatný token' ? 'Tento přístupový odkaz není platný nebo byl zrušen.' : 'Nelze se připojit k serveru. Ujisti se, že aplikace běží.'}</p>
       </div>`;
   }
+}
+
+async function loadCompleteness() {
+  try {
+    const r = await fetch(`${API}/api/hotel-portal/completeness?token=${token}`);
+    if (!r.ok) return;
+    const d = await r.json();
+    renderCompleteness(d);
+  } catch(e) {}
+}
+
+function renderCompleteness(d) {
+  const el = document.getElementById('completeness-banner');
+  if (!el) return;
+  const score = d.score || 0;
+  const color = score >= 80 ? '#2ecc87' : score >= 50 ? '#ffaa33' : '#ff4f6a';
+  const emoji = score >= 80 ? '🟢' : score >= 50 ? '🟡' : '🔴';
+  const missingReq = d.missing_required || [];
+  const missingBonus = d.missing_bonus || [];
+
+  let motivText = '';
+  if (score < 80) {
+    motivText = `<div style="margin-top:12px;padding:12px 14px;background:rgba(255,170,51,.08);border:1px solid rgba(255,170,51,.3);border-radius:8px;font-size:13px">
+      <strong style="color:var(--warn)">⚠️ Profil není kompletní – hosté mohou dostávat neúplné odpovědi!</strong>
+      ${missingReq.length ? `<div style="margin-top:8px;color:var(--muted)">Chybí povinná pole: <strong style="color:var(--text)">${missingReq.join(', ')}</strong></div>` : ''}
+    </div>`;
+  } else if (missingBonus.length) {
+    motivText = `<div style="margin-top:12px;padding:12px 14px;background:rgba(0,212,170,.08);border:1px solid rgba(0,212,170,.2);border-radius:8px;font-size:13px;color:var(--muted)">
+      💡 Tip: Doplňte <strong style="color:var(--text)">${missingBonus.slice(0,3).join(', ')}</strong> pro ještě lepší odpovědi Alexe.
+    </div>`;
+  } else {
+    motivText = `<div style="margin-top:12px;font-size:13px;color:var(--success)">✅ Skvělé! Profil je kompletně vyplněn.</div>`;
+  }
+
+  el.innerHTML = `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:14px;font-weight:600">${emoji} Vyplněnost profilu hotelu</div>
+        <div style="font-family:var(--font-head);font-size:24px;font-weight:700;color:${color}">${score}%</div>
+      </div>
+      <div style="background:var(--border);border-radius:6px;height:10px;overflow:hidden">
+        <div style="background:${color};height:100%;border-radius:6px;width:${score}%;transition:width .6s ease"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--muted)">
+        <span>Základní údaje: ${d.filled_required}/${d.total_required}</span>
+        <span>Bonusové údaje: ${d.filled_bonus}/${d.total_bonus}</span>
+      </div>
+      ${motivText}
+    </div>`;
 }
 
 // ── Render ────────────────────────────────────
