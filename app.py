@@ -4,7 +4,7 @@ Spusť: python -m uvicorn app:app --reload
 Nebo použij SPUSTIT.bat
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -606,8 +606,6 @@ def success_page(hotel_id: str = ""):
 # ─────────────────────────────────────────────
 # Stripe – platby a webhook
 # ─────────────────────────────────────────────
-from fastapi import Request
-
 @app.get("/api/stripe/checkout/{hotel_id}")
 def stripe_checkout(hotel_id: str):
     """Vrátí Stripe payment link s prefilled hotel_id v metadata přes client_reference_id."""
