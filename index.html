@@ -246,7 +246,7 @@
         <button class="btn btn-primary" onclick="showPage('scrape')">+ Přidat hotel</button>
       </div>
       <div class="card">
-        <div class="table-wrap"><table><thead><tr><th>Název / URL</th><th>★</th><th>Země</th><th>Světadíl</th><th>Lůžka</th><th>Cena</th><th>Stav</th><th>Akce</th></tr></thead><tbody id="hotels-tbody"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Název / URL</th><th>Země / Světadíl</th><th>Lůžka / Cena</th><th>Stav</th><th>Předplatné</th><th>Akce</th></tr></thead><tbody id="hotels-tbody"></tbody></table></div>
       </div>
     </div>
 
@@ -679,50 +679,59 @@ function continentHtml(h){
 
 function renderHotelsTable(){
   const tb=document.getElementById('hotels-tbody');
-  if(!all_hotels.length){tb.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Žádné hotely. <a href="#" onclick="showPage(\'scrape\')" style="color:var(--accent)">Přidej první →</a></td></tr>';return;}
-  tb.innerHTML=all_hotels.map(h=>`<tr>
-    <td style="font-size:12px">
-      <strong>${esc(trunc(h.name||'Bez názvu',22))}</strong><br>
-      <a href="${esc(h.url||h.source_url||'')}" target="_blank" style="color:var(--accent);text-decoration:none;font-size:10px">${esc(trunc(h.url||h.source_url||'',28))}</a>
+  if(!all_hotels.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Žádné hotely. <a href="#" onclick="showPage(\'scrape\')" style="color:var(--accent)">Přidej první →</a></td></tr>';return;}
+  tb.innerHTML=all_hotels.map(h=>{
+    // Trial badge
+    let trialHtml='';
+    if(h.subscription_start){
+      const diff=Math.ceil((new Date(h.subscription_start).getTime()+14*24*60*60*1000-Date.now())/(24*60*60*1000));
+      if(diff>0&&diff<=14) trialHtml=`<span style="display:block;margin-top:3px;font-size:10px;color:var(--warn)">🎁 Trial: ${diff} dní</span>`;
+      else if(diff<=0&&diff>-3) trialHtml=`<span style="display:block;margin-top:3px;font-size:10px;color:var(--danger)">⚠️ Trial vypršel</span>`;
+    }
+    return`<tr>
+    <!-- NÁZEV / URL / hvězdy -->
+    <td style="font-size:12px;min-width:160px">
+      <strong>${esc(trunc(h.name||'Bez názvu',24))}</strong><br>
+      <a href="${esc(h.url||h.source_url||'')}" target="_blank" style="color:var(--accent);text-decoration:none;font-size:10px">${esc(trunc(h.url||h.source_url||'',30))}</a><br>
+      <span style="font-size:12px">${starsHtml(h.star_rating)}</span>
     </td>
-    <td style="white-space:nowrap;font-size:12px">${starsHtml(h.star_rating)}</td>
-    <td style="font-size:11px">${countryHtml(h)}</td>
-    <td style="font-size:11px">${continentHtml(h)}</td>
-    <td style="font-size:12px">${h.bed_count||'<span style="color:var(--muted)">–</span>'}</td>
-    <td style="font-size:12px;white-space:nowrap">${calcPriceNum(h.bed_count||0)} €</td>
-    <td>
+    <!-- ZEMĚ / SVĚTADÍL -->
+    <td style="font-size:11px;min-width:110px">
+      ${countryHtml(h)}<br>
+      <span style="margin-top:3px;display:block">${continentHtml(h)}</span>
+    </td>
+    <!-- LŮŽKA / CENA -->
+    <td style="font-size:12px;white-space:nowrap;min-width:80px">
+      <span style="font-weight:600">${h.bed_count||'<span style="color:var(--muted)">–</span>'}</span> lůžek<br>
+      <span style="color:var(--accent2);font-weight:600">${calcPriceNum(h.bed_count||0)} €</span>
+    </td>
+    <!-- STAV -->
+    <td style="min-width:90px">
       <span class="badge ${h.subscription_active?'badge-green':'badge-gray'}" style="cursor:pointer;font-size:10px" onclick="toggleSubscription('${h.id}',${!h.subscription_active})" title="Klikni pro změnu">${h.subscription_active?'✓ Aktivní':'○ Neaktivní'}</span>
-      ${(()=>{
-        if(!h.subscription_start) return '';
-        const start = new Date(h.subscription_start);
-        const trialEnd = new Date(start.getTime() + 14*24*60*60*1000);
-        const now = new Date();
-        const diff = Math.ceil((trialEnd - now) / (24*60*60*1000));
-        if(diff > 0 && diff <= 14){
-          return '<span style="display:block;margin-top:3px;font-size:10px;color:var(--warn)">🎁 Trial: ' + diff + ' dní</span>';
-        } else if(diff <= 0 && diff > -3){
-          return '<span style="display:block;margin-top:3px;font-size:10px;color:var(--danger)">⚠️ Trial vypršel</span>';
-        }
-        return '';
-      })()}
-      <span style="display:block;margin-top:4px;font-size:10px;color:${h.origin==='automatic'?'var(--accent2)':'var(--muted)'}">${h.origin==='automatic'?'🤖 Auto':'✋ Ruční'}</span>
+      ${trialHtml}
+    </td>
+    <!-- PŘEDPLATNÉ / ORIGIN / COMPLETENESS -->
+    <td style="min-width:90px">
+      <span style="display:block;font-size:10px;color:${h.origin==='automatic'?'var(--accent2)':'var(--muted)'}">${h.origin==='automatic'?'🤖 Auto':'✋ Ruční'}</span>
       <span id="comp-${h.id}" style="display:block;margin-top:3px;font-size:10px;color:var(--muted)">⏳</span>
     </td>
+    <!-- AKCE -->
     <td>
       <div style="display:flex;flex-direction:column;gap:4px">
-        <div style="display:flex;gap:4px">
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
           <button class="btn btn-primary" style="padding:4px 8px;font-size:10px;background:rgba(108,99,255,.2);color:var(--accent);border:1px solid rgba(108,99,255,.4)" onclick="openEdit('${h.id}')">✏ Editovat</button>
           <button class="btn btn-secondary" style="padding:4px 8px;font-size:10px" onclick="showQrPopup('${h.id}','${esc(h.name||'')}')">📱 QR kód</button>
           <button class="btn btn-secondary" style="padding:4px 8px;font-size:10px" onclick="openPanel('${h.id}')">ℹ Detail</button>
         </div>
-        <div style="display:flex;gap:4px">
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
           <button class="btn btn-secondary" style="padding:4px 8px;font-size:10px;border-color:rgba(0,212,170,.4);color:var(--accent2)" onclick="showPortalLink('${h.id}','${esc(h.name||'')}')">🔗 Portál</button>
           <button class="btn btn-secondary" style="padding:4px 8px;font-size:10px;border-color:rgba(46,204,135,.4);color:var(--success)" onclick="downloadFlyer('${h.id}')">📄 Leták</button>
           <button class="btn btn-secondary" style="padding:4px 8px;font-size:10px;border-color:rgba(255,170,51,.4);color:var(--warn)" onclick="sendReminder('${h.id}','${esc(h.name||'')}')">📧 Reminder</button>
           <button class="btn btn-danger" style="padding:4px 8px;font-size:10px" onclick="deleteHotel('${h.id}')">✕ Smazat</button>
         </div>
       </div>
-    </td></tr>`).join('');
+    </td></tr>`;
+  }).join('');
 }
 
 function renderRecentTable(){

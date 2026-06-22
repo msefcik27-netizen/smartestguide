@@ -4,7 +4,7 @@ Spusť: python -m uvicorn app:app --reload
 Nebo použij SPUSTIT.bat
 """
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -405,7 +405,7 @@ def hotel_portal_cancel(token: str):
     return {"status": "ok", "hotel": safe}
 
 @app.post("/api/hotels/{hotel_id}/generate-token")
-def generate_token(hotel_id: str, request: Request):
+def generate_token(hotel_id: str):
     db = db_load()
     if hotel_id not in db["hotels"]:
         raise HTTPException(404, "Hotel nenalezen")
@@ -413,8 +413,7 @@ def generate_token(hotel_id: str, request: Request):
         db["hotels"][hotel_id]["hotel_token"] = str(uuid.uuid4()).replace("-", "")
         db_save(db)
     token = db["hotels"][hotel_id]["hotel_token"]
-    base = get_base_url(request)
-    return {"status": "ok", "token": token, "portal_url": f"{base}/hotel?token={token}"}
+    return {"status": "ok", "token": token, "portal_url": f"http://localhost:8000/hotel?token={token}"}
 
 @app.get("/api/hotels")
 def list_hotels():
@@ -452,24 +451,10 @@ def delete_hotel(hotel_id: str):
     return {"status": "ok"}
 
 # ─────────────────────────────────────────────
-# Helper – detekce base URL (lokál i Railway)
-# ─────────────────────────────────────────────
-def get_base_url(request: Request) -> str:
-    """Vrátí base URL aplikace – funguje lokálně i na Railway/produkci."""
-    # Priorita: env proměnná BASE_URL (nastav na Railway jako environment variable)
-    base_url_env = os.getenv("BASE_URL", "").strip().rstrip("/")
-    if base_url_env:
-        return base_url_env
-    # Fallback: detekce z requestu (scheme + host)
-    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
-    host = request.headers.get("x-forwarded-host", request.headers.get("host", "localhost:8000"))
-    return f"{scheme}://{host}"
-
-# ─────────────────────────────────────────────
 # QR kód
 # ─────────────────────────────────────────────
 @app.get("/api/hotels/{hotel_id}/qr")
-def generate_qr(hotel_id: str, request: Request):
+def generate_qr(hotel_id: str):
     try:
         import qrcode
         from io import BytesIO
@@ -481,8 +466,7 @@ def generate_qr(hotel_id: str, request: Request):
     if not hotel:
         raise HTTPException(404, "Hotel nenalezen")
 
-    base = get_base_url(request)
-    guest_url = f"{base}/guest/{hotel_id}"
+    guest_url = f"http://localhost:8000/guest/{hotel_id}"
     qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=10, border=4)
     qr.add_data(guest_url)
     qr.make(fit=True)
@@ -503,8 +487,127 @@ def pricing(beds: int):
             "note": "Zaváděcí cena – při objednání v prvních 3 měsících zůstane zachována"}
 
 # ─────────────────────────────────────────────
+# Registrace z landing page + Stripe Checkout
+# ─────────────────────────────────────────────
+class RegistrationRequest(BaseModel):
+    hotel_name: str
+    hotel_url: Optional[str] = None
+    contact_name: str
+    contact_email: str
+    contact_phone: Optional[str] = None
+    bed_count: Optional[int] = None
+
+@app.post("/api/register")
+async def register_hotel(req: RegistrationRequest, request: Request):
+    """
+    Registrace hotelu z landing page:
+    1. Vytvoří hotel v DB (neaktivní)
+    2. Vytvoří Stripe Checkout Session s client_reference_id = hotel_id
+    3. Vrátí URL pro přesměrování na platbu
+    """
+    s = db_get_settings()
+    stripe_key = s.get("stripe_secret_key", "")
+    if not stripe_key:
+        raise HTTPException(400, "Stripe není nastaven")
+
+    # 1. Vytvoř hotel v DB
+    db = db_load()
+    hid = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat()
+    hotel_token = str(uuid.uuid4()).replace("-", "")
+    beds = req.bed_count or 0
+    price = 300 if beds <= 100 else 300 + (beds - 100) * 3
+
+    hotel = {
+        "id": hid,
+        "created_at": now,
+        "updated_at": now,
+        "qr_code_id": str(uuid.uuid4()),
+        "hotel_token": hotel_token,
+        "subscription_active": False,
+        "origin": "automatic",
+        "origin_source": "landing_page",
+        "name": req.hotel_name,
+        "url": req.hotel_url or "",
+        "source_url": req.hotel_url or "",
+        "email": req.contact_email,
+        "phone": req.contact_phone or "",
+        "bed_count": beds,
+        "contact_name": req.contact_name,
+    }
+    db["hotels"][hid] = hotel
+    db_save(db)
+
+    # 2. Vytvoř Stripe Checkout Session přes API
+    base = get_base_url(request)
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                "https://api.stripe.com/v1/checkout/sessions",
+                headers={
+                    "Authorization": f"Bearer {stripe_key}",
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                data={
+                    "mode": "subscription",
+                    "client_reference_id": hid,
+                    "customer_email": req.contact_email,
+                    "success_url": f"{base}/success?hotel_id={hid}",
+                    "cancel_url": f"{base}/landing",
+                    "line_items[0][price_data][currency]": "eur",
+                    "line_items[0][price_data][product_data][name]": f"SmartestGuide – {req.hotel_name}",
+                    "line_items[0][price_data][product_data][description]": f"AI concierge pro {beds} lůžek",
+                    "line_items[0][price_data][recurring][interval]": "month",
+                    "line_items[0][price_data][unit_amount]": str(price * 100),
+                    "line_items[0][quantity]": "1",
+                    "metadata[hotel_id]": hid,
+                    "metadata[hotel_name]": req.hotel_name,
+                },
+                timeout=30.0,
+            )
+        if r.status_code != 200:
+            raise ValueError(f"Stripe error: {r.text[:200]}")
+        session = r.json()
+        checkout_url = session.get("url")
+        if not checkout_url:
+            raise ValueError("Stripe nevrátil checkout URL")
+
+        return {"status": "ok", "checkout_url": checkout_url, "hotel_id": hid}
+
+    except Exception as e:
+        # Pokud Stripe selže, smaž hotel z DB
+        db = db_load()
+        db["hotels"].pop(hid, None)
+        db_save(db)
+        raise HTTPException(500, f"Chyba při vytváření platby: {str(e)}")
+
+# ─────────────────────────────────────────────
+# Success page po platbě
+# ─────────────────────────────────────────────
+@app.get("/success", response_class=HTMLResponse)
+def success_page(hotel_id: str = ""):
+    return """<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>Platba úspěšná – SmartestGuide</title>
+<style>
+  body{font-family:Inter,sans-serif;background:#0d0f1a;color:#e8eaf6;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
+  .box{background:#1e2135;border:1px solid #2a2f4a;border-radius:16px;padding:48px;text-align:center;max-width:480px}
+  h1{font-size:28px;margin-bottom:12px;color:#2ecc87}
+  p{color:#7a7fa8;line-height:1.6;margin-bottom:24px}
+  a{display:inline-block;padding:12px 28px;background:#6c63ff;color:#fff;border-radius:8px;text-decoration:none;font-weight:600}
+</style></head>
+<body><div class="box">
+  <div style="font-size:56px;margin-bottom:16px">🎉</div>
+  <h1>Platba proběhla úspěšně!</h1>
+  <p>Váš hotel byl zaregistrován. Brzy vám zašleme přístupový odkaz do hotelového portálu na email.</p>
+  <a href="/landing">Zpět na hlavní stránku</a>
+</div></body></html>"""
+
+# ─────────────────────────────────────────────
 # Stripe – platby a webhook
 # ─────────────────────────────────────────────
+from fastapi import Request
+
 @app.get("/api/stripe/checkout/{hotel_id}")
 def stripe_checkout(hotel_id: str):
     """Vrátí Stripe payment link s prefilled hotel_id v metadata přes client_reference_id."""
@@ -613,15 +716,9 @@ def serve_hotel_portal():
     with open(html_path, "r", encoding="utf-8") as f:
         return f.read()
 
-@app.get("/landing", response_class=HTMLResponse)
-def serve_landing():
-    html_path = os.path.join(os.path.dirname(__file__), "landing.html")
-    with open(html_path, "r", encoding="utf-8") as f:
-        return f.read()
-
 # Vrátí portal link pro existující hotel (+ vygeneruje token pokud chybí)
 @app.get("/api/hotels/{hotel_id}/portal-link")
-def get_portal_link(hotel_id: str, request: Request):
+def get_portal_link(hotel_id: str):
     db = db_load()
     if hotel_id not in db["hotels"]:
         raise HTTPException(404, "Hotel nenalezen")
@@ -629,5 +726,4 @@ def get_portal_link(hotel_id: str, request: Request):
         db["hotels"][hotel_id]["hotel_token"] = str(uuid.uuid4()).replace("-", "")
         db_save(db)
     token = db["hotels"][hotel_id]["hotel_token"]
-    base = get_base_url(request)
-    return {"status": "ok", "token": token, "portal_url": f"{base}/hotel?token={token}"}
+    return {"status": "ok", "token": token, "portal_url": f"http://localhost:8000/hotel?token={token}"}
