@@ -613,6 +613,12 @@ def serve_hotel_portal():
     with open(html_path, "r", encoding="utf-8") as f:
         return f.read()
 
+@app.get("/landing", response_class=HTMLResponse)
+def serve_landing():
+    html_path = os.path.join(os.path.dirname(__file__), "landing.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        return f.read()
+
 # Vrátí portal link pro existující hotel (+ vygeneruje token pokud chybí)
 @app.get("/api/hotels/{hotel_id}/portal-link")
 def get_portal_link(hotel_id: str, request: Request):
