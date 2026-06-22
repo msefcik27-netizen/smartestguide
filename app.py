@@ -694,7 +694,7 @@ def success_page(hotel_id: str = "", request: Request = None):
       var countdown = 5; var el = document.getElementById("countdown"); var interval = setInterval(function(){{ countdown--; el.textContent = countdown; if(countdown <= 0){{ clearInterval(interval); window.location.href = "/landing"; }} }}, 1000);
     </script>"""
 
-    portal_btn = f'<a href="{portal_url}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#6c63ff,#00d4aa);color:#fff;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;margin-bottom:12px">→ Přejít do hotelového portálu</a><br>' if portal_url else ''
+    portal_btn = ''
 
     countdown_html = '<p style="font-size:13px;color:#7a7fa8;margin-top:8px">Automatické přesměrování za <span id="countdown">5</span> sekund…</p>'
 
@@ -719,7 +719,7 @@ def success_page(hotel_id: str = "", request: Request = None):
 <div class="box">
   <div style="font-size:60px;margin-bottom:20px">🎉</div>
   <h1>Platba proběhla úspěšně!</h1>
-  <p style="color:#7a7fa8;font-size:15px;line-height:1.7;margin-bottom:20px">Váš hotel byl zaregistrován v systému SmartestGuide. Nyní doplňte údaje o hotelu v portálu.</p>
+  <p style="color:#7a7fa8;font-size:15px;line-height:1.7;margin-bottom:20px">Váš hotel byl zaregistrován. Během několika minut vám zašleme email s přístupovým odkazem do hotelového portálu.</p>
 
   <div class="steps">
     <div class="step done"><span class="icon">✅</span> Registrace dokončena</div>
