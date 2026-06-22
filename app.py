@@ -1054,15 +1054,16 @@ def send_reminder(hotel_id: str):
 # Leták PDF
 # ─────────────────────────────────────────────
 @app.get("/api/hotels/{hotel_id}/flyer")
-def download_flyer(hotel_id: str):
+def download_flyer(hotel_id: str, request: Request):
+    from fastapi.responses import StreamingResponse
     db = db_load()
     hotel = db["hotels"].get(hotel_id)
     if not hotel:
         raise HTTPException(404, "Hotel nenalezen")
-    pdf_bytes = generate_flyer_pdf(hotel, get_base_url())
+    base = get_base_url(request)
+    pdf_bytes = generate_flyer_pdf(hotel, base)
     import unicodedata, re
     raw_name = hotel.get("name","hotel")
-    # Odstraň diakritiku pro bezpečný HTTP header
     safe_name = unicodedata.normalize("NFKD", raw_name).encode("ascii","ignore").decode("ascii")
     safe_name = re.sub(r"[^a-zA-Z0-9-]", "-", safe_name).strip("-") or "hotel"
     fname = "letak-" + safe_name + ".pdf"
