@@ -489,6 +489,32 @@ def hotel_portal_cancel(token: str):
     safe = {k: v for k, v in db["hotels"][h["id"]].items() if k != "hotel_token"}
     return {"status": "ok", "hotel": safe}
 
+@app.get("/api/hotel-portal/invoices")
+def hotel_portal_invoices(token: str):
+    """Vrátí faktury pro hotel portál."""
+    h = find_hotel_by_token(token)
+    if not h:
+        raise HTTPException(403, "Neplatny token")
+    db = db_load()
+    invoices = [inv for inv in db.get("invoices", {}).values()
+                if inv.get("hotel_id") == h["id"]]
+    invoices.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return {"status": "ok", "invoices": invoices}
+
+@app.get("/api/hotel-portal/analytics")
+def hotel_portal_analytics(token: str):
+    """Vrátí analytics pro hotel portál."""
+    h = find_hotel_by_token(token)
+    if not h:
+        raise HTTPException(403, "Neplatny token")
+    db = db_load()
+    analytics = db.get("analytics", {}).get(h["id"], {
+        "total": 0,
+        "topics": {},
+        "last_chat": None
+    })
+    return {"status": "ok", "analytics": analytics}
+
 @app.post("/api/hotels/{hotel_id}/generate-token")
 def generate_token(hotel_id: str, request: Request):
     db = db_load()
