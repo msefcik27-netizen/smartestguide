@@ -362,7 +362,67 @@ def find_hotel_by_token(token: str):
             return h
     return None
 
-@app.get("/api/hotel-portal/me")
+@app.get("/api/hotels/{hotel_id}/completeness")
+def hotel_completeness(hotel_id: str):
+    """Vrátí skóre vyplněnosti profilu hotelu."""
+    db = db_load()
+    h = db["hotels"].get(hotel_id)
+    if not h:
+        raise HTTPException(404, "Hotel nenalezen")
+
+    # Povinná pole (80% váha)
+    required = [
+        ("name", "Název hotelu"),
+        ("address", "Adresa"),
+        ("phone", "Telefon"),
+        ("email", "E-mail"),
+        ("bed_count", "Počet lůžek"),
+        ("checkin_time", "Check-in čas"),
+        ("checkout_time", "Check-out čas"),
+        ("description", "Popis hotelu"),
+    ]
+    # Bonusová pole (20% váha)
+    bonus = [
+        ("breakfast_hours", "Hodiny snídaně"),
+        ("dinner_hours", "Hodiny večeře"),
+        ("restaurant_name", "Název restaurace"),
+        ("parking_info", "Parkování"),
+        ("wellness_info", "Wellness/Spa"),
+        ("whatsapp_number", "WhatsApp"),
+        ("nearby_places", "Místa v okolí"),
+        ("amenities", "Vybavení"),
+    ]
+
+    filled_req = sum(1 for k, _ in required if h.get(k))
+    filled_bon = sum(1 for k, _ in bonus if h.get(k))
+
+    req_score = round((filled_req / len(required)) * 80)
+    bon_score = round((filled_bon / len(bonus)) * 20)
+    total = req_score + bon_score
+
+    missing_req = [label for k, label in required if not h.get(k)]
+    missing_bon = [label for k, label in bonus if not h.get(k)]
+
+    return {
+        "score": total,
+        "required_score": req_score,
+        "bonus_score": bon_score,
+        "filled_required": filled_req,
+        "total_required": len(required),
+        "filled_bonus": filled_bon,
+        "total_bonus": len(bonus),
+        "missing": missing_req + missing_bon,
+        "missing_required": missing_req,
+        "missing_bonus": missing_bon,
+    }
+
+@app.get("/api/hotel-portal/completeness")
+def portal_completeness(token: str):
+    """Vrátí skóre vyplněnosti profilu pro hotel portál."""
+    h = find_hotel_by_token(token)
+    if not h:
+        raise HTTPException(403, "Neplatny token")
+    return hotel_completeness(h["id"])
 def hotel_portal_me(token: str):
     h = find_hotel_by_token(token)
     if not h:
@@ -636,6 +696,31 @@ def success_page(hotel_id: str = ""):
   <a href="/landing">Zpět na hlavní stránku</a>
 </div></body></html>"""
 
+async def auto_scrape_after_payment(hotel_id: str, hotel_url: str):
+    """Po úspěšné platbě automaticky naskenuje web hotelu a doplní data do DB."""
+    try:
+        s = db_get_settings()
+        api_key = s.get("anthropic_api_key", "")
+        if not api_key:
+            return
+        # Počkej 3 sekundy aby se DB stihla uložit
+        await asyncio.sleep(3)
+        scraped = await scrape_hotel_data(hotel_url, api_key)
+        db = db_load()
+        if hotel_id not in db["hotels"]:
+            return
+        # Doplň pouze pole která jsou prázdná (nepřepisuj existující data)
+        for key, value in scraped.items():
+            if key not in ("id", "created_at", "hotel_token", "subscription_active",
+                          "stripe_customer_id", "stripe_subscription_id", "subscription_start"):
+                if not db["hotels"][hotel_id].get(key) and value:
+                    db["hotels"][hotel_id][key] = value
+        db["hotels"][hotel_id]["scraping_done"] = True
+        db["hotels"][hotel_id]["updated_at"] = datetime.utcnow().isoformat()
+        db_save(db)
+    except Exception:
+        pass  # Scraping selhal – nevadí, hotel existuje bez dat
+
 # ─────────────────────────────────────────────
 # Stripe – platby a webhook
 # ─────────────────────────────────────────────
@@ -700,6 +785,11 @@ async def stripe_webhook(request: Request):
                 db["hotels"][hotel_id]["subscription_start"] = datetime.utcnow().isoformat()
                 db["hotels"][hotel_id]["updated_at"] = datetime.utcnow().isoformat()
                 db_save(db)
+
+                # Spusť automatický scraping webu hotelu na pozadí
+                hotel_url = db["hotels"][hotel_id].get("url") or db["hotels"][hotel_id].get("source_url")
+                if hotel_url and event_type == "checkout.session.completed":
+                    asyncio.create_task(auto_scrape_after_payment(hotel_id, hotel_url))
 
     # customer.subscription.deleted – zrušení předplatného
     elif event_type == "customer.subscription.deleted":
