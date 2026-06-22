@@ -377,6 +377,7 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
           </div>
         </div>
 
+        <div id="reg-error" style="display:none;background:rgba(255,79,106,.1);border:1px solid rgba(255,79,106,.4);border-radius:10px;padding:14px 16px;margin-top:12px;font-size:13px;color:#ff4f6a;line-height:1.5"></div>
         <button type="button" class="form-submit" id="reg-btn" style="margin-top:20px" onclick="submitForm()">Continue to payment →</button>
         <div class="form-note" id="reg-note">14-day free trial · Card required, no charge today · Cancel anytime</div>
       </form>
@@ -474,7 +475,18 @@ async function submitForm(){
   }catch(e){
     btn.disabled = false;
     btn.textContent = currentLang==='cs'?'Pokračovat k platbě →':'Continue to payment →';
-    alert('Error: '+e.message);
+    const msg = document.getElementById('reg-error');
+    // Duplicitní platba (409)
+    if(e.message && (e.message.includes('aktivní předplatné') || e.message.includes('already has'))){
+      const errText = currentLang==='cs'
+        ? '⚠️ Tento e-mail již má aktivní předplatné. Přihlaste se do portálu nebo kontaktujte podporu: <a href="mailto:info@smartestguide.com" style="color:#ff4f6a">info@smartestguide.com</a>'
+        : '⚠️ This email already has an active subscription. Please log into your hotel portal or contact support: <a href="mailto:info@smartestguide.com" style="color:#ff4f6a">info@smartestguide.com</a>';
+      if(msg){ msg.style.display='block'; msg.innerHTML=errText; }
+      else { alert(currentLang==='cs'?'Tento e-mail již má aktivní předplatné.':'This email already has an active subscription.'); }
+    } else {
+      if(msg){ msg.style.display='block'; msg.innerHTML='⚠️ '+e.message; }
+      else { alert('Error: '+e.message); }
+    }
   }
 }
 
