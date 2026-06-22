@@ -450,6 +450,9 @@ class HotelPortalUpdate(BaseModel):
     extra_info: Optional[str] = None
     bed_count: Optional[int] = None
     room_count: Optional[int] = None
+    star_rating: Optional[int] = None
+    address: Optional[str] = None
+    country: Optional[str] = None
 
 @app.patch("/api/hotel-portal/update")
 def hotel_portal_update(token: str, data: HotelPortalUpdate):
