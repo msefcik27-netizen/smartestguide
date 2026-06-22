@@ -753,6 +753,12 @@ def serve_landing():
     with open(html_path, "r", encoding="utf-8") as f:
         return f.read()
 
+@app.get("/guest/{hotel_id}", response_class=HTMLResponse)
+def serve_guest(hotel_id: str):
+    html_path = os.path.join(os.path.dirname(__file__), "guest.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        return f.read()
+
 @app.get("/success", response_class=HTMLResponse)
 def success_page(hotel_id: str = ""):
     return """<!DOCTYPE html>
