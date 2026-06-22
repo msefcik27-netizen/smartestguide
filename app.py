@@ -1793,6 +1793,7 @@ def download_invoice_pdf(invoice_id: str):
     except Exception as e:
         raise HTTPException(500, f"Chyba generování PDF: {str(e)}")
 
+    from fastapi.responses import StreamingResponse
     safe_num = inv.get("invoice_number", invoice_id).replace("/", "-")
     return StreamingResponse(
         BytesIO(pdf_bytes),
