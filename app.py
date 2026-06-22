@@ -1083,6 +1083,7 @@ def generate_flyer_pdf(hotel: dict, base_url: str) -> bytes:
     from reportlab.graphics.barcode.qr import QrCodeWidget
     from reportlab.graphics.shapes import Drawing
     from reportlab.graphics import renderPDF
+    from io import BytesIO
 
     # Arial z Windows - plná podpora češtiny
     FONT, FONTB = "Helvetica", "Helvetica-Bold"
