@@ -626,24 +626,14 @@ class RegistrationRequest(BaseModel):
 async def register_hotel(req: RegistrationRequest, request: Request):
     """
     Registrace hotelu z landing page:
-    1. Zkontroluje duplicitní platbu podle emailu
-    2. Vytvoří hotel v DB (neaktivní)
-    3. Vytvoří Stripe Checkout Session s client_reference_id = hotel_id
-    4. Vrátí URL pro přesměrování na platbu
+    1. Vytvoří hotel v DB (neaktivní)
+    2. Vytvoří Stripe Checkout Session s client_reference_id = hotel_id
+    3. Vrátí URL pro přesměrování na platbu
     """
     s = db_get_settings()
     stripe_key = s.get("stripe_secret_key", "")
     if not stripe_key:
         raise HTTPException(400, "Stripe není nastaven")
-
-    # Kontrola duplicitní platby – stejný email s aktivním předplatným
-    db = db_load()
-    existing = [h for h in db["hotels"].values()
-                if h.get("email", "").lower() == req.contact_email.lower()
-                and h.get("subscription_active")]
-    if existing:
-        h = existing[0]
-        raise HTTPException(409, f"Tento e-mail již má aktivní předplatné pro hotel '{h.get('name', '')}'. Přihlaste se do portálu nebo kontaktujte podporu na info@smartestguide.com")
 
     # 1. Vytvoř hotel v DB
     db = db_load()
@@ -676,17 +666,12 @@ async def register_hotel(req: RegistrationRequest, request: Request):
     # 2. Vytvoř Stripe Checkout Session přes API
     base = get_base_url(request)
     try:
-        # Idempotency key – stejný email+hotel nemůže vytvořit dvě session
-        import hashlib
-        idempotency_key = hashlib.md5(f"{req.contact_email}:{req.hotel_name}:{req.hotel_url}".encode()).hexdigest()
-
         async with httpx.AsyncClient() as client:
             r = await client.post(
                 "https://api.stripe.com/v1/checkout/sessions",
                 headers={
                     "Authorization": f"Bearer {stripe_key}",
                     "Content-Type": "application/x-www-form-urlencoded",
-                    "Idempotency-Key": idempotency_key,
                 },
                 data={
                     "mode": "subscription",
@@ -1363,9 +1348,22 @@ async def guest_chat(req: GuestChatRequest):
     if not h:
         raise HTTPException(404, "Hotel nenalezen")
 
+    # Mapa kódu jazyka na plný název
+    LANG_NAMES = {
+        "cs": "Czech", "sk": "Slovak", "en": "English", "de": "German",
+        "fr": "French", "it": "Italian", "es": "Spanish", "pl": "Polish",
+        "hu": "Hungarian", "ru": "Russian", "uk": "Ukrainian", "zh": "Chinese",
+        "ja": "Japanese", "ko": "Korean", "nl": "Dutch", "pt": "Portuguese",
+        "ar": "Arabic", "tr": "Turkish",
+    }
+    lang_name = LANG_NAMES.get(req.language, req.language)
+
     # Sestav systémový prompt z dat hotelu
     hotel_info = f"""You are Alex, a friendly AI concierge for {h.get('name', 'this hotel')}.
-Respond in language: {req.language}. Be helpful, concise and friendly.
+
+LANGUAGE RULE: Detect the language of the guest's message and always respond in that same language.
+If you cannot detect the language, use {lang_name} ({req.language}) as default.
+Never mix languages in a single response.
 
 Hotel information:
 - Name: {h.get('name', 'N/A')}
@@ -1386,8 +1384,7 @@ Hotel information:
 - Description: {h.get('description', 'N/A')}
 - Extra info: {h.get('extra_info', 'N/A')}
 
-Guest name: {req.guest_name or 'Guest'}
-Always respond in {req.language} language."""
+Guest name: {req.guest_name or 'Guest'}"""
 
     messages = []
     for m in (req.history or []):
