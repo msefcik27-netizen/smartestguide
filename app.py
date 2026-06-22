@@ -1245,19 +1245,19 @@ def generate_flyer_pdf(hotel: dict, base_url: str) -> bytes:
     d.add(qr_w)
     renderPDF.draw(d, cv, qr_x, qr_y)
 
-    free_t, free_en = T2("ZDARMA pro hosty", "FREE for guests")
+    free_t, free_en = T2("Pro hosty ZDARMA", "Free for guests")
     banner_y = qr_y - 20*mm
-    cv.setFillColor(colors.HexColor("#0d3d2a"))
+    cv.setFillColor(colors.HexColor("#1a1040"))
     cv.roundRect(RIGHT_X, banner_y-6*mm, RIGHT_W, 18*mm, 3*mm, fill=1, stroke=0)
-    cv.setStrokeColor(TEAL)
+    cv.setStrokeColor(PURPLE)
     cv.setLineWidth(1.2)
     cv.roundRect(RIGHT_X, banner_y-6*mm, RIGHT_W, 18*mm, 3*mm, fill=0, stroke=1)
     cv.setFont(FONTB, 14)
-    cv.setFillColor(TEAL)
+    cv.setFillColor(WHITE)
     cv.drawCentredString(RIGHT_X + RIGHT_W/2, banner_y+2*mm, free_t)
     if free_en:
         cv.setFont(FONT, 9)
-        cv.setFillColor(colors.HexColor("#4daa88"))
+        cv.setFillColor(colors.HexColor("#9ba0c0"))
         cv.drawCentredString(RIGHT_X + RIGHT_W/2, banner_y-4.5*mm, free_en)
 
     cv.setFillColor(PURPLE)
