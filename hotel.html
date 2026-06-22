@@ -630,7 +630,10 @@ async function saveAll() {
   });
   numFields.forEach(k => {
     const el = document.getElementById('f-' + k);
-    if (el) data[k] = parseInt(el.value) || null;
+    if (el && el.value.trim() !== '') {
+      const v = parseInt(el.value);
+      data[k] = isNaN(v) ? null : v;
+    }
   });
   data.amenities = getTagValues('amenities');
   data.nearby_places = getTagValues('nearby_places');
