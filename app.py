@@ -113,6 +113,8 @@ class HotelData(BaseModel):
     subscription_active: Optional[bool] = None
     stripe_customer_id: Optional[str] = None
     scraped_pages: Optional[List[str]] = None
+    menu_urls: Optional[List[str]] = None
+    custom_fields: Optional[List[dict]] = None
 
 # ─────────────────────────────────────────────
 # Nastavení API klíče
@@ -454,6 +456,8 @@ class HotelPortalUpdate(BaseModel):
     star_rating: Optional[int] = None
     address: Optional[str] = None
     country: Optional[str] = None
+    menu_urls: Optional[List[str]] = None
+    custom_fields: Optional[List[dict]] = None
 
 @app.patch("/api/hotel-portal/update")
 def hotel_portal_update(token: str, data: HotelPortalUpdate):
@@ -1383,6 +1387,8 @@ Hotel information:
 - Nearby: {', '.join(h.get('nearby_places', []))}
 - Description: {h.get('description', 'N/A')}
 - Extra info: {h.get('extra_info', 'N/A')}
+{f"- Menu URLs (for food & drinks questions): {', '.join(h.get('menu_urls', []))}" if h.get('menu_urls') else ''}
+{chr(10).join([f"- {cf.get('label','Info')}: {cf.get('value','')}" for cf in h.get('custom_fields', []) if cf.get('value')]) if h.get('custom_fields') else ''}
 
 Guest name: {req.guest_name or 'Guest'}"""
 

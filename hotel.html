@@ -403,6 +403,37 @@ function renderPortal() {
         ${rowTextarea('Další informace', 'extra_info', h.extra_info, 'Speciální akce, house rules, zajímavosti…')}
       </table>
     `)}
+
+    ${renderSection('🍽️', 'Menu — odkaz na jídelní lístek', 'Přidejte URL odkaz na menu vaší restaurace', `
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">
+        💡 <strong style="color:var(--text)">Tip:</strong> Vložte odkaz na váš jídelní lístek. Alex bude hostům sdělovat kde menu najdou a může ho popsat. Přidejte až 5 odkazů (snídaně, oběd, večeře, nápojový lístek…)
+      </div>
+      <div id="menu-urls-container">
+        ${(h.menu_urls||[]).concat(['','','']).slice(0,5).map((url,i)=>`
+          <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+            <input type="url" id="menu-url-${i}" value="${esc(url)}" placeholder="https://www.restaurace.cz/menu" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:10px 14px;outline:none" oninput="markChanged()">
+            ${url?`<button onclick="clearMenuUrl(${i})" style="background:rgba(255,79,106,.1);border:1px solid rgba(255,79,106,.3);border-radius:6px;padding:8px 12px;color:var(--danger);cursor:pointer;font-size:12px">✕</button>`:''}
+          </div>`).join('')}
+      </div>
+    `)}
+
+    ${renderSection('✨', 'Vlastní informace pro Alexe', 'Přidejte cokoliv co hosté chtějí vědět — Alex to použije při odpovědích', `
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">
+        💡 <strong style="color:var(--text)">Tip:</strong> Přidejte libovolné informace — kde je nejlepší zmrzlina, kdy je otevřená recepce, house rules, lokální tipy, speciální služby… Čím více vyplníte, tím lépe Alex poradí!
+      </div>
+      <div id="custom-fields-container">
+        ${(h.custom_fields||[]).map((cf,i)=>`
+          <div style="display:grid;grid-template-columns:200px 1fr auto;gap:8px;margin-bottom:10px;align-items:start" id="cf-row-${i}">
+            <input type="text" id="cf-label-${i}" value="${esc(cf.label||'')}" placeholder="Název (např. Zmrzlina)" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:10px 14px;outline:none" oninput="markChanged()">
+            <textarea id="cf-value-${i}" placeholder="Popis / hodnota…" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:10px 14px;outline:none;resize:vertical;min-height:42px" oninput="markChanged()">${esc(cf.value||'')}</textarea>
+            <button onclick="removeCf(${i})" style="background:rgba(255,79,106,.1);border:1px solid rgba(255,79,106,.3);border-radius:6px;padding:10px 12px;color:var(--danger);cursor:pointer;font-size:12px;margin-top:0">✕</button>
+          </div>`).join('')}
+        <div id="cf-add-row" style="margin-top:8px">
+          <button onclick="addCf()" style="background:rgba(108,99,255,.1);border:1px solid rgba(108,99,255,.3);border-radius:8px;padding:10px 18px;color:var(--accent);cursor:pointer;font-size:13px;font-weight:600">+ Přidat další informaci pro Alexe</button>
+        </div>
+      </div>
+    `)}
+
   <div id="invoices-section" style="margin-top:0"></div>
   <div id="analytics-section"></div>
   `;
@@ -438,6 +469,38 @@ function rowTextarea(label, key, val, placeholder) {
     <td>${label}</td>
     <td><textarea id="f-${key}" placeholder="${esc(placeholder)}" oninput="markChanged()">${esc(String(val??''))}</textarea></td>
   </tr>`;
+}
+
+// ── Vlastní pole ──────────────────────────────
+let cfCount = 0;
+function addCf() {
+  // Zjisti aktuální počet
+  let i = 0;
+  while(document.getElementById('cf-label-'+i)) i++;
+  cfCount = i;
+  const container = document.getElementById('custom-fields-container');
+  const addRow = document.getElementById('cf-add-row');
+  const div = document.createElement('div');
+  div.id = 'cf-row-'+cfCount;
+  div.style.cssText = 'display:grid;grid-template-columns:200px 1fr auto;gap:8px;margin-bottom:10px;align-items:start';
+  div.innerHTML = `
+    <input type="text" id="cf-label-${cfCount}" placeholder="Název (např. Zmrzlina)" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:10px 14px;outline:none" oninput="markChanged()">
+    <textarea id="cf-value-${cfCount}" placeholder="Popis / hodnota…" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:10px 14px;outline:none;resize:vertical;min-height:42px" oninput="markChanged()"></textarea>
+    <button onclick="removeCf(${cfCount})" style="background:rgba(255,79,106,.1);border:1px solid rgba(255,79,106,.3);border-radius:6px;padding:10px 12px;color:var(--danger);cursor:pointer;font-size:12px">✕</button>`;
+  container.insertBefore(div, addRow);
+  document.getElementById('cf-label-'+cfCount).focus();
+  markChanged();
+}
+
+function removeCf(i) {
+  const row = document.getElementById('cf-row-'+i);
+  if(row) { row.remove(); markChanged(); }
+}
+
+function clearMenuUrl(i) {
+  const el = document.getElementById('menu-url-'+i);
+  if(el) { el.value = ''; markChanged(); }
+}
 }
 
 // ── Tag input ─────────────────────────────────
@@ -637,6 +700,25 @@ async function saveAll() {
   });
   data.amenities = getTagValues('amenities');
   data.nearby_places = getTagValues('nearby_places');
+
+  // Menu URLs
+  const menuUrls = [];
+  for(let i=0;i<5;i++){
+    const el=document.getElementById('menu-url-'+i);
+    if(el && el.value.trim()) menuUrls.push(el.value.trim());
+  }
+  data.menu_urls = menuUrls.length ? menuUrls : null;
+
+  // Vlastní pole
+  const customFields = [];
+  let cfIdx = 0;
+  while(document.getElementById('cf-label-'+cfIdx)){
+    const label = document.getElementById('cf-label-'+cfIdx)?.value.trim();
+    const value = document.getElementById('cf-value-'+cfIdx)?.value.trim();
+    if(label && value) customFields.push({label, value});
+    cfIdx++;
+  }
+  data.custom_fields = customFields.length ? customFields : null;
 
   const btn = document.getElementById('save-btn');
   btn.disabled = true;

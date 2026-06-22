@@ -978,6 +978,32 @@ function openEdit(id){
   });
 
   html+=`</table>
+
+    <div style="margin-top:20px;padding:16px;background:var(--card);border:1px solid var(--border);border-radius:10px">
+      <div style="font-size:12px;color:var(--accent);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">🍽️ Menu — URL jídelního lístku</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Odkaz na menu restaurace. Alex bude hostům sdělovat kde menu najdou.</div>
+      ${(h.menu_urls||[]).concat(['','','']).slice(0,5).map((url,i)=>`
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input type="url" id="emenu-${i}" value="${esc(url)}" placeholder="https://www.restaurace.cz/menu" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;padding:6px 10px;outline:none">
+        </div>`).join('')}
+    </div>
+
+    <div style="margin-top:16px;padding:16px;background:var(--card);border:1px solid var(--border);border-radius:10px">
+      <div style="font-size:12px;color:var(--accent);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">✨ Vlastní informace pro Alexe</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Libovolné informace — lokální tipy, house rules, speciální služby…</div>
+      <div id="admin-cf-container">
+        ${(h.custom_fields||[]).map((cf,i)=>`
+          <div style="display:grid;grid-template-columns:160px 1fr auto;gap:6px;margin-bottom:8px" id="acf-row-${i}">
+            <input type="text" id="acf-label-${i}" value="${esc(cf.label||'')}" placeholder="Název" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:6px 10px;outline:none">
+            <input type="text" id="acf-value-${i}" value="${esc(cf.value||'')}" placeholder="Hodnota / popis" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:6px 10px;outline:none">
+            <button onclick="removeAdminCf(${i})" style="background:rgba(255,79,106,.1);border:1px solid rgba(255,79,106,.3);border-radius:6px;padding:6px 10px;color:var(--danger);cursor:pointer;font-size:11px">✕</button>
+          </div>`).join('')}
+        <div id="acf-add-row">
+          <button onclick="addAdminCf()" style="background:rgba(108,99,255,.1);border:1px solid rgba(108,99,255,.3);border-radius:6px;padding:7px 14px;color:var(--accent);cursor:pointer;font-size:12px;font-weight:600">+ Přidat informaci</button>
+        </div>
+      </div>
+    </div>
+
     <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:10px">
       <button class="btn btn-primary" onclick="saveEdit('${id}')">💾 Uložit změny</button>
       <button class="btn btn-secondary" onclick="closePanel()">Zrušit</button>
@@ -1017,6 +1043,26 @@ async function saveEdit(id){
     if(v===''){data[k]=null;return;}
     data[k]=numFields.includes(k)?(parseInt(v)||null):v;
   });
+
+  // Menu URLs
+  const menuUrls=[];
+  for(let i=0;i<5;i++){
+    const el=document.getElementById('emenu-'+i);
+    if(el&&el.value.trim())menuUrls.push(el.value.trim());
+  }
+  data.menu_urls=menuUrls.length?menuUrls:null;
+
+  // Vlastní pole
+  const customFields=[];
+  let ci=0;
+  while(document.getElementById('acf-label-'+ci)){
+    const label=document.getElementById('acf-label-'+ci)?.value.trim();
+    const value=document.getElementById('acf-value-'+ci)?.value.trim();
+    if(label&&value)customFields.push({label,value});
+    ci++;
+  }
+  data.custom_fields=customFields.length?customFields:null;
+
   addLog('info',`Ukládám editaci: ${data.name||id}`,'hotels');
   try{
     const r=await fetch(`${API}/api/hotels/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
@@ -1029,6 +1075,26 @@ async function saveEdit(id){
 }
 
 // ══ PŘEDPLATNÉ ═══════════════════════════════
+function addAdminCf(){
+  let i=0;
+  while(document.getElementById('acf-label-'+i))i++;
+  const container=document.getElementById('admin-cf-container');
+  const addRow=document.getElementById('acf-add-row');
+  const div=document.createElement('div');
+  div.id='acf-row-'+i;
+  div.style.cssText='display:grid;grid-template-columns:160px 1fr auto;gap:6px;margin-bottom:8px';
+  div.innerHTML=`
+    <input type="text" id="acf-label-${i}" placeholder="Název" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:6px 10px;outline:none">
+    <input type="text" id="acf-value-${i}" placeholder="Hodnota / popis" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:6px 10px;outline:none">
+    <button onclick="removeAdminCf(${i})" style="background:rgba(255,79,106,.1);border:1px solid rgba(255,79,106,.3);border-radius:6px;padding:6px 10px;color:var(--danger);cursor:pointer;font-size:11px">✕</button>`;
+  container.insertBefore(div,addRow);
+  document.getElementById('acf-label-'+i).focus();
+}
+function removeAdminCf(i){
+  const row=document.getElementById('acf-row-'+i);
+  if(row)row.remove();
+}
+
 async function toggleSubscription(id, activate){
   const h=all_hotels.find(x=>x.id===id);
   const action=activate?'aktivovat':'deaktivovat';
