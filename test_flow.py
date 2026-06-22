@@ -52,6 +52,33 @@ def test_basic():
         except Exception as e:
             fail(label, str(e))
 
+    # Kontrola JS syntax – hledáme nekompletní bloky v HTML
+    section("1b. Kontrola JS v HTML souborech")
+    import re
+    for path, label in [("/", "Admin panel JS"), ("/hotel?token=x", "Hotel portál JS"), ("/landing", "Landing page JS")]:
+        try:
+            r = requests.get(f"{BASE}{path}", timeout=10)
+            content = r.text
+            errors = []
+            # Počet script tagů musí sedět
+            if content.count("<script") != content.count("</script>"):
+                errors.append("Nekompletní script tag")
+            # Extrahuj JS bloky a hledej extra závorky
+            scripts = re.findall(r'<script[^>]*>(.*?)</script>', content, re.DOTALL)
+            for script in scripts:
+                # Počet { musí přibližně odpovídat počtu }
+                open_br = script.count('{')
+                close_br = script.count('}')
+                if abs(open_br - close_br) > 10:
+                    errors.append(f"Nevyvážené závorky v JS ({{ {open_br} vs }} {close_br})")
+                    break
+            if errors:
+                fail(label, ", ".join(errors))
+            else:
+                ok(label, "závorky v pořádku")
+        except Exception as e:
+            fail(label, str(e))
+
 def test_settings():
     section("2. Nastavení a klíče")
     try:
