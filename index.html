@@ -48,9 +48,9 @@
     .stat-value.accent{color:var(--accent)} .stat-value.green{color:var(--success)} .stat-value.teal{color:var(--accent2)}
 
     /* Import data from */
-    .import data from-box{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:28px;margin-bottom:28px}
-    .import data from-box h2{font-family:var(--font-head);font-size:16px;font-weight:600;margin-bottom:6px}
-    .import data from-box p{color:var(--muted);font-size:13px;margin-bottom:20px}
+    .scrape-box{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:28px;margin-bottom:28px}
+    .scrape-box h2{font-family:var(--font-head);font-size:16px;font-weight:600;margin-bottom:6px}
+    .scrape-box p{color:var(--muted);font-size:13px;margin-bottom:20px}
     .input-row{display:flex;gap:12px}
 
     /* Inputs */
@@ -219,19 +219,19 @@
     <!-- SCRAPE -->
     <div class="page" id="page-scrape">
       <div class="topbar"><div class="page-title">Přidat hotel <small>data import webu</small></div></div>
-      <div class="import data from-box">
+      <div class="scrape-box">
         <h2>Zadat URL webu hotelu</h2>
         <p>Systém automaticky stáhne web hotelu, projde klíčové podstránky a pomocí AI extrahuje všechny dostupné informace o službách, vybavení a počtu lůžek.</p>
         <div class="input-row">
-          <input type="url" id="import data from-url" placeholder="https://www.hotel-example.cz" style="flex:1"/>
-          <input type="text" id="import data from-name" placeholder="Název hotelu (volitelné)" style="width:220px"/>
-          <button class="btn btn-primary" id="import data from-btn" onclick="startImport data from()">
-            <div class="loader" id="import data from-loader"></div>
-            <span id="import data from-btn-text">🔍 Doplnit data</span>
+          <input type="url" id="scrape-url" placeholder="https://www.hotel-example.cz" style="flex:1"/>
+          <input type="text" id="scrape-name" placeholder="Název hotelu (volitelné)" style="width:220px"/>
+          <button class="btn btn-primary" id="scrape-btn" onclick="startScrape()">
+            <div class="loader" id="scrape-loader"></div>
+            <span id="scrape-btn-text">🔍 Doplnit data</span>
           </button>
         </div>
       </div>
-      <div class="result-preview" id="import data from-result">
+      <div class="result-preview" id="scrape-result">
         <h3>✅ Nalezená data – zkontroluj a ulož</h3>
         <div class="price-pill">
           <div><div style="font-size:12px;color:var(--muted)">Odhadovaná cena / měsíc</div><div class="amount" id="result-price">–</div></div>
@@ -239,7 +239,7 @@
         </div>
         <div class="form-grid" id="result-form"></div>
         <div style="margin-top:20px;display:flex;gap:12px">
-          <button class="btn btn-primary" onclick="saveImport data fromd()">💾 Uložit hotel</button>
+          <button class="btn btn-primary" onclick="saveScraped()">💾 Uložit hotel</button>
           <button class="btn btn-secondary" onclick="clearScrape()">✕ Zahodit</button>
         </div>
       </div>
@@ -479,17 +479,17 @@ const API = '';  // prázdné = stejná origin (backend servíruje frontend)
 // ══ JAZYK ════════════════════════════════════
 const ADMIN_LANGS = {
   cs: {
-    dashboard:"Dashboard",import data from:"Přidat hotel",hotels:"Hotely",pricing:"Ceník",
+    dashboard:"Dashboard",scrape:"Přidat hotel",hotels:"Hotely",pricing:"Ceník",
     settings:"Nastavení",billing:"Faktury",log:"Log",
     dash_title:"Dashboard",dash_sub:"přehled",
     stat_total:"Celkem hotelů",stat_active:"Aktivní předplatné",
     stat_revenue:"Měsíční příjem (aktivní)",stat_beds:"Celkem lůžek",stat_potential:"Potenciál / měsíc",
     recent_hotels:"Poslední hotely",recent_activity:"Poslední aktivita",
-    import data from_title:"Přidat hotel",import data from_sub:"data import webu",
-    import data from_h2:"Zadat URL webu hotelu",
-    import data from_p:"Systém automaticky stáhne web hotelu a pomocí AI extrahuje informace.",
-    import data from_url:"https://www.hotel-example.cz",import data from_name:"Název hotelu (volitelné)",
-    import data from_btn:"Doplnit data",
+    scrape_title:"Přidat hotel",scrape_sub:"data import webu",
+    scrape_h2:"Zadat URL webu hotelu",
+    scrape_p:"Systém automaticky stáhne web hotelu a pomocí AI extrahuje informace.",
+    scrape_url:"https://www.hotel-example.cz",scrape_name:"Název hotelu (volitelné)",
+    scrape_btn:"Doplnit data",
     hotels_title:"Hotely",hotels_sub:"správa profilů",hotels_add:"+ Přidat hotel",
     col_name:"Název / URL / ★",col_country:"Země / Světadíl",col_beds:"Lůžka / Cena",
     col_status:"Stav",col_actions:"Akce",
@@ -501,17 +501,17 @@ const ADMIN_LANGS = {
     log_title:"Log",log_sub:"aktivita aplikace",
   },
   en: {
-    dashboard:"Dashboard",import data from:"Add hotel",hotels:"Hotels",pricing:"Pricing",
+    dashboard:"Dashboard",scrape:"Add hotel",hotels:"Hotels",pricing:"Pricing",
     settings:"Settings",billing:"Invoices",log:"Log",
     dash_title:"Dashboard",dash_sub:"overview",
     stat_total:"Total hotels",stat_active:"Active subscriptions",
     stat_revenue:"Monthly revenue (active)",stat_beds:"Total beds",stat_potential:"Potential / month",
     recent_hotels:"Recent hotels",recent_activity:"Recent activity",
-    import data from_title:"Add hotel",import data from_sub:"website data import",
-    import data from_h2:"Enter hotel website URL",
-    import data from_p:"The system will automatically download the hotel website and extract information using AI.",
-    import data from_url:"https://www.hotel-example.com",import data from_name:"Hotel name (optional)",
-    import data from_btn:"Import data from",
+    scrape_title:"Add hotel",scrape_sub:"website data import",
+    scrape_h2:"Enter hotel website URL",
+    scrape_p:"The system will automatically download the hotel website and extract information using AI.",
+    scrape_url:"https://www.hotel-example.com",scrape_name:"Hotel name (optional)",
+    scrape_btn:"Import data from",
     hotels_title:"Hotels",hotels_sub:"profile management",hotels_add:"+ Add hotel",
     col_name:"Name / URL / ★",col_country:"Country / Continent",col_beds:"Beds / Price",
     col_status:"Status",col_actions:"Actions",
@@ -523,17 +523,17 @@ const ADMIN_LANGS = {
     log_title:"Log",log_sub:"application activity",
   },
   de: {
-    dashboard:"Dashboard",import data from:"Hotel hinzufügen",hotels:"Hotels",pricing:"Preise",
+    dashboard:"Dashboard",scrape:"Hotel hinzufügen",hotels:"Hotels",pricing:"Preise",
     settings:"Einstellungen",billing:"Rechnungen",log:"Log",
     dash_title:"Dashboard",dash_sub:"Übersicht",
     stat_total:"Hotels gesamt",stat_active:"Aktive Abos",
     stat_revenue:"Monatlicher Umsatz",stat_beds:"Betten gesamt",stat_potential:"Potenzial / Monat",
     recent_hotels:"Neueste Hotels",recent_activity:"Letzte Aktivität",
-    import data from_title:"Hotel hinzufügen",import data from_sub:"Website-Data import",
-    import data from_h2:"Hotel-Website URL eingeben",
-    import data from_p:"Das System lädt die Hotel-Website herunter und extrahiert Informationen mit KI.",
-    import data from_url:"https://www.hotel-beispiel.de",import data from_name:"Hotelname (optional)",
-    import data from_btn:"Import data fromn",
+    scrape_title:"Hotel hinzufügen",scrape_sub:"Website-Data import",
+    scrape_h2:"Hotel-Website URL eingeben",
+    scrape_p:"Das System lädt die Hotel-Website herunter und extrahiert Informationen mit KI.",
+    scrape_url:"https://www.hotel-beispiel.de",scrape_name:"Hotelname (optional)",
+    scrape_btn:"Import data fromn",
     hotels_title:"Hotels",hotels_sub:"Profilverwaltung",hotels_add:"+ Hotel hinzufügen",
     col_name:"Name / URL / ★",col_country:"Land / Kontinent",col_beds:"Betten / Preis",
     col_status:"Status",col_actions:"Aktionen",
@@ -545,17 +545,17 @@ const ADMIN_LANGS = {
     log_title:"Log",log_sub:"App-Aktivität",
   },
   es: {
-    dashboard:"Panel",import data from:"Añadir hotel",hotels:"Hoteles",pricing:"Precios",
+    dashboard:"Panel",scrape:"Añadir hotel",hotels:"Hoteles",pricing:"Precios",
     settings:"Configuración",billing:"Facturas",log:"Registro",
     dash_title:"Panel",dash_sub:"resumen",
     stat_total:"Hoteles totales",stat_active:"Suscripciones activas",
     stat_revenue:"Ingresos mensuales",stat_beds:"Camas totales",stat_potential:"Potencial / mes",
     recent_hotels:"Hoteles recientes",recent_activity:"Actividad reciente",
-    import data from_title:"Añadir hotel",import data from_sub:"data import web",
-    import data from_h2:"Introducir URL del sitio web del hotel",
-    import data from_p:"El sistema descargará automáticamente el sitio web del hotel y extraerá información con IA.",
-    import data from_url:"https://www.hotel-ejemplo.es",import data from_name:"Nombre del hotel (opcional)",
-    import data from_btn:"Extraer",
+    scrape_title:"Añadir hotel",scrape_sub:"data import web",
+    scrape_h2:"Introducir URL del sitio web del hotel",
+    scrape_p:"El sistema descargará automáticamente el sitio web del hotel y extraerá información con IA.",
+    scrape_url:"https://www.hotel-ejemplo.es",scrape_name:"Nombre del hotel (opcional)",
+    scrape_btn:"Extraer",
     hotels_title:"Hoteles",hotels_sub:"gestión de perfiles",hotels_add:"+ Añadir hotel",
     col_name:"Nombre / URL / ★",col_country:"País / Continente",col_beds:"Camas / Precio",
     col_status:"Estado",col_actions:"Acciones",
@@ -567,17 +567,17 @@ const ADMIN_LANGS = {
     log_title:"Registro",log_sub:"actividad de la aplicación",
   },
   pl: {
-    dashboard:"Panel",import data from:"Dodaj hotel",hotels:"Hotele",pricing:"Cennik",
+    dashboard:"Panel",scrape:"Dodaj hotel",hotels:"Hotele",pricing:"Cennik",
     settings:"Ustawienia",billing:"Faktury",log:"Dziennik",
     dash_title:"Panel",dash_sub:"przegląd",
     stat_total:"Hotele łącznie",stat_active:"Aktywne subskrypcje",
     stat_revenue:"Miesięczny przychód",stat_beds:"Łóżka łącznie",stat_potential:"Potencjał / miesiąc",
     recent_hotels:"Ostatnie hotele",recent_activity:"Ostatnia aktywność",
-    import data from_title:"Dodaj hotel",import data from_sub:"data import strony",
-    import data from_h2:"Wprowadź URL strony hotelu",
-    import data from_p:"System automatycznie pobierze stronę hotelu i wyodrębni informacje za pomocą AI.",
-    import data from_url:"https://www.hotel-przyklad.pl",import data from_name:"Nazwa hotelu (opcjonalne)",
-    import data from_btn:"Pobierz dane",
+    scrape_title:"Dodaj hotel",scrape_sub:"data import strony",
+    scrape_h2:"Wprowadź URL strony hotelu",
+    scrape_p:"System automatycznie pobierze stronę hotelu i wyodrębni informacje za pomocą AI.",
+    scrape_url:"https://www.hotel-przyklad.pl",scrape_name:"Nazwa hotelu (opcjonalne)",
+    scrape_btn:"Pobierz dane",
     hotels_title:"Hotele",hotels_sub:"zarządzanie profilami",hotels_add:"+ Dodaj hotel",
     col_name:"Nazwa / URL / ★",col_country:"Kraj / Kontynent",col_beds:"Łóżka / Cena",
     col_status:"Status",col_actions:"Akcje",
@@ -589,17 +589,17 @@ const ADMIN_LANGS = {
     log_title:"Dziennik",log_sub:"aktywność aplikacji",
   },
   it: {
-    dashboard:"Dashboard",import data from:"Aggiungi hotel",hotels:"Hotel",pricing:"Prezzi",
+    dashboard:"Dashboard",scrape:"Aggiungi hotel",hotels:"Hotel",pricing:"Prezzi",
     settings:"Impostazioni",billing:"Fatture",log:"Registro",
     dash_title:"Dashboard",dash_sub:"panoramica",
     stat_total:"Hotel totali",stat_active:"Abbonamenti attivi",
     stat_revenue:"Entrate mensili",stat_beds:"Letti totali",stat_potential:"Potenziale / mese",
     recent_hotels:"Hotel recenti",recent_activity:"Attività recente",
-    import data from_title:"Aggiungi hotel",import data from_sub:"data import sito web",
-    import data from_h2:"Inserire URL del sito web dell hotel",
-    import data from_p:"Il sistema scaricherà automaticamente il sito web dell hotel ed estrarrà informazioni con AI.",
-    import data from_url:"https://www.hotel-esempio.it",import data from_name:"Nome hotel (opzionale)",
-    import data from_btn:"Estrai dati",
+    scrape_title:"Aggiungi hotel",scrape_sub:"data import sito web",
+    scrape_h2:"Inserire URL del sito web dell hotel",
+    scrape_p:"Il sistema scaricherà automaticamente il sito web dell hotel ed estrarrà informazioni con AI.",
+    scrape_url:"https://www.hotel-esempio.it",scrape_name:"Nome hotel (opzionale)",
+    scrape_btn:"Estrai dati",
     hotels_title:"Hotel",hotels_sub:"gestione profili",hotels_add:"+ Aggiungi hotel",
     col_name:"Nome / URL / ★",col_country:"Paese / Continente",col_beds:"Letti / Prezzo",
     col_status:"Stato",col_actions:"Azioni",
@@ -643,7 +643,7 @@ function setAdminLang(lang) {
     if(el) el.innerHTML = title + (sub ? ` <small>${sub}</small>` : '');
   };
   setTitle('dashboard', T.dash_title, T.dash_sub);
-  setTitle('scrape', T.import data from_title, T.import data from_sub);
+  setTitle('scrape', T.scrape_title, T.scrape_sub);
   setTitle('hotels', T.hotels_title, T.hotels_sub);
   setTitle('settings', T.settings_title, T.settings_sub);
   setTitle('billing', T.billing_title, T.billing_sub);
@@ -662,16 +662,16 @@ function setAdminLang(lang) {
   if(hdr) hdr.innerHTML = `<th>${T.col_name}</th><th>${T.col_country}</th><th>${T.col_beds}</th><th>${T.col_status}</th><th>${T.col_actions}</th>`;
 
   // Import data from stránka
-  const import data fromH2 = document.querySelector('#page-scrape .import data from-box h2');
-  if(import data fromH2) import data fromH2.textContent = T.import data from_h2;
-  const import data fromP = document.querySelector('#page-scrape .import data from-box p');
-  if(import data fromP) import data fromP.textContent = T.import data from_p;
-  const import data fromUrl = document.getElementById('import data from-url');
-  if(import data fromUrl) import data fromUrl.placeholder = T.import data from_url;
-  const import data fromName = document.getElementById('import data from-name');
-  if(import data fromName) import data fromName.placeholder = T.import data from_name;
-  const import data fromBtn = document.getElementById('import data from-btn-text');
-  if(import data fromBtn) import data fromBtn.textContent = '🔍 ' + T.import data from_btn;
+  const scrapeH2 = document.querySelector('#page-scrape .scrape-box h2');
+  if(scrapeH2) scrapeH2.textContent = T.scrape_h2;
+  const scrapeP = document.querySelector('#page-scrape .scrape-box p');
+  if(scrapeP) scrapeP.textContent = T.scrape_p;
+  const scrapeUrl = document.getElementById('scrape-url');
+  if(scrapeUrl) scrapeUrl.placeholder = T.scrape_url;
+  const scrapeName = document.getElementById('scrape-name');
+  if(scrapeName) scrapeName.placeholder = T.scrape_name;
+  const scrapeBtn = document.getElementById('scrape-btn-text');
+  if(scrapeBtn) scrapeBtn.textContent = '🔍 ' + T.scrape_btn;
 
   // Přidat hotel tlačítko
   const addBtn = document.querySelector('#page-hotels .topbar .btn-primary');
@@ -795,7 +795,7 @@ function toggleKeyVisibility(){
 }
 
 // ══ DATA ═════════════════════════════════════
-let import data fromd_data=null, all_hotels=[];
+let scraped_data=null, all_hotels=[];
 
 async function loadHotels(){
   addLog('info','Načítám hotely','hotels');
@@ -868,7 +868,7 @@ const ADDR_HINTS=[
 ];
 
 function resolveCountry(h){
-  // 1. Uložený kód z import data fromru
+  // 1. Uložený kód z scraperu
   if(h.country&&COUNTRY_MAP[h.country.toUpperCase()])return h.country.toUpperCase();
   // 2. Hledej v adrese
   const hay=(h.address||'').toLowerCase();
@@ -895,7 +895,7 @@ function continentHtml(h){
 
 function renderHotelsTable(){
   const tb=document.getElementById('hotels-tbody');
-  if(!all_hotels.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">Žádné hotely. <a href="#" onclick="showPage(\'import data from\')" style="color:var(--accent)">Přidej první →</a></td></tr>';return;}
+  if(!all_hotels.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">Žádné hotely. <a href="#" onclick="showPage(\'scrape\')" style="color:var(--accent)">Přidej první →</a></td></tr>';return;}
   tb.innerHTML=all_hotels.map(h=>`<tr>
     <td style="font-size:12px">
       <strong>${esc(trunc(h.name||'Bez názvu',22))}</strong><br>
@@ -953,32 +953,32 @@ function renderRecentTable(){
 }
 
 // ══ SCRAPING ═════════════════════════════════
-async function startImport data from(){
-  const url=document.getElementById('import data from-url').value.trim();
-  const name=document.getElementById('import data from-name').value.trim();
+async function startScrape(){
+  const url=document.getElementById('scrape-url').value.trim();
+  const name=document.getElementById('scrape-name').value.trim();
   if(!url){toast('Zadej URL hotelu','err');return;}
-  const btn=document.getElementById('import data from-btn');
+  const btn=document.getElementById('scrape-btn');
   btn.disabled=true;
-  document.getElementById('import data from-loader').style.display='block';
-  document.getElementById('import data from-btn-text').textContent='Scrapuji...';
-  document.getElementById('import data from-result').classList.remove('show');
-  addLog('info',`Spouštím data import: ${url}`,'import data fromr',name?`Název: ${name}`:null);
+  document.getElementById('scrape-loader').style.display='block';
+  document.getElementById('scrape-btn-text').textContent='Scrapuji...';
+  document.getElementById('scrape-result').classList.remove('show');
+  addLog('info',`Spouštím data import: ${url}`,'scraper',name?`Název: ${name}`:null);
   try{
-    const r=await fetch(API+'/api/import data from',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url,hotel_name:name||undefined})});
+    const r=await fetch(API+'/api/scrape',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url,hotel_name:name||undefined})});
     if(!r.ok){const e=await r.json().catch(()=>({detail:'HTTP '+r.status}));throw new Error(e.detail||'HTTP '+r.status);}
     const d=await r.json();
-    import data fromd_data=d.data;
-    if(name)import data fromd_data.name=name;
-    addLog('ok',`Data import dokončen: ${import data fromd_data.name||url}`,'import data fromr',`Lůžka: ${import data fromd_data.bed_count||'nenalezeno'}`);
-    showImport data fromdResult(import data fromd_data);
+    scraped_data=d.data;
+    if(name)scraped_data.name=name;
+    addLog('ok',`Data import dokončen: ${scraped_data.name||url}`,'scraper',`Lůžka: ${scraped_data.bed_count||'nenalezeno'}`);
+    showScrapedResult(scraped_data);
     toast('✅ Data extrahována!');
   }catch(e){
-    addLog('error',`Data import selhal: ${e.message}`,'import data fromr',`URL: ${url}\n\nPříčiny:\n• Chybí API klíč → Nastavení\n• Hotel blokuje data import\n• Špatná URL`);
+    addLog('error',`Data import selhal: ${e.message}`,'scraper',`URL: ${url}\n\nPříčiny:\n• Chybí API klíč → Nastavení\n• Hotel blokuje data import\n• Špatná URL`);
     toast('Chyba: '+e.message,'err');
-  }finally{btn.disabled=false;document.getElementById('import data from-loader').style.display='none';document.getElementById('import data from-btn-text').textContent='🔍 Doplnit data';}
+  }finally{btn.disabled=false;document.getElementById('scrape-loader').style.display='none';document.getElementById('scrape-btn-text').textContent='🔍 Doplnit data';}
 }
 
-function showImport data fromdResult(data){
+function showScrapedResult(data){
   const beds=data.bed_count||0,price=beds?calcPriceNum(beds):300;
   document.getElementById('result-price').textContent=price+' EUR';
   document.getElementById('result-beds-info').textContent=beds?`${beds} lůžek`:'Lůžka nebyla nalezena – doplň ručně';
@@ -995,19 +995,19 @@ function showImport data fromdResult(data){
     return`<div class="form-group${full}"><label>${label}</label>${inp}</div>`;
   }).join('');
   if(data.amenities?.length)form.innerHTML+=`<div class="form-group full"><label>Vybavení</label><div class="tags">${data.amenities.map(a=>`<span class="tag">${esc(a)}</span>`).join('')}</div></div>`;
-  document.getElementById('import data from-result').classList.add('show');
+  document.getElementById('scrape-result').classList.add('show');
 }
 
 function updateImport data fromd(key,val,isNum=false){
-  if(import data fromd_data)import data fromd_data[key]=isNum?(parseInt(val)||null):val;
+  if(scraped_data)scraped_data[key]=isNum?(parseInt(val)||null):val;
   if(key==='bed_count'){const b=parseInt(val)||0;document.getElementById('result-price').textContent=calcPriceNum(b)+' EUR';document.getElementById('result-beds-info').textContent=b?`${b} lůžek`:'Doplň počet lůžek';}
 }
 
-async function saveImport data fromd(){
-  if(!import data fromd_data)return;
-  addLog('info',`Ukládám hotel: ${import data fromd_data.name||'–'}`,'hotels');
+async function saveScraped(){
+  if(!scraped_data)return;
+  addLog('info',`Ukládám hotel: ${scraped_data.name||'–'}`,'hotels');
   try{
-    const r=await fetch(API+'/api/hotels',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(import data fromd_data)});
+    const r=await fetch(API+'/api/hotels',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(scraped_data)});
     if(!r.ok)throw new Error('HTTP '+r.status);
     const d=await r.json();
     addLog('ok',`Hotel uložen: ${d.hotel?.name}`,'hotels',`ID: ${d.hotel?.id}`);
@@ -1015,7 +1015,7 @@ async function saveImport data fromd(){
   }catch(e){addLog('error','Chyba ukládání: '+e.message,'hotels');toast('Chyba: '+e.message,'err');}
 }
 
-function clearScrape(){import data fromd_data=null;document.getElementById('import data from-result').classList.remove('show');document.getElementById('import data from-url').value='';document.getElementById('import data from-name').value='';}
+function clearScrape(){scraped_data=null;document.getElementById('scrape-result').classList.remove('show');document.getElementById('scrape-url').value='';document.getElementById('scrape-name').value='';}
 
 // ══ PANEL ════════════════════════════════════
 function openPanel(id){
