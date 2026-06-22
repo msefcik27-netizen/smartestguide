@@ -759,6 +759,128 @@ def serve_guest(hotel_id: str):
     with open(html_path, "r", encoding="utf-8") as f:
         return f.read()
 
+# ─────────────────────────────────────────────
+# Guest API
+# ─────────────────────────────────────────────
+@app.get("/api/guest/{hotel_id}")
+def get_guest_hotel(hotel_id: str):
+    """Vrátí veřejná data hotelu pro guest app."""
+    db = db_load()
+    h = db["hotels"].get(hotel_id)
+    if not h:
+        raise HTTPException(404, "Hotel nenalezen")
+    if not h.get("subscription_active"):
+        raise HTTPException(403, "Hotel nemá aktivní předplatné")
+    # Vrátí pouze veřejná data (bez tokenů a interních dat)
+    public = {k: v for k, v in h.items() if k not in ("hotel_token", "stripe_customer_id", "stripe_subscription_id")}
+    return {"status": "ok", "hotel": public}
+
+class GuestChatRequest(BaseModel):
+    hotel_id: str
+    message: str
+    language: Optional[str] = "en"
+    guest_name: Optional[str] = None
+    history: Optional[list] = None
+    auto_lang: Optional[bool] = True
+
+@app.post("/api/guest/chat")
+async def guest_chat(req: GuestChatRequest):
+    """AI chat pro hosta – používá Anthropic API."""
+    settings = db_get_settings()
+    api_key = settings.get("anthropic_api_key", "")
+    if not api_key:
+        raise HTTPException(400, "AI není nakonfigurováno")
+
+    db = db_load()
+    h = db["hotels"].get(req.hotel_id)
+    if not h:
+        raise HTTPException(404, "Hotel nenalezen")
+
+    # Sestav systémový prompt z dat hotelu
+    hotel_info = f"""You are Alex, a friendly AI concierge for {h.get('name', 'this hotel')}.
+Respond in language: {req.language}. Be helpful, concise and friendly.
+
+Hotel information:
+- Name: {h.get('name', 'N/A')}
+- Address: {h.get('address', 'N/A')}
+- Phone: {h.get('phone', 'N/A')}
+- Email: {h.get('email', 'N/A')}
+- Check-in: {h.get('checkin_time', 'N/A')}
+- Check-out: {h.get('checkout_time', 'N/A')}
+- Breakfast: {h.get('breakfast_hours', 'N/A')}
+- Lunch: {h.get('lunch_hours', 'N/A')}
+- Dinner: {h.get('dinner_hours', 'N/A')}
+- Restaurant: {h.get('restaurant_name', 'N/A')}
+- Parking: {h.get('parking_info', 'N/A')}
+- Wellness: {h.get('wellness_info', 'N/A')}
+- WhatsApp: {h.get('whatsapp_number', 'N/A')}
+- Amenities: {', '.join(h.get('amenities', []))}
+- Nearby: {', '.join(h.get('nearby_places', []))}
+- Description: {h.get('description', 'N/A')}
+- Extra info: {h.get('extra_info', 'N/A')}
+
+Guest name: {req.guest_name or 'Guest'}
+Always respond in {req.language} language."""
+
+    messages = []
+    for m in (req.history or []):
+        if isinstance(m, dict) and m.get("role") in ("user", "assistant"):
+            messages.append({"role": m["role"], "content": m["content"]})
+    messages.append({"role": "user", "content": req.message})
+
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+            json={"model": "claude-haiku-4-5-20251001", "max_tokens": 500, "system": hotel_info, "messages": messages},
+            timeout=30.0,
+        )
+    if r.status_code != 200:
+        raise HTTPException(500, f"AI chyba: {r.text[:200]}")
+    reply = r.json()["content"][0]["text"]
+    return {"status": "ok", "reply": reply}
+
+class TranslateMenuRequest(BaseModel):
+    hotel_id: str
+    image_base64: str
+    language: Optional[str] = "en"
+    guest_name: Optional[str] = None
+
+@app.post("/api/guest/translate-menu")
+async def translate_menu(req: TranslateMenuRequest):
+    """Přeloží foto menu pomocí Claude Vision."""
+    settings = db_get_settings()
+    api_key = settings.get("anthropic_api_key", "")
+    if not api_key:
+        raise HTTPException(400, "AI není nakonfigurováno")
+
+    # Odstraň data URL prefix pokud je přítomen
+    img_data = req.image_base64
+    if "," in img_data:
+        img_data = img_data.split(",", 1)[1]
+
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 800,
+                "messages": [{
+                    "role": "user",
+                    "content": [
+                        {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_data}},
+                        {"type": "text", "text": f"This is a menu photo. Please translate and describe all items you can see into {req.language} language. Format it nicely with dish names and descriptions."}
+                    ]
+                }]
+            },
+            timeout=30.0,
+        )
+    if r.status_code != 200:
+        raise HTTPException(500, f"AI chyba: {r.text[:200]}")
+    reply = r.json()["content"][0]["text"]
+    return {"status": "ok", "reply": reply}
+
 @app.get("/success", response_class=HTMLResponse)
 def success_page(hotel_id: str = ""):
     return """<!DOCTYPE html>
