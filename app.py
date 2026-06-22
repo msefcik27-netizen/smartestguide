@@ -405,7 +405,7 @@ def hotel_portal_cancel(token: str):
     return {"status": "ok", "hotel": safe}
 
 @app.post("/api/hotels/{hotel_id}/generate-token")
-def generate_token(hotel_id: str):
+def generate_token(hotel_id: str, request: Request):
     db = db_load()
     if hotel_id not in db["hotels"]:
         raise HTTPException(404, "Hotel nenalezen")
@@ -413,7 +413,8 @@ def generate_token(hotel_id: str):
         db["hotels"][hotel_id]["hotel_token"] = str(uuid.uuid4()).replace("-", "")
         db_save(db)
     token = db["hotels"][hotel_id]["hotel_token"]
-    return {"status": "ok", "token": token, "portal_url": f"http://localhost:8000/hotel?token={token}"}
+    base = get_base_url(request)
+    return {"status": "ok", "token": token, "portal_url": f"{base}/hotel?token={token}"}
 
 @app.get("/api/hotels")
 def list_hotels():
@@ -451,10 +452,21 @@ def delete_hotel(hotel_id: str):
     return {"status": "ok"}
 
 # ─────────────────────────────────────────────
+# Helper – detekce base URL (lokál i Railway)
+# ─────────────────────────────────────────────
+def get_base_url(request: Request) -> str:
+    base_url_env = os.getenv("BASE_URL", "").strip().rstrip("/")
+    if base_url_env:
+        return base_url_env
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("x-forwarded-host", request.headers.get("host", "localhost:8000"))
+    return f"{scheme}://{host}"
+
+# ─────────────────────────────────────────────
 # QR kód
 # ─────────────────────────────────────────────
 @app.get("/api/hotels/{hotel_id}/qr")
-def generate_qr(hotel_id: str):
+def generate_qr(hotel_id: str, request: Request):
     try:
         import qrcode
         from io import BytesIO
@@ -466,7 +478,8 @@ def generate_qr(hotel_id: str):
     if not hotel:
         raise HTTPException(404, "Hotel nenalezen")
 
-    guest_url = f"http://localhost:8000/guest/{hotel_id}"
+    base = get_base_url(request)
+    guest_url = f"{base}/guest/{hotel_id}"
     qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=10, border=4)
     qr.add_data(guest_url)
     qr.make(fit=True)
@@ -716,7 +729,7 @@ def serve_hotel_portal():
 
 # Vrátí portal link pro existující hotel (+ vygeneruje token pokud chybí)
 @app.get("/api/hotels/{hotel_id}/portal-link")
-def get_portal_link(hotel_id: str):
+def get_portal_link(hotel_id: str, request: Request):
     db = db_load()
     if hotel_id not in db["hotels"]:
         raise HTTPException(404, "Hotel nenalezen")
@@ -724,4 +737,5 @@ def get_portal_link(hotel_id: str):
         db["hotels"][hotel_id]["hotel_token"] = str(uuid.uuid4()).replace("-", "")
         db_save(db)
     token = db["hotels"][hotel_id]["hotel_token"]
-    return {"status": "ok", "token": token, "portal_url": f"http://localhost:8000/hotel?token={token}"}
+    base = get_base_url(request)
+    return {"status": "ok", "token": token, "portal_url": f"{base}/hotel?token={token}"}
