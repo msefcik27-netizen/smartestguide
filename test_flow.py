@@ -272,6 +272,86 @@ def test_pricing():
         except Exception as e:
             fail(f"Ceník {beds} lůžek", str(e))
 
+def test_invoices(hotel_id):
+    section("8. Faktury")
+
+    # Aktivuj hotel aby šlo generovat fakturu
+    try:
+        requests.post(f"{BASE}/api/hotels/{hotel_id}/subscription?active=true", timeout=10)
+    except:
+        pass
+
+    # Nastavení firmy
+    try:
+        r = requests.post(f"{BASE}/api/settings/company", json={
+            "company_name": "Test s.r.o.", "company_email": "test@test.com"
+        }, timeout=10)
+        ok("POST /api/settings/company") if r.status_code == 200 else fail("POST /api/settings/company", f"status {r.status_code}")
+    except Exception as e:
+        fail("POST /api/settings/company", str(e))
+
+    try:
+        r = requests.get(f"{BASE}/api/settings/company", timeout=10)
+        d = r.json()
+        if r.status_code == 200 and d.get("company_name") == "Test s.r.o.":
+            ok("GET /api/settings/company", "data uložena správně")
+        else:
+            fail("GET /api/settings/company", f"status {r.status_code}")
+    except Exception as e:
+        fail("GET /api/settings/company", str(e))
+
+    # Generuj fakturu
+    inv_id = None
+    try:
+        r = requests.post(f"{BASE}/api/hotels/{hotel_id}/invoices/generate", timeout=10)
+        d = r.json()
+        if r.status_code == 200 and d.get("invoice", {}).get("id"):
+            inv_id = d["invoice"]["id"]
+            num = d["invoice"].get("invoice_number", "")
+            ok("Generování faktury", f"{num}")
+        else:
+            fail("Generování faktury", str(d))
+    except Exception as e:
+        fail("Generování faktury", str(e))
+
+    # Seznam faktur
+    try:
+        r = requests.get(f"{BASE}/api/invoices", timeout=10)
+        d = r.json()
+        if r.status_code == 200 and isinstance(d.get("invoices"), list):
+            ok("GET /api/invoices", f"{len(d['invoices'])} faktur")
+        else:
+            fail("GET /api/invoices", f"status {r.status_code}")
+    except Exception as e:
+        fail("GET /api/invoices", str(e))
+
+    if not inv_id:
+        skip("Změna stavu faktury", "faktura nebyla vytvořena")
+        skip("PDF faktury", "faktura nebyla vytvořena")
+        return
+
+    # Změna stavu
+    try:
+        r = requests.patch(f"{BASE}/api/invoices/{inv_id}/status?status=paid", timeout=10)
+        d = r.json()
+        if r.status_code == 200 and d.get("invoice", {}).get("status") == "paid":
+            ok("PATCH /api/invoices/{id}/status", "→ paid")
+        else:
+            fail("PATCH /api/invoices/{id}/status", str(d))
+    except Exception as e:
+        fail("PATCH /api/invoices/{id}/status", str(e))
+
+    # PDF stažení
+    try:
+        r = requests.get(f"{BASE}/api/invoices/{inv_id}/pdf", timeout=30)
+        if r.status_code == 200 and "pdf" in r.headers.get("content-type", ""):
+            ok("GET /api/invoices/{id}/pdf", f"{len(r.content)} bytes")
+        else:
+            fail("GET /api/invoices/{id}/pdf", f"status {r.status_code}, ct: {r.headers.get('content-type')}")
+    except Exception as e:
+        fail("GET /api/invoices/{id}/pdf", str(e))
+
+
 def cleanup(hotel_id):
     section("7. Úklid")
     try:
@@ -317,6 +397,7 @@ if __name__ == "__main__":
         skip("Guest testy", "hotel se nepodařilo vytvořit")
     test_pricing()
     if hotel_id:
+        test_invoices(hotel_id)
         cleanup(hotel_id)
     summary()
     sys.exit(1 if failed else 0)
