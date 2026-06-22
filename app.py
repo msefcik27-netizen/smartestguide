@@ -50,6 +50,7 @@ app.add_middleware(
 # ─────────────────────────────────────────────
 # Lokální JSON databáze
 # ─────────────────────────────────────────────
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.getenv("DATA_PATH", os.path.join(os.path.dirname(__file__), "data.json"))
 
 def db_load() -> dict:
@@ -892,153 +893,388 @@ def toggle_subscription(hotel_id: str, active: bool):
     db_save(db)
     return {"status": "ok", "subscription_active": active}
 
-@app.get("/api/hotels/{hotel_id}/flyer")
-def download_flyer(hotel_id: str, format: str = "a4", request: Request = None):
-    """Stáhne PDF leták. Format: a4, a5, rollup"""
-    try:
-        from reportlab.pdfgen import canvas
-        from reportlab.lib.pagesizes import A4, A5
-        from reportlab.lib.units import mm
-        from reportlab.lib.colors import HexColor
-        from io import BytesIO
-        import urllib.request
-        import unicodedata, re
-    except ImportError:
-        raise HTTPException(500, "reportlab není nainstalován")
+def hotel_is_english_only(hotel: dict) -> bool:
+    """Vrátí True pokud hotel používá pouze angličtinu (bez překladu)."""
+    langs = hotel.get("languages") or []
+    if not langs:
+        return False
+    # Pokud jsou jazyky ['en'] nebo pouze angličtina
+    langs_lower = [l.lower().strip() for l in langs]
+    en_variants = {'en', 'english', 'anglicky', 'anglictina'}
+    if len(langs_lower) == 1 and langs_lower[0] in en_variants:
+        return True
+    return False
 
+def get_hotel_lang(hotel: dict) -> str:
+    """Vrátí primární jazyk hotelu (výchozí cs)."""
+    langs = hotel.get("languages") or []
+    if not langs:
+        return "cs"
+    first = langs[0].lower().strip()
+    lang_map = {
+        "czech": "cs", "cestina": "cs", "cs": "cs",
+        "english": "en", "en": "en",
+        "german": "de", "de": "de", "nemcina": "de",
+        "slovak": "sk", "sk": "sk",
+        "french": "fr", "fr": "fr",
+        "italian": "it", "it": "it",
+        "spanish": "es", "es": "es",
+        "polish": "pl", "pl": "pl",
+    }
+    return lang_map.get(first, "cs")
+
+
+# ─────────────────────────────────────────────
+# Embed widget
+# ─────────────────────────────────────────────
+@app.get("/widget.js")
+def serve_widget(hotel_id: str, lang: str = "auto"):
+    """JavaScript widget pro vložení na web hotelu."""
+    base = get_base_url()
+    guest_url = f"{base}/guest/{hotel_id}"
+    js = f"""(function(){{
+  var btn = document.createElement('div');
+  btn.id = 'sg-widget-btn';
+  btn.innerHTML = '<span style="font-size:22px">💬</span>';
+  btn.style.cssText = 'position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#6c63ff,#00d4aa);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 20px rgba(108,99,255,.5);z-index:9999;transition:transform .2s';
+  btn.onmouseenter = function(){{ this.style.transform='scale(1.1)'; }};
+  btn.onmouseleave = function(){{ this.style.transform='scale(1)'; }};
+  btn.onclick = function(){{
+    var w = window.open('{guest_url}','sg_concierge','width=420,height=700,right=24,bottom=24');
+    if(!w) window.location.href = '{guest_url}';
+  }};
+  var tooltip = document.createElement('div');
+  tooltip.innerHTML = 'Chat with our AI concierge';
+  tooltip.style.cssText = 'position:fixed;bottom:88px;right:24px;background:#1a1d2e;color:#e8eaf6;font-size:13px;padding:8px 14px;border-radius:8px;white-space:nowrap;z-index:9999;opacity:0;transition:opacity .2s;pointer-events:none;font-family:sans-serif';
+  btn.onmouseenter = function(){{ this.style.transform='scale(1.1)'; tooltip.style.opacity='1'; }};
+  btn.onmouseleave = function(){{ this.style.transform='scale(1)'; tooltip.style.opacity='0'; }};
+  document.body.appendChild(btn);
+  document.body.appendChild(tooltip);
+}})();"""
+    return HTMLResponse(content=js, media_type="application/javascript")
+
+# ─────────────────────────────────────────────
+# Analytics
+# ─────────────────────────────────────────────
+@app.get("/api/hotels/{hotel_id}/analytics")
+def get_analytics(hotel_id: str):
+    db = db_load()
+    if hotel_id not in db.get("hotels", {}):
+        raise HTTPException(404, "Hotel nenalezen")
+    analytics = db.get("analytics", {}).get(hotel_id, {"total": 0, "topics": {}})
+    return {"status": "ok", "analytics": analytics}
+
+@app.get("/api/hotel-portal/analytics")
+def portal_analytics(token: str):
+    h = find_hotel_by_token(token)
+    if not h:
+        raise HTTPException(403, "Neplatny token")
+    db = db_load()
+    analytics = db.get("analytics", {}).get(h["id"], {"total": 0, "topics": {}})
+    return {"status": "ok", "analytics": analytics}
+
+# ─────────────────────────────────────────────
+# Email reminder
+# ─────────────────────────────────────────────
+def hotel_profile_completeness(hotel: dict) -> dict:
+    required = [
+        "name", "address", "phone", "email",
+        "checkin_time", "checkout_time", "breakfast_hours",
+        "bed_count", "star_rating", "description",
+    ]
+    bonus = [
+        "wellness_info", "parking_info", "restaurant_name",
+        "nearby_places", "fitness_info", "pool_info",
+        "whatsapp_number", "dinner_hours",
+    ]
+    filled_req = [f for f in required if hotel.get(f)]
+    filled_bon = [f for f in bonus if hotel.get(f)]
+    missing = [f for f in required if not hotel.get(f)]
+    # Skóre: required = 80%, bonus = 20%
+    req_score = int((len(filled_req) / len(required)) * 80)
+    bon_score = min(20, int((len(filled_bon) / len(bonus)) * 20))
+    score = req_score + bon_score
+    return {
+        "score": score,
+        "filled_required": len(filled_req),
+        "total_required": len(required),
+        "missing": missing,
+        "is_complete": score >= 80,
+    }
+
+@app.get("/api/hotels/{hotel_id}/completeness")
+def get_completeness(hotel_id: str):
     db = db_load()
     h = db["hotels"].get(hotel_id)
     if not h:
         raise HTTPException(404, "Hotel nenalezen")
+    return {"status": "ok", **hotel_profile_completeness(h)}
 
-    base = get_base_url(request) if request else ""
-    guest_url = f"{base}/guest/{hotel_id}"
+@app.post("/api/hotels/{hotel_id}/send-reminder")
+def send_reminder(hotel_id: str):
+    db = db_load()
+    h = db["hotels"].get(hotel_id)
+    if not h:
+        raise HTTPException(404, "Hotel nenalezen")
+    completeness = hotel_profile_completeness(h)
+    portal_url = get_base_url() + "/hotel?token=" + h.get("hotel_token","")
+    hotel_email = h.get("registration_email") or h.get("email", "")
+    missing_labels = {
+        "address": "Adresa hotelu", "phone": "Telefon recepce",
+        "email": "Email", "checkin_time": "Check-in cas",
+        "checkout_time": "Check-out cas", "breakfast_hours": "Hodiny snidane",
+        "bed_count": "Pocet luzek", "star_rating": "Hvezdicky",
+    }
+    missing_list = [missing_labels.get(f, f) for f in completeness["missing"]]
+    email_body = (
+        "Predmet: Pripominka - doplnte informace o hotelu " + h.get("name","") + "\n\n"
+        "Dobry den,\n\n"
+        "vas hotel " + h.get("name","") + " ma aktivni predplatne SmartestGuide, "
+        "ale profil je vyplnen pouze z " + str(completeness["score"]) + "%.\n\n"
+        "Chybejici informace:\n" + "\n".join("- " + m for m in missing_list) + "\n\n"
+        "Prihlaste se do portalu a doplnte chybejici informace:\n" + portal_url + "\n\n"
+        "SmartestGuide\nsupport@smartestguide.com"
+    )
+    import logging
+    logging.info("EMAIL REMINDER to %s: %s", hotel_email, email_body[:300])
+    now = datetime.utcnow().isoformat()
+    db["hotels"][hotel_id]["last_reminder_sent"] = now
+    db["hotels"][hotel_id]["reminder_count"] = db["hotels"][hotel_id].get("reminder_count", 0) + 1
+    db_save(db)
+    return {
+        "status": "ok",
+        "email_to": hotel_email,
+        "completeness": completeness,
+        "portal_url": portal_url,
+        "note": "Email pripraven - odesilani aktivni po nasazeni SendGrid"
+    }
 
-    # Výběr velikosti stránky
-    if format == "a5":
-        W, H = A5
-    elif format == "rollup":
-        W, H = 85 * mm, 200 * mm
-    else:
-        W, H = A4
 
-    buf = BytesIO()
-    c = canvas.Canvas(buf, pagesize=(W, H))
-
-    # Barvy
-    purple = HexColor("#6c63ff")
-    teal = HexColor("#00d4aa")
-    dark = HexColor("#1a1a2e")
-    gray = HexColor("#666666")
-    light = HexColor("#f7f7ff")
-
-    # Pozadí
-    c.setFillColor(HexColor("#0d0f1a"))
-    c.rect(0, 0, W, H, fill=1, stroke=0)
-
-    # Header gradient bar
-    c.setFillColor(purple)
-    c.rect(0, H - 8*mm, W, 8*mm, fill=1, stroke=0)
-
-    # Logo
-    c.setFillColor(HexColor("#ffffff"))
-    c.setFont("Helvetica-Bold", 18 if format != "rollup" else 24)
-    logo_y = H - 22*mm
-    c.drawCentredString(W/2, logo_y, "SmartestGuide")
-
-    # Název hotelu
-    name = h.get("name", "Hotel")
-    stars = "★" * (h.get("star_rating") or 0)
-    c.setFillColor(teal)
-    c.setFont("Helvetica-Bold", 20 if format != "rollup" else 28)
-    c.drawCentredString(W/2, logo_y - 12*mm, name)
-
-    if stars:
-        c.setFillColor(HexColor("#f5c518"))
-        c.setFont("Helvetica", 14)
-        c.drawCentredString(W/2, logo_y - 19*mm, stars)
-
-    # Čára
-    c.setStrokeColor(purple)
-    c.setLineWidth(1.5)
-    margin = 12*mm
-    c.line(margin, logo_y - 24*mm, W - margin, logo_y - 24*mm)
-
-    # QR kód
-    qr_size = 45*mm if format != "rollup" else 60*mm
-    qr_y = H/2 - qr_size/2 + 10*mm
-
-    try:
-        qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={guest_url}&bgcolor=ffffff&color=1a1a2e&margin=8"
-        qr_data = urllib.request.urlopen(qr_url, timeout=8).read()
-        from reportlab.lib.utils import ImageReader
-        from PIL import Image as PILImage
-        qr_img = PILImage.open(BytesIO(qr_data))
-        qr_reader = ImageReader(qr_img)
-        c.drawImage(qr_reader, W/2 - qr_size/2, qr_y, qr_size, qr_size)
-        # Rámeček kolem QR
-        c.setStrokeColor(purple)
-        c.setLineWidth(2)
-        c.roundRect(W/2 - qr_size/2 - 3*mm, qr_y - 3*mm, qr_size + 6*mm, qr_size + 6*mm, 4*mm, stroke=1, fill=0)
-    except Exception:
-        # Fallback pokud QR nelze stáhnout
-        c.setFillColor(HexColor("#ffffff"))
-        c.roundRect(W/2 - qr_size/2, qr_y, qr_size, qr_size, 4*mm, stroke=0, fill=1)
-        c.setFillColor(dark)
-        c.setFont("Helvetica", 9)
-        c.drawCentredString(W/2, qr_y + qr_size/2, "QR kód")
-
-    # Text nad QR
-    c.setFillColor(HexColor("#ffffff"))
-    c.setFont("Helvetica-Bold", 13 if format != "rollup" else 16)
-    c.drawCentredString(W/2, qr_y + qr_size + 8*mm, "Váš osobní AI concierge")
-    c.setFillColor(HexColor("#9ba0c0"))
-    c.setFont("Helvetica", 9 if format != "rollup" else 11)
-    c.drawCentredString(W/2, qr_y + qr_size + 3*mm, "Naskenujte a ptejte se na cokoliv")
-
-    # Text pod QR
-    c.setFillColor(teal)
-    c.setFont("Helvetica-Bold", 10)
-    c.drawCentredString(W/2, qr_y - 8*mm, "24/7 · 14 jazyků · Bez instalace")
-
-    # Kontaktní info
-    info_y = qr_y - 16*mm
-    address = h.get("address", "")
-    phone = h.get("phone", "")
-    if address:
-        c.setFillColor(HexColor("#9ba0c0"))
-        c.setFont("Helvetica", 8)
-        c.drawCentredString(W/2, info_y, f"📍 {address[:50]}")
-        info_y -= 5*mm
-    if phone:
-        c.setFillColor(HexColor("#9ba0c0"))
-        c.setFont("Helvetica", 8)
-        c.drawCentredString(W/2, info_y, f"📞 {phone}")
-
-    # Footer
-    c.setFillColor(HexColor("#3a3f5a"))
-    c.rect(0, 0, W, 14*mm, fill=1, stroke=0)
-    c.setFillColor(HexColor("#6b6f8e"))
-    c.setFont("Helvetica", 7)
-    c.drawCentredString(W/2, 5*mm, "Powered by SmartestGuide · smartestguide.com")
-
-    c.save()
-    pdf_bytes = buf.getvalue()
-
-    # Bezpečné jméno souboru
-    raw_name = h.get("name", "hotel")
-    safe_name = unicodedata.normalize("NFKD", raw_name).encode("ascii", "ignore").decode("ascii")
+# ─────────────────────────────────────────────
+# Leták PDF
+# ─────────────────────────────────────────────
+@app.get("/api/hotels/{hotel_id}/flyer")
+def download_flyer(hotel_id: str):
+    db = db_load()
+    hotel = db["hotels"].get(hotel_id)
+    if not hotel:
+        raise HTTPException(404, "Hotel nenalezen")
+    pdf_bytes = generate_flyer_pdf(hotel, get_base_url())
+    import unicodedata, re
+    raw_name = hotel.get("name","hotel")
+    # Odstraň diakritiku pro bezpečný HTTP header
+    safe_name = unicodedata.normalize("NFKD", raw_name).encode("ascii","ignore").decode("ascii")
     safe_name = re.sub(r"[^a-zA-Z0-9-]", "-", safe_name).strip("-") or "hotel"
-    fname = f"letak-{format}-{safe_name}.pdf"
-
-    from fastapi.responses import StreamingResponse
+    fname = "letak-" + safe_name + ".pdf"
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{fname}"'}
+        headers={"Content-Disposition": 'attachment; filename="' + fname + '"'}
     )
 
+def generate_flyer_pdf(hotel: dict, base_url: str) -> bytes:
+    from reportlab.pdfgen import canvas as rl_canvas
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.graphics.barcode.qr import QrCodeWidget
+    from reportlab.graphics.shapes import Drawing
+    from reportlab.graphics import renderPDF
+
+    # Arial z Windows - plná podpora češtiny
+    FONT, FONTB = "Helvetica", "Helvetica-Bold"
+    for rp, bp in [
+        ("C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/arialbd.ttf"),
+        ("C:/WINDOWS/Fonts/arial.ttf", "C:/WINDOWS/Fonts/arialbd.ttf"),
+    ]:
+        try:
+            if os.path.exists(rp) and os.path.exists(bp):
+                pdfmetrics.registerFont(TTFont("FL", rp))
+                pdfmetrics.registerFont(TTFont("FLB", bp))
+                FONT, FONTB = "FL", "FLB"
+                break
+        except Exception:
+            pass
+    if FONT == "Helvetica":
+        # Fallback: Liberation Sans ze složky fonts/
+        lib_r = os.path.join(BASE_DIR, "fonts", "LiberationSans-Regular.ttf")
+        lib_b = os.path.join(BASE_DIR, "fonts", "LiberationSans-Bold.ttf")
+        if os.path.exists(lib_r):
+            try:
+                pdfmetrics.registerFont(TTFont("FL", lib_r))
+                pdfmetrics.registerFont(TTFont("FLB", lib_b))
+                FONT, FONTB = "FL", "FLB"
+            except Exception:
+                pass
+
+    en_only = hotel_is_english_only(hotel)
+    W, H = A4
+
+    PURPLE = colors.HexColor("#6c63ff")
+    TEAL   = colors.HexColor("#00d4aa")
+    DARK   = colors.HexColor("#0a0c14")
+    DARK2  = colors.HexColor("#1a1040")
+    WHITE  = colors.white
+    LIGHT  = colors.HexColor("#e8eaf6")
+    MUTED  = colors.HexColor("#7a7fa8")
+    BORDER = colors.HexColor("#2a2f4a")
+
+    hotel_name = hotel.get("name", "Hotel")
+    hotel_loc  = (hotel.get("address","") or "").split(",")[0]
+    qr_url = base_url + "/guest/" + hotel["id"]
+
+    def T2(cz, en):
+        if en_only:
+            return (en, None)
+        return (cz, en)
+
+    benefits_data = [
+        T2("Zeptejte se na cokoliv o hotelu", "Ask anything about the hotel"),
+        T2("Check-in, check-out, snídaně",    "Check-in, check-out, breakfast"),
+        T2("Doporučení míst v okolí",          "Recommendations nearby"),
+        T2("Aktuální počasí",                  "Current weather"),
+        T2("Kontakt na recepci",               "Contact reception"),
+        T2("14 jazyků komunikace",             "14 languages available"),
+    ]
+
+    buf = BytesIO()
+    cv = rl_canvas.Canvas(buf, pagesize=A4)
+
+    cv.setFillColor(DARK)
+    cv.rect(0, 0, W, H, fill=1, stroke=0)
+    cv.setFillColor(DARK2)
+    cv.rect(0, H-185*mm, W, 185*mm, fill=1, stroke=0)
+
+    for r, a in [(50,.07),(70,.045),(90,.025)]:
+        cv.setFillColorRGB(0.42,0.39,1.0,alpha=a)
+        cv.circle(W/2, H-65*mm, r*mm, fill=1, stroke=0)
+
+    cv.setFont(FONTB, 24)
+    cv.setFillColor(WHITE)
+    cv.drawCentredString(W/2, H-20*mm, hotel_name)
+    if hotel_loc:
+        cv.setFont(FONT, 10)
+        cv.setFillColor(TEAL)
+        cv.drawCentredString(W/2, H-28*mm, hotel_loc)
+
+    cx, cy = W/2, H-63*mm
+    cv.setFillColor(colors.HexColor("#1e1860"))
+    cv.circle(cx, cy, 26*mm, fill=1, stroke=0)
+    cv.setFillColor(PURPLE)
+    cv.circle(cx, cy, 21*mm, fill=1, stroke=0)
+    cv.setFillColor(colors.HexColor("#0099aa"))
+    cv.circle(cx, cy, 16*mm, fill=1, stroke=0)
+    cv.setFont(FONTB, 19)
+    cv.setFillColor(WHITE)
+    cv.drawCentredString(cx, cy-5*mm, "AI")
+    cv.setStrokeColor(PURPLE)
+    cv.setLineWidth(1.5)
+    cv.circle(cx, cy, 29*mm, fill=0, stroke=1)
+    cv.setFillColor(TEAL)
+    cv.circle(cx+29*mm, cy, 2.3*mm, fill=1, stroke=0)
+
+    headline, headline_en = T2("Váš osobní concierge", "Your personal concierge")
+    sub, sub_en = T2("Dostupný 24/7 ve vašem jazyce", "Available 24/7 in your language")
+
+    cv.setFont(FONTB, 22)
+    cv.setFillColor(WHITE)
+    cv.drawCentredString(W/2, H-103*mm, headline)
+    y_off = 110
+    if headline_en:
+        cv.setFont(FONT, 11)
+        cv.setFillColor(MUTED)
+        cv.drawCentredString(W/2, H-110*mm, headline_en)
+        y_off = 117
+    cv.setFont(FONTB, 14)
+    cv.setFillColor(TEAL)
+    cv.drawCentredString(W/2, H-y_off*mm, sub)
+    if sub_en:
+        cv.setFont(FONT, 9)
+        cv.setFillColor(MUTED)
+        cv.drawCentredString(W/2, H-(y_off+7)*mm, sub_en)
+        y_off += 7
+
+    sep_y = H-(y_off+7)*mm
+    cv.setStrokeColor(BORDER)
+    cv.setLineWidth(0.5)
+    cv.line(18*mm, sep_y, W-18*mm, sep_y)
+
+    LEFT_X  = 14*mm
+    RIGHT_W = 72*mm
+    RIGHT_X = W - RIGHT_W - 12*mm
+    CONTENT_Y = sep_y - 6*mm
+
+    scan_t, scan_en = T2("Naskenujte QR kód:", "Scan QR code:")
+    cv.setFont(FONTB, 11)
+    cv.setFillColor(LIGHT)
+    cv.drawString(LEFT_X, CONTENT_Y, scan_t)
+    if scan_en:
+        cv.setFont(FONT, 9)
+        cv.setFillColor(MUTED)
+        cv.drawString(LEFT_X, CONTENT_Y-6*mm, scan_en)
+
+    by = CONTENT_Y - (14 if not en_only else 8)*mm
+    for (main_t, transl) in benefits_data:
+        cv.setFillColor(TEAL)
+        cv.circle(LEFT_X+2*mm, by+1.5*mm, 1.6*mm, fill=1, stroke=0)
+        cv.setFont(FONTB, 10)
+        cv.setFillColor(LIGHT)
+        cv.drawString(LEFT_X+6*mm, by+0.5*mm, main_t)
+        if transl:
+            cv.setFont(FONT, 8.5)
+            cv.setFillColor(MUTED)
+            cv.drawString(LEFT_X+6*mm, by-5*mm, transl)
+        by -= (13 if not en_only else 10)*mm
+
+    qr_size = 58*mm
+    qr_x = RIGHT_X + (RIGHT_W - qr_size)/2
+    qr_y = CONTENT_Y - qr_size - 4*mm
+
+    cv.setFillColor(WHITE)
+    cv.roundRect(qr_x-4*mm, qr_y-4*mm, qr_size+8*mm, qr_size+8*mm, 4*mm, fill=1, stroke=0)
+
+    qr_w = QrCodeWidget(qr_url)
+    bounds = qr_w.getBounds()
+    scale = qr_size / max(bounds[2]-bounds[0], bounds[3]-bounds[1])
+    d = Drawing(qr_size, qr_size, transform=[scale,0,0,scale,-bounds[0]*scale,-bounds[1]*scale])
+    d.add(qr_w)
+    renderPDF.draw(d, cv, qr_x, qr_y)
+
+    free_t, free_en = T2("ZDARMA pro hosty", "FREE for guests")
+    banner_y = qr_y - 20*mm
+    cv.setFillColor(colors.HexColor("#0d3d2a"))
+    cv.roundRect(RIGHT_X, banner_y-6*mm, RIGHT_W, 18*mm, 3*mm, fill=1, stroke=0)
+    cv.setStrokeColor(TEAL)
+    cv.setLineWidth(1.2)
+    cv.roundRect(RIGHT_X, banner_y-6*mm, RIGHT_W, 18*mm, 3*mm, fill=0, stroke=1)
+    cv.setFont(FONTB, 14)
+    cv.setFillColor(TEAL)
+    cv.drawCentredString(RIGHT_X + RIGHT_W/2, banner_y+2*mm, free_t)
+    if free_en:
+        cv.setFont(FONT, 9)
+        cv.setFillColor(colors.HexColor("#4daa88"))
+        cv.drawCentredString(RIGHT_X + RIGHT_W/2, banner_y-4.5*mm, free_en)
+
+    cv.setFillColor(PURPLE)
+    cv.rect(0, 14*mm, W, 0.8*mm, fill=1, stroke=0)
+    cv.setFillColor(TEAL)
+    cv.rect(0, 13.2*mm, W, 0.4*mm, fill=1, stroke=0)
+    cv.setFont(FONT, 7.5)
+    cv.setFillColor(MUTED)
+    cv.drawCentredString(W/2, 8*mm, "Powered by SmartestGuide  |  smartestguide.com")
+    for i, xo in enumerate([-28,-18,-9,0,9,18,28]):
+        cv.setFillColor(PURPLE if i%3==0 else BORDER)
+        cv.circle(W/2+xo*mm, 3.5*mm, 0.9*mm, fill=1, stroke=0)
+
+    cv.save()
+    return buf.getvalue()
+
+
 # ─────────────────────────────────────────────
+
+
 # Frontend – servíruje HTML přímo z Pythonu
 # ─────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
