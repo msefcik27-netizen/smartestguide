@@ -1056,13 +1056,14 @@ def send_reminder(hotel_id: str):
 @app.get("/api/hotels/{hotel_id}/flyer")
 def download_flyer(hotel_id: str, request: Request):
     from fastapi.responses import StreamingResponse
+    from io import BytesIO
+    import unicodedata, re
     db = db_load()
     hotel = db["hotels"].get(hotel_id)
     if not hotel:
         raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
     pdf_bytes = generate_flyer_pdf(hotel, base)
-    import unicodedata, re
     raw_name = hotel.get("name","hotel")
     safe_name = unicodedata.normalize("NFKD", raw_name).encode("ascii","ignore").decode("ascii")
     safe_name = re.sub(r"[^a-zA-Z0-9-]", "-", safe_name).strip("-") or "hotel"
