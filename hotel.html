@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SmartestGuide – Správa hotelu</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:#0d0f1a; --surface:#161828; --card:#1e2135; --border:#2a2f4a;
+      --accent:#6c63ff; --accent2:#00d4aa; --danger:#ff4f6a;
+      --text:#e8eaf6; --muted:#7a7fa8; --success:#2ecc87; --warn:#ffaa33;
+      --radius:12px; --font-head:'Space Grotesk',sans-serif; --font-body:'Inter',sans-serif;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;line-height:1.6;min-height:100vh}
+
+    /* Top bar */
+    .topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 32px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+    .logo{font-family:var(--font-head);font-size:16px;font-weight:700}
+    .logo span{color:var(--accent)}
+    .hotel-name-bar{font-size:13px;color:var(--muted)}
+    .hotel-name-bar strong{color:var(--text)}
+    .save-bar{display:flex;align-items:center;gap:12px}
+    .unsaved-dot{width:8px;height:8px;border-radius:50%;background:var(--warn);display:none}
+    .unsaved-dot.show{display:block}
+
+    /* Layout */
+    .container{max-width:860px;margin:0 auto;padding:32px 24px}
+
+    /* Sekce */
+    .section{margin-bottom:28px}
+    .section-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+    .section-icon{font-size:20px;width:36px;height:36px;background:rgba(108,99,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center}
+    .section-title{font-family:var(--font-head);font-size:15px;font-weight:600}
+    .section-desc{font-size:12px;color:var(--muted);margin-top:1px}
+
+    /* Editovatelná tabulka */
+    .edit-table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+    .edit-table tr{border-bottom:1px solid rgba(42,47,74,.7)}
+    .edit-table tr:last-child{border-bottom:none}
+    .edit-table tr:hover{background:rgba(108,99,255,.03)}
+    .edit-table td:first-child{width:180px;padding:12px 16px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;font-weight:600;vertical-align:top;padding-top:14px}
+    .edit-table td:last-child{padding:8px 12px 8px 0}
+
+    input[type=text],input[type=number],input[type=email],input[type=tel],textarea{
+      background:transparent;border:1px solid transparent;border-radius:6px;color:var(--text);
+      font-family:var(--font-body);font-size:13px;padding:6px 10px;width:100%;outline:none;
+      transition:all .15s;
+    }
+    input:hover,textarea:hover{border-color:var(--border);background:var(--surface)}
+    input:focus,textarea:focus{border-color:var(--accent);background:var(--surface)}
+    textarea{resize:vertical;min-height:70px}
+
+    /* Tags input */
+    .tags-wrap{display:flex;flex-wrap:wrap;gap:6px;padding:6px 10px;border:1px solid transparent;border-radius:6px;min-height:40px;cursor:text;transition:all .15s}
+    .tags-wrap:hover{border-color:var(--border);background:var(--surface)}
+    .tags-wrap:focus-within{border-color:var(--accent);background:var(--surface)}
+    .tag-item{background:rgba(108,99,255,.15);color:var(--accent);border:1px solid rgba(108,99,255,.3);border-radius:20px;padding:3px 10px;font-size:12px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+    .tag-item button{background:none;border:none;color:var(--accent);cursor:pointer;font-size:14px;line-height:1;padding:0;opacity:.7}
+    .tag-item button:hover{opacity:1}
+    .tag-input{border:none;background:transparent;color:var(--text);font-size:12px;outline:none;min-width:120px;padding:3px 4px}
+
+    /* Buttons */
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s;white-space:nowrap}
+    .btn-primary{background:var(--accent);color:#fff} .btn-primary:hover{background:#7c75ff}
+    .btn-secondary{background:var(--surface);color:var(--text);border:1px solid var(--border)} .btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+
+    /* Status badge */
+    .status-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600}
+    .status-pill.active{background:rgba(46,204,135,.12);color:var(--success);border:1px solid rgba(46,204,135,.3)}
+    .status-pill.inactive{background:rgba(122,127,168,.12);color:var(--muted);border:1px solid rgba(122,127,168,.3)}
+
+    /* Info banner */
+    .info-banner{background:rgba(108,99,255,.08);border:1px solid rgba(108,99,255,.2);border-radius:10px;padding:14px 18px;font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.7}
+    .info-banner strong{color:var(--text)}
+
+    /* Error/success */
+    .page-msg{text-align:center;padding:80px 20px}
+    .page-msg h2{font-family:var(--font-head);font-size:22px;margin-bottom:10px}
+    .page-msg p{color:var(--muted);font-size:14px}
+
+    /* Toast */
+    #toast{position:fixed;bottom:28px;right:28px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 18px;font-size:13px;display:none;z-index:999;max-width:320px;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+    #toast.show{display:block} #toast.ok{border-color:var(--success)} #toast.err{border-color:var(--danger)} #toast.warn{border-color:var(--warn)}
+
+    /* Loader */
+    .loader{width:18px;height:18px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:inline-block}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* Last saved */
+    .last-saved{font-size:11px;color:var(--muted)}
+  .plang-btn{background:none;border:none;color:var(--muted);font-size:11px;font-weight:700;padding:4px 7px;border-radius:5px;cursor:pointer;transition:all .15s}
+.plang-btn.active{background:var(--accent);color:#fff}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:16px">
+    <div class="logo">Smartest<span>Guide</span></div>
+    <div class="hotel-name-bar">Správa hotelu: <strong id="hotel-name-bar">–</strong></div>
+  </div>
+  <div class="save-bar">
+    <span class="last-saved" id="last-saved"></span>
+    <span class="unsaved-dot" id="unsaved-dot"></span>
+    <button class="btn btn-primary" id="save-btn" onclick="saveAll()" disabled>💾 Uložit změny</button>
+  </div>
+</div>
+
+<div class="container" id="main-container">
+  <div class="page-msg"><div class="loader"></div><p style="margin-top:16px;color:var(--muted)">Načítám data hotelu…</p></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = '';
+const token = new URLSearchParams(location.search).get('token');
+let hotelData = null;
+let hasChanges = false;
+
+// ── Překlady portálu ─────────────────────────
+const PORTAL_T = {
+  cs:{
+    title:"Hotelový portál",save:"Uložit změny",saving:"Ukládám...",saved:"Změny uloženy",
+    cancel_sub:"Zrušit předplatné",cancel_confirm:"Opravdu zrušit předplatné?",
+    pay_btn:"Zaplatit online",pay_active:"Předplatné aktivní",
+    invoices:"Faktury",analytics:"Statistiky chatbota",embed:"Embed widget",
+    no_invoices:"Žádné faktury",pdf:"PDF",logout:"Odhlásit",
+  },
+  en:{
+    title:"Hotel Portal",save:"Save changes",saving:"Saving...",saved:"Changes saved",
+    cancel_sub:"Cancel subscription",cancel_confirm:"Really cancel subscription?",
+    pay_btn:"Pay online",pay_active:"Subscription active",
+    invoices:"Invoices",analytics:"Chatbot statistics",embed:"Embed widget",
+    no_invoices:"No invoices",pdf:"PDF",logout:"Logout",
+  },
+  de:{
+    title:"Hotelportal",save:"Änderungen speichern",saving:"Speichere...",saved:"Änderungen gespeichert",
+    cancel_sub:"Abo kündigen",cancel_confirm:"Abo wirklich kündigen?",
+    pay_btn:"Online bezahlen",pay_active:"Abonnement aktiv",
+    invoices:"Rechnungen",analytics:"Chatbot-Statistiken",embed:"Einbetten",
+    no_invoices:"Keine Rechnungen",pdf:"PDF",logout:"Abmelden",
+  },
+  es:{
+    title:"Portal del hotel",save:"Guardar cambios",saving:"Guardando...",saved:"Cambios guardados",
+    cancel_sub:"Cancelar suscripción",cancel_confirm:"¿Cancelar suscripción?",
+    pay_btn:"Pagar en línea",pay_active:"Suscripción activa",
+    invoices:"Facturas",analytics:"Estadísticas del chatbot",embed:"Insertar widget",
+    no_invoices:"Sin facturas",pdf:"PDF",logout:"Cerrar sesión",
+  },
+  pl:{
+    title:"Portal hotelowy",save:"Zapisz zmiany",saving:"Zapisuję...",saved:"Zmiany zapisane",
+    cancel_sub:"Anuluj subskrypcję",cancel_confirm:"Anulować subskrypcję?",
+    pay_btn:"Zapłać online",pay_active:"Subskrypcja aktywna",
+    invoices:"Faktury",analytics:"Statystyki chatbota",embed:"Osadź widget",
+    no_invoices:"Brak faktur",pdf:"PDF",logout:"Wyloguj",
+  },
+  it:{
+    title:"Portale hotel",save:"Salva modifiche",saving:"Salvataggio...",saved:"Modifiche salvate",
+    cancel_sub:"Annulla abbonamento",cancel_confirm:"Annullare abbonamento?",
+    pay_btn:"Paga online",pay_active:"Abbonamento attivo",
+    invoices:"Fatture",analytics:"Statistiche chatbot",embed:"Incorpora widget",
+    no_invoices:"Nessuna fattura",pdf:"PDF",logout:"Esci",
+  },
+};
+
+let portalLang = localStorage.getItem('sg_portal_lang') || 'cs';
+
+function setPortalLang(lang){
+  portalLang = lang;
+  localStorage.setItem('sg_portal_lang', lang);
+  document.querySelectorAll('.plang-btn').forEach(b => {
+    b.classList.toggle('active', b.id === 'plb-'+lang);
+  });
+  // Znovu renderuj portál s novým jazykem
+  if(hotelData) renderPortal();
+}
+
+function t(key){ return (PORTAL_T[portalLang]||PORTAL_T.cs)[key] || key; }
+
+// ── Init ──────────────────────────────────────
+// Nastav výchozí jazyk přepínače
+document.querySelectorAll('.plang-btn').forEach(b => {
+  b.classList.toggle('active', b.id === 'plb-'+portalLang);
+});
+
+if (!token) {
+  document.getElementById('main-container').innerHTML = `
+    <div class="page-msg">
+      <h2>⛔ Přístup odepřen</h2>
+      <p>Tento odkaz není platný. Požádej správce SmartestGuide o nový přístupový odkaz.</p>
+    </div>`;
+} else {
+  loadHotel();
+}
+
+async function loadHotel() {
+  try {
+    const r = await fetch(`${API}/api/hotel-portal/me?token=${token}`);
+    if (!r.ok) throw new Error('Neplatný token');
+    const d = await r.json();
+    hotelData = d.hotel;
+    renderPortal();
+    loadPaymentSection();
+    loadInvoicesSection();
+    loadAnalytics();
+    setTimeout(initEmbedCode, 100);
+  } catch(e) {
+    document.getElementById('main-container').innerHTML = `
+      <div class="page-msg">
+        <h2>⛔ Přístup odepřen</h2>
+        <p>${e.message === 'Neplatný token' ? 'Tento přístupový odkaz není platný nebo byl zrušen.' : 'Nelze se připojit k serveru. Ujisti se, že aplikace běží.'}</p>
+      </div>`;
+  }
+}
+
+// ── Render ────────────────────────────────────
+function renderPortal() {
+  const h = hotelData;
+  document.getElementById('hotel-name-bar').textContent = h.name || '–';
+  document.getElementById('save-btn').disabled = false;
+
+  const lastEdit = h.portal_last_edit
+    ? `Naposledy upraveno: ${new Date(h.portal_last_edit).toLocaleString('cs-CZ')}`
+    : 'Zatím neupraveno';
+
+  const subStatus = h.subscription_active
+    ? '<span class="status-pill active">● Předplatné aktivní</span>'
+    : '<span class="status-pill inactive">○ Předplatné neaktivní</span>';
+
+  document.getElementById('main-container').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-family:var(--font-head);font-size:22px;font-weight:700">${esc(h.name||'Bez názvu')}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">${esc(h.url||h.source_url||'')}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        ${subStatus}
+        <span style="font-size:11px;color:var(--muted)">${lastEdit}</span>
+      </div>
+    </div>
+
+    <div class="info-banner">
+      <strong>Jak to funguje:</strong> Vyplňte informace o vašem hotelu co nejpřesněji.
+      Tyto informace bude avatar sdělovat vašim hostům. Čím více vyplníte, tím lépe
+      bude avatar sloužit. Po každé úpravě klikněte na <strong>Uložit změny</strong>.
+    </div>
+
+    <div id="payment-section"></div>
+
+    ${renderSection('📋', 'Základní provozní informace', 'Check-in, check-out, stravování', `
+      <table class="edit-table">
+        ${row('Hvězdičky ★ (1–5)', 'star_rating', 'number', h.star_rating, '1 až 5')}
+        ${row('Check-in od', 'checkin_time', 'text', h.checkin_time, 'např. 14:00')}
+        ${row('Check-out do', 'checkout_time', 'text', h.checkout_time, 'např. 11:00')}
+        ${row('Snídaně', 'breakfast_hours', 'text', h.breakfast_hours, 'např. 7:00–10:00')}
+        ${row('Oběd', 'lunch_hours', 'text', h.lunch_hours, 'např. 12:00–14:00 nebo nevyplňovat')}
+        ${row('Večeře', 'dinner_hours', 'text', h.dinner_hours, 'např. 18:00–22:00')}
+        ${row('Počet lůžek', 'bed_count', 'number', h.bed_count, 'přesný počet lůžek')}
+        ${row('Počet pokojů', 'room_count', 'number', h.room_count, '')}
+      </table>
+    `)}
+
+    ${renderSection('📞', 'Kontaktní informace', 'Jak hosté mohou kontaktovat hotel', `
+      <table class="edit-table">
+        ${row('Telefon recepce', 'phone', 'tel', h.phone, '+420 123 456 789')}
+        ${row('E-mail', 'email', 'email', h.email, 'recepce@hotel.cz')}
+        ${row('WhatsApp', 'whatsapp_number', 'tel', h.whatsapp_number, '+420 123 456 789')}
+      </table>
+    `)}
+
+    ${renderSection('🍽️', 'Restaurace & wellness', 'Informace o stravování a relaxaci', `
+      <table class="edit-table">
+        ${row('Název restaurace', 'restaurant_name', 'text', h.restaurant_name, '')}
+        ${row('Wellness / Spa', 'wellness_info', 'text', h.wellness_info, 'např. Sauna, bazén, masáže – otevřeno 8–21')}
+        ${row('Parkování', 'parking_info', 'text', h.parking_info, 'např. Bezplatné parkování před hotelem')}
+      </table>
+    `)}
+
+    ${renderSection('✨', 'Vybavení hotelu', 'Co hotel nabízí – hosté se mohou zeptat', `
+      <table class="edit-table">
+        <tr>
+          <td>Vybavení</td>
+          <td>${tagsInput('amenities', h.amenities||[], 'Přidej položku a stiskni Enter…')}</td>
+        </tr>
+      </table>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;padding:0 4px">
+        Příklady: WiFi zdarma, Bazén, Sauna, Fitness, Klimatizace, Parkování, Restaurace, Bar, Výtah, Pets allowed…
+      </div>
+    `)}
+
+    ${renderSection('🏊', 'Služby hotelu', 'Fitness, bazén, spa, doprava', `
+      <table class="edit-table">
+        ${row('Fitness / Gym', 'fitness_info', 'text', h.fitness_info, 'např. Otevřeno 6:00–22:00, vstup zdarma')}
+        ${row('Bazén', 'pool_info', 'text', h.pool_info, 'např. Krytý bazén, 25m, otevřeno celoročně')}
+        ${row('Spa / Masáže', 'spa_info', 'text', h.spa_info, 'např. Thajské masáže, rezervace na recepci')}
+        ${row('Room service', 'room_service_hours', 'text', h.room_service_hours, 'např. 0–24h, menu na pokoji')}
+        ${row('Prádelna / Čistírna', 'laundry_info', 'text', h.laundry_info, 'např. Výdej do 24h, expresní 4h')}
+        ${row('Půjčovna kol', 'bike_rental', 'text', h.bike_rental, 'cena a dostupnost')}
+        ${row('Transfer / Shuttle', 'transfer_info', 'text', h.transfer_info, 'např. Shuttle na letiště, taxi')}
+        ${row('Kongresový sál', 'congress_info', 'text', h.congress_info, 'kapacita a vybavení')}
+        ${row('Domácí mazlíčci', 'pets_policy', 'text', h.pets_policy, 'např. Povoleno, příplatek 200 Kč/noc')}
+        ${row('Bezbariérový přístup', 'accessibility', 'text', h.accessibility, 'výtah, bezbariérové pokoje')}
+      </table>
+    `)}
+
+    ${renderSection('🍽️', 'Stravování — podrobnosti', 'Typ snídaně, bar, minibar', `
+      <table class="edit-table">
+        ${row('Typ snídaně', 'breakfast_type', 'text', h.breakfast_type, 'např. Bufet, À la carte, Kontinentální')}
+        ${row('Bar / Lobby bar', 'bar_info', 'text', h.bar_info, 'např. Otevřeno 10:00–24:00')}
+        ${row('Vegetariánská / Vegan', 'dietary_options', 'text', h.dietary_options, 'dostupné možnosti')}
+        ${row('Mini bar na pokoji', 'minibar', 'text', h.minibar, 'např. Ano, doplňován denně')}
+      </table>
+    `)}
+
+    ${renderSection('🗺️', 'Místa v okolí', 'Tipy na výlety a restaurace které doporučujete', `
+      <table class="edit-table">
+        <tr>
+          <td>Doporučená místa</td>
+          <td>${tagsInput('nearby_places', h.nearby_places||[], 'Přidej místo a stiskni Enter…')}</td>
+        </tr>
+      </table>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;padding:0 4px">
+        Příklady: Restaurace U Zlaté hvězdy (5 min), Hrad Veveří (20 km), Aquapark Delfín…
+      </div>
+    `)}
+
+    ${renderSection('🔌', 'Embed widget — vložit na web', 'Přidejte chat tlačítko na web vašeho hotelu', `
+      <div style="margin-bottom:16px;font-size:14px;color:var(--muted);line-height:1.7">
+        Vložte tento kód před <code style="background:var(--card);padding:2px 6px;border-radius:4px;font-size:13px">&lt;/body&gt;</code> na vašem webu. 
+        Na stránce se zobrazí plovoucí chat tlačítko pro hosty.
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;font-family:monospace;font-size:12px;color:var(--accent2);word-break:break-all;margin-bottom:12px;user-select:all" id="embed-code">
+        Načítám...
+      </div>
+      <div id="embed-note" style="font-size:12px;margin-bottom:12px;padding:8px 12px;background:var(--card);border-radius:6px"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button onclick="copyEmbedCode()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer">📋 Kopírovat kód</button>
+        <button onclick="previewWidget()" style="background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px 18px;font-size:13px;cursor:pointer">👁 Náhled</button>
+      </div>
+    `)}
+
+    ${renderSection('📝', 'Popis a další informace', 'Co byste chtěli hostům sdělit navíc', `
+      <table class="edit-table">
+        ${rowTextarea('Popis hotelu', 'description', h.description, 'Stručný popis hotelu pro hosty…')}
+        ${rowTextarea('Další informace', 'extra_info', h.extra_info, 'Speciální akce, house rules, zajímavosti…')}
+      </table>
+    `)}
+  <div id="invoices-section" style="margin-top:0"></div>
+  <div id="analytics-section"></div>
+  `;
+
+  // Init tag inputs
+  initTagInput('amenities');
+  initTagInput('nearby_places');
+
+  // Sleduj změny na všech inputech
+  document.querySelectorAll('input,textarea').forEach(el => {
+    el.addEventListener('input', markChanged);
+  });
+}
+
+function renderSection(icon, title, desc, content) {
+  return `<div class="section">
+    <div class="section-head">
+      <div class="section-icon">${icon}</div>
+      <div><div class="section-title">${title}</div><div class="section-desc">${desc}</div></div>
+    </div>
+    ${content}
+  </div>`;
+}
+
+function row(label, key, type, val, placeholder) {
+  return `<tr>
+    <td>${label}</td>
+    <td><input type="${type}" id="f-${key}" value="${esc(String(val??''))}" placeholder="${esc(placeholder)}" oninput="markChanged()"></td>
+  </tr>`;
+}
+function rowTextarea(label, key, val, placeholder) {
+  return `<tr>
+    <td>${label}</td>
+    <td><textarea id="f-${key}" placeholder="${esc(placeholder)}" oninput="markChanged()">${esc(String(val??''))}</textarea></td>
+  </tr>`;
+}
+
+// ── Tag input ─────────────────────────────────
+function tagsInput(key, items, placeholder) {
+  const tagsHtml = items.map(t =>
+    `<span class="tag-item" data-val="${esc(t)}">${esc(t)}<button type="button" onclick="removeTag('${key}',this)">×</button></span>`
+  ).join('');
+  return `<div class="tags-wrap" id="tags-${key}" onclick="document.getElementById('taginput-${key}').focus()">
+    ${tagsHtml}
+    <input class="tag-input" id="taginput-${key}" placeholder="${esc(placeholder)}" onkeydown="tagKeydown(event,'${key}')">
+  </div>`;
+}
+
+function initTagInput(key) {
+  // Already rendered, just make sure clicks work
+}
+
+function tagKeydown(e, key) {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    const val = e.target.value.trim().replace(/,$/, '');
+    if (!val) return;
+    addTag(key, val);
+    e.target.value = '';
+    markChanged();
+  }
+  if (e.key === 'Backspace' && e.target.value === '') {
+    const wrap = document.getElementById('tags-' + key);
+    const tags = wrap.querySelectorAll('.tag-item');
+    if (tags.length) tags[tags.length-1].remove();
+    markChanged();
+  }
+}
+
+function addTag(key, val) {
+  const wrap = document.getElementById('tags-' + key);
+  const inp = document.getElementById('taginput-' + key);
+  const span = document.createElement('span');
+  span.className = 'tag-item';
+  span.dataset.val = val;
+  span.innerHTML = `${esc(val)}<button type="button" onclick="removeTag('${key}',this)">×</button>`;
+  wrap.insertBefore(span, inp);
+}
+
+function removeTag(key, btn) {
+  btn.parentElement.remove();
+  markChanged();
+}
+
+function getTagValues(key) {
+  return [...document.querySelectorAll(`#tags-${key} .tag-item`)].map(t => t.dataset.val);
+}
+
+// ── Změny ─────────────────────────────────────
+function markChanged() {
+  hasChanges = true;
+  document.getElementById('unsaved-dot').classList.add('show');
+  document.getElementById('last-saved').textContent = 'Neuložené změny';
+}
+
+// ── Platba ───────────────────────────────────
+async function loadPaymentSection(){
+  const el=document.getElementById('payment-section');
+  if(!el)return;
+  const h=hotelData;
+  const active=h.subscription_active;
+
+  // Kontrola nedoplatku
+  const paidBeds = h.subscription_paid_beds || h.bed_count || 0;
+  const currentBeds = h.bed_count || 0;
+  const paidPrice = calcPrice(paidBeds);
+  const currentPrice = calcPrice(currentBeds);
+  const surcharge = currentPrice - paidPrice;
+  const hasDebt = active && surcharge > 0;
+
+  if(active && !hasDebt){
+    el.innerHTML=`
+      <div style="background:rgba(46,204,135,.08);border:1px solid rgba(46,204,135,.3);border-radius:12px;padding:20px 24px;margin-bottom:24px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="font-size:28px">✅</div>
+            <div>
+              <div style="font-family:var(--font-head);font-size:15px;font-weight:700;color:#2ecc87">Předplatné je aktivní</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:3px">SmartestGuide běží pro váš hotel. Platba se automaticky obnovuje každý měsíc.</div>
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:var(--font-head);font-size:20px;font-weight:700;color:#2ecc87">${currentPrice} EUR<span style="font-size:12px;font-weight:400;color:var(--muted)">/měsíc</span></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${currentBeds ? currentBeds+' lůžek' : ''}</div>
+          </div>
+        </div>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(46,204,135,.2);display:flex;justify-content:flex-end">
+          <button onclick="cancelSubscription()" style="background:transparent;border:1px solid rgba(255,79,106,.3);color:var(--danger);border-radius:8px;padding:7px 16px;font-size:12px;cursor:pointer;font-family:var(--font-body)">
+            Zrušit předplatné
+          </button>
+        </div>
+      </div>`;
+    return;
+  }
+
+    if(hasDebt){
+    blockEditing();
+    let checkoutUrl2='';
+    let qrHtml2='';
+    try{
+      const r2=await fetch(API+'/api/stripe/checkout/'+h.id);
+      if(r2.ok){
+        const d2=await r2.json();
+        checkoutUrl2=d2.checkout_url;
+        const qUrl='https://api.qrserver.com/v1/create-qr-code/?size=140x140&data='+encodeURIComponent(checkoutUrl2);
+        qrHtml2='<img src="'+qUrl+'" style="width:140px;height:140px;border-radius:8px">';
+      }
+    }catch(e2){}
+    const payBtn=checkoutUrl2?('<a href="'+checkoutUrl2+'" target="_blank" class="btn btn-primary" style="margin-bottom:10px;display:inline-flex;background:var(--danger)">💳 Uhradit doplatek '+surcharge+' EUR →</a>'):'';
+    const qrDiv=qrHtml2?('<div style="text-align:center">'+qrHtml2+'<div style="font-size:11px;color:var(--muted);margin-top:6px">QR pro platbu</div></div>'):'';
+    el.innerHTML=
+      '<div style="background:rgba(255,79,106,.08);border:2px solid rgba(255,79,106,.5);border-radius:12px;padding:24px;margin-bottom:24px">'+
+        '<div style="font-family:var(--font-head);font-size:16px;font-weight:700;color:var(--danger);margin-bottom:8px">⚠️ Nedoplatek – přístup pozastaven</div>'+
+        '<div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.7">'+
+          'Počet lůžek byl zvýšen z <strong style="color:var(--text)">'+paidBeds+'</strong> na <strong style="color:var(--text)">'+currentBeds+'</strong>. '+
+          'Nová měsíční cena je <strong style="color:var(--text)">'+currentPrice+' EUR</strong> (původně '+paidPrice+' EUR). '+
+          'Pro obnovení přístupu uhraďte doplatek <strong style="color:var(--danger)">'+surcharge+' EUR</strong>.'+
+        '</div>'+
+        '<div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">'+
+          '<div style="flex:1">'+payBtn+
+            '<div style="font-size:11px;color:var(--muted);margin-top:8px">Po uhrazení kontaktujte <strong style="color:var(--text)">SmartestGuide podporu</strong></div>'+
+          '</div>'+
+          qrDiv+
+        '</div>'+
+      '</div>';
+    return;
+  }
+
+  // Načti checkout URL
+  let checkoutUrl='';
+  let qrHtml='<div style="width:160px;height:160px;background:var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted)">Načítám QR…</div>';
+  try{
+    const r=await fetch(`${API}/api/stripe/checkout/${h.id}`);
+    if(r.ok){
+      const d=await r.json();
+      checkoutUrl=d.checkout_url;
+      // Vygeneruj QR pomocí api.qrserver.com (bez knihovny)
+      const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=160x160&data='+encodeURIComponent(checkoutUrl);
+      qrHtml=`<img src="${qrUrl}" style="width:160px;height:160px;border-radius:8px;display:block" alt="QR platba">`;
+    }
+  }catch(e){}
+
+  const price=calcPrice(h.bed_count);
+  el.innerHTML=`
+    <div style="background:var(--card);border:1px solid rgba(255,170,51,.3);border-radius:12px;padding:24px;margin-bottom:24px">
+      <div style="font-family:var(--font-head);font-size:16px;font-weight:700;margin-bottom:6px">💳 Aktivovat SmartestGuide</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:20px">Předplatné je neaktivní. Zplaťte pro spuštění avatara pro vaše hosty.</div>
+      <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.7">
+            <strong style="color:var(--text)">Cena:</strong> <span style="font-size:18px;font-weight:700;color:#00d4aa;font-family:var(--font-head)">${price} EUR / měsíc</span><br>
+            ${h.bed_count?'<span style="font-size:12px">'+h.bed_count+' lůžek × ceník SmartestGuide</span>':'<span style="font-size:12px;color:var(--warn)">⚠ Doplňte počet lůžek pro přesnou cenu</span>'}
+          </div>
+          ${checkoutUrl?`
+          <a href="${checkoutUrl}" target="_blank" class="btn btn-primary" style="margin-bottom:12px;display:inline-flex">
+            💳 Zaplatit online →
+          </a>
+          <div style="font-size:11px;color:var(--muted)">nebo naskenujte QR kód mobilem</div>`:'<div style="font-size:12px;color:var(--muted)">Platební odkaz není nastaven. Kontaktujte správce.</div>'}
+        </div>
+        ${checkoutUrl?`<div style="text-align:center">${qrHtml}<div style="font-size:11px;color:var(--muted);margin-top:8px">Naskenujte kamerou telefonu</div></div>`:''}
+      </div>
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);line-height:1.7">
+        Platba je zabezpečena přes <strong style="color:var(--text)">Stripe</strong>. Po zaplacení se předplatné aktivuje automaticky do několika minut.
+        Testovací karta: <code style="color:#00d4aa">4242 4242 4242 4242</code>, datum cokoliv v budoucnu, CVC cokoliv.
+      </div>
+    </div>`;
+}
+
+function calcPrice(beds){
+  if(!beds)return 300;
+  return beds<=100?300:300+(beds-100)*3;
+}
+
+// ── Uložení ───────────────────────────────────
+async function saveAll() {
+  const numFields = ['bed_count', 'room_count'];
+  const textFields = ['checkin_time','checkout_time','breakfast_hours','lunch_hours','dinner_hours',
+    'phone','email','whatsapp_number','restaurant_name','wellness_info','parking_info',
+    'description','extra_info'];
+
+  const data = {};
+  textFields.forEach(k => {
+    const el = document.getElementById('f-' + k);
+    if (el) data[k] = el.value.trim() || null;
+  });
+  numFields.forEach(k => {
+    const el = document.getElementById('f-' + k);
+    if (el) data[k] = parseInt(el.value) || null;
+  });
+  data.amenities = getTagValues('amenities');
+  data.nearby_places = getTagValues('nearby_places');
+
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loader"></span> Ukládám…';
+
+  try {
+    const r = await fetch(`${API}/api/hotel-portal/update?token=${token}`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    hotelData = d.hotel;
+    hasChanges = false;
+    document.getElementById('unsaved-dot').classList.remove('show');
+    const now = new Date().toLocaleTimeString('cs-CZ', {hour:'2-digit',minute:'2-digit'});
+    document.getElementById('last-saved').textContent = `Uloženo v ${now}`;
+    // Okamžitá aktualizace platební sekce a hlavičky bez refreshe
+    await loadPaymentSection();
+    const oldBeds = hotelData.subscription_paid_beds || 0;
+    const newBeds = hotelData.bed_count || 0;
+    if(hotelData.subscription_active && newBeds > oldBeds && oldBeds > 0){
+      toast('⚠️ Počet lůžek zvýšen – vyžadován doplatek!', 'warn');
+    } else {
+      toast('✅ Změny uloženy!');
+    }
+  } catch(e) {
+    toast('Chyba při ukládání: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '💾 Uložit změny';
+  }
+}
+
+// Varování při opuštění stránky s neuloženými změnami
+window.addEventListener('beforeunload', e => {
+  if (hasChanges) { e.preventDefault(); e.returnValue = ''; }
+});
+
+// ── Faktury ──────────────────────────────────
+async function loadInvoicesSection(){
+  const el=document.getElementById('invoices-section');
+  if(!el)return;
+  try{
+    const r=await fetch(`${API}/api/hotel-portal/invoices?token=${token}`);
+    if(!r.ok)return;
+    const d=await r.json();
+    const invs=d.invoices||[];
+    if(!invs.length){
+      el.innerHTML='';
+      return;
+    }
+    const statusLabel={issued:'⏳ Vystavena',paid:'✅ Zaplacena',cancelled:'✕ Stornována'};
+    const statusColor={issued:'rgba(255,170,51,.15)',paid:'rgba(46,204,135,.15)',cancelled:'rgba(122,127,168,.15)'};
+    const statusTextColor={issued:'#ffaa33',paid:'#2ecc87',cancelled:'#7a7fa8'};
+    const rows=invs.map(inv=>`
+      <tr style="border-bottom:1px solid rgba(42,47,74,.7)">
+        <td style="padding:12px 14px;font-family:monospace;font-size:12px;color:var(--muted)">${inv.invoice_number}</td>
+        <td style="padding:12px 14px;font-size:13px">${inv.period_from?inv.period_from.slice(0,7):'–'}</td>
+        <td style="padding:12px 14px;font-weight:600">${inv.amount_local} ${inv.currency_symbol||inv.currency_code}</td>
+        <td style="padding:12px 14px"><span style="background:${statusColor[inv.status]};color:${statusTextColor[inv.status]};padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">${statusLabel[inv.status]||inv.status}</span></td>
+        <td style="padding:12px 14px"><button onclick="downloadMyInvoice('${inv.id}')" style="background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer">PDF</button></td>
+      </tr>`).join('');
+
+    el.innerHTML=`
+      <div class="section">
+        <div class="section-head">
+          <div class="section-icon">🧾</div>
+          <div><div class="section-title">Faktury</div><div class="section-desc">Historie plateb a faktury ke stažení</div></div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+          <thead><tr style="border-bottom:1px solid var(--border)">
+            <th style="padding:10px 14px;font-size:11px;color:var(--muted);text-align:left;text-transform:uppercase">Číslo</th>
+            <th style="padding:10px 14px;font-size:11px;color:var(--muted);text-align:left;text-transform:uppercase">Období</th>
+            <th style="padding:10px 14px;font-size:11px;color:var(--muted);text-align:left;text-transform:uppercase">Částka</th>
+            <th style="padding:10px 14px;font-size:11px;color:var(--muted);text-align:left;text-transform:uppercase">Stav</th>
+            <th style="padding:10px 14px;font-size:11px;color:var(--muted);text-align:left;text-transform:uppercase">Akce</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }catch(e){}
+}
+
+async function downloadMyInvoice(invoiceId){
+  // Přímé stažení PDF z backendu - bez popup
+  window.location.href = `${API}/api/invoices/${invoiceId}/pdf?token=${token}`;
+}
+
+function generateInvoicePdf(inv){
+  const statusLabel={issued:'VYSTAVENA',paid:'ZAPLACENA',cancelled:'STORNOVÁNA'};
+  const statusColor={issued:'#ffaa33',paid:'#2ecc87',cancelled:'#7a7fa8'};
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>
+  body{font-family:Arial,sans-serif;color:#1a1a2e;padding:40px;max-width:700px;margin:0 auto}
+  .logo{font-size:24px;font-weight:700;color:#6c63ff;margin-bottom:4px}
+  .logo span{color:#00d4aa}
+  h1{font-size:28px;font-weight:700;margin:0}
+  .meta{font-size:13px;color:#666}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:24px 0}
+  .label{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#999;margin-bottom:8px}
+  .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:14px}
+  .row:last-child{border-bottom:none}
+  .amount{background:#f7f7ff;border:2px solid #6c63ff33;border-radius:12px;padding:20px;text-align:center;margin:20px 0}
+  .amount-val{font-size:36px;font-weight:700;color:#6c63ff}
+  .badge{display:inline-block;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;background:${statusColor[inv.status]||'#666'}22;color:${statusColor[inv.status]||'#666'}}
+  .footer{margin-top:32px;padding-top:16px;border-top:1px solid #eee;font-size:12px;color:#999;text-align:center}
+</style></head><body>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:16px;border-bottom:3px solid #6c63ff">
+  <div><div class="logo">Smartest<span>Guide</span></div><div class="meta">smartestguide.com</div></div>
+  <div style="text-align:right"><h1>FAKTURA</h1><div class="meta">${inv.invoice_number}</div><div style="margin-top:6px"><span class="badge">${statusLabel[inv.status]||inv.status}</span></div></div>
+</div>
+<div class="grid">
+  <div><div class="label">Dodavatel / Supplier</div><strong>SmartestGuide s.r.o.</strong><br><span class="meta">Praha, Česká republika<br>support@smartestguide.com</span></div>
+  <div><div class="label">Odběratel / Client</div><strong>${inv.hotel_name||'–'}</strong><br><span class="meta">${inv.hotel_address||''}<br>${inv.hotel_email||''}</span></div>
+</div>
+<div class="label">Detaily / Details</div>
+<div class="row"><span style="color:#666">Číslo faktury / Invoice no.</span><strong>${inv.invoice_number}</strong></div>
+<div class="row"><span style="color:#666">Vystaveno / Issue date</span><strong>${inv.created_at?new Date(inv.created_at).toLocaleDateString('cs-CZ'):'–'}</strong></div>
+<div class="row"><span style="color:#666">Období / Period</span><strong>${inv.period_from||'–'} – ${inv.period_to||'–'}</strong></div>
+<div class="row"><span style="color:#666">Počet lůžek / Beds</span><strong>${inv.beds||'–'}</strong></div>
+<div class="row"><span style="color:#666">Služba / Service</span><strong>SmartestGuide – měsíční předplatné / Monthly subscription</strong></div>
+<div class="amount">
+  <div class="amount-val">${inv.amount_local} ${inv.currency_symbol||inv.currency_code}</div>
+  ${inv.currency_code!=='EUR'?`<div class="meta">(${inv.amount_eur} EUR)</div>`:''}
+</div>
+<div class="footer">Faktura vystavena / Invoice issued by SmartestGuide<br>Děkujeme za spolupráci · Thank you · ${co&&co.company_email?co.company_email:'support@smartestguide.com'}</div>
+</body></html>`;
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+}
+
+// ── Analytics ────────────────────────────────
+async function loadAnalytics(){
+  try{
+    const r = await fetch(`${API}/api/hotel-portal/analytics?token=${token}`);
+    if(!r.ok) return;
+    const d = await r.json();
+    const a = d.analytics;
+    // Zobrazuj analytics vždy, i při 0 chatech
+
+    const TOPIC_LABELS = {
+      checkin:'Check-in/out', checkout:'Check-in/out', breakfast:'Snídaně',
+      parking:'Parkování', wellness:'Wellness/Spa', restaurant:'Restaurace',
+      weather:'Počasí', nearby:'Okolí', contact:'Kontakt'
+    };
+
+    // Seřaď témata
+    const topics = Object.entries(a.topics||{})
+      .sort((x,y)=>y[1]-x[1])
+      .slice(0,6);
+
+    const topicHtml = topics.map(([k,v])=>{
+      const pct = Math.round((v/a.total)*100);
+      return `<div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+          <span>${TOPIC_LABELS[k]||k}</span>
+          <span style="color:var(--accent2);font-weight:600">${v}x</span>
+        </div>
+        <div style="background:var(--border);border-radius:4px;height:6px">
+          <div style="background:var(--accent);border-radius:4px;height:6px;width:${pct}%"></div>
+        </div>
+      </div>`;
+    }).join('');
+
+    const lastChat = a.last_chat ? new Date(a.last_chat).toLocaleDateString('cs-CZ') : '–';
+
+    const el = document.getElementById('analytics-section');
+    if(!el) return;
+    const noDataHtml = a.total === 0 ? `
+      <div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">
+        📊 Zatím žádné chaty. Data se zobrazí po prvním použití hostem.
+      </div>` : '';
+    el.innerHTML = `
+      <div class="section">
+        <div class="section-head">
+          <div class="section-icon">📊</div>
+          <div><div class="section-title">Statistiky chatbota</div>
+          <div class="section-desc">Přehled dotazů vašich hostů</div></div>
+        </div>
+        ${a.total > 0 ? `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center">
+            <div style="font-size:32px;font-weight:700;color:var(--accent)">${a.total}</div>
+            <div style="font-size:12px;color:var(--muted)">Celkem dotazů</div>
+          </div>
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center">
+            <div style="font-size:18px;font-weight:700;color:var(--accent2)">${lastChat}</div>
+            <div style="font-size:12px;color:var(--muted)">Poslední chat</div>
+          </div>
+        </div>
+        ${topics.length ? `<div style="font-size:12px;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">Nejčastější témata</div>${topicHtml}` : ''}
+        ` : noDataHtml}
+      </div>`;
+  }catch(e){}
+}
+
+// ── Embed widget ─────────────────────────────
+function initEmbedCode(){
+  const el = document.getElementById('embed-code');
+  if(!el || !hotelData) return;
+  const base = window.location.origin;
+  const code = '<script src="' + base + '/widget.js?hotel_id=' + hotelData.id + '"><\/script>';
+  el.textContent = code;
+  // Přidej poznámku pokud je ngrok URL
+  const note = document.getElementById('embed-note');
+  if(note){
+    if(base.includes('ngrok')){
+      note.textContent = '⚠️ Tato URL je dočasná (ngrok). Po nasazení na server použijte produkční URL.';
+      note.style.color = 'var(--warn)';
+    } else {
+      note.textContent = '✅ Produkční URL — kód je připraven k použití.';
+      note.style.color = 'var(--success)';
+    }
+  }
+}
+
+function copyEmbedCode(){
+  const el = document.getElementById('embed-code');
+  if(!el) return;
+  navigator.clipboard.writeText(el.textContent).then(()=>toast('✅ Kód zkopírován!'));
+}
+
+function previewWidget(){
+  const base = window.location.origin;
+  window.open(`${base}/guest/${hotelData.id}`, 'sg_preview', 'width=420,height=700');
+}
+
+// ── Zrušení předplatného ─────────────────────
+async function cancelSubscription(){
+  if(!confirm('Opravdu chcete zrušit předplatné?\n\nPřístup bude deaktivován. Můžete se znovu přihlásit kdykoliv.'))return;
+  try{
+    const r=await fetch(`${API}/api/hotel-portal/cancel?token=${token}`,{method:'POST'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    hotelData=d.hotel;
+    toast('Předplatné zrušeno','warn');
+    loadPaymentSection();
+  }catch(e){toast('Chyba: '+e.message,'err');}
+}
+
+// ── Blokace editace při nedoplatku ───────────
+function blockEditing(){
+  document.querySelectorAll('input,textarea').forEach(el=>{
+    el.disabled=true;
+    el.style.opacity='0.4';
+    el.style.cursor='not-allowed';
+  });
+  document.querySelectorAll('.tags-wrap').forEach(el=>{
+    el.style.opacity='0.4';
+    el.style.pointerEvents='none';
+  });
+  const btn=document.getElementById('save-btn');
+  if(btn){btn.disabled=true;btn.textContent='⚠️ Uhraďte doplatek';}
+}
+
+// ── Utils ─────────────────────────────────────
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function toast(msg,type='ok'){const e=document.getElementById('toast');e.textContent=msg;e.className='show '+type;setTimeout(()=>e.className='',3500);}
+</script>
+</body>
+</html>

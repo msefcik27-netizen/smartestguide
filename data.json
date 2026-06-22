@@ -1,0 +1,553 @@
+{
+  "hotels": {
+    "a4dc2f4f-e8bf-4631-96b8-c43cd6333769": {
+      "id": "a4dc2f4f-e8bf-4631-96b8-c43cd6333769",
+      "created_at": "2026-06-20T19:22:07.126246",
+      "updated_at": "2026-06-20T19:22:07.126246",
+      "qr_code_id": "8cdce384-df77-4864-83ce-096d585a8c6d",
+      "hotel_token": "229191f1654d4d88bff811f26320df5b",
+      "name": "Hotel Grandium Praha",
+      "url": "https://www.grandium.cz",
+      "address": "Politických vězňů 12, 110 00 Praha 1",
+      "phone": "+420 234 100 100",
+      "email": "info@grandium.cz",
+      "star_rating": 5,
+      "bed_count": 180,
+      "room_count": 90,
+      "country": "CZ",
+      "continent": "Europe",
+      "checkin_time": "15:00",
+      "checkout_time": "12:00",
+      "breakfast_hours": "7:00–10:30",
+      "restaurant_name": "Restaurant Grandium",
+      "parking_info": "Garáž v hotelu, 600 Kč/noc",
+      "wellness_info": "Fitness centrum, sauna",
+      "languages": [
+        "cs",
+        "en",
+        "de"
+      ],
+      "amenities": [
+        "WiFi zdarma",
+        "Klimatizace",
+        "Bar",
+        "Restaurace",
+        "Výtah",
+        "Bezbariérový přístup"
+      ],
+      "nearby_places": [
+        "Václavské náměstí (5 min)",
+        "Muzeum (10 min)",
+        "Hlavní nádraží (3 min)"
+      ],
+      "subscription_active": true,
+      "origin": "manual",
+      "description": "Luxusní pětihvězdičkový hotel v centru Prahy s moderním designem.",
+      "subscription_start": "2026-06-20T19:22:07.126246",
+      "subscription_paid_beds": 180
+    },
+    "c64a1161-0e8f-4318-89a6-2fec932da0b3": {
+      "id": "c64a1161-0e8f-4318-89a6-2fec932da0b3",
+      "created_at": "2026-06-20T19:22:07.126246",
+      "updated_at": "2026-06-20T19:22:07.126246",
+      "qr_code_id": "98cb13d5-7f4c-4dec-911d-117d2758c8a3",
+      "hotel_token": "89e2e93d265e4ab38d6eeb912e347da0",
+      "name": "Pension U Krále",
+      "url": "https://www.pensionukrale.cz",
+      "address": "Náměstí Svobody 5, 602 00 Brno",
+      "phone": "+420 542 211 322",
+      "email": "recepce@pensionukrale.cz",
+      "star_rating": 3,
+      "bed_count": 40,
+      "room_count": 20,
+      "country": "CZ",
+      "continent": "Europe",
+      "checkin_time": "14:00",
+      "checkout_time": "11:00",
+      "breakfast_hours": "7:30–9:30",
+      "parking_info": "Parkoviště před hotelem zdarma",
+      "languages": [
+        "cs",
+        "en"
+      ],
+      "amenities": [
+        "WiFi zdarma",
+        "Snídaně v ceně",
+        "Parkování"
+      ],
+      "nearby_places": [
+        "Náměstí Svobody (2 min)",
+        "Špilberk (15 min)",
+        "Hrad (20 min)"
+      ],
+      "subscription_active": true,
+      "origin": "manual",
+      "description": "Útulný pension v centru Brna s rodinnou atmosférou.",
+      "subscription_start": "2026-06-20T19:22:07.126246",
+      "subscription_paid_beds": 40
+    },
+    "bbdcf5a7-a5e6-478c-9363-a2b1113c0453": {
+      "id": "bbdcf5a7-a5e6-478c-9363-a2b1113c0453",
+      "created_at": "2026-06-20T19:22:07.126246",
+      "updated_at": "2026-06-20T19:22:07.126246",
+      "qr_code_id": "9465ebba-9399-45a2-b7f2-f5e16d7f1f14",
+      "hotel_token": "0378392b42f64dc8acc7a316504a2bb5",
+      "name": "Hotel Schloss Wien",
+      "url": "https://www.schloss-wien.at",
+      "address": "Schlossgasse 14, 1130 Wien",
+      "phone": "+43 1 877 9560",
+      "email": "info@schloss-wien.at",
+      "star_rating": 4,
+      "bed_count": 120,
+      "room_count": 60,
+      "country": "AT",
+      "continent": "Europe",
+      "checkin_time": "15:00",
+      "checkout_time": "12:00",
+      "breakfast_hours": "7:00–10:00",
+      "restaurant_name": "Schloss Restaurant",
+      "parking_info": "Tiefgarage, 25€/Nacht",
+      "wellness_info": "Spa, Schwimmbad, Sauna",
+      "languages": [
+        "de",
+        "en"
+      ],
+      "amenities": [
+        "WiFi",
+        "Spa",
+        "Restaurant",
+        "Bar",
+        "Concierge"
+      ],
+      "nearby_places": [
+        "Schönbrunn (5 min)",
+        "Wienerwald (10 min)",
+        "U-Bahn (3 min)"
+      ],
+      "subscription_active": true,
+      "origin": "automatic",
+      "description": "Elegantes Vier-Sterne-Hotel nahe Schloss Schönbrunn.",
+      "subscription_start": "2026-06-20T19:22:07.126246",
+      "subscription_paid_beds": 120
+    },
+    "0828a923-59c8-4a21-b2d9-9b1e64d9f07a": {
+      "id": "0828a923-59c8-4a21-b2d9-9b1e64d9f07a",
+      "created_at": "2026-06-20T19:22:07.126246",
+      "updated_at": "2026-06-20T19:22:07.126246",
+      "qr_code_id": "f31fc3b6-2688-4c0e-b78d-ad8fe654cb66",
+      "hotel_token": "f4816a8d5dec4feda27f2126a425a43a",
+      "name": "Boutique Hotel Krakow",
+      "url": "https://www.boutiquehotelkrakow.pl",
+      "address": "ul. Floriańska 22, 31-021 Kraków",
+      "phone": "+48 12 422 3344",
+      "email": "hello@boutiquehotelkrakow.pl",
+      "star_rating": 4,
+      "bed_count": 60,
+      "room_count": 30,
+      "country": "PL",
+      "continent": "Europe",
+      "checkin_time": "14:00",
+      "checkout_time": "12:00",
+      "breakfast_hours": "8:00–10:30",
+      "languages": [
+        "pl",
+        "en"
+      ],
+      "amenities": [
+        "WiFi",
+        "Bar",
+        "Klimatyzacja",
+        "Winda"
+      ],
+      "nearby_places": [
+        "Rynek Główny (3 min)",
+        "Wawel (15 min)",
+        "Kazimierz (20 min)"
+      ],
+      "subscription_active": false,
+      "origin": "automatic",
+      "description": "Stylowy butikowy hotel w samym sercu Krakowa."
+    },
+    "d258d01f-2dda-4997-98b2-f2885cbefb9f": {
+      "id": "d258d01f-2dda-4997-98b2-f2885cbefb9f",
+      "created_at": "2026-06-20T19:22:07.126246",
+      "updated_at": "2026-06-20T19:22:07.126246",
+      "qr_code_id": "ed8819bc-7bac-4b91-9c6f-381bd66b96b5",
+      "hotel_token": "8ccfd188055f48928574ae722a6010d8",
+      "name": "Hotel Adriatic Split",
+      "url": "https://www.adriaticsplit.hr",
+      "address": "Obala HNP 12, 21000 Split",
+      "phone": "+385 21 345 678",
+      "email": "info@adriaticsplit.hr",
+      "star_rating": 4,
+      "bed_count": 150,
+      "room_count": 75,
+      "country": "HR",
+      "continent": "Europe",
+      "checkin_time": "15:00",
+      "checkout_time": "11:00",
+      "breakfast_hours": "7:00–10:00",
+      "restaurant_name": "Adriatic Restaurant",
+      "parking_info": "Parking lot, 15€/day",
+      "wellness_info": "Pool, beach access",
+      "languages": [
+        "hr",
+        "en",
+        "de",
+        "it"
+      ],
+      "amenities": [
+        "WiFi",
+        "Pool",
+        "Beach",
+        "Restaurant",
+        "Bar",
+        "AC"
+      ],
+      "nearby_places": [
+        "Diokleciánův palác (5 min)",
+        "Pláž Bačvice (10 min)",
+        "Ferry port (15 min)"
+      ],
+      "subscription_active": true,
+      "origin": "automatic",
+      "description": "Modern four-star hotel with stunning sea views in Split.",
+      "subscription_start": "2026-06-20T19:22:07.126246",
+      "subscription_paid_beds": 150
+    },
+    "a33861c5-ee9c-449e-ae65-4d01f5359bb5": {
+      "id": "a33861c5-ee9c-449e-ae65-4d01f5359bb5",
+      "created_at": "2026-06-20T19:22:07.126246",
+      "updated_at": "2026-06-20T19:22:07.126246",
+      "qr_code_id": "8fd587b4-5ea2-4b09-8323-63e209567b23",
+      "hotel_token": "81717d03180d4f1383ed8daa3f638583",
+      "name": "Pension Alpenhof Salzburg",
+      "url": "https://www.alpenhof-salzburg.at",
+      "address": "Bergstraße 8, 5020 Salzburg",
+      "phone": "+43 662 456 789",
+      "email": "info@alpenhof-salzburg.at",
+      "star_rating": 3,
+      "bed_count": 35,
+      "room_count": 18,
+      "country": "AT",
+      "continent": "Europe",
+      "checkin_time": "14:00",
+      "checkout_time": "11:00",
+      "breakfast_hours": "7:30–9:30",
+      "languages": [
+        "de",
+        "en"
+      ],
+      "amenities": [
+        "WiFi",
+        "Frühstück",
+        "Bergblick",
+        "Parkplatz"
+      ],
+      "nearby_places": [
+        "Altstadt (20 min)",
+        "Mozarteum (25 min)",
+        "Bergbahn (5 min)"
+      ],
+      "subscription_active": false,
+      "origin": "manual",
+      "description": "Gemütliche Pension mit herrlichem Blick auf die Alpen."
+    },
+    "22750040-0389-43d7-850b-cd626d117e4b": {
+      "id": "22750040-0389-43d7-850b-cd626d117e4b",
+      "created_at": "2026-06-21T07:01:19.150329+00:00",
+      "updated_at": "2026-06-21T07:01:19.150329+00:00",
+      "qr_code_id": "214ef83f-0a84-4304-b4f5-8e8a24eef85f",
+      "hotel_token": "bc67a74b3f504700951a21f810fbbcb8",
+      "name": "Hotel Grandium Praha",
+      "url": "https://www.grandium.cz",
+      "address": "Politických vězňů 12, 110 00 Praha 1",
+      "phone": "+420 234 100 100",
+      "email": "info@grandium.cz",
+      "star_rating": 5,
+      "bed_count": 180,
+      "room_count": 90,
+      "country": "CZ",
+      "checkin_time": "15:00",
+      "checkout_time": "12:00",
+      "breakfast_hours": "7:00–10:30",
+      "restaurant_name": "Restaurant Grandium",
+      "parking_info": "Garáž v hotelu, 600 Kč/noc",
+      "wellness_info": "Fitness centrum, sauna",
+      "languages": [
+        "cs",
+        "en",
+        "de"
+      ],
+      "amenities": [
+        "WiFi zdarma",
+        "Klimatizace",
+        "Bar",
+        "Restaurace",
+        "Výtah"
+      ],
+      "nearby_places": [
+        "Václavské náměstí (5 min)",
+        "Muzeum (10 min)"
+      ],
+      "subscription_active": true,
+      "origin": "manual",
+      "description": "Luxusní pětihvězdičkový hotel v centru Prahy.",
+      "subscription_start": "2026-06-21T07:01:19.150329+00:00",
+      "subscription_paid_beds": 180
+    },
+    "02fe3e7d-c2f1-420a-895a-ff5b3c624813": {
+      "id": "02fe3e7d-c2f1-420a-895a-ff5b3c624813",
+      "created_at": "2026-06-21T07:01:19.150329+00:00",
+      "updated_at": "2026-06-21T07:01:19.150329+00:00",
+      "qr_code_id": "092824ce-e2f9-487b-8aaf-ae7ebee7fd8a",
+      "hotel_token": "51405d6fed0044f2b047741551b51d99",
+      "name": "Pension U Krále Brno",
+      "url": "https://www.pensionukrale.cz",
+      "address": "Náměstí Svobody 5, 602 00 Brno",
+      "phone": "+420 542 211 322",
+      "email": "recepce@pensionukrale.cz",
+      "star_rating": 3,
+      "bed_count": 40,
+      "room_count": 20,
+      "country": "CZ",
+      "checkin_time": "14:00",
+      "checkout_time": "11:00",
+      "breakfast_hours": "7:30–9:30",
+      "parking_info": "Parkoviště před hotelem zdarma",
+      "languages": [
+        "cs",
+        "en"
+      ],
+      "amenities": [
+        "WiFi zdarma",
+        "Snídaně v ceně",
+        "Parkování"
+      ],
+      "nearby_places": [
+        "Náměstí Svobody (2 min)",
+        "Špilberk (15 min)"
+      ],
+      "subscription_active": true,
+      "origin": "manual",
+      "description": "Útulný pension v centru Brna s rodinnou atmosférou.",
+      "subscription_start": "2026-06-21T07:01:19.150329+00:00",
+      "subscription_paid_beds": 40
+    },
+    "4a809b6e-8509-4be9-8248-97742ac6dcac": {
+      "id": "4a809b6e-8509-4be9-8248-97742ac6dcac",
+      "created_at": "2026-06-21T07:01:19.150329+00:00",
+      "updated_at": "2026-06-21T07:01:19.150329+00:00",
+      "qr_code_id": "fa50b4f4-81df-4bff-acce-eb15e68362bd",
+      "hotel_token": "0f0584a9c708410a90716837792b56d5",
+      "name": "Hotel Schloss Wien",
+      "url": "https://www.schloss-wien.at",
+      "address": "Schlossgasse 14, 1130 Wien",
+      "phone": "+43 1 877 9560",
+      "email": "info@schloss-wien.at",
+      "star_rating": 4,
+      "bed_count": 120,
+      "room_count": 60,
+      "country": "AT",
+      "checkin_time": "15:00",
+      "checkout_time": "12:00",
+      "breakfast_hours": "7:00–10:00",
+      "restaurant_name": "Schloss Restaurant",
+      "parking_info": "Tiefgarage, 25€/Nacht",
+      "wellness_info": "Spa, Schwimmbad, Sauna",
+      "languages": [
+        "de",
+        "en"
+      ],
+      "amenities": [
+        "WiFi",
+        "Spa",
+        "Restaurant",
+        "Bar"
+      ],
+      "nearby_places": [
+        "Schönbrunn (5 min)",
+        "U-Bahn (3 min)"
+      ],
+      "subscription_active": true,
+      "origin": "automatic",
+      "description": "Elegantes Vier-Sterne-Hotel nahe Schloss Schönbrunn.",
+      "subscription_start": "2026-06-21T07:01:19.150329+00:00",
+      "subscription_paid_beds": 120
+    },
+    "913ad461-3778-492d-aa3d-11a1f4f35463": {
+      "id": "913ad461-3778-492d-aa3d-11a1f4f35463",
+      "created_at": "2026-06-21T07:01:19.150329+00:00",
+      "updated_at": "2026-06-21T07:01:19.150329+00:00",
+      "qr_code_id": "87542375-2d7a-451b-a901-297767df3ce4",
+      "hotel_token": "f8d8e34d32b64164880cff33a49ce9fc",
+      "name": "Boutique Hotel Krakow",
+      "url": "https://www.boutiquehotelkrakow.pl",
+      "address": "ul. Floriańska 22, 31-021 Kraków",
+      "phone": "+48 12 422 3344",
+      "email": "hello@boutiquehotelkrakow.pl",
+      "star_rating": 4,
+      "bed_count": 60,
+      "room_count": 30,
+      "country": "PL",
+      "checkin_time": "14:00",
+      "checkout_time": "12:00",
+      "breakfast_hours": "8:00–10:30",
+      "languages": [
+        "pl",
+        "en"
+      ],
+      "amenities": [
+        "WiFi",
+        "Bar",
+        "Klimatyzacja"
+      ],
+      "nearby_places": [
+        "Rynek Główny (3 min)",
+        "Wawel (15 min)"
+      ],
+      "subscription_active": false,
+      "origin": "automatic",
+      "description": "Stylowy butikowy hotel w samym sercu Krakowa."
+    },
+    "24736797-3292-48b0-9bca-893d25054ea6": {
+      "id": "24736797-3292-48b0-9bca-893d25054ea6",
+      "created_at": "2026-06-21T07:01:19.150329+00:00",
+      "updated_at": "2026-06-21T07:01:19.150329+00:00",
+      "qr_code_id": "b0ab5fdb-00f4-4988-a515-b3796b8866bd",
+      "hotel_token": "82b1d04617e9492f85f25b13e8497453",
+      "name": "Hotel Adriatic Split",
+      "url": "https://www.adriaticsplit.hr",
+      "address": "Obala HNP 12, 21000 Split",
+      "phone": "+385 21 345 678",
+      "email": "info@adriaticsplit.hr",
+      "star_rating": 4,
+      "bed_count": 150,
+      "room_count": 75,
+      "country": "HR",
+      "checkin_time": "15:00",
+      "checkout_time": "11:00",
+      "breakfast_hours": "7:00–10:00",
+      "restaurant_name": "Adriatic Restaurant",
+      "parking_info": "Parking lot, 15€/day",
+      "wellness_info": "Pool, beach access",
+      "languages": [
+        "hr",
+        "en",
+        "de",
+        "it"
+      ],
+      "amenities": [
+        "WiFi",
+        "Pool",
+        "Beach",
+        "Restaurant",
+        "Bar"
+      ],
+      "nearby_places": [
+        "Diokleciánův palác (5 min)",
+        "Pláž Bačvice (10 min)"
+      ],
+      "subscription_active": true,
+      "origin": "automatic",
+      "description": "Modern four-star hotel with stunning sea views in Split.",
+      "subscription_start": "2026-06-21T07:01:19.150329+00:00",
+      "subscription_paid_beds": 150
+    },
+    "db9e110a-cda5-4c6a-8f77-623b8be9de0e": {
+      "id": "db9e110a-cda5-4c6a-8f77-623b8be9de0e",
+      "created_at": "2026-06-21T07:01:19.150329+00:00",
+      "updated_at": "2026-06-21T07:01:19.150329+00:00",
+      "qr_code_id": "798e278d-53c6-47de-b446-31133700dd25",
+      "hotel_token": "6ced155fe24a4021ac2636b8538180b5",
+      "name": "Pension Alpenhof Salzburg",
+      "url": "https://www.alpenhof-salzburg.at",
+      "address": "Bergstraße 8, 5020 Salzburg",
+      "phone": "+43 662 456 789",
+      "email": "info@alpenhof-salzburg.at",
+      "star_rating": 3,
+      "bed_count": 35,
+      "room_count": 18,
+      "country": "AT",
+      "checkin_time": "14:00",
+      "checkout_time": "11:00",
+      "breakfast_hours": "7:30–9:30",
+      "languages": [
+        "de",
+        "en"
+      ],
+      "amenities": [
+        "WiFi",
+        "Frühstück",
+        "Bergblick",
+        "Parkplatz"
+      ],
+      "nearby_places": [
+        "Altstadt (20 min)",
+        "Bergbahn (5 min)"
+      ],
+      "subscription_active": false,
+      "origin": "manual",
+      "description": "Gemütliche Pension mit herrlichem Blick auf die Alpen."
+    },
+    "921805d9-a20a-4ea9-aa88-1b1e6f6cf0ea": {
+      "id": "921805d9-a20a-4ea9-aa88-1b1e6f6cf0ea",
+      "created_at": "2026-06-22T08:15:31.673045+00:00",
+      "updated_at": "2026-06-22T08:15:31.673045+00:00",
+      "qr_code_id": "24be3eff-161f-4221-80d3-4c2b74309e84",
+      "hotel_token": "51bc2627956941009b16f71599b34826",
+      "name": "Hotel Bellevue Benešov",
+      "url": "https://www.bellevuehotelbenesov.cz/",
+      "source_url": "https://www.bellevuehotelbenesov.cz/",
+      "address": "Žižkovo náměstí 2, 256 01 Benešov",
+      "phone": "+420 317 724 111",
+      "email": "msefcik27@gmail.com",
+      "country": "CZ",
+      "continent": "Europe",
+      "star_rating": 4,
+      "bed_count": 80,
+      "room_count": 40,
+      "checkin_time": "14:00",
+      "checkout_time": "11:00",
+      "breakfast_hours": "7:00–10:00",
+      "restaurant_name": "Restaurace Na Karlově",
+      "menu_urls": [
+        "https://www.restauracenakarlove.cz/menu#785ae764",
+        "https://www.restauracenakarlove.cz/menu#1a197dc3",
+        "https://www.restauracenakarlove.cz/menu#6a35e226",
+        "https://www.restauracenakarlove.cz/menu#c3b36562"
+      ],
+      "nearby_places": [
+        "Zámek Konopiště (5 km)",
+        "Náměstí Benešov (2 min pěšky)",
+        "Vlakové nádraží Benešov (10 min pěšky)",
+        "Česká Sibiř - přírodní rezervace (15 km)",
+        "Blaník (20 km)"
+      ],
+      "amenities": [
+        "WiFi zdarma",
+        "Restaurace",
+        "Bar",
+        "Parkování",
+        "Výtah",
+        "Klimatizace"
+      ],
+      "languages": [
+        "cs",
+        "en",
+        "de"
+      ],
+      "parking_info": "Parkování před hotelem k dispozici",
+      "description": "Hotel Bellevue je čtyřhvězdičkový hotel v centru Benešova, v blízkosti zámku Konopiště. Nabízí komfortní ubytování, restauraci a snadný přístup k turistickým atrakcím Středočeského kraje.",
+      "subscription_active": true,
+      "subscription_start": "2026-06-22T08:15:31.673045+00:00",
+      "subscription_paid_beds": 80,
+      "origin": "manual"
+    }
+  },
+  "settings": {
+    "stripe_secret_key": "sk_test_51SNVMl3vM4uyDZz1YAIdXsAELXpc0CWepEUc1I3mc05Jw6bXVTc4dz7PWmWDkU6XGUUTK9uaJ8Ni0VJiEtRoDQvz00LZ8MJMQS",
+    "stripe_payment_link": "https://buy.stripe.com/test_28EfZad7593scU0gaga3u00",
+    "stripe_webhook_secret": ""
+  }
+}

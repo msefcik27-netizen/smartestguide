@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="theme-color" content="#0a0c14"/>
+  <title>SmartestGuide</title>
+  <!-- PWA manifest inline -->
+  <link rel="manifest" href="data:application/json,{}"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root{
+      --bg:#0a0c14; --surface:#12141f; --card:#1a1d2e; --border:#252840;
+      --accent:#6c63ff; --accent2:#00d4aa; --text:#e8eaf6; --muted:#6b6f8e;
+      --success:#2ecc87; --danger:#ff4f6a; --warn:#ffaa33; --radius:16px;
+      --font-head:'Space Grotesk',sans-serif; --font-body:'Inter',sans-serif;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;overflow:hidden;-webkit-tap-highlight-color:transparent}
+    body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:15px;display:flex;flex-direction:column}
+
+    /* ══ OFFLINE BANNER ══ */
+    #offline-banner{background:rgba(255,170,51,.15);border-bottom:1px solid rgba(255,170,51,.3);padding:8px 16px;font-size:12px;color:var(--warn);text-align:center;display:none}
+    #offline-banner.show{display:block}
+
+    /* ══ ONBOARDING ══ */
+    #onboarding{
+      position:fixed;inset:0;z-index:100;
+      background:var(--bg);
+      display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+      overflow-y:auto;padding:0;
+    }
+
+    .ob-hero{
+      width:100%;padding:48px 24px 32px;
+      background:linear-gradient(160deg, #0f1024 0%, #1a1040 60%, #0a1a2e 100%);
+      display:flex;flex-direction:column;align-items:center;text-align:center;
+      position:relative;overflow:hidden;
+    }
+    .ob-hero::before{
+      content:'';position:absolute;inset:0;
+      background:radial-gradient(ellipse at 50% 0%, rgba(108,99,255,.25) 0%, transparent 70%);
+    }
+
+    /* Animovaný avatar */
+    .ob-avatar-wrap{position:relative;margin-bottom:24px;z-index:1}
+    .ob-avatar{
+      width:100px;height:100px;border-radius:50%;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      display:flex;align-items:center;justify-content:center;
+      font-size:44px;
+      box-shadow:0 0 0 0 rgba(108,99,255,.5);
+      animation:avatarPulse 2.5s ease-in-out infinite;
+    }
+    @keyframes avatarPulse{
+      0%,100%{box-shadow:0 0 0 0 rgba(108,99,255,.5),0 0 40px rgba(108,99,255,.2)}
+      50%{box-shadow:0 0 0 16px rgba(108,99,255,.0),0 0 60px rgba(108,99,255,.35)}
+    }
+    .ob-avatar-ring{
+      position:absolute;inset:-8px;border-radius:50%;
+      border:2px solid rgba(108,99,255,.3);
+      animation:ringRotate 8s linear infinite;
+    }
+    .ob-avatar-ring::after{
+      content:'';position:absolute;top:-3px;left:50%;transform:translateX(-50%);
+      width:8px;height:8px;border-radius:50%;
+      background:var(--accent2);
+    }
+    @keyframes ringRotate{to{transform:rotate(360deg)}}
+
+    .ob-hotel-name{font-size:12px;color:var(--accent2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;z-index:1;position:relative}
+    .ob-title{font-family:var(--font-head);font-size:26px;font-weight:700;margin-bottom:10px;z-index:1;position:relative;line-height:1.2}
+    .ob-desc{font-size:14px;color:var(--muted);line-height:1.7;max-width:300px;z-index:1;position:relative}
+
+    /* Rychlé funkce badges */
+    .ob-features{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:20px;z-index:1;position:relative}
+    .ob-feat{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:5px 12px;font-size:12px;color:var(--muted)}
+
+    .ob-form-wrap{width:100%;max-width:380px;padding:28px 24px 40px;display:flex;flex-direction:column;gap:14px}
+    .ob-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:-6px}
+    .ob-input{background:var(--card);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:var(--font-body);font-size:15px;padding:14px 16px;outline:none;width:100%;transition:border-color .2s}
+    .ob-input:focus{border-color:var(--accent)}
+
+    .lang-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .lang-btn{
+      background:var(--card);border:1px solid var(--border);border-radius:10px;
+      color:var(--muted);font-size:13px;padding:10px 6px;cursor:pointer;
+      display:flex;flex-direction:column;align-items:center;gap:3px;
+      transition:all .15s;text-align:center;
+    }
+    .lang-btn:hover{border-color:var(--accent);color:var(--text)}
+    .lang-btn.selected{background:rgba(108,99,255,.15);border-color:var(--accent);color:var(--accent)}
+    .lang-btn .flag{font-size:20px}
+    .lang-btn .lname{font-size:11px}
+
+    .ob-start-btn{
+      background:linear-gradient(135deg,var(--accent) 0%,#5a52e0 100%);
+      color:#fff;border:none;border-radius:14px;
+      font-family:var(--font-body);font-size:16px;font-weight:700;
+      padding:18px;cursor:pointer;transition:all .2s;
+      box-shadow:0 4px 24px rgba(108,99,255,.4);
+      display:flex;align-items:center;justify-content:center;gap:10px;
+    }
+    .ob-start-btn:active{transform:scale(.97)}
+    .ob-start-btn:disabled{opacity:.5;cursor:not-allowed}
+
+    /* ══ CHAT SCREEN ══ */
+    #chat-screen{display:none;flex-direction:column;height:100%}
+    #chat-screen.show{display:flex}
+
+    /* Header */
+    .chat-header{
+      background:var(--surface);border-bottom:1px solid var(--border);
+      padding:10px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;
+      padding-top:max(10px,env(safe-area-inset-top));
+    }
+    .hdr-avatar{
+      width:38px;height:38px;border-radius:50%;flex-shrink:0;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      display:flex;align-items:center;justify-content:center;font-size:18px;
+      position:relative;
+    }
+    .hdr-status{
+      position:absolute;bottom:1px;right:1px;width:9px;height:9px;
+      border-radius:50%;background:var(--success);border:2px solid var(--surface);
+    }
+    .hdr-status.typing{background:var(--accent);animation:statusBlink .8s infinite}
+    @keyframes statusBlink{0%,100%{opacity:1}50%{opacity:.3}}
+    .hdr-info{flex:1;min-width:0}
+    .hdr-name{font-family:var(--font-head);font-size:14px;font-weight:700}
+    .hdr-sub{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .hdr-btn{background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:6px;border-radius:8px;transition:all .15s}
+    .hdr-btn:hover{background:rgba(255,255,255,.06);color:var(--text)}
+
+    /* Messages */
+    #messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth}
+    .msg{display:flex;gap:8px;max-width:88%;animation:msgIn .2s ease}
+    @keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+    .msg.user{align-self:flex-end;flex-direction:row-reverse}
+    .msg.bot{align-self:flex-start}
+    .msg-av{width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;margin-top:2px}
+    .msg.bot .msg-av{background:linear-gradient(135deg,var(--accent),var(--accent2))}
+    .msg.user .msg-av{background:var(--card);border:1px solid var(--border);font-size:12px}
+    .msg-body{}
+    .msg-bubble{
+      padding:10px 14px;border-radius:var(--radius);font-size:14px;line-height:1.6;word-break:break-word;
+    }
+    .msg.bot .msg-bubble{background:var(--card);border:1px solid var(--border);border-bottom-left-radius:4px}
+    .msg.user .msg-bubble{background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+    .msg-time{font-size:10px;color:var(--muted);margin-top:3px}
+    .msg.user .msg-time{text-align:right}
+
+    /* Karta v chatu (počasí, info) */
+    .chat-card{
+      background:var(--surface);border:1px solid var(--border);border-radius:12px;
+      padding:12px 14px;margin-top:6px;font-size:13px;
+    }
+    .chat-card-title{font-weight:600;color:var(--accent2);margin-bottom:6px;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+    .weather-main{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+    .weather-icon{font-size:36px}
+    .weather-temp{font-family:var(--font-head);font-size:28px;font-weight:700}
+    .weather-desc{font-size:13px;color:var(--muted)}
+    .weather-details{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+    .weather-detail{font-size:12px;color:var(--muted)}
+    .weather-detail span{color:var(--text);font-weight:500}
+
+    /* Typing */
+    .typing-dots{display:flex;gap:4px;padding:2px 0}
+    .typing-dots span{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:dot .8s infinite}
+    .typing-dots span:nth-child(2){animation-delay:.15s}
+    .typing-dots span:nth-child(3){animation-delay:.3s}
+    @keyframes dot{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+
+    /* Quick replies */
+    #quick-replies{
+      padding:8px 14px;display:flex;gap:8px;overflow-x:auto;flex-shrink:0;
+      scrollbar-width:none;
+    }
+    #quick-replies::-webkit-scrollbar{display:none}
+    .qr-btn{
+      background:var(--card);border:1px solid var(--border);border-radius:20px;
+      color:var(--text);font-size:13px;padding:7px 14px;cursor:pointer;
+      white-space:nowrap;flex-shrink:0;transition:all .15s;
+    }
+    .qr-btn:active{background:rgba(108,99,255,.2);border-color:var(--accent)}
+
+    /* Input */
+    .input-area{
+      background:var(--surface);border-top:1px solid var(--border);
+      padding:10px 14px;display:flex;align-items:flex-end;gap:8px;flex-shrink:0;
+      padding-bottom:max(10px,env(safe-area-inset-bottom));
+    }
+    #msg-input{
+      flex:1;background:var(--card);border:1px solid var(--border);border-radius:22px;
+      color:var(--text);font-family:var(--font-body);font-size:15px;
+      padding:10px 16px;outline:none;resize:none;max-height:90px;line-height:1.4;
+      transition:border-color .15s;
+    }
+    #msg-input:focus{border-color:var(--accent)}
+    .ipt-btn{
+      width:42px;height:42px;border-radius:50%;border:none;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;font-size:17px;
+      flex-shrink:0;transition:all .2s;
+    }
+    #voice-btn{background:var(--card);border:1px solid var(--border);color:var(--muted)}
+    #voice-btn.listening{background:var(--danger);border-color:var(--danger);color:#fff;animation:voicePulse 1s infinite}
+    @keyframes voicePulse{0%,100%{box-shadow:0 0 0 0 rgba(255,79,106,.4)}70%{box-shadow:0 0 0 8px rgba(255,79,106,0)}}
+    #send-btn{background:var(--accent);color:#fff}
+    #send-btn:active{background:#5a52e0}
+    #send-btn:disabled{opacity:.35}
+
+    /* ══ INFO SHEET ══ */
+    #info-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;display:none;backdrop-filter:blur(4px)}
+    #info-overlay.show{display:flex;align-items:flex-end}
+    .info-sheet{
+      background:var(--surface);border-radius:20px 20px 0 0;
+      padding:20px 20px max(20px,env(safe-area-inset-bottom));
+      width:100%;max-height:75vh;overflow-y:auto;
+    }
+    .sheet-handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px}
+    .sheet-title{font-family:var(--font-head);font-size:17px;font-weight:700;margin-bottom:16px}
+    .info-item{padding:10px 0;border-bottom:1px solid rgba(37,40,64,.8);display:flex;gap:10px}
+    .info-item:last-child{border-bottom:none}
+    .info-icon{font-size:18px;width:24px;flex-shrink:0}
+    .info-label{font-size:11px;color:var(--muted);margin-bottom:2px}
+    .info-val{font-size:13px;font-weight:500}
+    .tag-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+    .tag{background:rgba(108,99,255,.12);color:var(--accent);border:1px solid rgba(108,99,255,.25);border-radius:20px;padding:3px 10px;font-size:11px}
+    .close-sheet{width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:13px;color:var(--text);font-size:14px;font-weight:600;cursor:pointer;margin-top:16px}
+
+    /* ══ ERROR PAGE ══ */
+    .err-page{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;padding:32px}
+    .err-page h2{font-family:var(--font-head);font-size:20px;margin-bottom:10px}
+    .err-page p{color:var(--muted);font-size:14px;line-height:1.7}
+  /* PWA install banner */
+#pwa-banner{position:fixed;bottom:0;left:0;right:0;background:linear-gradient(135deg,#6c63ff,#00d4aa);color:#fff;padding:14px 18px;display:none;align-items:center;justify-content:space-between;gap:12px;z-index:500;box-shadow:0 -4px 20px rgba(0,0,0,.3)}
+#pwa-banner.show{display:flex}
+.pwa-banner-text{font-size:13px;font-weight:500;flex:1}
+.pwa-banner-text strong{display:block;font-size:14px;margin-bottom:2px}
+.pwa-btn{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.pwa-btn-dismiss{background:none;border:none;color:rgba(255,255,255,.7);font-size:18px;cursor:pointer;padding:4px}
+</style>
+</head>
+<body>
+
+<div id="offline-banner">📡 Jste offline — zobrazuji uložené informace o hotelu</div>
+
+<!-- ONBOARDING -->
+<div id="onboarding">
+  <div class="ob-hero">
+    <div class="ob-avatar-wrap">
+      <div class="ob-avatar">🤖</div>
+      <div class="ob-avatar-ring"></div>
+    </div>
+    <div class="ob-hotel-name" id="ob-hotel-name">Načítám…</div>
+    <div class="ob-title">Váš osobní<br>concierge Alex</div>
+    <div class="ob-desc">Jsem tu pro vás 24/7. Zeptejte se mě na cokoliv o hotelu, okolí nebo službách.</div>
+    <div class="ob-features">
+      <span class="ob-feat">💬 Chat</span>
+      <span class="ob-feat">🎤 Hlas</span>
+      <span class="ob-feat">🌤 Počasí</span>
+      <span class="ob-feat">🗺 Okolí</span>
+      <span class="ob-feat">🌍 14 jazyků</span>
+    </div>
+  </div>
+
+  <div class="ob-form-wrap">
+    <div class="ob-label">Vaše jméno (volitelné)</div>
+    <input class="ob-input" id="ob-name" type="text" placeholder="Jak vám mám říkat?"/>
+
+    <div class="ob-label">Jazyk komunikace</div>
+    <div class="lang-grid" id="lang-grid">
+      <!-- Generováno JS -->
+    </div>
+
+    <button class="ob-start-btn" id="ob-start" onclick="startChat()">
+      <span>Spustit SmartestGuide</span>
+      <span style="font-size:20px">→</span>
+    </button>
+  </div>
+</div>
+
+<!-- CHAT -->
+<div id="chat-screen">
+  <div class="chat-header">
+    <div class="hdr-avatar">🤖<span class="hdr-status" id="hdr-status"></span></div>
+    <div class="hdr-info">
+      <div class="hdr-name" id="hdr-hotel-name" style="font-size:15px;font-weight:700;color:var(--text)">–</div>
+      <div class="hdr-sub" style="font-size:11px;color:var(--accent2)">AI Concierge · SmartestGuide</div>
+    </div>
+    <button class="hdr-btn" onclick="fetchWeather()" title="Počasí">🌤</button>
+    <button class="hdr-btn" onclick="showInfo()" title="Info o hotelu">ℹ</button>
+  </div>
+
+  <div id="messages"></div>
+  <div id="quick-replies"></div>
+
+  <div class="input-area">
+    <textarea id="msg-input" rows="1" placeholder="Napište zprávu…" onkeydown="onKey(event)" oninput="autoResize(this)"></textarea>
+    <button class="ipt-btn" id="photo-btn" onclick="triggerPhoto()" title="Přeložit menu">📷</button>
+    <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" onchange="translateMenu(event)"/>
+    <button class="ipt-btn" id="voice-btn" onclick="toggleVoice()">🎤</button>
+    <button class="ipt-btn" id="send-btn" onclick="sendMsg()">➤</button>
+  </div>
+</div>
+
+<!-- INFO SHEET -->
+<div id="info-overlay" onclick="hideInfo(event)">
+  <div class="info-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="sheet-title">Informace o hotelu</div>
+    <div id="sheet-content"></div>
+    <button class="close-sheet" onclick="hideInfo()">Zavřít</button>
+  </div>
+</div>
+
+<script>
+const API = '';
+const hotelId = location.pathname.split('/').pop();
+
+// Obnov jméno a jazyk z předchozí návštěvy
+const _savedName = localStorage.getItem('sg_guest_name_'+hotelId);
+const _savedLang = localStorage.getItem('sg_lang_'+hotelId);
+let guestName = _savedName || '';
+let guestLang = _savedLang || 'cs';
+let hotelData = null;
+// guestName a guestLang definovány výše u hotelId
+let history = [];
+let isTyping = false;
+let recognition = null;
+let isListening = false;
+
+// ══ JAZYKY ══════════════════════════════════
+const LANGS = [
+  {code:'cs', flag:'🇨🇿', name:'Čeština'},
+  {code:'sk', flag:'🇸🇰', name:'Slovenčina'},
+  {code:'en', flag:'🇬🇧', name:'English'},
+  {code:'de', flag:'🇩🇪', name:'Deutsch'},
+  {code:'fr', flag:'🇫🇷', name:'Français'},
+  {code:'it', flag:'🇮🇹', name:'Italiano'},
+  {code:'es', flag:'🇪🇸', name:'Español'},
+  {code:'pl', flag:'🇵🇱', name:'Polski'},
+  {code:'hu', flag:'🇭🇺', name:'Magyar'},
+  {code:'ru', flag:'🇷🇺', name:'Русский'},
+  {code:'uk', flag:'🇺🇦', name:'Українська'},
+  {code:'zh', flag:'🇨🇳', name:'中文'},
+];
+const LANG_FLAGS = Object.fromEntries(LANGS.map(l=>[l.code,l.flag+' '+l.code.toUpperCase()]));
+const LANG_SR = {cs:'cs-CZ',sk:'sk-SK',en:'en-US',de:'de-DE',fr:'fr-FR',it:'it-IT',es:'es-ES',pl:'pl-PL',hu:'hu-HU',ru:'ru-RU',uk:'uk-UA',zh:'zh-CN'};
+
+function renderLangGrid(){
+  const grid=document.getElementById('lang-grid');
+  grid.innerHTML=LANGS.map(l=>`
+    <button class="lang-btn${l.code===guestLang?' selected':''}" onclick="selectLang('${l.code}')">
+      <span class="flag">${l.flag}</span>
+      <span class="lname">${l.name}</span>
+    </button>`).join('');
+}
+
+function selectLang(code){
+  guestLang=code;
+  renderLangGrid();
+}
+
+// ══ OFFLINE ══════════════════════════════════
+const CACHE_KEY='sg_hotel_'+hotelId;
+window.addEventListener('online', ()=>{ document.getElementById('offline-banner').classList.remove('show'); });
+window.addEventListener('offline', ()=>{ document.getElementById('offline-banner').classList.add('show'); });
+
+// ══ NAČTENÍ HOTELU ═══════════════════════════
+async function loadHotel(){
+  // Nejdříve zkus cache
+  const cached = localStorage.getItem(CACHE_KEY);
+
+  try{
+    const r=await fetch(`${API}/api/guest/${hotelId}`);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    hotelData=d.hotel;
+    // Ulož do cache pro offline
+    localStorage.setItem(CACHE_KEY, JSON.stringify(hotelData));
+    localStorage.setItem(CACHE_KEY+'_ts', Date.now().toString());
+
+    // Pokud host byl tu dříve — přeskoč onboarding
+    if(savedName || guestName !== ''){
+      // Rovnou spusť chat bez onboardingu
+      document.getElementById('onboarding').style.display='none';
+      document.getElementById('chat-wrap').style.display='flex';
+      // Přidej WhatsApp tlačítko do quick replies pokud je nastaveno
+  if(hotelData.whatsapp_reception || hotelData.whatsapp_number){
+    const waNum = (hotelData.whatsapp_reception || hotelData.whatsapp_number).replace(/\s/g,'');
+    const waEl = document.getElementById('quick-whatsapp');
+    if(waEl){
+      waEl.style.display = 'inline-flex';
+      waEl.onclick = () => {
+        const msg = encodeURIComponent('Dobrý den, potřebuji pomoc s ubytováním.');
+        window.open('https://wa.me/'+waNum.replace('+','')+'?text='+msg, '_blank');
+      };
+    }
+  }
+  const greetFn=GREETINGS[guestLang]||GREETINGS['en'];
+      const welcomeBack = {
+        cs: `Vítej zpět, ${guestName}! 👋 Jak ti mohu pomoci?`,
+        en: `Welcome back, ${guestName}! 👋 How can I help you?`,
+        de: `Willkommen zurück, ${guestName}! 👋 Wie kann ich helfen?`,
+        fr: `Bienvenue de retour, ${guestName}! 👋 Comment puis-je aider?`,
+        es: `¡Bienvenido de nuevo, ${guestName}! 👋 ¿En qué puedo ayudar?`,
+        pl: `Witaj ponownie, ${guestName}! 👋 Jak mogę pomóc?`,
+        it: `Ben tornato, ${guestName}! 👋 Come posso aiutarti?`,
+      };
+      addBot(welcomeBack[guestLang] || welcomeBack['en']);
+      renderQuickReplies();
+      return;
+    }
+  }catch(e){
+    if(cached){
+      hotelData=JSON.parse(cached);
+      document.getElementById('offline-banner').classList.add('show');
+    }else{
+      showError('Hotel nebyl nalezen nebo nemá aktivní předplatné.','😔');
+      return;
+    }
+  }
+
+  document.getElementById('ob-hotel-name').textContent=hotelData.name||'';
+  document.title='SmartestGuide – '+(hotelData.name||'Hotel');
+
+  // Auto-detekce jazyka telefonu
+  const bl=(navigator.language||'en').slice(0,2).toLowerCase();
+  const supported=LANGS.map(l=>l.code);
+  guestLang=supported.includes(bl)?bl:'en';
+
+  renderLangGrid();
+}
+
+function showError(msg,icon='⚠️'){
+  document.getElementById('onboarding').innerHTML=`
+    <div class="err-page">
+      <div style="font-size:64px;margin-bottom:20px">${icon}</div>
+      <h2>Jejda…</h2>
+      <p>${msg}</p>
+    </div>`;
+}
+
+// ══ START CHATU ══════════════════════════════
+const GREETINGS={
+  cs:(n,h)=>`Ahoj ${n}! 👋 Jsem Alex, váš concierge v hotelu **${h}**. Jak vám mohu pomoci?`,
+  sk:(n,h)=>`Ahoj ${n}! 👋 Som Alex, váš concierge v hoteli **${h}**. Ako vám môžem pomôcť?`,
+  en:(n,h)=>`Hi ${n}! 👋 I'm Alex, your concierge at **${h}**. How can I help you?`,
+  de:(n,h)=>`Hallo ${n}! 👋 Ich bin Alex, Ihr Concierge im **${h}**. Wie kann ich helfen?`,
+  fr:(n,h)=>`Bonjour ${n}! 👋 Je suis Alex, votre concierge à **${h}**. Comment puis-je vous aider?`,
+  it:(n,h)=>`Ciao ${n}! 👋 Sono Alex, il tuo concierge all'hotel **${h}**. Come posso aiutarti?`,
+  es:(n,h)=>`¡Hola ${n}! 👋 Soy Alex, tu concierge en **${h}**. ¿Cómo puedo ayudarte?`,
+  pl:(n,h)=>`Cześć ${n}! 👋 Jestem Alex, Twój concierge w hotelu **${h}**. Jak mogę pomóc?`,
+  ru:(n,h)=>`Привет ${n}! 👋 Я Алекс, консьерж отеля **${h}**. Чем могу помочь?`,
+  uk:(n,h)=>`Привіт ${n}! 👋 Я Алекс, консьєрж готелю **${h}**. Чим можу допомогти?`,
+};
+
+const QUICK={
+  cs:['⏰ Check-in/out','🍳 Snídaně','🅿️ Parkování','💆 Wellness','📍 Co je v okolí?','☎️ Kontakt','🌤 Počasí'],
+  en:['⏰ Check-in/out','🍳 Breakfast','🅿️ Parking','💆 Wellness','📍 Nearby places','☎️ Contact','🌤 Weather'],
+  de:['⏰ Check-in/out','🍳 Frühstück','🅿️ Parken','💆 Wellness','📍 Umgebung','☎️ Kontakt','🌤 Wetter'],
+  fr:['⏰ Check-in/out','🍳 Petit-déjeuner','🅿️ Parking','💆 Bien-être','📍 Alentours','☎️ Contact','🌤 Météo'],
+  it:['⏰ Check-in/out','🍳 Colazione','🅿️ Parcheggio','💆 Benessere','📍 Dintorni','☎️ Contatto','🌤 Meteo'],
+  es:['⏰ Check-in/out','🍳 Desayuno','🅿️ Aparcamiento','💆 Bienestar','📍 Alrededores','☎️ Contacto','🌤 Tiempo'],
+  pl:['⏰ Check-in/out','🍳 Śniadanie','🅿️ Parking','💆 Wellness','📍 Okolica','☎️ Kontakt','🌤 Pogoda'],
+  sk:['⏰ Check-in/out','🍳 Raňajky','🅿️ Parkovanie','💆 Wellness','📍 Okolie','☎️ Kontakt','🌤 Počasie'],
+};
+
+function startChat(){
+  if(!hotelData)return;
+  guestName=document.getElementById('ob-name').value.trim()||'host';
+  document.getElementById('onboarding').style.opacity='0';
+  document.getElementById('onboarding').style.transform='scale(.95)';
+  document.getElementById('onboarding').style.transition='all .3s ease';
+  setTimeout(()=>{
+    document.getElementById('onboarding').style.display='none';
+    document.getElementById('chat-screen').classList.add('show');
+  },300);
+
+  document.getElementById('hdr-hotel-name').textContent=hotelData.name||'Hotel';
+
+  // Přidej WhatsApp tlačítko do quick replies pokud je nastaveno
+  if(hotelData.whatsapp_reception || hotelData.whatsapp_number){
+    const waNum = (hotelData.whatsapp_reception || hotelData.whatsapp_number).replace(/\s/g,'');
+    const waEl = document.getElementById('quick-whatsapp');
+    if(waEl){
+      waEl.style.display = 'inline-flex';
+      waEl.onclick = () => {
+        const msg = encodeURIComponent('Dobrý den, potřebuji pomoc s ubytováním.');
+        window.open('https://wa.me/'+waNum.replace('+','')+'?text='+msg, '_blank');
+      };
+    }
+  }
+  const greetFn=GREETINGS[guestLang]||GREETINGS['en'];
+  addBot(greetFn(guestName, hotelData.name||'hotel'));
+  setQuickReplies();
+  document.getElementById('msg-input').focus();
+}
+
+function setQuickReplies(){
+  const list=QUICK[guestLang]||QUICK['en'];
+  document.getElementById('quick-replies').innerHTML=
+    list.map(q=>`<button class="qr-btn" onclick="quickSend('${q}')">${q}</button>`).join('');
+}
+
+function quickSend(t){
+  if(t.includes('Počasí')||t.includes('Weather')||t.includes('Wetter')||t.includes('Météo')||
+     t.includes('Meteo')||t.includes('Tiempo')||t.includes('Pogoda')||t.includes('Počasie')){
+    fetchWeather(); return;
+  }
+  document.getElementById('msg-input').value=t;
+  sendMsg();
+}
+
+// ══ ZPRÁVY ═══════════════════════════════════
+function addBot(text){
+  const msgs=document.getElementById('messages');
+  const time=new Date().toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
+  const html=text.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');
+  const d=document.createElement('div');
+  d.className='msg bot';
+  d.innerHTML=`<div class="msg-av">🤖</div><div class="msg-body"><div class="msg-bubble">${html}</div><div class="msg-time">${time}</div></div>`;
+  msgs.appendChild(d);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+function addUser(text){
+  const msgs=document.getElementById('messages');
+  const time=new Date().toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
+  const init=guestName.slice(0,2).toUpperCase();
+  const d=document.createElement('div');
+  d.className='msg user';
+  d.innerHTML=`<div class="msg-av">${init}</div><div class="msg-body"><div class="msg-bubble">${esc(text)}</div><div class="msg-time">${time}</div></div>`;
+  document.getElementById('messages').appendChild(d);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+function showTyping(){
+  const msgs=document.getElementById('messages');
+  const d=document.createElement('div');
+  d.id='typing';d.className='msg bot';
+  d.innerHTML=`<div class="msg-av">🤖</div><div class="msg-body"><div class="msg-bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div></div>`;
+  msgs.appendChild(d);msgs.scrollTop=msgs.scrollHeight;
+  document.getElementById('hdr-status').className='hdr-status typing';
+}
+
+function hideTyping(){
+  document.getElementById('typing')?.remove();
+  document.getElementById('hdr-status').className='hdr-status';
+}
+
+// ══ ODESLÁNÍ ═════════════════════════════════
+// Detekce jazyka z textu
+function detectLangFromText(text){
+  const patterns = {
+    cs:/[áčďéěíňóřšťúůýž]/i,
+    sk:/[áäčďéíĺľňóôŕšťúýž]/i,
+    de:/[äöüß]|\b(ich|ist|das|und|nicht|haben|sein|werden|mit|auf)\b/i,
+    fr:/[àâçèêëîïôùûü]|\b(je|est|les|des|une|pas|pour|avec)\b/i,
+    es:/[áéíóúüñ]|\b(que|los|las|una|para|por|con|hay)\b/i,
+    pl:/[ąćęłńóśźż]/i,
+    it:/[àèéìíîòóùú]|\b(che|sono|una|per|con|del|della|non)\b/i,
+    ru:/[а-яё]/i,
+    uk:/[іїєґ]/i,
+    hu:/[áéíóöőúüű]/i,
+  };
+  for(const [lang,re] of Object.entries(patterns)){
+    if(re.test(text)) return lang;
+  }
+  return null;
+}
+
+async function sendMsg(){
+  const inp=document.getElementById('msg-input');
+  const text=inp.value.trim();
+  if(!text||isTyping)return;
+  inp.value='';inp.style.height='auto';
+  document.getElementById('send-btn').disabled=true;
+  isTyping=true;
+
+  // Auto-detekce jazyka z textu — pokud host píše jinak než je nastaven jazyk
+  const detected = detectLangFromText(text);
+  if(detected && detected !== guestLang){
+    guestLang = detected;
+    localStorage.setItem('sg_lang_' + hotelId, guestLang);
+  }
+
+  addUser(text);
+  history.push({role:'user',content:text});
+  document.getElementById('quick-replies').style.display='none';
+  showTyping();
+
+  // Offline fallback - zkus fetch, pokud selže → offline
+  // navigator.onLine není spolehlivý, proto zkusíme přímo
+
+  try{
+    const r=await fetch(`${API}/api/guest/chat`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({hotel_id:hotelId,message:text,language:guestLang,guest_name:guestName,history:history.slice(-10),auto_lang:true})
+    });
+    hideTyping();
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    addBot(d.reply);
+    history.push({role:'assistant',content:d.reply});
+  }catch(e){
+    hideTyping();
+    // Pokud je chyba sítě - zobraz offline odpověď
+    if(e.message && (e.message.includes('fetch') || e.message.includes('network') || e.message.includes('Failed'))){
+      addBot(offlineReply(text));
+    } else {
+      addBot(offlineReply(text));
+    }
+  }finally{
+    isTyping=false;
+    document.getElementById('send-btn').disabled=false;
+  }
+}
+
+function offlineReply(text){
+  if(!hotelData)return 'Omlouvám se, momentálně jsem offline.';
+  const t=text.toLowerCase();
+  const h=hotelData;
+  if(t.includes('check-in')||t.includes('příjezd'))
+    return h.checkin_time?`Check-in je od **${h.checkin_time}**. Check-out do ${h.checkout_time||'–'}.`:'Informace o check-in nejsou k dispozici.';
+  if(t.includes('snídaně')||t.includes('breakfast'))
+    return h.breakfast_hours?`Snídaně se podává **${h.breakfast_hours}**.`:'Informace o snídani nejsou k dispozici.';
+  if(t.includes('parkování')||t.includes('parking'))
+    return h.parking_info||'Informace o parkování nejsou k dispozici.';
+  if(t.includes('wellness')||t.includes('spa'))
+    return h.wellness_info||'Informace o wellness nejsou k dispozici.';
+  if(t.includes('telefon')||t.includes('kontakt'))
+    return h.phone?`Recepce: **${h.phone}**${h.whatsapp_number?'\nWhatsApp: '+h.whatsapp_number:''}`:'Kontakt není k dispozici.';
+  return `Momentálně jsem offline. Základní informace:\n\n⏰ Check-in: ${h.checkin_time||'–'}\n🍳 Snídaně: ${h.breakfast_hours||'–'}\n📞 Telefon: ${h.phone||'–'}`;
+}
+
+// ══ POČASÍ ═══════════════════════════════════
+async function fetchWeather(){
+  if(!hotelData){return;}
+  showTyping();
+
+  // Zkus získat polohu z adresy hotelu pomocí Open-Meteo (bezplatné, bez klíče)
+  try{
+    // Geocoding přes nominatim - zkus adresu, pak název hotelu, pak zemi
+    const queries = [
+      hotelData.address,
+      (hotelData.name||'') + ' ' + (hotelData.address||''),
+      hotelData.name,
+      hotelData.country || 'Czech Republic'
+    ].filter(Boolean);
+
+    let gd = [];
+    for(const q of queries){
+      const addr=encodeURIComponent(q);
+      const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${addr}&format=json&limit=1`,
+        {headers:{'User-Agent':'SmartestGuide/1.0 contact@smartestguide.com'}});
+      gd=await geo.json();
+      if(gd.length) break;
+    }
+    if(!gd.length)throw new Error('no geo');
+
+    const lat=parseFloat(gd[0].lat);
+    const lon=parseFloat(gd[0].lon);
+    const loc=gd[0].display_name.split(',')[0];
+
+    // Počasí
+    const wr=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weathercode,windspeed_10m,relativehumidity_2m&timezone=auto`);
+    const wd=await wr.json();
+    const cur=wd.current;
+
+    const WMO={
+      0:'☀️ Jasno',1:'🌤 Převážně jasno',2:'⛅ Polojasno',3:'☁️ Zataženo',
+      45:'🌫 Mlha',48:'🌫 Námraza',
+      51:'🌦 Slabé mrholení',53:'🌦 Mrholení',55:'🌧 Silné mrholení',
+      61:'🌧 Slabý déšť',63:'🌧 Déšť',65:'🌧 Silný déšť',
+      71:'🌨 Slabý sníh',73:'🌨 Sníh',75:'❄️ Silný sníh',
+      80:'🌦 Přeháňky',81:'🌧 Silné přeháňky',82:'⛈ Velmi silné přeháňky',
+      95:'⛈ Bouřka',96:'⛈ Bouřka s kroupami',99:'⛈ Silná bouřka',
+    };
+    const desc=WMO[cur.weathercode]||'🌡 Neznámo';
+    const icon=desc.split(' ')[0];
+    const descText=desc.split(' ').slice(1).join(' ');
+
+    hideTyping();
+
+    const msgs=document.getElementById('messages');
+    const time=new Date().toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
+    const d=document.createElement('div');
+    d.className='msg bot';
+    d.innerHTML=`<div class="msg-av">🤖</div><div class="msg-body">
+      <div class="msg-bubble">
+        <div class="chat-card">
+          <div class="chat-card-title">🌤 Počasí — ${esc(loc)}</div>
+          <div class="weather-main">
+            <div class="weather-icon">${icon}</div>
+            <div>
+              <div class="weather-temp">${Math.round(cur.temperature_2m)}°C</div>
+              <div class="weather-desc">${descText}</div>
+            </div>
+          </div>
+          <div class="weather-details">
+            <div class="weather-detail">💨 Vítr: <span>${Math.round(cur.windspeed_10m)} km/h</span></div>
+            <div class="weather-detail">💧 Vlhkost: <span>${cur.relativehumidity_2m}%</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="msg-time">${time}</div>
+    </div>`;
+    msgs.appendChild(d);msgs.scrollTop=msgs.scrollHeight;
+
+  }catch(e){
+    hideTyping();
+    const weatherErr = {
+      cs:'Omlouvám se, počasí se nepodařilo načíst. Zkontrolujte že hotel má vyplněnou adresu v portálu.',
+      en:'Sorry, I could not load the weather. Please make sure the hotel has a valid address set in the portal.',
+      de:'Das Wetter konnte nicht geladen werden. Bitte prüfen Sie ob die Hoteladresse im Portal eingetragen ist.',
+      fr:'Je ne peux pas charger la météo. Veuillez vérifier que l hotel a une adresse dans le portail.',
+      es:'No pude cargar el tiempo. Asegúrese de que el hotel tiene una dirección en el portal.',
+      pl:'Nie mogę załadować pogody. Sprawdź czy hotel ma adres ustawiony w portalu.',
+    };
+    addBot(weatherErr[guestLang] || weatherErr['en']);
+  }
+}
+
+// ══ HLAS ═════════════════════════════════════
+function toggleVoice(){
+  // iOS detekce - použij nativní diktát přes input focus
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  if(isIOS || (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window))){
+    // Na iOS aktivuj nativní klávesnici s diktátem
+    const inp = document.getElementById('msg-input');
+    inp.focus();
+    // Zobraz nápovědu jen na iOS
+    if(isIOS){
+      const hint = document.createElement('div');
+      hint.style.cssText='position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;z-index:999;white-space:nowrap';
+      hint.textContent='🎤 Klepněte na mikrofon na klávesnici iOS';
+      document.body.appendChild(hint);
+      setTimeout(()=>hint.remove(), 3000);
+    }
+    return;
+  }
+  if(isListening){recognition?.stop();return;}
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  recognition=new SR();
+  recognition.lang=LANG_SR[guestLang]||'cs-CZ';
+  recognition.interimResults=false;
+  recognition.maxAlternatives=1;
+  recognition.onstart=()=>{isListening=true;const b=document.getElementById('voice-btn');b.classList.add('listening');b.textContent='⏹';};
+  recognition.onresult=e=>{
+    const transcript=e.results[0][0].transcript;
+    document.getElementById('msg-input').value=transcript;
+    autoResize(document.getElementById('msg-input'));
+    // Detekce jazyka z hlasu
+    const detected = detectLangFromText(transcript);
+    if(detected && detected !== guestLang){
+      guestLang = detected;
+      localStorage.setItem('sg_lang_' + hotelId, guestLang);
+    }
+  };
+  recognition.onend=()=>{isListening=false;const b=document.getElementById('voice-btn');b.classList.remove('listening');b.textContent='🎤';if(document.getElementById('msg-input').value.trim())sendMsg();};
+  recognition.onerror=()=>{isListening=false;document.getElementById('voice-btn').classList.remove('listening');document.getElementById('voice-btn').textContent='🎤';};
+  recognition.start();
+}
+
+// ══ INFO SHEET ════════════════════════════════
+function showInfo(){
+  if(!hotelData)return;
+  const h=hotelData;
+  document.getElementById('sheet-title').textContent=h.name||'Informace o hotelu';
+  const items=[
+    h.checkin_time&&{icon:'⏰',label:'Check-in / Check-out',val:`${h.checkin_time} / ${h.checkout_time||'–'}`},
+    h.breakfast_hours&&{icon:'🍳',label:'Snídaně',val:h.breakfast_hours},
+    h.dinner_hours&&{icon:'🍽',label:'Večeře',val:h.dinner_hours},
+    h.restaurant_name&&{icon:'🍴',label:'Restaurace',val:h.restaurant_name},
+    h.wellness_info&&{icon:'💆',label:'Wellness / Spa',val:h.wellness_info},
+    h.parking_info&&{icon:'🅿️',label:'Parkování',val:h.parking_info},
+    h.phone&&{icon:'📞',label:'Telefon recepce',val:h.phone},
+    h.email&&{icon:'✉️',label:'E-mail',val:h.email},
+    h.whatsapp_number&&{icon:'💬',label:'WhatsApp',val:h.whatsapp_number},
+    h.address&&{icon:'📍',label:'Adresa',val:h.address},
+  ].filter(Boolean);
+
+  let html=items.map(it=>`
+    <div class="info-item">
+      <div class="info-icon">${it.icon}</div>
+      <div><div class="info-label">${it.label}</div><div class="info-val">${esc(it.val)}</div></div>
+    </div>`).join('');
+
+  if(h.amenities?.length){
+    html+=`<div class="info-item"><div class="info-icon">✨</div><div><div class="info-label">Vybavení</div><div class="tag-row">${h.amenities.map(a=>`<span class="tag">${esc(a)}</span>`).join('')}</div></div></div>`;
+  }
+  if(h.nearby_places?.length){
+    html+=`<div class="info-item"><div class="info-icon">🗺</div><div><div class="info-label">Místa v okolí</div><div class="tag-row">${h.nearby_places.map(p=>{
+        const q = encodeURIComponent(p.replace(/\(.*\)/,'').trim() + ', ' + (h.address||''));
+        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${q}`;
+        return `<a href="${mapsUrl}" target="_blank" style="display:inline-block;background:rgba(108,99,255,.15);color:var(--accent);border:1px solid rgba(108,99,255,.3);border-radius:20px;padding:4px 10px;font-size:12px;text-decoration:none;margin:2px">📍 ${esc(p)}</a>`;
+      }).join('')}</div></div></div>`;
+  }
+
+  document.getElementById('sheet-content').innerHTML=html;
+  document.getElementById('info-overlay').classList.add('show');
+}
+
+function hideInfo(e){
+  if(!e||e.target===document.getElementById('info-overlay'))
+    document.getElementById('info-overlay').classList.remove('show');
+}
+
+// ══ PŘEKLAD MENU (FOTO) ══════════════════════
+function triggerPhoto(){
+  document.getElementById('photo-input').click();
+}
+
+async function translateMenu(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  e.target.value = '';
+
+  // Zobraz náhled zprávy uživatele
+  const msgs = document.getElementById('messages');
+  const time = new Date().toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
+  const init = guestName.slice(0,2).toUpperCase();
+
+  // Zpráva uživatele s foto
+  const userDiv = document.createElement('div');
+  userDiv.className = 'msg user';
+  userDiv.innerHTML = `<div class="msg-av">${init}</div><div class="msg-body"><div class="msg-bubble">📷 ${PHOTO_LABELS[guestLang]||'Translating menu...'}</div><div class="msg-time">${time}</div></div>`;
+  msgs.appendChild(userDiv);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  document.getElementById('quick-replies').style.display='none';
+  showTyping();
+
+  try{
+    // Převeď foto na base64
+    const base64 = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = () => res(reader.result.split(',')[1]);
+      reader.onerror = rej;
+      reader.readAsDataURL(file);
+    });
+
+    const r = await fetch(`${API}/api/guest/translate-menu`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        hotel_id: hotelId,
+        image_base64: base64,
+        language: guestLang,
+        guest_name: guestName,
+      })
+    });
+    hideTyping();
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d = await r.json();
+    addBot(d.reply);
+    history.push({role:'user', content:'[Menu photo]'});
+    history.push({role:'assistant', content: d.reply});
+  }catch(err){
+    hideTyping();
+    addBot(PHOTO_ERROR[guestLang]||'Sorry, I could not translate the menu. Please try again.');
+  }
+}
+
+const PHOTO_LABELS = {
+  cs:'Přeložit menu...',sk:'Preložiť menu...',en:'Translating menu...',
+  de:'Menü übersetzen...',fr:'Traduire le menu...',it:'Traduzione menu...',
+  es:'Traduciendo menú...',pl:'Tłumaczenie menu...',
+};
+const PHOTO_ERROR = {
+  cs:'Omlouvám se, nepodařilo se přeložit menu. Zkuste prosím znovu.',
+  en:'Sorry, I could not translate the menu. Please try again.',
+  de:'Das Menü konnte nicht übersetzt werden. Bitte erneut versuchen.',
+};
+
+// ══ UTILS ═════════════════════════════════════
+function onKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}}
+function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,90)+'px';}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// ══ PWA ══════════════════════════════════════
+let deferredPrompt = null;
+
+// Registruj service worker
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
+}
+
+// Zachyť install prompt
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  // Zobraz banner jen pokud ho host ještě neodmítl
+  if(!localStorage.getItem('sg_pwa_dismissed')){
+    setTimeout(() => {
+      document.getElementById('pwa-banner').classList.add('show');
+    }, 3000); // Zobraz po 3 sekundách
+  }
+});
+
+document.getElementById('pwa-install-btn').addEventListener('click', async () => {
+  if(!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const result = await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  document.getElementById('pwa-banner').classList.remove('show');
+  if(result.outcome === 'accepted'){
+    localStorage.setItem('sg_pwa_installed', '1');
+  }
+});
+
+function dismissPwaBanner(){
+  document.getElementById('pwa-banner').classList.remove('show');
+  localStorage.setItem('sg_pwa_dismissed', '1');
+}
+
+// iOS Safari - manuální instrukce (iOS nepodporuje beforeinstallprompt)
+const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isInStandalone = window.matchMedia('(display-mode: standalone)').matches;
+if(isIos && !isInStandalone && !localStorage.getItem('sg_pwa_dismissed')){
+  setTimeout(() => {
+    const banner = document.getElementById('pwa-banner');
+    banner.querySelector('.pwa-banner-text strong').textContent = '📱 Přidat na plochu (iOS)';
+    banner.querySelector('.pwa-banner-text').innerHTML += '<br><span style="font-size:11px;opacity:.8">Klepněte na Sdílet → Přidat na plochu</span>';
+    banner.querySelector('#pwa-install-btn').style.display = 'none';
+    banner.classList.add('show');
+  }, 3000);
+}
+
+// ══ INIT ══════════════════════════════════════
+loadHotel();
+</script>
+<!-- PWA Install Banner -->
+<div id="pwa-banner">
+  <div class="pwa-banner-text">
+    <strong>📱 Přidat na plochu</strong>
+    Otevírejte concierge přímo z ikony
+  </div>
+  <button class="pwa-btn" id="pwa-install-btn">Přidat</button>
+  <button class="pwa-btn-dismiss" onclick="dismissPwaBanner()">✕</button>
+</div>
+
+</body>
+</html>
