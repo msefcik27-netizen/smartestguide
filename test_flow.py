@@ -347,7 +347,12 @@ def test_invoices(hotel_id):
         if r.status_code == 200 and "pdf" in r.headers.get("content-type", ""):
             ok("GET /api/invoices/{id}/pdf", f"{len(r.content)} bytes")
         else:
-            fail("GET /api/invoices/{id}/pdf", f"status {r.status_code}, ct: {r.headers.get('content-type')}")
+            detail = ""
+            try:
+                detail = r.json().get("detail", r.text[:150])
+            except:
+                detail = r.text[:150]
+            fail("GET /api/invoices/{id}/pdf", f"status {r.status_code} – {detail}")
     except Exception as e:
         fail("GET /api/invoices/{id}/pdf", str(e))
 

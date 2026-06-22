@@ -750,15 +750,24 @@ def success_page(hotel_id: str = "", request: Request = None):
             base = get_base_url(request) if request else ""
             portal_url = f"{base}/hotel?token={h['hotel_token']}"
 
-    redirect_script = f"""
+    if portal_url:
+        redirect_target = portal_url
+        redirect_script = f"""
     <script>
-      // Automaticky přesměruj na landing page po 5 sekundách
+      var countdown = 10; var el = document.getElementById("countdown"); var interval = setInterval(function(){{ countdown--; el.textContent = countdown; if(countdown <= 0){{ clearInterval(interval); window.location.href = "{portal_url}"; }} }}, 1000);
+    </script>"""
+        portal_btn = f"""
+    <a href="{portal_url}" style="display:inline-flex;align-items:center;gap:10px;background:#6c63ff;color:#fff;text-decoration:none;padding:14px 28px;border-radius:12px;font-weight:700;font-size:15px;margin-bottom:16px;transition:background .15s" onmouseover="this.style.background='#7c75ff'" onmouseout="this.style.background='#6c63ff'">
+      🚀 Přejít do hotelového portálu →
+    </a>"""
+        countdown_html = f'<p style="font-size:13px;color:#7a7fa8;margin-top:8px">Automatické přesměrování do portálu za <span id="countdown">10</span> sekund…</p>'
+    else:
+        redirect_script = """
+    <script>
       var countdown = 5; var el = document.getElementById("countdown"); var interval = setInterval(function(){{ countdown--; el.textContent = countdown; if(countdown <= 0){{ clearInterval(interval); window.location.href = "/landing"; }} }}, 1000);
     </script>"""
-
-    portal_btn = ''
-
-    countdown_html = '<p style="font-size:13px;color:#7a7fa8;margin-top:8px">Automatické přesměrování za <span id="countdown">5</span> sekund…</p>'
+        portal_btn = ''
+        countdown_html = '<p style="font-size:13px;color:#7a7fa8;margin-top:8px">Automatické přesměrování za <span id="countdown">5</span> sekund…</p>'
 
     return f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
@@ -1780,7 +1789,9 @@ def download_invoice_pdf(invoice_id: str):
         pdf_bytes = buf.getvalue()
 
     except ImportError:
-        raise HTTPException(500, "reportlab není nainstalován")
+        raise HTTPException(500, "reportlab není nainstalován – přidej do requirements.txt")
+    except Exception as e:
+        raise HTTPException(500, f"Chyba generování PDF: {str(e)}")
 
     safe_num = inv.get("invoice_number", invoice_id).replace("/", "-")
     return StreamingResponse(
