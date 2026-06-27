@@ -181,13 +181,19 @@ def test_hotels():
                 "whatsapp_wellness": "+420111222334",
                 "whatsapp_restaurant": "+420111222335",
                 "whatsapp_sport": "+420111222336"
-            }, timeout=10),
+            }, timeout=15),
             "WhatsApp čísla (více oddělení)",
             lambda r: r.status_code == 200 and r.json().get("hotel", {}).get("whatsapp_wellness") == "+420111222334"
         ),
     ]:
         try:
-            r = req_fn()
+            # Retry při 502 (Railway restart)
+            for attempt in range(3):
+                r = req_fn()
+                if r.status_code != 502:
+                    break
+                import time
+                time.sleep(5)
             if check_fn(r):
                 ok(label)
             else:
