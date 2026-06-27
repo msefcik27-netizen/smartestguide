@@ -688,6 +688,7 @@ async def register_hotel(req: RegistrationRequest, request: Request):
         "email": req.contact_email,
         "phone": req.contact_phone or "",
         "bed_count": beds,
+        "registered_bed_count": beds,
         "contact_name": req.contact_name,
     }
     db["hotels"][hid] = hotel
@@ -815,7 +816,15 @@ async def auto_scrape_after_payment(hotel_id: str, hotel_url: str):
         for key, value in scraped.items():
             if key not in ("id", "created_at", "hotel_token", "subscription_active",
                           "stripe_customer_id", "stripe_subscription_id", "subscription_start"):
-                if not db["hotels"][hotel_id].get(key) and value:
+                if key == "bed_count" and value:
+                    # Uložit scraped hodnotu zvlášť — nepřepisovat registrovanou hodnotu
+                    db["hotels"][hotel_id]["scraped_bed_count"] = value
+                    # Přepsat bed_count jen pokud hotel neuvedl žádnou hodnotu při registraci
+                    if not db["hotels"][hotel_id].get("registered_bed_count"):
+                        db["hotels"][hotel_id]["registered_bed_count"] = db["hotels"][hotel_id].get("bed_count") or 0
+                    if not db["hotels"][hotel_id].get("bed_count"):
+                        db["hotels"][hotel_id]["bed_count"] = value
+                elif not db["hotels"][hotel_id].get(key) and value:
                     db["hotels"][hotel_id][key] = value
         db["hotels"][hotel_id]["scraping_done"] = True
         db["hotels"][hotel_id]["updated_at"] = datetime.utcnow().isoformat()
