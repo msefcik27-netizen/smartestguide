@@ -89,11 +89,11 @@ def test_basic():
             content = r.text
             errors = []
             # Počítej reálné HTML script tagy
-            # Odstraň JS stringy z obsahu před hledáním
-            stripped = re.sub(r"'[^']*'", "''", content)
-            stripped = re.sub(r'"[^"]*"', '""', stripped)
-            real_open  = len(re.findall(r'<script(?:\s[^>]*)?>\s', stripped))
-            real_close = stripped.count('</script>')
+            # Ignoruj <script uvnitř JS stringů (ty mají escaped lomítko: <\/script>)
+            clean = re.sub(r"'[^'\n]*<[^'\n]*'", "''", content)
+            clean = re.sub(r'"[^"\n]*<[^"\n]*"', '""', clean)
+            real_open  = len(re.findall(r'<script(?:\s[^>]*)?>', clean))
+            real_close = len(re.findall(r'</script>', clean))
             if real_open != real_close:
                 errors.append(f"Nekompletní script tag ({real_open} open vs {real_close} close)")
             scripts = re.findall(r'<script[^>]*>(.*?)</script>', content, re.DOTALL)

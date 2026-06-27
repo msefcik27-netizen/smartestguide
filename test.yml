@@ -21,35 +21,39 @@ jobs:
       - name: Instalace závislostí
         run: pip install requests
 
-      - name: Restart Railway service (kill 1 přes API)
+      - name: Restart Railway service přes API
         run: |
-          curl -s -X POST https://backboard.railway.app/graphql/v2 \
+          RESPONSE=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
             -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d '{
-              "query": "mutation { serviceInstanceRedeploy(environmentId: \"${{ secrets.RAILWAY_ENV_ID }}\", serviceId: \"${{ secrets.RAILWAY_SERVICE_ID }}\") }"
-            }' && echo "✅ Restart odeslán" || echo "⚠️ Restart selhal"
-          sleep 10
+            -d '{"query":"mutation { serviceInstanceRedeploy(environmentId: \"${{ secrets.RAILWAY_ENV_ID }}\", serviceId: \"${{ secrets.RAILWAY_SERVICE_ID }}\") }"}')
+          echo "Railway API response: $RESPONSE"
+          sleep 15
 
-      - name: Čekej na novou verzi (max 5 min)
+      - name: Čekej na novou verzi (max 6 min)
         run: |
           EXPECTED=$(grep 'APP_VERSION' app.py | head -1 | grep -oP '"\K[^"]+')
           echo "Čekám na verzi: $EXPECTED"
-          for i in $(seq 1 60); do
-            DEPLOYED=$(curl -s https://smartestguide-production.up.railway.app/api/version \
-              | python3 -c "import sys,json; print(json.load(sys.stdin).get('version',''))" 2>/dev/null || echo "")
-            if [ "$DEPLOYED" = "$EXPECTED" ]; then
-              echo "✅ Verze $DEPLOYED je live (pokus $i)"
-              sleep 3
-              break
+          SUCCESS=false
+          for i in $(seq 1 72); do
+            HTTP=$(curl -s -o /tmp/ver.json -w "%{http_code}" https://smartestguide-production.up.railway.app/api/version 2>/dev/null || echo "000")
+            if [ "$HTTP" = "200" ]; then
+              DEPLOYED=$(python3 -c "import json; print(json.load(open('/tmp/ver.json')).get('version',''))" 2>/dev/null || echo "")
+              if [ "$DEPLOYED" = "$EXPECTED" ]; then
+                echo "✅ Verze $DEPLOYED je live (pokus $i)"
+                SUCCESS=true
+                sleep 3
+                break
+              fi
+              echo "⏳ Pokus $i/72 – live: '$DEPLOYED', čekám na: '$EXPECTED'"
+            else
+              echo "⏳ Pokus $i/72 – server vrátil HTTP $HTTP (restartuje se...)"
             fi
-            echo "⏳ Pokus $i/60 – live: '$DEPLOYED', čekám na: '$EXPECTED'"
             sleep 5
           done
-          DEPLOYED=$(curl -s https://smartestguide-production.up.railway.app/api/version \
-            | python3 -c "import sys,json; print(json.load(sys.stdin).get('version',''))" 2>/dev/null || echo "")
-          if [ "$DEPLOYED" != "$EXPECTED" ]; then
-            echo "❌ Timeout — deploy se nedokončil (live: $DEPLOYED, očekáváno: $EXPECTED)"
+          if [ "$SUCCESS" = "false" ]; then
+            DEPLOYED=$(python3 -c "import json; print(json.load(open('/tmp/ver.json')).get('version',''))" 2>/dev/null || echo "neznámá")
+            echo "❌ Timeout po 6 minutách (live: $DEPLOYED, očekáváno: $EXPECTED)"
             exit 1
           fi
 
