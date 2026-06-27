@@ -272,8 +272,8 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
     <div class="pricing-grid">
       <div class="price-card">
         <div class="price-name">Standard</div>
-        <div class="price-amount"><span>from </span>€300<span>/mo</span></div>
-        <div class="price-desc">Up to 100 beds</div>
+        <div class="price-amount" id="price-standard"><span>from </span>€<span id="price-base-val">200</span><span>/mo</span></div>
+        <div class="price-desc">Up to <span id="price-threshold-val">100</span> beds</div>
         <ul class="price-features">
           <li>AI concierge in 14 languages</li>
           <li>Voice input support</li>
@@ -287,7 +287,7 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       </div>
       <div class="price-card featured">
         <div class="price-name">Growing</div>
-        <div class="price-amount"><span>€300 + </span>€3<span>/bed</span></div>
+        <div class="price-amount" id="price-growing"><span>€<span id="price-base-val2">200</span> + </span>€<span id="price-per-val">3</span><span>/bed</span></div>
         <div class="price-desc">Over 100 beds</div>
         <ul class="price-features">
           <li>Everything in Standard</li>
@@ -303,7 +303,7 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
     </div>
   </div>
     <div style="text-align:center;margin-top:32px;padding:18px 24px;background:rgba(0,212,170,.06);border:1px solid rgba(0,212,170,.2);border-radius:12px;max-width:700px;margin-left:auto;margin-right:auto">
-      <span style="font-size:14px;color:var(--dim)">💡 <strong style="color:var(--text)">Put it in perspective:</strong> One hour of front desk staff costs ~€12. SmartestGuide costs <strong style="color:var(--teal)">€10/day</strong> and answers 24/7 — in every language.</span>
+      <span style="font-size:14px;color:var(--dim)">💡 <strong style="color:var(--text)">Put it in perspective:</strong> One hour of front desk staff costs ~€12. SmartestGuide costs <strong style="color:var(--teal)">€<span id="price-per-day">7</span>/day</strong> and answers 24/7 — in every language.</span>
     </div>
 </div>
 </section>
@@ -472,7 +472,7 @@ function toggleMenu(){
 
 function calcSgPrice(beds){
   if(!beds||beds<1) return 0;
-  return beds<=100?300:300+(beds-100)*3;
+  return beds<=100?200:200+(beds-100)*3;
 }
 
 document.getElementById('reg-beds').addEventListener('input',function(){
@@ -593,6 +593,27 @@ const TRANSLATIONS={
 
 let currentLang='en';
 
+// Načti aktuální ceny z API a aktualizuj pricing sekci
+async function loadLandingPricing(){
+  try {
+    const API = window.location.origin;
+    const r = await fetch(API + '/api/settings');
+    if(!r.ok) return;
+    const d = await r.json();
+    const base      = d.pricing_base      || 200;
+    const threshold = d.pricing_threshold || 100;
+    const perBed    = d.pricing_per_bed   || 3;
+    const perDay    = Math.round(base / 30);
+    const setEl = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+    setEl('price-base-val',   base);
+    setEl('price-base-val2',  base);
+    setEl('price-per-val',    perBed);
+    setEl('price-threshold-val', threshold);
+    setEl('price-per-day',    perDay);
+  } catch(e) { /* fallback na výchozí hodnoty v HTML */ }
+}
+document.addEventListener('DOMContentLoaded', loadLandingPricing);
+
 function setLang(lang){
   currentLang=lang;
   const T=TRANSLATIONS[lang];
@@ -628,6 +649,7 @@ document.querySelectorAll('.step,.feature,.price-card').forEach(el=>{
   el.style.opacity='0';el.style.transform='translateY(20px)';el.style.transition='opacity .5s ease,transform .5s ease';
   observer.observe(el);
 });
+loadLandingPricing();
 </script>
 
 <!-- GDPR Cookies Banner -->

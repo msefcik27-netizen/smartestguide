@@ -262,7 +262,7 @@
           <div id="price-result" style="margin-top:20px"></div>
           <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);font-size:13px;color:var(--muted);line-height:1.8">
             <strong style="color:var(--text)">Aktuální ceník:</strong><br>
-            1–<span id="pricing-threshold-label">100</span> lůžek: <strong style="color:var(--accent2)" id="pricing-base-label">300 EUR</strong> / 30 dní<br>
+            1–<span id="pricing-threshold-label">100</span> lůžek: <strong style="color:var(--accent2)" id="pricing-base-label">200 EUR</strong> / 30 dní<br>
             Nad limit: base + <strong style="color:var(--accent2)" id="pricing-per-label">3 EUR</strong> za každé další lůžko<br>
             Minimální doba: 3 měsíce
           </div>
@@ -274,7 +274,7 @@
           <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Změna se projeví v kalkulačce, tabulce hotelů i na landing page. Existující smlouvy se nemění.</p>
           <div class="form-group" style="margin-bottom:12px">
             <label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Základní cena (EUR/měsíc)</label>
-            <input type="number" id="pricing-base" placeholder="300" min="1" style="margin-top:6px"/>
+            <input type="number" id="pricing-base" placeholder="200" min="1" style="margin-top:6px"/>
             <div style="font-size:11px;color:var(--muted);margin-top:4px">Pro hotely do limitu lůžek</div>
           </div>
           <div class="form-group" style="margin-bottom:12px">
@@ -628,7 +628,7 @@ async function loadHotels(){
   }catch(e){addLog('error','Nelze načíst hotely: '+e.message,'hotels');toast('Nelze načíst hotely','err');}
 }
 
-function calcPriceNum(b){return!b?0:b<=100?300:300+(b-100)*3;}
+function calcPriceNum(b){return!b?0:b<=100?200:200+(b-100)*3;}
 function updateStats(){
   const t=all_hotels.length,a=all_hotels.filter(h=>h.subscription_active).length;
   const b=all_hotels.reduce((s,h)=>s+(h.bed_count||0),0);
@@ -799,7 +799,7 @@ async function startScrape(){
 }
 
 function showScrapedResult(data){
-  const beds=data.bed_count||0,price=beds?calcPriceNum(beds):300;
+  const beds=data.bed_count||0,price=beds?calcPriceNum(beds):200;
   document.getElementById('result-price').textContent=price+' EUR';
   document.getElementById('result-beds-info').textContent=beds?`${beds} lůžek`:'Lůžka nebyla nalezena – doplň ručně';
   const fields=[['name','Název hotelu','text'],['star_rating','Hvězdičky ★ (1–5)','number'],['address','Adresa','text'],['phone','Telefon','text'],['email','E-mail','text'],
@@ -1162,7 +1162,7 @@ async function loadPricingSettings(){
   try{
     const r=await fetch(`${API}/api/settings`);
     const d=await r.json();
-    const base=d.pricing_base||300;
+    const base=d.pricing_base||200;
     const threshold=d.pricing_threshold||100;
     const perBed=d.pricing_per_bed||3;
     document.getElementById('pricing-base').value=base;
@@ -1175,7 +1175,7 @@ async function loadPricingSettings(){
 }
 
 async function savePricingSettings(){
-  const base=parseInt(document.getElementById('pricing-base').value)||300;
+  const base=parseInt(document.getElementById('pricing-base').value)||200;
   const threshold=parseInt(document.getElementById('pricing-threshold').value)||100;
   const perBed=parseFloat(document.getElementById('pricing-per-bed').value)||3;
   try{

@@ -119,6 +119,18 @@ class HotelData(BaseModel):
 # ─────────────────────────────────────────────
 # Nastavení API klíče
 # ─────────────────────────────────────────────
+@app.get("/api/version")
+def get_version():
+    import subprocess
+    commit = os.getenv("RAILWAY_GIT_COMMIT_SHA", "")
+    if not commit:
+        # fallback: zkus git
+        try:
+            commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL).decode().strip()
+        except Exception:
+            commit = "unknown"
+    return {"commit": commit, "version": "0.2.0"}
+
 @app.get("/api/settings")
 def get_settings():
     s = db_get_settings()
@@ -128,13 +140,13 @@ def get_settings():
         "has_stripe_key": bool(s.get("stripe_secret_key")),
         "stripe_payment_link": s.get("stripe_payment_link", ""),
         "stripe_key_preview": ("sk_test_..." + s["stripe_secret_key"][-6:]) if s.get("stripe_secret_key") else None,
-        "pricing_base": s.get("pricing_base", 300),
+        "pricing_base": s.get("pricing_base", 200),
         "pricing_threshold": s.get("pricing_threshold", 100),
         "pricing_per_bed": s.get("pricing_per_bed", 3),
     }
 
 class PricingSettingsRequest(BaseModel):
-    pricing_base: int = 300
+    pricing_base: int = 200
     pricing_threshold: int = 100
     pricing_per_bed: float = 3.0
 
@@ -633,7 +645,7 @@ def pricing(beds: int):
     if beds <= 0:
         raise HTTPException(400, "Počet lůžek musí být kladný")
     s = db_get_settings()
-    base = s.get("pricing_base", 300)
+    base = s.get("pricing_base", 200)
     threshold = s.get("pricing_threshold", 100)
     per_bed = s.get("pricing_per_bed", 3)
     price = base if beds <= threshold else base + (beds - threshold) * per_bed
@@ -671,7 +683,7 @@ async def register_hotel(req: RegistrationRequest, request: Request):
     now = datetime.utcnow().isoformat()
     hotel_token = str(uuid.uuid4()).replace("-", "")
     beds = req.bed_count or 0
-    price = 300 if beds <= 100 else 300 + (beds - 100) * 3
+    price = 200 if beds <= 100 else 200 + (beds - 100) * 3
 
     hotel = {
         "id": hid,

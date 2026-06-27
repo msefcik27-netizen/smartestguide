@@ -216,6 +216,7 @@ async function loadHotel() {
     if (!r.ok) throw new Error('Neplatný token');
     const d = await r.json();
     hotelData = d.hotel;
+    await loadPricing();
     renderPortal();
     loadCompleteness();
     loadPaymentSection();
@@ -729,9 +730,24 @@ async function loadPaymentSection(){
     </div>`;
 }
 
+// Cena se načítá z API — neměň ručně
+let _pricingBase = 200;
+let _pricingThreshold = 100;
+let _pricingPerBed = 3;
+
 function calcPrice(beds){
-  if(!beds)return 300;
-  return beds<=100?300:300+(beds-100)*3;
+  if(!beds) return _pricingBase;
+  return beds <= _pricingThreshold ? _pricingBase : _pricingBase + (beds - _pricingThreshold) * _pricingPerBed;
+}
+
+async function loadPricing(){
+  try {
+    const r = await fetch(`${API}/api/settings`);
+    const d = await r.json();
+    _pricingBase      = d.pricing_base      || 200;
+    _pricingThreshold = d.pricing_threshold || 100;
+    _pricingPerBed    = d.pricing_per_bed   || 3;
+  } catch(e) { /* fallback na defaults */ }
 }
 
 // ── Uložení ───────────────────────────────────
