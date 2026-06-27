@@ -855,7 +855,10 @@ def success_page(hotel_id: str = "", request: Request = None):
 
 
 async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str, hotel_email: str):
-    """Posle onboarding email hotelu po uspesne platbe pres Brevo API."""
+    """Posle onboarding email hotelu po uspesne platbe pres Brevo API.
+    Jazyk emailu se urcuje dle zeme hotelu (CZ/SK = cestina, ostatni = anglictina).
+    Prilohy: QR kod jako PNG a PDF instrukce pro IT.
+    """
     brevo_key = os.getenv("BREVO_API_KEY", "")
     if not brevo_key:
         logging.warning("BREVO_API_KEY neni nastaven")
@@ -864,50 +867,138 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
         logging.warning(f"Hotel {hotel_id} nema email")
         return
 
-    subject = f"Vitejte v SmartestGuide - vas hotel {hotel_name} je pripraven!"
+    # Zjisti jazyk emailu dle zeme hotelu
+    db = db_load()
+    hotel = db.get("hotels", {}).get(hotel_id, {})
+    country = hotel.get("country", "").upper()
+    base_url = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app")
+    widget_code = f'<script src="{base_url}/widget.js?hotel_id={hotel_id}"></script>'
+    is_cs = country in ("CZ", "SK")
+
+    if is_cs:
+        subject = f"Vitejte v SmartestGuide - {hotel_name} je pripraven!"
+        greeting = f"Vitejte, {hotel_name}!"
+        subtitle = "AI Concierge pro vas hotel"
+        intro = f"Vas hotel byl uspesne zaregistrovan a platba probehla. Alex je pripraven odpovidat hostum ve 14 jazycich 24 hodin denne."
+        portal_btn_text = "Otevrit hotelovy portal"
+        steps_title = "Co delat jako prvni:"
+        steps = [
+            "Prihlaste se do portalu a zkontrolujte informace o hotelu",
+            "Doplnte orientaci v hotelu (wellness, parkoviste, restaurace, bar)",
+            "Pridejte lokalni tipy pro hosty",
+            "Stahnete QR kod (v priloze) a umistete ho na recepci, do pokoju nebo na stoly v restauraci",
+        ]
+        it_title = "Jak pridat chat tlacitko na web hotelu"
+        it_intro = "Predejte prosim nasledujici instrukce vasemu IT oddeleni nebo webmasterovi:"
+        it_step1 = "Otevrete zdrojovy kod stranky vasho webu (nebo kontaktujte IT)."
+        it_step2 = "Vlozit nasledujici kod tesne pred uzavirajici tag </body> na kazde strance kde chcete zobrazit chat tlacitko:"
+        it_step3 = "Po ulozeni a nasazeni se na webu zobrazi plovouci chat tlacitko pro hosty."
+        it_note = "Tlacitko funguje na vsech zarizeni (mobil, tablet, PC) a nevyzaduje zadne dalsi nastaveni."
+        help_text = "Potrebujete pomoc?"
+        qr_label = "QR kod pro hosty"
+        qr_desc = "Vytisknete a umistete na recepci, do pokoju nebo restaurace. Hosté naskenují a okamžitě chatují s Alexem."
+    else:
+        subject = f"Welcome to SmartestGuide - {hotel_name} is ready!"
+        greeting = f"Welcome, {hotel_name}!"
+        subtitle = "AI Concierge for your hotel"
+        intro = f"Your hotel has been successfully registered and payment confirmed. Alex is ready to answer your guests in 14 languages, 24/7."
+        portal_btn_text = "Open hotel portal"
+        steps_title = "What to do first:"
+        steps = [
+            "Log in to the portal and review your hotel information",
+            "Add hotel navigation (wellness, parking, restaurant, bar)",
+            "Add local tips for guests",
+            "Print the QR code (attached) and place it at reception, in rooms or on restaurant tables",
+        ]
+        it_title = "How to add the chat button to your hotel website"
+        it_intro = "Please forward the following instructions to your IT department or webmaster:"
+        it_step1 = "Open the source code of your hotel website (or contact your IT team)."
+        it_step2 = "Insert the following code just before the closing </body> tag on every page where you want the chat button to appear:"
+        it_step3 = "After saving and deploying, a floating chat button will appear on your website for guests."
+        it_note = "The button works on all devices (mobile, tablet, desktop) and requires no additional configuration."
+        help_text = "Need help?"
+        qr_label = "QR code for guests"
+        qr_desc = "Print and place at reception, in rooms or on restaurant tables. Guests scan and instantly chat with Alex."
+
+    steps_html = "".join(f"<li style='margin-bottom:8px'>{s}</li>" for s in steps)
+
     html_body = f"""<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a2e">
       <div style="background:linear-gradient(135deg,#6c63ff,#00d4aa);padding:32px;text-align:center;border-radius:12px 12px 0 0">
         <h1 style="color:#fff;margin:0;font-size:28px">SmartestGuide</h1>
-        <p style="color:rgba(255,255,255,.85);margin:8px 0 0">AI Concierge pro vas hotel</p>
+        <p style="color:rgba(255,255,255,.85);margin:8px 0 0">{subtitle}</p>
       </div>
       <div style="background:#f8f9ff;padding:32px;border-radius:0 0 12px 12px">
-        <h2 style="color:#1a1a2e">Vitejte, {hotel_name}!</h2>
-        <p style="color:#555;line-height:1.7">Vas hotel byl uspesne zaregistrovan a platba probehla. Alex je pripraven odpovidat hostum ve 14 jazycich 24/7.</p>
-        <div style="background:#fff;border:2px solid #00d4aa;border-radius:10px;padding:20px;margin:24px 0;text-align:center">
-          <p style="margin:0 0 12px;color:#555;font-size:14px">Prihlaste se do hotelovho portalu:</p>
-          <a href="{portal_url}" style="display:inline-block;background:linear-gradient(135deg,#6c63ff,#00d4aa);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:700;font-size:16px">Otevrit hotelovy portal</a>
+        <h2 style="color:#1a1a2e;margin-bottom:12px">{greeting}</h2>
+        <p style="color:#555;line-height:1.7;margin-bottom:24px">{intro}</p>
+
+        <div style="background:#fff;border:2px solid #00d4aa;border-radius:10px;padding:20px;margin-bottom:24px;text-align:center">
+          <a href="{portal_url}" style="display:inline-block;background:linear-gradient(135deg,#6c63ff,#00d4aa);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:700;font-size:16px">{portal_btn_text} →</a>
         </div>
-        <h3 style="color:#6c63ff">Co delat jako prvni:</h3>
-        <ol style="color:#555;line-height:2">
-          <li>Zkontrolujte informace o hotelu</li>
-          <li>Doplnte orientaci v hotelu (wellness, parkoviste, restaurace)</li>
-          <li>Pridejte lokalni tipy pro hosty</li>
-          <li>Stahnete QR kod a umistete ho na recepci</li>
-        </ol>
-        <hr style="border:none;border-top:1px solid #e0e0f0;margin:24px 0"/>
+
+        <h3 style="color:#6c63ff;margin-bottom:12px">{steps_title}</h3>
+        <ol style="color:#555;line-height:1.8;padding-left:20px;margin-bottom:24px">{steps_html}</ol>
+
+        <div style="background:#fff;border:1px solid #e0e0f0;border-radius:10px;padding:20px;margin-bottom:24px">
+          <p style="font-size:13px;color:#9ba0c0;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px">📎 {qr_label}</p>
+          <p style="color:#555;font-size:13px;line-height:1.6">{qr_desc}</p>
+        </div>
+
+        <div style="background:#1a1a2e;border-radius:10px;padding:24px;margin-bottom:24px">
+          <h3 style="color:#00d4aa;margin-bottom:8px">💻 {it_title}</h3>
+          <p style="color:#b0b4cc;font-size:13px;line-height:1.7;margin-bottom:12px">{it_intro}</p>
+          <p style="color:#b0b4cc;font-size:13px;margin-bottom:8px">1. {it_step1}</p>
+          <p style="color:#b0b4cc;font-size:13px;margin-bottom:8px">2. {it_step2}</p>
+          <div style="background:#0d1117;border-radius:6px;padding:12px;margin:10px 0;font-family:monospace;font-size:12px;color:#00d4aa;word-break:break-all">{widget_code}</div>
+          <p style="color:#b0b4cc;font-size:13px;margin-bottom:4px">3. {it_step3}</p>
+          <p style="color:#7a7fa8;font-size:12px;margin-top:8px;font-style:italic">{it_note}</p>
+        </div>
+
+        <hr style="border:none;border-top:1px solid #e0e0f0;margin:20px 0"/>
         <p style="color:#888;font-size:12px;text-align:center">
-          Potrebujete pomoc? Napiste na <a href="mailto:admin@smartestguide.com" style="color:#6c63ff">admin@smartestguide.com</a>
+          {help_text} <a href="mailto:admin@smartestguide.com" style="color:#6c63ff">admin@smartestguide.com</a>
         </p>
       </div>
     </div>"""
 
-    text_body = f"Vitejte v SmartestGuide!\n\nVas hotel {hotel_name} byl uspesne zaregistrovan.\n\nPortal: {portal_url}\n\nPomoc: admin@smartestguide.com"
+    text_body = f"{greeting}\n\nPortal: {portal_url}\n\n{it_title}:\n{widget_code}\n\nPomoc: admin@smartestguide.com"
+
+    # Vygeneruj QR kod jako PNG prilohu
+    attachments = []
+    try:
+        import qrcode
+        from io import BytesIO
+        import base64
+        guest_url = f"{base_url}/guest/{hotel_id}"
+        qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=10, border=4)
+        qr.add_data(guest_url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        buf = BytesIO()
+        img.save(buf, format="PNG")
+        qr_b64 = base64.b64encode(buf.getvalue()).decode()
+        attachments.append({
+            "name": f"SmartestGuide_QR_{hotel_name.replace(' ','_')}.png",
+            "content": qr_b64,
+            "contentType": "image/png"
+        })
+        logging.info(f"QR kod PNG vygenerovan pro {hotel_name}")
+    except Exception as e:
+        logging.warning(f"Nepodarilo se vygenerovat QR PNG: {e}")
 
     s = db_get_settings()
     cc_email = s.get("cc_email", "")
-    # CC email - bud z nastaveni nebo hardcoded zakladni
     cc_emails = []
     if cc_email: cc_emails.append({"email": cc_email})
     if "martin.1303@seznam.cz" not in cc_email: cc_emails.append({"email": "martin.1303@seznam.cz"})
-    cc_list = cc_emails
 
     payload = {
         "sender": {"name": "SmartestGuide", "email": "admin@smartestguide.com"},
         "to": [{"email": hotel_email, "name": hotel_name}],
-        "cc": cc_list,
+        "cc": cc_emails,
         "subject": subject,
         "htmlContent": html_body,
         "textContent": text_body,
+        "attachment": attachments,
     }
 
     try:
@@ -917,10 +1008,10 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
                 "https://api.brevo.com/v3/smtp/email",
                 json=payload,
                 headers={"api-key": brevo_key, "Content-Type": "application/json"},
-                timeout=15
+                timeout=30
             )
             if r.status_code in (200, 201):
-                logging.info(f"Onboarding email odeslan na {hotel_email}")
+                logging.info(f"Onboarding email odeslan na {hotel_email} (lang: {'cs' if is_cs else 'en'}, prilohy: {len(attachments)})")
             else:
                 logging.error(f"Brevo API chyba {r.status_code}: {r.text}")
     except Exception as e:
