@@ -21,23 +21,41 @@ jobs:
       - name: Instalace závislostí
         run: pip install requests
 
-      - name: Čekej na nasazení nového commitu (max 5 min)
+      - name: Nasaď na Railway přes CLI
         run: |
-          EXPECTED="${{ github.sha }}"
-          echo "Čekám na commit: ${EXPECTED:0:7}..."
+          npm install -g @railway/cli
+          railway up --service smartestguide --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Restart Railway service (kill 1 ekvivalent)
+        run: |
+          curl -s -X POST https://backboard.railway.app/graphql/v2 \
+            -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"query":"mutation { serviceInstanceRedeploy(environmentId: \"${{ secrets.RAILWAY_ENV_ID }}\", serviceId: \"${{ secrets.RAILWAY_SERVICE_ID }}\") }"}' \
+            && echo "✅ Restart odeslán" || echo "⚠️ Restart selhal, pokračuji..."
+
+      - name: Čekej na dokončení deploye (verze z app.py)
+        run: |
+          EXPECTED=$(grep 'APP_VERSION' app.py | head -1 | grep -oP '"\K[^"]+')
+          echo "Čekám na verzi: $EXPECTED"
           for i in $(seq 1 60); do
-            DEPLOYED=$(curl -s https://smartestguide-production.up.railway.app/api/version | python3 -c "import sys,json; print(json.load(sys.stdin).get('commit',''))" 2>/dev/null || echo "")
-            if [[ "$DEPLOYED" == "$EXPECTED"* ]] || [[ "$EXPECTED" == "$DEPLOYED"* && ${#DEPLOYED} -ge 7 ]]; then
-              echo "✅ Deploy dokončen (pokus $i): $DEPLOYED"
+            DEPLOYED=$(curl -s https://smartestguide-production.up.railway.app/api/version \
+              | python3 -c "import sys,json; print(json.load(sys.stdin).get('version',''))" 2>/dev/null || echo "")
+            if [ "$DEPLOYED" = "$EXPECTED" ]; then
+              echo "✅ Deploy dokončen (pokus $i) — verze $DEPLOYED"
+              sleep 3
               break
             fi
-            echo "⏳ Pokus $i/60 – nasazeno: '${DEPLOYED:0:7}', čekám na: '${EXPECTED:0:7}'"
+            echo "⏳ Pokus $i/60 – live: '$DEPLOYED', čekám na: '$EXPECTED'"
             sleep 5
           done
-          # Finální kontrola
-          DEPLOYED=$(curl -s https://smartestguide-production.up.railway.app/api/version | python3 -c "import sys,json; print(json.load(sys.stdin).get('commit',''))" 2>/dev/null || echo "")
-          if [[ "$DEPLOYED" != "$EXPECTED"* && "$EXPECTED" != "$DEPLOYED"* ]]; then
-            echo "⚠️  Timeout – spouštím testy na aktuální verzi ($DEPLOYED)"
+          DEPLOYED=$(curl -s https://smartestguide-production.up.railway.app/api/version \
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('version',''))" 2>/dev/null || echo "")
+          if [ "$DEPLOYED" != "$EXPECTED" ]; then
+            echo "❌ Timeout — deploy se nedokončil (live: $DEPLOYED, očekáváno: $EXPECTED)"
+            exit 1
           fi
 
       - name: Spusť E2E testy
