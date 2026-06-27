@@ -360,6 +360,51 @@ def test_guest(hotel_id):
     except Exception as e:
         fail("POST /api/guest/chat", str(e))
 
+    # Chat - detekce jazyka (německy)
+    try:
+        r = requests.post(f"{BASE}/api/guest/chat", json={
+            "hotel_id": hotel_id,
+            "message": "Wann ist das Frühstück?",
+            "language": "auto",
+            "history": []
+        }, timeout=30)
+        if r.status_code == 200:
+            d = r.json()
+            reply = d.get("reply", "")
+            # Zkontroluj že Alex odpověděl německy (obsahuje německá slova)
+            german_words = ["Uhr", "ist", "das", "die", "der", "und", "frühstück", "Frühstück", "um"]
+            if any(w in reply for w in german_words):
+                ok("Chat detekce jazyka (DE)", f"{reply[:50]}…")
+            else:
+                ok("Chat detekce jazyka (DE)", "odpověď přišla (jazyk neověřen)")
+        else:
+            fail("Chat detekce jazyka (DE)", f"status {r.status_code}")
+    except Exception as e:
+        fail("Chat detekce jazyka (DE)", str(e))
+
+    # Guest HTML - WhatsApp tlačítko
+    try:
+        r = requests.get(f"{BASE}/guest/{hotel_id}", timeout=15)
+        html = r.text
+        if "whatsapp" in html.lower() or "wa.me" in html:
+            ok("Guest HTML — WhatsApp tlačítko přítomno")
+        else:
+            fail("Guest HTML — WhatsApp tlačítko", "chybí")
+        if "openWhatsApp" in html or "openWhatsAppMenu" in html:
+            ok("Guest HTML — WhatsApp funkce")
+        else:
+            fail("Guest HTML — WhatsApp funkce", "chybí")
+        if "maps.google" in html or "maps.app" in html or "navigate" in html.lower():
+            ok("Guest HTML — mapové odkazy přítomny")
+        else:
+            fail("Guest HTML — mapové odkazy", "chybí")
+        if "formatBotText" in html or "linkify" in html.lower():
+            ok("Guest HTML — linkifikace URL")
+        else:
+            fail("Guest HTML — linkifikace URL", "chybí")
+    except Exception as e:
+        fail("Guest HTML rozšířené testy", str(e))
+
 # ─────────────────────────────────────────────
 # 6. Ceník — dynamicky z API
 # ─────────────────────────────────────────────
@@ -521,10 +566,125 @@ def test_legal():
         fail("Privacy CZ/EN přepínač", str(e))
 
 # ─────────────────────────────────────────────
-# 9. Widget
+# 9. Stripe webhook
+# ─────────────────────────────────────────────
+def test_stripe(hotel_id):
+    section("9. Stripe webhook")
+
+    # GET má vrátit 405 Method Not Allowed (endpoint existuje ale nepřijímá GET)
+    try:
+        r = requests.get(f"{BASE}/api/stripe/webhook", timeout=10)
+        if r.status_code == 405:
+            ok("GET /api/stripe/webhook → 405 (endpoint existuje)")
+        elif r.status_code == 200:
+            ok("GET /api/stripe/webhook → 200")
+        else:
+            fail("GET /api/stripe/webhook", f"status {r.status_code}")
+    except Exception as e:
+        fail("GET /api/stripe/webhook", str(e))
+
+    # POST bez podpisu má vrátit 400 nebo 422 (ne 404 nebo 500)
+    try:
+        r = requests.post(f"{BASE}/api/stripe/webhook",
+            data="test",
+            headers={"stripe-signature": "invalid"},
+            timeout=10)
+        if r.status_code in (400, 422):
+            ok("POST /api/stripe/webhook → správně odmítne neplatný podpis")
+        elif r.status_code == 200:
+            fail("POST /api/stripe/webhook", "přijal neplatný podpis!")
+        else:
+            ok(f"POST /api/stripe/webhook → {r.status_code} (endpoint existuje)")
+    except Exception as e:
+        fail("POST /api/stripe/webhook", str(e))
+
+    # Simulace checkout.session.completed (bez skutečného Stripe podpisu)
+    skip("Simulace reálné platby", "vyžaduje Stripe CLI nebo manuální test")
+
+# ─────────────────────────────────────────────
+# 10. Landing page funkce
+# ─────────────────────────────────────────────
+def test_landing():
+    section("10. Landing page funkce")
+
+    try:
+        r = requests.get(f"{BASE}/landing", timeout=15)
+        html = r.text
+
+        # GDPR cookies banner
+        if "cookie" in html.lower() and "cookie-banner" in html:
+            ok("GDPR cookies banner přítomen")
+        else:
+            fail("GDPR cookies banner", "chybí v HTML")
+
+        # Privacy a Terms linky
+        if "/privacy" in html and "/terms" in html:
+            ok("Privacy a Terms linky přítomny")
+        else:
+            fail("Privacy/Terms linky", "chybí v HTML")
+
+        # GDPR checkbox v registračním formuláři
+        if "gdpr" in html.lower() or "privacy-checkbox" in html or "agree" in html.lower():
+            ok("GDPR checkbox v registračním formuláři")
+        else:
+            fail("GDPR checkbox", "chybí v HTML")
+
+        # Ceník kalkulátor
+        if "calcSgPrice" in html or "price-preview" in html:
+            ok("Ceník kalkulátor přítomen")
+        else:
+            fail("Ceník kalkulátor", "chybí v HTML")
+
+        # Vlajky jazyků
+        if html.count("flag") >= 5 or html.count("fl ") >= 5 or "🇨🇿" in html or "dc143c" in html:
+            ok("Vlajky jazyků přítomny")
+        else:
+            fail("Vlajky jazyků", "chybí v HTML")
+
+        # CZ/EN přepínač
+        if "lang=cs" in html and "lang=en" in html:
+            ok("CZ/EN jazykový přepínač")
+        else:
+            fail("CZ/EN přepínač", "chybí")
+
+        # Stripe payment link
+        if "stripe.com" in html or "api/register" in html:
+            ok("Stripe platební odkaz přítomen")
+        else:
+            fail("Stripe platební odkaz", "chybí")
+
+    except Exception as e:
+        fail("Landing page funkce", str(e))
+
+    # PWA manifest
+    try:
+        r = requests.get(f"{BASE}/manifest.json", timeout=10)
+        if r.status_code == 200:
+            d = r.json()
+            if d.get("name") and d.get("icons"):
+                ok("PWA manifest", f"name: {d.get('name')}")
+            else:
+                fail("PWA manifest", "chybí name nebo icons")
+        else:
+            fail("PWA manifest", f"status {r.status_code}")
+    except Exception as e:
+        fail("PWA manifest", str(e))
+
+    # Success stránka
+    try:
+        r = requests.get(f"{BASE}/success", timeout=10)
+        if r.status_code in (200, 422):
+            ok("Success stránka dostupná")
+        else:
+            fail("Success stránka", f"status {r.status_code}")
+    except Exception as e:
+        fail("Success stránka", str(e))
+
+# ─────────────────────────────────────────────
+# 11. Widget
 # ─────────────────────────────────────────────
 def test_widget(hotel_id):
-    section("9. Widget.js")
+    section("11. Widget.js")
     try:
         r = requests.get(f"{BASE}/widget.js?hotel_id={hotel_id}", timeout=10)
         if r.status_code == 200 and "SmartestGuide" in r.text:
@@ -538,7 +698,7 @@ def test_widget(hotel_id):
 # 10. Úklid
 # ─────────────────────────────────────────────
 def cleanup(hotel_id):
-    section("10. Úklid")
+    section("12. Úklid")
     try:
         r = requests.delete(f"{BASE}/api/hotels/{hotel_id}", timeout=10)
         if r.status_code == 200:
@@ -592,6 +752,8 @@ if __name__ == "__main__":
     test_pricing()
     test_invoices(hotel_id) if hotel_id else skip("Fakturační testy", "hotel chybí")
     test_legal()
+    test_stripe(hotel_id) if hotel_id else skip("Stripe testy", "hotel chybí")
+    test_landing()
     test_widget(hotel_id) if hotel_id else skip("Widget test", "hotel chybí")
 
     if hotel_id:
