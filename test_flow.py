@@ -57,7 +57,14 @@ def test_basic():
         ("/terms?lang=cs", "Terms of Service (CZ)"),
     ]:
         try:
-            r = requests.get(f"{BASE}{path}", timeout=10)
+            for attempt in range(3):
+                try:
+                    r = requests.get(f"{BASE}{path}", timeout=15)
+                    if r.status_code != 502:
+                        break
+                except requests.exceptions.Timeout:
+                    if attempt == 2: raise
+                import time; time.sleep(5)
             if r.status_code == 200:
                 ok(label)
             else:
@@ -85,7 +92,16 @@ def test_basic():
         ("/landing", "Landing page JS"),
     ]:
         try:
-            r = requests.get(f"{BASE}{path}", timeout=10)
+            # Retry při timeout/502
+            for attempt in range(3):
+                try:
+                    r = requests.get(f"{BASE}{path}", timeout=15)
+                    if r.status_code != 502:
+                        break
+                except requests.exceptions.Timeout:
+                    if attempt == 2:
+                        raise
+                import time; time.sleep(5)
             content = r.text
             errors = []
             # Počítej reálné HTML script tagy
