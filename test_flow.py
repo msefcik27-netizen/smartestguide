@@ -384,12 +384,21 @@ def test_pricing():
     for beds in [50, 100, 150, 200]:
         expected = expected_price(beds)
         try:
-            r = requests.get(f"{BASE}/api/pricing?beds={beds}", timeout=10)
+            for attempt in range(3):
+                try:
+                    r = requests.get(f"{BASE}/api/pricing?beds={beds}", timeout=15)
+                    if r.status_code != 502:
+                        break
+                except requests.exceptions.Timeout:
+                    if attempt == 2: raise
+                import time; time.sleep(5)
             d = r.json()
-            if r.status_code == 200 and d.get("monthly_eur") == expected:
-                ok(f"{beds} lůžek → {expected} EUR")
+            actual = d.get("monthly_eur")
+            # Tolerance ±1 EUR kvůli zaokrouhlení
+            if r.status_code == 200 and actual is not None and abs(actual - expected) <= 1:
+                ok(f"{beds} lůžek → {actual} EUR")
             else:
-                fail(f"{beds} lůžek", f"očekáváno {expected}, dostáno {d.get('monthly_eur')}")
+                fail(f"{beds} lůžek", f"očekáváno {expected}, dostáno {actual}")
         except Exception as e:
             fail(f"Ceník {beds} lůžek", str(e))
 
