@@ -40,6 +40,11 @@ def init_settings_from_env():
 # ─────────────────────────────────────────────
 app = FastAPI(title="SmartestGuide", version="0.2.0")
 
+# Verze aplikace — zvyš při každém deployi
+APP_VERSION = "0.2.1"
+import time as _time
+APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -977,7 +982,8 @@ def serve_widget(hotel_id: str, request: Request, lang: str = "auto"):
     """JavaScript widget pro vložení na web hotelu."""
     base = get_base_url(request)
     guest_url = f"{base}/guest/{hotel_id}"
-    js = f"""(function(){{
+    js = f"""/* SmartestGuide Widget v1 */
+(function(){{
   var btn = document.createElement('div');
   btn.id = 'sg-widget-btn';
   btn.innerHTML = '<span style="font-size:22px">💬</span>';
