@@ -106,6 +106,9 @@ class HotelData(BaseModel):
     wellness_info: Optional[str] = None
     parking_info: Optional[str] = None
     whatsapp_number: Optional[str] = None
+    whatsapp_wellness: Optional[str] = None
+    whatsapp_restaurant: Optional[str] = None
+    whatsapp_sport: Optional[str] = None
     star_rating: Optional[int] = None
     country: Optional[str] = None
     continent: Optional[str] = None
@@ -461,6 +464,9 @@ class HotelPortalUpdate(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     whatsapp_number: Optional[str] = None
+    whatsapp_wellness: Optional[str] = None
+    whatsapp_restaurant: Optional[str] = None
+    whatsapp_sport: Optional[str] = None
     checkin_time: Optional[str] = None
     checkout_time: Optional[str] = None
     breakfast_hours: Optional[str] = None
@@ -967,9 +973,9 @@ def get_hotel_lang(hotel: dict) -> str:
 # Embed widget
 # ─────────────────────────────────────────────
 @app.get("/widget.js")
-def serve_widget(hotel_id: str, lang: str = "auto"):
+def serve_widget(hotel_id: str, request: Request, lang: str = "auto"):
     """JavaScript widget pro vložení na web hotelu."""
-    base = get_base_url()
+    base = get_base_url(request)
     guest_url = f"{base}/guest/{hotel_id}"
     js = f"""(function(){{
   var btn = document.createElement('div');

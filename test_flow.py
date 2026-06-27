@@ -88,10 +88,14 @@ def test_basic():
             r = requests.get(f"{BASE}{path}", timeout=10)
             content = r.text
             errors = []
-            real_open  = len(re.findall(r'<script(?:\s[^>]*)?>\\s', content))
-            real_close = len(re.findall(r'\s*<\/script>', content))
-            if real_open != real_close:
-                errors.append(f"Nekompletní script tag ({real_open} open vs {real_close} close)")
+            # Počítej reálné HTML script tagy (ne ty v JS stringech s \/)
+            real_open  = len(re.findall(r'<script(?:\s[^>]*)?>\s', content))
+            real_close = content.count('</script>')
+            # Odečti escaped varianty v JS stringech (<\/script>)
+            escaped = content.count('<\\/script>') + content.count("'</script>'") + content.count('"</script>"')
+            real_close_adj = real_close - escaped
+            if real_open != real_close_adj:
+                errors.append(f"Nekompletní script tag ({real_open} open vs {real_close_adj} close)")
             scripts = re.findall(r'<script[^>]*>(.*?)</script>', content, re.DOTALL)
             for script in scripts:
                 diff = abs(script.count('{') - script.count('}'))
