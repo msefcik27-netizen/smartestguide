@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, List
-import os, json, uuid, httpx, asyncio, re, base64, hmac, hashlib
+import os, json, uuid, httpx, asyncio, re, base64, hmac, hashlib, logging
 from datetime import datetime
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
