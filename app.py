@@ -979,9 +979,8 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
         attachments.append({
             "name": f"SmartestGuide_QR_{hotel_name.replace(' ','_')}.png",
             "content": qr_b64,
-            "contentType": "image/png"
         })
-        logging.info(f"QR kod PNG vygenerovan pro {hotel_name}")
+        logging.info(f"QR kod PNG vygenerovan pro {hotel_name}, velikost: {len(qr_b64)} znaku")
     except Exception as e:
         logging.warning(f"Nepodarilo se vygenerovat QR PNG: {e}")
 
@@ -1011,9 +1010,9 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
                 timeout=30
             )
             if r.status_code in (200, 201):
-                logging.info(f"Onboarding email odeslan na {hotel_email} (lang: {'cs' if is_cs else 'en'}, prilohy: {len(attachments)})")
+                logging.info(f"Onboarding email OK -> {hotel_email}, lang={'cs' if is_cs else 'en'}, prilohy={len(attachments)}")
             else:
-                logging.error(f"Brevo API chyba {r.status_code}: {r.text}")
+                logging.error(f"Brevo API CHYBA {r.status_code}: {r.text[:300]}")
     except Exception as e:
         logging.error(f"Chyba pri odesilani emailu: {e}")
 
