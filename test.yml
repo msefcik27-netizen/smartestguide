@@ -21,22 +21,17 @@ jobs:
       - name: Instalace závislostí
         run: pip install requests
 
-      - name: Nasaď na Railway přes CLI
-        run: |
-          npm install -g @railway/cli
-          railway up --service smartestguide --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-
-      - name: Restart Railway service (kill 1 ekvivalent)
+      - name: Restart Railway service (kill 1 přes API)
         run: |
           curl -s -X POST https://backboard.railway.app/graphql/v2 \
             -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d '{"query":"mutation { serviceInstanceRedeploy(environmentId: \"${{ secrets.RAILWAY_ENV_ID }}\", serviceId: \"${{ secrets.RAILWAY_SERVICE_ID }}\") }"}' \
-            && echo "✅ Restart odeslán" || echo "⚠️ Restart selhal, pokračuji..."
+            -d '{
+              "query": "mutation { serviceInstanceRedeploy(environmentId: \"${{ secrets.RAILWAY_ENV_ID }}\", serviceId: \"${{ secrets.RAILWAY_SERVICE_ID }}\") }"
+            }' && echo "✅ Restart odeslán" || echo "⚠️ Restart selhal"
+          sleep 10
 
-      - name: Čekej na dokončení deploye (verze z app.py)
+      - name: Čekej na novou verzi (max 5 min)
         run: |
           EXPECTED=$(grep 'APP_VERSION' app.py | head -1 | grep -oP '"\K[^"]+')
           echo "Čekám na verzi: $EXPECTED"
@@ -44,7 +39,7 @@ jobs:
             DEPLOYED=$(curl -s https://smartestguide-production.up.railway.app/api/version \
               | python3 -c "import sys,json; print(json.load(sys.stdin).get('version',''))" 2>/dev/null || echo "")
             if [ "$DEPLOYED" = "$EXPECTED" ]; then
-              echo "✅ Deploy dokončen (pokus $i) — verze $DEPLOYED"
+              echo "✅ Verze $DEPLOYED je live (pokus $i)"
               sleep 3
               break
             fi
