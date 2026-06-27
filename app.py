@@ -170,6 +170,36 @@ def save_pricing_settings(req: PricingSettingsRequest):
     })
     return {"status": "ok"}
 
+@app.post("/api/pricing/apply-to-new")
+def apply_pricing_to_new_hotels():
+    """Aplikuje aktuální ceník na hotely které ještě nezaplatily (nemají subscription_price).
+    Hotely s aktivním předplatným a subscription_price zůstávají nedotčeny."""
+    db = db_load()
+    s = db_get_settings()
+    base      = int(s.get("pricing_base", 200))
+    threshold = int(s.get("pricing_threshold", 100))
+    per_bed   = float(s.get("pricing_per_bed", 3))
+    updated = []
+    skipped = []
+    for hotel_id, hotel in db["hotels"].items():
+        # Přeskočit hotely které již mají zaplacenou cenu
+        if hotel.get("subscription_price") and hotel.get("subscription_active"):
+            skipped.append(hotel.get("name", hotel_id))
+            continue
+        # Aplikovat novou cenu na ostatní
+        beds = hotel.get("bed_count", 0) or 0
+        price = base if beds <= threshold else base + (beds - threshold) * per_bed
+        db["hotels"][hotel_id]["subscription_price"] = round(price, 2)
+        updated.append({"name": hotel.get("name", hotel_id), "price": round(price, 2)})
+    db_save(db)
+    return {
+        "status": "ok",
+        "updated": len(updated),
+        "skipped": len(skipped),
+        "details": updated,
+        "message": f"Aktualizováno {len(updated)} hotelů, přeskočeno {len(skipped)} platících hotelů"
+    }
+
 class StripeSettingsRequest(BaseModel):
     stripe_secret_key: str
     stripe_payment_link: str

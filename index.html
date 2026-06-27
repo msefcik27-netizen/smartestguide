@@ -286,6 +286,7 @@
             <input type="number" id="pricing-per-bed" placeholder="3" min="0" step="0.5" style="margin-top:6px"/>
           </div>
           <button class="btn btn-primary" onclick="savePricingSettings()">💾 Uložit ceník</button>
+          <button class="btn btn-secondary" onclick="applyPricingToNew()" style="margin-left:10px" title="Aplikuje novou cenu na hotely které ještě nezaplatily. Platící hotely zůstávají nezměněny.">🔄 Aplikovat na nové hotely</button>
         </div>
 
       </div>
@@ -1203,6 +1204,19 @@ async function loadPricingSettings(){
     document.getElementById('pricing-threshold-label').textContent=threshold;
     document.getElementById('pricing-per-label').textContent=perBed+' EUR';
   }catch(e){}
+}
+
+async function applyPricingToNew(){
+  if(!confirm('Aplikovat aktuální ceník na všechny hotely které ještě nezaplatily?\nPlatící hotely zůstanou nezměněny.')) return;
+  try {
+    const r = await fetch(API+'/api/pricing/apply-to-new', {method:'POST'});
+    const d = await r.json();
+    if(r.ok) {
+      toast(`✅ ${d.message}`);
+    } else {
+      toast('❌ Chyba: ' + (d.detail || 'Neznámá chyba'));
+    }
+  } catch(e) { toast('❌ ' + e.message); }
 }
 
 async function savePricingSettings(){
