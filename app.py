@@ -110,6 +110,7 @@ class HotelData(BaseModel):
     restaurant_name: Optional[str] = None
     wellness_info: Optional[str] = None
     parking_info: Optional[str] = None
+    phone2: Optional[str] = None
     whatsapp_number: Optional[str] = None
     whatsapp_wellness: Optional[str] = None
     whatsapp_restaurant: Optional[str] = None
@@ -509,6 +510,7 @@ class HotelPortalUpdate(BaseModel):
     description: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
+    phone2: Optional[str] = None
     whatsapp_number: Optional[str] = None
     whatsapp_wellness: Optional[str] = None
     whatsapp_restaurant: Optional[str] = None
@@ -851,6 +853,79 @@ def success_page(hotel_id: str = "", request: Request = None):
 {redirect_script}
 </body></html>"""
 
+
+async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str, hotel_email: str):
+    """Posle onboarding email hotelu po uspesne platbe pres Brevo API."""
+    brevo_key = os.getenv("BREVO_API_KEY", "")
+    if not brevo_key:
+        logging.warning("BREVO_API_KEY neni nastaven")
+        return
+    if not hotel_email:
+        logging.warning(f"Hotel {hotel_id} nema email")
+        return
+
+    subject = f"Vitejte v SmartestGuide - vas hotel {hotel_name} je pripraven!"
+    html_body = f"""<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a2e">
+      <div style="background:linear-gradient(135deg,#6c63ff,#00d4aa);padding:32px;text-align:center;border-radius:12px 12px 0 0">
+        <h1 style="color:#fff;margin:0;font-size:28px">SmartestGuide</h1>
+        <p style="color:rgba(255,255,255,.85);margin:8px 0 0">AI Concierge pro vas hotel</p>
+      </div>
+      <div style="background:#f8f9ff;padding:32px;border-radius:0 0 12px 12px">
+        <h2 style="color:#1a1a2e">Vitejte, {hotel_name}!</h2>
+        <p style="color:#555;line-height:1.7">Vas hotel byl uspesne zaregistrovan a platba probehla. Alex je pripraven odpovidat hostum ve 14 jazycich 24/7.</p>
+        <div style="background:#fff;border:2px solid #00d4aa;border-radius:10px;padding:20px;margin:24px 0;text-align:center">
+          <p style="margin:0 0 12px;color:#555;font-size:14px">Prihlaste se do hotelovho portalu:</p>
+          <a href="{portal_url}" style="display:inline-block;background:linear-gradient(135deg,#6c63ff,#00d4aa);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:700;font-size:16px">Otevrit hotelovy portal</a>
+        </div>
+        <h3 style="color:#6c63ff">Co delat jako prvni:</h3>
+        <ol style="color:#555;line-height:2">
+          <li>Zkontrolujte informace o hotelu</li>
+          <li>Doplnte orientaci v hotelu (wellness, parkoviste, restaurace)</li>
+          <li>Pridejte lokalni tipy pro hosty</li>
+          <li>Stahnete QR kod a umistete ho na recepci</li>
+        </ol>
+        <hr style="border:none;border-top:1px solid #e0e0f0;margin:24px 0"/>
+        <p style="color:#888;font-size:12px;text-align:center">
+          Potrebujete pomoc? Napiste na <a href="mailto:admin@smartestguide.com" style="color:#6c63ff">admin@smartestguide.com</a>
+        </p>
+      </div>
+    </div>"""
+
+    text_body = f"Vitejte v SmartestGuide!\n\nVas hotel {hotel_name} byl uspesne zaregistrovan.\n\nPortal: {portal_url}\n\nPomoc: admin@smartestguide.com"
+
+    s = db_get_settings()
+    cc_email = s.get("cc_email", "")
+    # CC email - bud z nastaveni nebo hardcoded zakladni
+    cc_emails = []
+    if cc_email: cc_emails.append({"email": cc_email})
+    if "martin.1303@seznam.cz" not in cc_email: cc_emails.append({"email": "martin.1303@seznam.cz"})
+    cc_list = cc_emails
+
+    payload = {
+        "sender": {"name": "SmartestGuide", "email": "admin@smartestguide.com"},
+        "to": [{"email": hotel_email, "name": hotel_name}],
+        "cc": cc_list,
+        "subject": subject,
+        "htmlContent": html_body,
+        "textContent": text_body,
+    }
+
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                "https://api.brevo.com/v3/smtp/email",
+                json=payload,
+                headers={"api-key": brevo_key, "Content-Type": "application/json"},
+                timeout=15
+            )
+            if r.status_code in (200, 201):
+                logging.info(f"Onboarding email odeslan na {hotel_email}")
+            else:
+                logging.error(f"Brevo API chyba {r.status_code}: {r.text}")
+    except Exception as e:
+        logging.error(f"Chyba pri odesilani emailu: {e}")
+
 async def auto_scrape_after_payment(hotel_id: str, hotel_url: str):
     """Po úspěšné platbě automaticky naskenuje web hotelu a doplní data do DB."""
     try:
@@ -953,6 +1028,18 @@ async def stripe_webhook(request: Request):
                 hotel_url = db["hotels"][hotel_id].get("url") or db["hotels"][hotel_id].get("source_url")
                 if hotel_url and event_type == "checkout.session.completed":
                     asyncio.create_task(auto_scrape_after_payment(hotel_id, hotel_url))
+                    # Posli onboarding email
+                    hotel_email = db["hotels"][hotel_id].get("email", "")
+                    hotel_name = db["hotels"][hotel_id].get("name", "Hotel")
+                    # Ziskej portal link
+                    if not db["hotels"][hotel_id].get("hotel_token"):
+                        import uuid as _uuid
+                        db["hotels"][hotel_id]["hotel_token"] = str(_uuid.uuid4()).replace("-", "")
+                        db_save(db)
+                    token = db["hotels"][hotel_id]["hotel_token"]
+                    base_url = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app")
+                    portal_url = f"{base_url}/hotel?token={token}"
+                    asyncio.create_task(send_onboarding_email(hotel_id, portal_url, hotel_name, hotel_email))
 
     # customer.subscription.deleted – zrušení předplatného
     elif event_type == "customer.subscription.deleted":
@@ -1890,11 +1977,12 @@ class CompanySettingsRequest(BaseModel):
     company_city: Optional[str] = None
     company_bank: Optional[str] = None
     company_iban: Optional[str] = None
+    cc_email: Optional[str] = None
 
 @app.get("/api/settings/company")
 def get_company_settings():
     s = db_get_settings()
-    return {k: s.get(k, "") for k in ["company_name","company_ico","company_dic","company_email","company_phone","company_address","company_city","company_bank","company_iban"]}
+    return {k: s.get(k, "") for k in ["company_name","company_ico","company_dic","company_email","company_phone","company_address","company_city","company_bank","company_iban","cc_email"]}
 
 @app.post("/api/settings/company")
 def save_company_settings(req: CompanySettingsRequest):

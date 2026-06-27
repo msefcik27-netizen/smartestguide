@@ -381,6 +381,7 @@
           <div class="form-group"><label>Město a stát</label><input type="text" id="co-city" placeholder="Praha, Česká republika"/></div>
           <div class="form-group"><label>Banka / č. účtu</label><input type="text" id="co-bank" placeholder="123456789/0800"/></div>
           <div class="form-group full"><label>IBAN</label><input type="text" id="co-iban" placeholder="CZ65 0800 0000 0012 3456 7890"/></div>
+          <div class="form-group full"><label>CC Email (kopie onboarding emailů)</label><input type="email" id="co-cc-email" placeholder="martin@smartestguide.com"/></div>
         </div>
         <button class="btn btn-primary" onclick="saveCompanySettings()">Uložit firemní údaje</button>
       </div>
@@ -1249,6 +1250,7 @@ async function loadCompanySettings(){
     document.getElementById('co-city').value=d.company_city||'';
     document.getElementById('co-bank').value=d.company_bank||'';
     document.getElementById('co-iban').value=d.company_iban||'';
+    if(document.getElementById('co-cc-email')) document.getElementById('co-cc-email').value=d.cc_email||'';
   }catch(e){}
 }
 
@@ -1263,6 +1265,7 @@ async function saveCompanySettings(){
     company_city:document.getElementById('co-city').value.trim(),
     company_bank:document.getElementById('co-bank').value.trim(),
     company_iban:document.getElementById('co-iban').value.trim(),
+    cc_email:document.getElementById('co-cc-email')?document.getElementById('co-cc-email').value.trim():'',
   };
   try{
     const r=await fetch(API+'/api/settings/company',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
