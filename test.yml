@@ -42,8 +42,8 @@ jobs:
               DEPLOYED=$(python3 -c "import json; print(json.load(open('/tmp/ver.json')).get('version',''))" 2>/dev/null || echo "")
               if [ "$DEPLOYED" = "$EXPECTED" ]; then
                 echo "✅ Verze $DEPLOYED je live (pokus $i)"
-                echo "Čekám dalších 10s na stabilizaci..."
-                sleep 10
+                echo "Čekám dalších 20s na stabilizaci..."
+                sleep 20
                 SUCCESS=true
                 break
               fi
