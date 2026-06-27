@@ -127,6 +127,17 @@ class HotelData(BaseModel):
 # ─────────────────────────────────────────────
 # Nastavení API klíče
 # ─────────────────────────────────────────────
+@app.get("/api/version")
+def get_version():
+    import subprocess
+    commit = os.getenv("RAILWAY_GIT_COMMIT_SHA", "")
+    if not commit:
+        try:
+            commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL).decode().strip()
+        except Exception:
+            commit = "unknown"
+    return {"version": APP_VERSION, "commit": commit, "started": APP_START_TIME}
+
 @app.get("/api/settings")
 def get_settings():
     s = db_get_settings()
@@ -1835,3 +1846,140 @@ TERMS_EN = LEGAL_CSS + """
   <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Effective from 1 June 2025</footer>
 </div>
 """
+
+# ─────────────────────────────────────────────
+# Firemní údaje (dodavatel na faktuře)
+# ─────────────────────────────────────────────
+class CompanySettingsRequest(BaseModel):
+    company_name: Optional[str] = None
+    company_ico: Optional[str] = None
+    company_dic: Optional[str] = None
+    company_email: Optional[str] = None
+    company_phone: Optional[str] = None
+    company_address: Optional[str] = None
+    company_city: Optional[str] = None
+    company_bank: Optional[str] = None
+    company_iban: Optional[str] = None
+
+@app.get("/api/settings/company")
+def get_company_settings():
+    s = db_get_settings()
+    return {k: s.get(k, "") for k in ["company_name","company_ico","company_dic","company_email","company_phone","company_address","company_city","company_bank","company_iban"]}
+
+@app.post("/api/settings/company")
+def save_company_settings(req: CompanySettingsRequest):
+    db_save_settings(req.model_dump(exclude_none=True))
+    return {"status": "ok"}
+
+# ─────────────────────────────────────────────
+# Faktury
+# ─────────────────────────────────────────────
+@app.get("/api/invoices")
+def list_invoices():
+    db = db_load()
+    invoices = list(db.get("invoices", {}).values())
+    invoices.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return {"status": "ok", "invoices": invoices}
+
+@app.post("/api/hotels/{hotel_id}/invoices/generate")
+def generate_invoice(hotel_id: str):
+    import calendar
+    db = db_load()
+    if hotel_id not in db["hotels"]:
+        raise HTTPException(404, "Hotel nenalezen")
+    hotel = db["hotels"][hotel_id]
+    if not hotel.get("subscription_active"):
+        raise HTTPException(400, "Hotel nemá aktivní předplatné")
+    beds = hotel.get("bed_count") or hotel.get("subscription_paid_beds") or 0
+    s = db_get_settings()
+    base = int(s.get("pricing_base", 200))
+    threshold = int(s.get("pricing_threshold", 100))
+    per_bed = float(s.get("pricing_per_bed", 3))
+    price = base if beds <= threshold else base + (beds - threshold) * per_bed
+    now = datetime.utcnow()
+    if "invoices" not in db:
+        db["invoices"] = {}
+    month_prefix = f"SG-{now.strftime('%Y%m')}-"
+    month_count = sum(1 for inv in db["invoices"].values() if inv.get("invoice_number","").startswith(month_prefix))
+    invoice_number = f"{month_prefix}{month_count + 1:04d}"
+    period_from = now.replace(day=1).date().isoformat()
+    last_day = calendar.monthrange(now.year, now.month)[1]
+    period_to = now.replace(day=last_day).date().isoformat()
+    inv_id = str(uuid.uuid4())
+    invoice = {
+        "id": inv_id, "invoice_number": invoice_number, "hotel_id": hotel_id,
+        "hotel_name": hotel.get("name",""), "hotel_address": hotel.get("address",""),
+        "hotel_email": hotel.get("email",""), "beds": beds, "amount_eur": round(price, 2),
+        "amount_local": round(price, 2), "currency_code": "EUR", "currency_symbol": "€",
+        "period_from": period_from, "period_to": period_to, "status": "issued",
+        "created_at": now.isoformat(), "updated_at": now.isoformat(),
+    }
+    db["invoices"][inv_id] = invoice
+    db_save(db)
+    return {"status": "ok", "invoice": invoice}
+
+@app.patch("/api/invoices/{invoice_id}/status")
+def update_invoice_status(invoice_id: str, status: str):
+    db = db_load()
+    if "invoices" not in db or invoice_id not in db["invoices"]:
+        raise HTTPException(404, "Faktura nenalezena")
+    if status not in ("issued", "paid", "cancelled"):
+        raise HTTPException(400, "Neplatný stav")
+    db["invoices"][invoice_id]["status"] = status
+    db["invoices"][invoice_id]["updated_at"] = datetime.utcnow().isoformat()
+    if status == "paid":
+        db["invoices"][invoice_id]["paid_at"] = datetime.utcnow().isoformat()
+    db_save(db)
+    return {"status": "ok", "invoice": db["invoices"][invoice_id]}
+
+@app.get("/api/invoices/{invoice_id}/pdf")
+def download_invoice_pdf(invoice_id: str):
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+    db = db_load()
+    if "invoices" not in db or invoice_id not in db["invoices"]:
+        raise HTTPException(404, "Faktura nenalezena")
+    inv = db["invoices"][invoice_id]
+    s = db_get_settings()
+    try:
+        from reportlab.pdfgen import canvas as rl_canvas
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors
+        from reportlab.lib.units import mm
+        W, H = A4
+        buf = BytesIO()
+        c = rl_canvas.Canvas(buf, pagesize=A4)
+        PURPLE = colors.HexColor("#6c63ff")
+        c.setFillColor(PURPLE)
+        c.rect(0, H - 50*mm, W, 50*mm, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 20)
+        c.drawString(20*mm, H - 18*mm, "SmartestGuide")
+        c.setFont("Helvetica-Bold", 24)
+        c.drawRightString(W - 20*mm, H - 18*mm, "FAKTURA")
+        c.setFont("Helvetica", 11)
+        c.drawRightString(W - 20*mm, H - 26*mm, inv.get("invoice_number",""))
+        y = H - 65*mm
+        c.setFillColor(colors.HexColor("#333333"))
+        for label, value in [
+            ("Hotel:", inv.get("hotel_name","")),
+            ("Datum:", inv.get("created_at","")[:10]),
+            ("Období:", f"{inv.get('period_from','')} – {inv.get('period_to','')}"),
+            ("Lůžka:", str(inv.get("beds",""))),
+            ("Částka:", f"{inv.get('amount_eur',0)} EUR"),
+            ("Stav:", inv.get("status","").upper()),
+        ]:
+            c.setFont("Helvetica-Bold", 11)
+            c.drawString(20*mm, y, label)
+            c.setFont("Helvetica", 11)
+            c.drawString(70*mm, y, value)
+            y -= 8*mm
+        c.save()
+        pdf_bytes = buf.getvalue()
+    except ImportError:
+        raise HTTPException(500, "reportlab není nainstalován")
+    except Exception as e:
+        raise HTTPException(500, f"Chyba PDF: {str(e)}")
+    safe_num = inv.get("invoice_number", invoice_id).replace("/", "-")
+    return StreamingResponse(BytesIO(pdf_bytes), media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="faktura-{safe_num}.pdf"'})
