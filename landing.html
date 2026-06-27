@@ -472,7 +472,10 @@ function toggleMenu(){
 
 function calcSgPrice(beds){
   if(!beds||beds<1) return 0;
-  return beds<=100?200:200+(beds-100)*3;
+  const base = window._sgPricingBase || 200;
+  const threshold = window._sgPricingThreshold || 100;
+  const perBed = window._sgPricingPerBed || 3;
+  return beds<=threshold ? base : base+(beds-threshold)*perBed;
 }
 
 document.getElementById('reg-beds').addEventListener('input',function(){
@@ -610,6 +613,13 @@ async function loadLandingPricing(){
     setEl('price-per-val',    perBed);
     setEl('price-threshold-val', threshold);
     setEl('price-per-day',    perDay);
+    // Ulož do window pro calcSgPrice
+    window._sgPricingBase = base;
+    window._sgPricingThreshold = threshold;
+    window._sgPricingPerBed = perBed;
+    // Aktualizuj i kalkulátor v registračním formuláři
+    const bedsEl = document.getElementById('reg-beds');
+    if(bedsEl && bedsEl.value) bedsEl.dispatchEvent(new Event('input'));
   } catch(e) { /* fallback na výchozí hodnoty v HTML */ }
 }
 document.addEventListener('DOMContentLoaded', loadLandingPricing);
