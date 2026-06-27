@@ -26,7 +26,7 @@
     .unsaved-dot.show{display:block}
 
     /* Layout */
-    .container{max-width:860px;margin:0 0;padding:32px 24px}
+    .container{max-width:100%;margin:0;padding:24px 32px}
 
     /* Sekce – accordion */
     .section{margin-bottom:12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
@@ -93,6 +93,14 @@
     .page-msg p{color:var(--muted);font-size:14px}
 
     /* Toast */
+    #portal-sidebar a{display:flex;align-items:center;gap:8px;padding:8px 16px;font-size:13px;color:var(--muted);text-decoration:none;border-left:2px solid transparent;transition:all .15s;cursor:pointer}
+    #portal-sidebar a:hover{color:var(--text);background:rgba(108,99,255,.06)}
+    #portal-sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:rgba(108,99,255,.08);font-weight:600}
+    #portal-sidebar .sidebar-section{padding:12px 16px 4px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-top:8px}
+    #portal-sidebar a{display:flex;align-items:center;gap:8px;padding:8px 16px;font-size:13px;color:var(--muted);text-decoration:none;border-left:2px solid transparent;transition:all .15s;cursor:pointer}
+    #portal-sidebar a:hover{color:var(--text);background:rgba(108,99,255,.06)}
+    #portal-sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:rgba(108,99,255,.08);font-weight:600}
+    #portal-sidebar .sidebar-section{padding:12px 16px 4px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-top:8px}
     #toast{position:fixed;bottom:28px;right:28px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 18px;font-size:13px;display:none;z-index:999;max-width:320px;box-shadow:0 8px 32px rgba(0,0,0,.5)}
     #toast.show{display:block} #toast.ok{border-color:var(--success)} #toast.err{border-color:var(--danger)} #toast.warn{border-color:var(--warn)}
 
@@ -120,11 +128,24 @@
   </div>
 </div>
 
-<div class="container" id="completeness-banner" style="max-width:700px;margin:16px 0 0"></div>
+<div style="display:flex;min-height:calc(100vh - 60px)">
+
+<!-- Sidebar navigace -->
+<div id="portal-sidebar" style="width:220px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:20px 0;position:sticky;top:60px;height:calc(100vh - 60px);overflow-y:auto">
+  <div style="padding:0 16px;margin-bottom:8px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:600">Sekce</div>
+  <div id="sidebar-nav"></div>
+</div>
+
+<!-- Hlavní obsah -->
+<div style="flex:1;min-width:0;overflow-y:auto">
+<div class="container" id="completeness-banner" style="max-width:100%;margin:16px 0 0;padding:0 32px"></div>
 
 <div class="container" id="main-container">
   <div class="page-msg"><div class="loader"></div><p style="margin-top:16px;color:var(--muted)">Načítám data hotelu…</p></div>
 </div>
+
+</div><!-- /hlavní obsah -->
+</div><!-- /flex wrapper -->
 
 <div id="toast"></div>
 
@@ -288,6 +309,21 @@ function renderPortal() {
   document.getElementById('hotel-name-bar').textContent = h.name || '–';
   document.getElementById('save-btn').disabled = false;
 
+  // Varování pokud chybí počet lůžek
+  const bedWarn = document.getElementById('bed-count-warning');
+  if (!h.bed_count || h.bed_count < 1) {
+    if (!bedWarn) {
+      const w = document.createElement('div');
+      w.id = 'bed-count-warning';
+      w.style.cssText = 'margin:0 0 16px;padding:14px 18px;background:rgba(255,170,51,.1);border:1px solid rgba(255,170,51,.4);border-radius:12px;font-size:13px;display:flex;align-items:center;gap:12px';
+      w.innerHTML = '<span style="font-size:20px">⚠️</span><div><strong style="color:#ffaa33">Chybí počet lůžek!</strong><br><span style="color:var(--muted)">Doplňte počet lůžek v sekci Základní provozní informace — jinak nelze správně vypočítat cenu předplatného a AI nemá přesné informace o kapacitě hotelu.</span></div>';
+      const container = document.getElementById('main-container');
+      if (container) container.prepend(w);
+    }
+  } else if (bedWarn) {
+    bedWarn.remove();
+  }
+
   const lastEdit = h.portal_last_edit
     ? `Naposledy upraveno: ${new Date(h.portal_last_edit).toLocaleString('cs-CZ')}`
     : 'Zatím neupraveno';
@@ -333,7 +369,10 @@ function renderPortal() {
       <table class="edit-table">
         ${row('Telefon recepce', 'phone', 'tel', h.phone, '+420 123 456 789')}
         ${row('E-mail', 'email', 'email', h.email, 'recepce@hotel.cz')}
-        ${row('WhatsApp', 'whatsapp_number', 'tel', h.whatsapp_number, '+420 123 456 789')}
+        ${row('WhatsApp — Recepce', 'whatsapp_number', 'tel', h.whatsapp_number, '+420 123 456 789')}
+        ${row('WhatsApp — Wellness/Spa', 'whatsapp_wellness', 'tel', h.whatsapp_wellness, '+420 123 456 789')}
+        ${row('WhatsApp — Restaurace', 'whatsapp_restaurant', 'tel', h.whatsapp_restaurant, '+420 123 456 789')}
+        ${row('WhatsApp — Sport', 'whatsapp_sport', 'tel', h.whatsapp_sport, '+420 123 456 789')}
         ${row('Adresa', 'address', 'text', h.address, 'Václavské náměstí 1, Praha')}
         ${row('Kód země (CZ/SK/AT/DE...)', 'country', 'text', h.country, 'CZ')}
       </table>
@@ -502,7 +541,56 @@ function updateSectionScore(id) {
 
 function updateAllSectionScores() {
   Object.keys(_sectionFields).forEach(id => updateSectionScore(id));
+  buildSidebarNav();
 }
+
+function buildSidebarNav() {
+  const nav = document.getElementById('sidebar-nav');
+  if (!nav) return;
+  nav.innerHTML = '';
+  // Přidej odkaz na top
+  const topLink = document.createElement('a');
+  topLink.textContent = '⬆ Nahoru';
+  topLink.onclick = () => window.scrollTo({top: 0, behavior: 'smooth'});
+  nav.appendChild(topLink);
+  // Přidej separátor
+  const sep = document.createElement('div');
+  sep.className = 'sidebar-section';
+  sep.textContent = 'Sekce profilu';
+  nav.appendChild(sep);
+  // Najdi všechny sekce
+  document.querySelectorAll('.section[id^="sec-"]').forEach(sec => {
+    const title = sec.querySelector('.section-title');
+    const score = sec.querySelector('.score-badge');
+    if (!title) return;
+    const a = document.createElement('a');
+    const scoreText = score ? ' ' + score.textContent.trim() : '';
+    a.textContent = title.textContent.trim().substring(0, 22) + scoreText;
+    a.onclick = () => {
+      sec.scrollIntoView({behavior: 'smooth', block: 'start'});
+      // Otevři sekci pokud je zavřená
+      const body = sec.querySelector('.section-body');
+      if (body && !body.classList.contains('open')) toggleSection(sec.id);
+    };
+    nav.appendChild(a);
+  });
+  // Aktivní sekce při scrollu
+  updateActiveSidebarItem();
+}
+
+function updateActiveSidebarItem() {
+  const sections = document.querySelectorAll('.section[id^="sec-"]');
+  const navLinks = document.querySelectorAll('#sidebar-nav a');
+  if (!navLinks.length) return;
+  let activeIdx = 0;
+  sections.forEach((sec, i) => {
+    if (sec.getBoundingClientRect().top < 120) activeIdx = i + 1;
+  });
+  navLinks.forEach((a, i) => a.classList.toggle('active', i === activeIdx));
+}
+
+// Sleduj scroll pro aktivní položku v sidebaru
+window.addEventListener('scroll', updateActiveSidebarItem, {passive: true});
 
 function toggleSection(id) {
   const sec = document.getElementById(id);
@@ -754,7 +842,7 @@ async function loadPricing(){
 async function saveAll() {
   const numFields = ['bed_count', 'room_count', 'star_rating'];
   const textFields = ['checkin_time','checkout_time','breakfast_hours','lunch_hours','dinner_hours',
-    'phone','email','whatsapp_number','restaurant_name','wellness_info','parking_info',
+    'phone','email','whatsapp_number','whatsapp_wellness','restaurant_name','wellness_info','parking_info',
     'description','extra_info','address','country'];
 
   const data = {};

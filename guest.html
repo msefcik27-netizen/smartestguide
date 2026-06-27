@@ -291,6 +291,7 @@
       <div class="hdr-name" id="hdr-hotel-name" style="font-size:15px;font-weight:700;color:var(--text)">–</div>
       <div class="hdr-sub" style="font-size:11px;color:var(--accent2)">AI Concierge · SmartestGuide</div>
     </div>
+    <button class="hdr-btn" id="wa-hdr-btn" onclick="openWhatsAppMenu()" title="WhatsApp" style="display:none;background:rgba(37,211,102,.15);border-color:rgba(37,211,102,.3);color:#25d366">💬</button>
     <button class="hdr-btn" onclick="fetchWeather()" title="Počasí">🌤</button>
     <button class="hdr-btn" onclick="showInfo()" title="Info o hotelu">ℹ</button>
   </div>
@@ -485,6 +486,10 @@ function startChat(){
   },300);
 
   document.getElementById('hdr-hotel-name').textContent=hotelData.name||'Hotel';
+  // WhatsApp tlačítko v headeru — zobraz jen pokud hotel má číslo
+  const waNum = hotelData.whatsapp_number || hotelData.whatsapp_wellness || hotelData.whatsapp_restaurant || hotelData.whatsapp_sport || hotelData.phone || '';
+  const waHdrBtn = document.getElementById('wa-hdr-btn');
+  if(waHdrBtn && waNum) waHdrBtn.style.display='';
 
   // Přidej WhatsApp tlačítko do quick replies pokud je nastaveno
   if(hotelData.whatsapp_reception || hotelData.whatsapp_number){
@@ -520,10 +525,40 @@ function quickSend(t){
 }
 
 // ══ ZPRÁVY ═══════════════════════════════════
+function formatBotText(text){
+  // 1. Bold **text**
+  let h = text.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+  // 2. Klikatelné URL — otevřít v nové záložce
+  h = h.replace(/(https?:\/\/[^\s<>"']+)/g, function(url){
+    let trail = '';
+    if(/[.,!?]$/.test(url)){ trail = url.slice(-1); url = url.slice(0,-1); }
+    const label = url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    return `<a href="${url}" target="_blank" rel="noopener" style="color:var(--accent2);text-decoration:underline;word-break:break-all">${label}</a>${trail}`;
+  });
+  // 3. Mapové odkazy pro nearby_places zmíněná v textu
+  if(hotelData && hotelData.nearby_places && hotelData.nearby_places.length){
+    hotelData.nearby_places.forEach(place => {
+      const name = place.replace(/\(.*?\)/g,'').trim();
+      if(name.length < 3) return;
+      // Hledej zmínku místa v textu (case-insensitive)
+      const regex = new RegExp('(' + name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
+      if(regex.test(h)){
+        const city = hotelData.address ? hotelData.address.split(',').slice(-1)[0].trim() : '';
+        const q = encodeURIComponent(name + (city ? ', ' + city : ''));
+        const navUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + q;
+        h = h.replace(regex, `$1 <a href="${navUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:3px;background:rgba(0,212,170,.12);color:var(--teal);border:1px solid rgba(0,212,170,.25);border-radius:12px;padding:1px 7px;font-size:11px;text-decoration:none;font-weight:600;vertical-align:middle">🧭</a>`);
+      }
+    });
+  }
+  // 4. Newlines
+  h = h.replace(/\n/g,'<br>');
+  return h;
+}
+
 function addBot(text){
   const msgs=document.getElementById('messages');
   const time=new Date().toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
-  const html=text.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');
+  const html=formatBotText(text);
   const d=document.createElement('div');
   d.className='msg bot';
   d.innerHTML=`<div class="msg-av">🤖</div><div class="msg-body"><div class="msg-bubble">${html}</div><div class="msg-time">${time}</div></div>`;
@@ -625,6 +660,44 @@ async function sendMsg(){
     isTyping=false;
     document.getElementById('send-btn').disabled=false;
   }
+}
+
+function openWhatsApp(dept){
+  const h = hotelData || {};
+  const nums = {
+    recepce: h.whatsapp_number || h.phone,
+    wellness: h.whatsapp_wellness,
+    restaurace: h.whatsapp_restaurant,
+    sport: h.whatsapp_sport,
+  };
+  const num = (dept ? nums[dept] : nums.recepce || nums.wellness || nums.restaurace || nums.sport || h.phone || '');
+  if(!num) return;
+  const clean = num.replace(/[\s\-\(\)]/g,'').replace(/^\+/,'');
+  const deptLabel = dept ? ' (' + dept + ')' : '';
+  const msg = encodeURIComponent('Dobrý den, jsem host hotelu ' + (h.name||'') + deptLabel + '. Potřebuji pomoc.');
+  window.open('https://wa.me/' + clean + '?text=' + msg, '_blank');
+}
+
+function openWhatsAppMenu(){
+  const h = hotelData || {};
+  const depts = [
+    {key:'recepce', label:'📞 Recepce', num: h.whatsapp_number || h.phone},
+    {key:'wellness', label:'💆 Wellness / Spa', num: h.whatsapp_wellness},
+    {key:'restaurace', label:'🍽️ Restaurace', num: h.whatsapp_restaurant},
+    {key:'sport', label:'🏊 Sport', num: h.whatsapp_sport},
+  ].filter(d => d.num);
+  if(depts.length === 0) return;
+  if(depts.length === 1){ openWhatsApp(depts[0].key); return; }
+  // Zobraz výběr oddělení
+  let existing = document.getElementById('wa-dept-popup');
+  if(existing){ existing.remove(); return; }
+  const popup = document.createElement('div');
+  popup.id = 'wa-dept-popup';
+  popup.style.cssText = 'position:fixed;bottom:80px;right:16px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:8px;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.5);min-width:200px';
+  popup.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:4px 8px 8px;text-transform:uppercase;letter-spacing:.6px">Kontaktovat oddělení</div>'
+    + depts.map(d => `<button onclick="openWhatsApp('${d.key}');document.getElementById('wa-dept-popup').remove()" style="display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;color:var(--text);padding:8px 10px;border-radius:8px;cursor:pointer;font-size:14px;text-align:left" onmouseover="this.style.background='rgba(108,99,255,.1)'" onmouseout="this.style.background='none'">${d.label}</button>`).join('');
+  document.body.appendChild(popup);
+  setTimeout(() => document.addEventListener('click', function h(e){ if(!popup.contains(e.target)){popup.remove();document.removeEventListener('click',h);} }), 100);
 }
 
 function offlineReply(text){
@@ -801,10 +874,17 @@ function showInfo(){
     html+=`<div class="info-item"><div class="info-icon">✨</div><div><div class="info-label">Vybavení</div><div class="tag-row">${h.amenities.map(a=>`<span class="tag">${esc(a)}</span>`).join('')}</div></div></div>`;
   }
   if(h.nearby_places?.length){
-    html+=`<div class="info-item"><div class="info-icon">🗺</div><div><div class="info-label">Místa v okolí</div><div class="tag-row">${h.nearby_places.map(p=>{
-        const q = encodeURIComponent(p.replace(/\(.*\)/,'').trim() + ', ' + (h.address||''));
-        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${q}`;
-        return `<a href="${mapsUrl}" target="_blank" style="display:inline-block;background:rgba(108,99,255,.15);color:var(--accent);border:1px solid rgba(108,99,255,.3);border-radius:20px;padding:4px 10px;font-size:12px;text-decoration:none;margin:2px">📍 ${esc(p)}</a>`;
+    html+=`<div class="info-item"><div class="info-icon">🗺</div><div style="width:100%"><div class="info-label">Místa v okolí</div><div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">${h.nearby_places.map(p=>{
+        const name = p.replace(/\(.*?\)/g,'').trim();
+        const q = encodeURIComponent(name + (h.address ? ', ' + h.address.split(',').slice(-1)[0].trim() : ''));
+        const searchUrl = 'https://www.google.com/maps/search/?api=1&query='+q;
+        const navUrl = 'https://www.google.com/maps/dir/?api=1&destination='+q;
+        return '<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;gap:8px">'
+          +'<span style="font-size:13px;color:var(--text)">📍 '+esc(p)+'</span>'
+          +'<div style="display:flex;gap:6px;flex-shrink:0">'
+          +'<a href="'+searchUrl+'" target="_blank" style="background:rgba(108,99,255,.15);color:var(--accent);border:1px solid rgba(108,99,255,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🔍 Mapa</a>'
+          +'<a href="'+navUrl+'" target="_blank" style="background:rgba(0,212,170,.15);color:var(--teal);border:1px solid rgba(0,212,170,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🧭 Navigovat</a>'
+          +'</div></div>';
       }).join('')}</div></div></div>`;
   }
 

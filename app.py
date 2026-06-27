@@ -119,18 +119,6 @@ class HotelData(BaseModel):
 # ─────────────────────────────────────────────
 # Nastavení API klíče
 # ─────────────────────────────────────────────
-@app.get("/api/version")
-def get_version():
-    import subprocess
-    commit = os.getenv("RAILWAY_GIT_COMMIT_SHA", "")
-    if not commit:
-        # fallback: zkus git
-        try:
-            commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL).decode().strip()
-        except Exception:
-            commit = "unknown"
-    return {"commit": commit, "version": "0.2.0"}
-
 @app.get("/api/settings")
 def get_settings():
     s = db_get_settings()
@@ -140,13 +128,13 @@ def get_settings():
         "has_stripe_key": bool(s.get("stripe_secret_key")),
         "stripe_payment_link": s.get("stripe_payment_link", ""),
         "stripe_key_preview": ("sk_test_..." + s["stripe_secret_key"][-6:]) if s.get("stripe_secret_key") else None,
-        "pricing_base": s.get("pricing_base", 200),
+        "pricing_base": s.get("pricing_base", 300),
         "pricing_threshold": s.get("pricing_threshold", 100),
         "pricing_per_bed": s.get("pricing_per_bed", 3),
     }
 
 class PricingSettingsRequest(BaseModel):
-    pricing_base: int = 200
+    pricing_base: int = 300
     pricing_threshold: int = 100
     pricing_per_bed: float = 3.0
 
@@ -645,7 +633,7 @@ def pricing(beds: int):
     if beds <= 0:
         raise HTTPException(400, "Počet lůžek musí být kladný")
     s = db_get_settings()
-    base = s.get("pricing_base", 200)
+    base = s.get("pricing_base", 300)
     threshold = s.get("pricing_threshold", 100)
     per_bed = s.get("pricing_per_bed", 3)
     price = base if beds <= threshold else base + (beds - threshold) * per_bed
@@ -683,7 +671,7 @@ async def register_hotel(req: RegistrationRequest, request: Request):
     now = datetime.utcnow().isoformat()
     hotel_token = str(uuid.uuid4()).replace("-", "")
     beds = req.bed_count or 0
-    price = 200 if beds <= 100 else 200 + (beds - 100) * 3
+    price = 300 if beds <= 100 else 300 + (beds - 100) * 3
 
     hotel = {
         "id": hid,
@@ -762,24 +750,15 @@ def success_page(hotel_id: str = "", request: Request = None):
             base = get_base_url(request) if request else ""
             portal_url = f"{base}/hotel?token={h['hotel_token']}"
 
-    if portal_url:
-        redirect_target = portal_url
-        redirect_script = f"""
+    redirect_script = f"""
     <script>
-      var countdown = 10; var el = document.getElementById("countdown"); var interval = setInterval(function(){{ countdown--; el.textContent = countdown; if(countdown <= 0){{ clearInterval(interval); window.location.href = "{portal_url}"; }} }}, 1000);
-    </script>"""
-        portal_btn = f"""
-    <a href="{portal_url}" style="display:inline-flex;align-items:center;gap:10px;background:#6c63ff;color:#fff;text-decoration:none;padding:14px 28px;border-radius:12px;font-weight:700;font-size:15px;margin-bottom:16px;transition:background .15s" onmouseover="this.style.background='#7c75ff'" onmouseout="this.style.background='#6c63ff'">
-      🚀 Přejít do hotelového portálu →
-    </a>"""
-        countdown_html = f'<p style="font-size:13px;color:#7a7fa8;margin-top:8px">Automatické přesměrování do portálu za <span id="countdown">10</span> sekund…</p>'
-    else:
-        redirect_script = """
-    <script>
+      // Automaticky přesměruj na landing page po 5 sekundách
       var countdown = 5; var el = document.getElementById("countdown"); var interval = setInterval(function(){{ countdown--; el.textContent = countdown; if(countdown <= 0){{ clearInterval(interval); window.location.href = "/landing"; }} }}, 1000);
     </script>"""
-        portal_btn = ''
-        countdown_html = '<p style="font-size:13px;color:#7a7fa8;margin-top:8px">Automatické přesměrování za <span id="countdown">5</span> sekund…</p>'
+
+    portal_btn = ''
+
+    countdown_html = '<p style="font-size:13px;color:#7a7fa8;margin-top:8px">Automatické přesměrování za <span id="countdown">5</span> sekund…</p>'
 
     return f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
@@ -941,12 +920,6 @@ def toggle_subscription(hotel_id: str, active: bool):
     if active:
         beds = db["hotels"][hotel_id].get("bed_count", 0)
         db["hotels"][hotel_id]["subscription_paid_beds"] = beds
-        s = db_get_settings()
-        base = s.get("pricing_base", 200)
-        threshold = s.get("pricing_threshold", 100)
-        per_bed = s.get("pricing_per_bed", 3)
-        price = base if beds <= threshold else base + (beds - threshold) * per_bed
-        db["hotels"][hotel_id]["subscription_price"] = round(price, 2)
     db_save(db)
     return {"status": "ok", "subscription_active": active}
 
@@ -1042,7 +1015,7 @@ def hotel_profile_completeness(hotel: dict) -> dict:
     bonus = [
         "wellness_info", "parking_info", "restaurant_name",
         "nearby_places", "fitness_info", "pool_info",
-        "whatsapp_number", "dinner_hours",
+        "whatsapp_number", "whatsapp_wellness", "dinner_hours",
     ]
     filled_req = [f for f in required if hotel.get(f)]
     filled_bon = [f for f in bonus if hotel.get(f)]
@@ -1422,6 +1395,12 @@ LANGUAGE RULE: Detect the language of the guest's message and always respond in 
 If you cannot detect the language, use {lang_name} ({req.language}) as default.
 Never mix languages in a single response.
 
+FORMATTING RULES:
+- When sharing a URL or link, always write the full URL as plain text starting with https:// on its own line. Never use markdown like [text](url). Example: https://www.hotel.cz/menu
+- Use **bold** for important info like times, prices, names.
+- Keep answers concise and friendly.
+- When mentioning nearby places, attractions or restaurants, always use the EXACT name as listed in the hotel data (e.g. "Restaurace U Zlaté hvězdy" not just "a nearby restaurant"). This allows the guest to tap a map link.
+
 Hotel information:
 - Name: {h.get('name', 'N/A')}
 - Address: {h.get('address', 'N/A')}
@@ -1435,12 +1414,15 @@ Hotel information:
 - Restaurant: {h.get('restaurant_name', 'N/A')}
 - Parking: {h.get('parking_info', 'N/A')}
 - Wellness: {h.get('wellness_info', 'N/A')}
-- WhatsApp: {h.get('whatsapp_number', 'N/A')}
+- WhatsApp Recepce: {h.get('whatsapp_number', 'N/A')}
+- WhatsApp Wellness: {h.get('whatsapp_wellness', 'N/A')}
+- WhatsApp Restaurace: {h.get('whatsapp_restaurant', 'N/A')}
+- WhatsApp Sport: {h.get('whatsapp_sport', 'N/A')}
 - Amenities: {', '.join(h.get('amenities', []))}
 - Nearby: {', '.join(h.get('nearby_places', []))}
 - Description: {h.get('description', 'N/A')}
 - Extra info: {h.get('extra_info', 'N/A')}
-{f"- Menu URLs (for food & drinks questions): {', '.join(h.get('menu_urls', []))}" if h.get('menu_urls') else ''}
+{("- Menu links (share these as plain URLs when guest asks about food, drinks or menu):\n" + "\n".join([f"  {u}" for u in h.get('menu_urls', []) if u])) if h.get('menu_urls') else ''}
 {chr(10).join([f"- {cf.get('label','Info')}: {cf.get('value','')}" for cf in h.get('custom_fields', []) if cf.get('value')]) if h.get('custom_fields') else ''}
 
 Guest name: {req.guest_name or 'Guest'}"""
@@ -1519,302 +1501,316 @@ def get_portal_link(hotel_id: str, request: Request):
     return {"status": "ok", "token": token, "portal_url": f"{base}/hotel?token={token}"}
 
 # ─────────────────────────────────────────────
-# Firemní údaje (dodavatel na faktuře)
+# Privacy Policy & Terms of Service stránky
 # ─────────────────────────────────────────────
-class CompanySettingsRequest(BaseModel):
-    company_name: Optional[str] = None
-    company_ico: Optional[str] = None
-    company_dic: Optional[str] = None
-    company_email: Optional[str] = None
-    company_phone: Optional[str] = None
-    company_address: Optional[str] = None
-    company_city: Optional[str] = None
-    company_bank: Optional[str] = None
-    company_iban: Optional[str] = None
+@app.get("/privacy")
+def privacy_policy(lang: str = "en"):
+    if lang == "cs":
+        return HTMLResponse(content=PRIVACY_CS)
+    return HTMLResponse(content=PRIVACY_EN)
 
-@app.get("/api/settings/company")
-def get_company_settings():
-    s = db_get_settings()
-    return {
-        "company_name":    s.get("company_name", ""),
-        "company_ico":     s.get("company_ico", ""),
-        "company_dic":     s.get("company_dic", ""),
-        "company_email":   s.get("company_email", ""),
-        "company_phone":   s.get("company_phone", ""),
-        "company_address": s.get("company_address", ""),
-        "company_city":    s.get("company_city", ""),
-        "company_bank":    s.get("company_bank", ""),
-        "company_iban":    s.get("company_iban", ""),
-    }
+@app.get("/terms")
+def terms_of_service(lang: str = "en"):
+    if lang == "cs":
+        return HTMLResponse(content=TERMS_CS)
+    return HTMLResponse(content=TERMS_EN)
 
-@app.post("/api/settings/company")
-def save_company_settings(req: CompanySettingsRequest):
-    db_save_settings(req.model_dump(exclude_none=True))
-    return {"status": "ok"}
+LEGAL_CSS = """
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#0f0f1a;color:#e0e0f0;line-height:1.8;padding:0}
+  .topbar{background:#1a1a2e;border-bottom:1px solid rgba(255,255,255,.08);padding:16px 32px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+  .logo{font-weight:800;font-size:18px;color:#fff}.logo span{color:#00d4aa}
+  .lang-switch{display:flex;gap:8px}
+  .lang-switch a{color:#7a7fa8;font-size:13px;text-decoration:none;padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.1)}
+  .lang-switch a:hover,.lang-switch a.active{background:rgba(108,99,255,.2);color:#fff;border-color:rgba(108,99,255,.4)}
+  .container{max-width:800px;margin:0 auto;padding:48px 32px}
+  h1{font-size:28px;font-weight:800;color:#fff;margin-bottom:8px}
+  .subtitle{color:#7a7fa8;font-size:14px;margin-bottom:40px}
+  h2{font-size:16px;font-weight:700;color:#6c63ff;margin:32px 0 12px;text-transform:uppercase;letter-spacing:.5px}
+  h3{font-size:14px;font-weight:700;color:#00d4aa;margin:20px 0 8px}
+  p{color:#b0b4cc;font-size:14px;margin-bottom:12px}
+  ul{color:#b0b4cc;font-size:14px;margin:8px 0 12px 20px}
+  li{margin-bottom:6px}
+  strong{color:#e0e0f0}
+  .back{display:inline-flex;align-items:center;gap:6px;color:#7a7fa8;font-size:13px;text-decoration:none;margin-bottom:24px}
+  .back:hover{color:#fff}
+  footer{text-align:center;padding:32px;color:#7a7fa8;font-size:12px;border-top:1px solid rgba(255,255,255,.06);margin-top:48px}
+</style>
+"""
 
-# ─────────────────────────────────────────────
-# Faktury
-# ─────────────────────────────────────────────
-@app.get("/api/invoices")
-def list_invoices():
-    db = db_load()
-    invoices = list(db.get("invoices", {}).values())
-    invoices.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-    return {"status": "ok", "invoices": invoices}
+PRIVACY_CS = LEGAL_CSS + """
+<div class="topbar">
+  <div class="logo">Smartest<span>Guide</span></div>
+  <div class="lang-switch">
+    <a href="/privacy?lang=cs" class="active">🇨🇿 CZ</a>
+    <a href="/privacy?lang=en">🇬🇧 EN</a>
+  </div>
+</div>
+<div class="container">
+  <a href="/landing" class="back">← Zpět na hlavní stránku</a>
+  <h1>Zásady ochrany osobních údajů</h1>
+  <div class="subtitle">Poskytovatele aplikace SmartestGuide · Účinnost od 1. 6. 2025</div>
 
-@app.post("/api/hotels/{hotel_id}/invoices/generate")
-def generate_invoice(hotel_id: str):
-    db = db_load()
-    if hotel_id not in db["hotels"]:
-        raise HTTPException(404, "Hotel nenalezen")
-    hotel = db["hotels"][hotel_id]
-    if not hotel.get("subscription_active"):
-        raise HTTPException(400, "Hotel nemá aktivní předplatné")
+  <h2>I. Úvodní ustanovení</h2>
+  <h3>Správce osobních údajů</h3>
+  <p><strong>Native Hotel Guide s.r.o.</strong><br>Korunní 2569/108, Vinohrady, 101 00 Praha 10<br>IČO: 231 12 905 · DIČ: CZ23112905</p>
+  <p>Tyto Zásady popisují, jakým způsobem shromažďujeme, používáme, uchováváme a chráníme Vaše osobní údaje při užívání aplikace SmartestGuide, v souladu s GDPR (EU) 2016/679.</p>
 
-    beds = hotel.get("bed_count") or hotel.get("subscription_paid_beds") or 0
-    s = db_get_settings()
-    base_price = s.get("pricing_base", 300)
-    threshold  = s.get("pricing_threshold", 100)
-    per_bed    = s.get("pricing_per_bed", 3)
-    price = base_price if beds <= threshold else base_price + (beds - threshold) * per_bed
+  <h2>II. Jaké osobní údaje shromažďujeme</h2>
+  <h3>Od hostů (koncových uživatelů)</h3>
+  <ul>
+    <li><strong>Křestní jméno</strong> — personalizace komunikace s avatarem</li>
+    <li><strong>Pohlaví, věk</strong> — statistické účely a personalizace nabídek</li>
+    <li><strong>E-mail</strong> — komunikace a marketingové účely (se souhlasem)</li>
+    <li><strong>Telefonní číslo</strong> (nepovinné) — přímá komunikace nebo WhatsApp funkce</li>
+    <li><strong>Datum ubytování</strong> — relevantní poskytování informací</li>
+    <li><strong>Obsah komunikace s avatarem</strong> — zlepšování AI, zpravidla anonymizováno</li>
+    <li><strong>Informace o zařízení, IP adresa</strong> — technická optimalizace a zabezpečení</li>
+  </ul>
+  <h3>Od hotelů (klientů)</h3>
+  <ul>
+    <li>Identifikační a kontaktní údaje, platební údaje, přístupové údaje k administraci</li>
+  </ul>
 
-    now = datetime.utcnow()
-    # Číslo faktury: SG-YYYYMM-XXXX
-    if "invoices" not in db:
-        db["invoices"] = {}
-    month_prefix = f"SG-{now.strftime('%Y%m')}-"
-    month_count  = sum(1 for inv in db["invoices"].values() if inv.get("invoice_number", "").startswith(month_prefix))
-    invoice_number = f"{month_prefix}{month_count + 1:04d}"
+  <h2>III. Právní základ zpracování</h2>
+  <ul>
+    <li><strong>Souhlas</strong> — pro většinu údajů od hostů (křestní jméno, e-mail, marketing)</li>
+    <li><strong>Plnění smlouvy</strong> — pro fungování aplikace a smluvní vztah s hotelem</li>
+    <li><strong>Oprávněný zájem</strong> — zlepšování aplikace, zabezpečení, statistiky</li>
+    <li><strong>Právní povinnost</strong> — účetnictví, daňové povinnosti</li>
+  </ul>
 
-    period_from = now.replace(day=1).date().isoformat()
-    # Konec období = poslední den měsíce
-    import calendar
-    last_day = calendar.monthrange(now.year, now.month)[1]
-    period_to = now.replace(day=last_day).date().isoformat()
+  <h2>IV. Sdílení osobních údajů</h2>
+  <p>Vaše údaje sdílíme pouze s příslušným hotelem, smluvními zpracovateli (cloudové služby, platební brány, analytické nástroje) a orgány veřejné moci v případě zákonné povinnosti.</p>
 
-    inv_id = str(uuid.uuid4())
-    invoice = {
-        "id":             inv_id,
-        "invoice_number": invoice_number,
-        "hotel_id":       hotel_id,
-        "hotel_name":     hotel.get("name", ""),
-        "hotel_address":  hotel.get("address", ""),
-        "hotel_email":    hotel.get("email", ""),
-        "beds":           beds,
-        "amount_eur":     round(price, 2),
-        "amount_local":   round(price, 2),
-        "currency_code":  "EUR",
-        "currency_symbol": "€",
-        "period_from":    period_from,
-        "period_to":      period_to,
-        "status":         "issued",
-        "created_at":     now.isoformat(),
-        "updated_at":     now.isoformat(),
-    }
-    db["invoices"][inv_id] = invoice
-    db_save(db)
-    return {"status": "ok", "invoice": invoice}
+  <h2>V. Přenos do třetích zemí</h2>
+  <p>Údaje jsou primárně zpracovávány v EU/EHP. Případný přenos mimo EU/EHP probíhá v souladu s GDPR (standardní smluvní doložky, adekvátní rozhodnutí Komise).</p>
 
-@app.patch("/api/invoices/{invoice_id}/status")
-def update_invoice_status(invoice_id: str, status: str):
-    db = db_load()
-    if "invoices" not in db or invoice_id not in db["invoices"]:
-        raise HTTPException(404, "Faktura nenalezena")
-    if status not in ("issued", "paid", "cancelled"):
-        raise HTTPException(400, "Neplatný stav — povoleno: issued, paid, cancelled")
-    db["invoices"][invoice_id]["status"] = status
-    db["invoices"][invoice_id]["updated_at"] = datetime.utcnow().isoformat()
-    if status == "paid":
-        db["invoices"][invoice_id]["paid_at"] = datetime.utcnow().isoformat()
-    db_save(db)
-    return {"status": "ok", "invoice": db["invoices"][invoice_id]}
+  <h2>VI. Doba uchovávání</h2>
+  <ul>
+    <li>Údaje o užívání aplikace: po dobu aktivity + 3 roky, poté anonymizace</li>
+    <li>Marketingové kontakty: do odvolání souhlasu</li>
+    <li>Fakturační údaje: 10 let dle daňových předpisů ČR</li>
+  </ul>
 
-@app.get("/api/invoices/{invoice_id}/pdf")
-def download_invoice_pdf(invoice_id: str):
-    from io import BytesIO
-    db = db_load()
-    if "invoices" not in db or invoice_id not in db["invoices"]:
-        raise HTTPException(404, "Faktura nenalezena")
-    inv = db["invoices"][invoice_id]
-    s   = db_get_settings()
+  <h2>VII. Vaše práva</h2>
+  <ul>
+    <li>Právo na přístup, opravu, výmaz ("být zapomenut")</li>
+    <li>Právo na omezení zpracování a přenositelnost dat</li>
+    <li>Právo vznést námitku a odvolat souhlas kdykoli</li>
+    <li>Právo podat stížnost u ÚOOÚ (Pplk. Sochora 27, Praha 7, posta@uoou.cz)</li>
+  </ul>
+  <p>Pro uplatnění práv nás kontaktujte e-mailem. Vaši žádost vyřídíme do 1 měsíce.</p>
 
-    # Použij stejný PDF engine jako leták (reportlab)
-    try:
-        from reportlab.pdfgen import canvas as rl_canvas
-        from reportlab.lib.pagesizes import A4
-        from reportlab.lib import colors
-        from reportlab.lib.units import mm
-        from reportlab.pdfbase.ttfonts import TTFont
-        from reportlab.pdfbase import pdfmetrics
+  <h2>VIII. Zabezpečení</h2>
+  <p>Používáme šifrování dat, řízení přístupu, pravidelné zálohy, firewally a bezpečnostní audity k ochraně Vašich osobních údajů.</p>
 
-        FONT, FONTB = "Helvetica", "Helvetica-Bold"
-        for rp, bp in [
-            ("C:/Windows/Fonts/arial.ttf",  "C:/Windows/Fonts/arialbd.ttf"),
-            ("C:/WINDOWS/Fonts/arial.ttf",  "C:/WINDOWS/Fonts/arialbd.ttf"),
-        ]:
-            if os.path.exists(rp) and os.path.exists(bp):
-                try:
-                    pdfmetrics.registerFont(TTFont("INV", rp))
-                    pdfmetrics.registerFont(TTFont("INVB", bp))
-                    FONT, FONTB = "INV", "INVB"
-                    break
-                except Exception:
-                    pass
-        if FONT == "Helvetica":
-            lib_r = os.path.join(BASE_DIR, "fonts", "LiberationSans-Regular.ttf")
-            lib_b = os.path.join(BASE_DIR, "fonts", "LiberationSans-Bold.ttf")
-            if os.path.exists(lib_r):
-                try:
-                    pdfmetrics.registerFont(TTFont("INV", lib_r))
-                    pdfmetrics.registerFont(TTFont("INVB", lib_b))
-                    FONT, FONTB = "INV", "INVB"
-                except Exception:
-                    pass
+  <h2>IX. Změny Zásad</h2>
+  <p>O podstatných změnách Vás budeme informovat prostřednictvím aplikace nebo webu. Doporučujeme tuto stránku pravidelně kontrolovat.</p>
 
-        W, H = A4
-        buf = BytesIO()
-        c = rl_canvas.Canvas(buf, pagesize=A4)
+  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Účinnost od 1. 6. 2025</footer>
+</div>
+"""
 
-        PURPLE = colors.HexColor("#6c63ff")
-        TEAL   = colors.HexColor("#00d4aa")
-        DARK   = colors.HexColor("#1a1a2e")
-        MUTED  = colors.HexColor("#7a7fa8")
-        LIGHT  = colors.HexColor("#f5f5ff")
+PRIVACY_EN = LEGAL_CSS + """
+<div class="topbar">
+  <div class="logo">Smartest<span>Guide</span></div>
+  <div class="lang-switch">
+    <a href="/privacy?lang=cs">🇨🇿 CZ</a>
+    <a href="/privacy?lang=en" class="active">🇬🇧 EN</a>
+  </div>
+</div>
+<div class="container">
+  <a href="/landing" class="back">← Back to homepage</a>
+  <h1>Privacy Policy</h1>
+  <div class="subtitle">SmartestGuide application provider · Effective from 1 June 2025</div>
 
-        # Hlavička – fialový pruh
-        c.setFillColor(PURPLE)
-        c.rect(0, H - 60*mm, W, 60*mm, fill=1, stroke=0)
-        c.setFillColor(colors.white)
-        c.setFont(FONTB, 22)
-        c.drawString(20*mm, H - 22*mm, "SmartestGuide")
-        c.setFont(FONT, 10)
-        c.drawString(20*mm, H - 30*mm, "smartestguide.com")
-        c.setFont(FONTB, 28)
-        c.drawRightString(W - 20*mm, H - 22*mm, "FAKTURA")
-        c.setFont(FONT, 11)
-        c.drawRightString(W - 20*mm, H - 31*mm, inv.get("invoice_number", ""))
+  <h2>I. Introduction</h2>
+  <h3>Data Controller</h3>
+  <p><strong>Native Hotel Guide s.r.o.</strong><br>Korunní 2569/108, Vinohrady, 101 00 Prague 10, Czech Republic<br>Company ID: 231 12 905 · VAT: CZ23112905</p>
+  <p>This Privacy Policy describes how we collect, use, store and protect your personal data when you use the SmartestGuide application, in accordance with GDPR (EU) 2016/679.</p>
 
-        # Stav faktury
-        status_colors = {"issued": TEAL, "paid": colors.HexColor("#2ecc87"), "cancelled": MUTED}
-        status_labels = {"issued": "VYSTAVENA", "paid": "ZAPLACENA", "cancelled": "STORNOVÁNA"}
-        sc = status_colors.get(inv.get("status","issued"), MUTED)
-        c.setFillColor(sc)
-        c.setFont(FONTB, 10)
-        c.drawRightString(W - 20*mm, H - 40*mm, status_labels.get(inv.get("status","issued"), ""))
+  <h2>II. What personal data we collect</h2>
+  <h3>From guests (end users)</h3>
+  <ul>
+    <li><strong>First name</strong> — personalisation of avatar communication</li>
+    <li><strong>Gender, age</strong> — statistical purposes and offer personalisation</li>
+    <li><strong>Email address</strong> — communication and marketing (with consent)</li>
+    <li><strong>Phone number</strong> (optional) — direct communication or WhatsApp features</li>
+    <li><strong>Stay dates</strong> — providing relevant information</li>
+    <li><strong>Avatar conversation content</strong> — AI improvement, typically anonymised</li>
+    <li><strong>Device information, IP address</strong> — technical optimisation and security</li>
+  </ul>
+  <h3>From hotels (clients)</h3>
+  <ul>
+    <li>Identification and contact details, payment data, administration access credentials</li>
+  </ul>
 
-        y = H - 75*mm
+  <h2>III. Legal basis for processing</h2>
+  <ul>
+    <li><strong>Consent</strong> — for most guest data (first name, email, marketing)</li>
+    <li><strong>Contract performance</strong> — for app functionality and hotel contract</li>
+    <li><strong>Legitimate interest</strong> — app improvement, security, statistics</li>
+    <li><strong>Legal obligation</strong> — accounting, tax compliance</li>
+  </ul>
 
-        # Dodavatel / Odběratel
-        def draw_block(title, lines, x, y):
-            c.setFillColor(MUTED)
-            c.setFont(FONT, 8)
-            c.drawString(x, y, title.upper())
-            y -= 5*mm
-            c.setFillColor(DARK)
-            for i, line in enumerate(lines):
-                if not line: continue
-                c.setFont(FONTB if i == 0 else FONT, 10)
-                c.drawString(x, y, line)
-                y -= 5*mm
-            return y
+  <h2>IV. Sharing of personal data</h2>
+  <p>Your data is shared only with the relevant hotel, contracted processors (cloud services, payment gateways, analytics tools) and public authorities when required by law.</p>
 
-        co_lines = [
-            s.get("company_name", "SmartestGuide"),
-            s.get("company_address", ""),
-            s.get("company_city", ""),
-            f"IČO: {s.get('company_ico','')}" if s.get("company_ico") else "",
-            s.get("company_email", ""),
-        ]
-        hotel_lines = [
-            inv.get("hotel_name", ""),
-            inv.get("hotel_address", ""),
-            inv.get("hotel_email", ""),
-        ]
-        draw_block("Dodavatel", co_lines, 20*mm, y)
-        draw_block("Odběratel", hotel_lines, W/2, y)
+  <h2>V. International transfers</h2>
+  <p>Data is primarily processed within the EU/EEA. Any transfer outside the EU/EEA is carried out in compliance with GDPR (standard contractual clauses, Commission adequacy decisions).</p>
 
-        y -= 35*mm
+  <h2>VI. Retention periods</h2>
+  <ul>
+    <li>App usage data: duration of use + 3 years, then anonymised</li>
+    <li>Marketing contacts: until consent is withdrawn</li>
+    <li>Billing data: 10 years under Czech tax regulations</li>
+  </ul>
 
-        # Řádkový separátor
-        c.setStrokeColor(colors.HexColor("#e0e0f0"))
-        c.line(20*mm, y, W - 20*mm, y)
-        y -= 8*mm
+  <h2>VII. Your rights</h2>
+  <ul>
+    <li>Right of access, rectification, erasure ("right to be forgotten")</li>
+    <li>Right to restriction of processing and data portability</li>
+    <li>Right to object and to withdraw consent at any time</li>
+    <li>Right to lodge a complaint with the Czech Data Protection Authority (ÚOOÚ)</li>
+  </ul>
+  <p>To exercise your rights, please contact us by email. We will respond within 1 month.</p>
 
-        # Detaily faktury
-        rows = [
-            ("Číslo faktury",     inv.get("invoice_number", "")),
-            ("Datum vystavení",   inv.get("created_at","")[:10]),
-            ("Fakturační období", f"{inv.get('period_from','')} – {inv.get('period_to','')}"),
-            ("Počet lůžek",       str(inv.get("beds", ""))),
-        ]
-        if inv.get("paid_at"):
-            rows.append(("Datum úhrady", inv["paid_at"][:10]))
+  <h2>VIII. Security</h2>
+  <p>We apply data encryption, access controls, regular backups, firewalls and security audits to protect your personal data.</p>
 
-        for label, value in rows:
-            c.setFillColor(MUTED)
-            c.setFont(FONT, 9)
-            c.drawString(20*mm, y, label)
-            c.setFillColor(DARK)
-            c.setFont(FONT, 10)
-            c.drawRightString(W - 20*mm, y, value)
-            y -= 6*mm
+  <h2>IX. Changes to this Policy</h2>
+  <p>We will notify you of material changes via the app or website. We recommend checking this page regularly.</p>
 
-        y -= 6*mm
-        c.line(20*mm, y, W - 20*mm, y)
-        y -= 10*mm
+  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Effective from 1 June 2025</footer>
+</div>
+"""
 
-        # Předmět fakturace
-        c.setFillColor(MUTED)
-        c.setFont(FONT, 9)
-        c.drawString(20*mm, y, "PŘEDMĚT FAKTURACE")
-        y -= 6*mm
-        c.setFillColor(DARK)
-        c.setFont(FONT, 10)
-        c.drawString(20*mm, y, "SmartestGuide – měsíční předplatné (AI concierge)")
-        c.drawRightString(W - 20*mm, y, f"{inv.get('amount_eur', 0)} EUR")
-        y -= 15*mm
+TERMS_CS = LEGAL_CSS + """
+<div class="topbar">
+  <div class="logo">Smartest<span>Guide</span></div>
+  <div class="lang-switch">
+    <a href="/terms?lang=cs" class="active">🇨🇿 CZ</a>
+    <a href="/terms?lang=en">🇬🇧 EN</a>
+  </div>
+</div>
+<div class="container">
+  <a href="/landing" class="back">← Zpět na hlavní stránku</a>
+  <h1>Obchodní podmínky</h1>
+  <div class="subtitle">SmartestGuide pro ubytovací zařízení · Účinnost od 1. 6. 2025</div>
 
-        # Celková částka – zvýrazněný box
-        c.setFillColor(LIGHT)
-        c.rect(20*mm, y - 15*mm, W - 40*mm, 22*mm, fill=1, stroke=0)
-        c.setFillColor(PURPLE)
-        c.setFont(FONTB, 18)
-        c.drawCentredString(W/2, y - 8*mm, f"{inv.get('amount_local', 0)} {inv.get('currency_symbol','€')}")
-        c.setFillColor(MUTED)
-        c.setFont(FONT, 9)
-        c.drawCentredString(W/2, y - 13*mm, "Celková částka k úhradě")
-        y -= 30*mm
+  <h2>I. Úvodní ustanovení</h2>
+  <p><strong>Poskytovatel:</strong> Native Hotel Guide s.r.o., Korunní 2569/108, Praha 10, IČO: 231 12 905</p>
+  <p>Tyto podmínky upravují práva a povinnosti Poskytovatele a ubytovacího zařízení (Klient) při pronájmu aplikace SmartestGuide — AI concierge pro hosty hotelů.</p>
 
-        # Platební údaje
-        if s.get("company_bank") or s.get("company_iban"):
-            c.setFillColor(DARK)
-            c.setFont(FONTB, 10)
-            c.drawString(20*mm, y, "Platební údaje:")
-            y -= 6*mm
-            c.setFont(FONT, 10)
-            if s.get("company_bank"):
-                c.drawString(20*mm, y, f"Číslo účtu: {s['company_bank']}")
-                y -= 5*mm
-            if s.get("company_iban"):
-                c.drawString(20*mm, y, f"IBAN: {s['company_iban']}")
+  <h2>II. Cena a platební podmínky</h2>
+  <ul>
+    <li>Měsíční poplatek: <strong>200 EUR</strong> pro hotely do 100 lůžek; nad 100 lůžek +3 EUR/lůžko/měsíc</li>
+    <li>Platby probíhají automaticky kartou nebo převodem prostřednictvím platební brány</li>
+    <li>Prvních <strong>14 dní zdarma</strong> — zkušební doba bez poplatku</li>
+    <li>Zaváděcí cena je zachována po celou dobu nepřetržitého předplatného</li>
+    <li>Žádné aktivační ani licenční poplatky</li>
+  </ul>
 
-        # Patička
-        c.setFillColor(MUTED)
-        c.setFont(FONT, 8)
-        c.drawCentredString(W/2, 15*mm, f"Faktura vystavena systémem SmartestGuide · {s.get('company_email','support@smartestguide.com')}")
+  <h2>III. Práva a povinnosti Klienta</h2>
+  <ul>
+    <li>Klient je výhradně odpovědný za správnost a zákonnost obsahu vloženého do aplikace</li>
+    <li>Obsah nesmí být nepravdivý, diskriminační, pornografický, násilný ani nezákonný</li>
+    <li>Aplikaci nelze sublicencovat, dále distribuovat ani používat pro jiné objekty</li>
+    <li>Klient zajistí ochranu přístupových údajů k administraci</li>
+  </ul>
 
-        c.save()
-        pdf_bytes = buf.getvalue()
+  <h2>IV. Práva a povinnosti Poskytovatele</h2>
+  <ul>
+    <li>Poskytovatel zajistí provoz aplikace na vlastním cloudu</li>
+    <li>Poskytovatel může průběžně přidávat nové funkce (nové funkce mohou být zpoplatněny)</li>
+    <li>Poskytovatel sbírá anonymizovaná data o používání pro zlepšování služby</li>
+  </ul>
 
-    except ImportError:
-        raise HTTPException(500, "reportlab není nainstalován – přidej do requirements.txt")
-    except Exception as e:
-        raise HTTPException(500, f"Chyba generování PDF: {str(e)}")
+  <h2>V. Omezení odpovědnosti</h2>
+  <p>Poskytovatel nenese odpovědnost za správnost obsahu vloženého Klientem, technické výpadky způsobené třetími stranami ani za ušlý zisk. Celková odpovědnost Poskytovatele je omezena na 3 měsíční poplatky zaplacené Klientem.</p>
 
-    from fastapi.responses import StreamingResponse
-    safe_num = inv.get("invoice_number", invoice_id).replace("/", "-")
-    return StreamingResponse(
-        BytesIO(pdf_bytes),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="faktura-{safe_num}.pdf"'}
-    )
+  <h2>VI. Ukončení smlouvy</h2>
+  <ul>
+    <li><strong>Klient:</strong> výpovědní doba 1 měsíc (od prvního dne následujícího měsíce)</li>
+    <li><strong>Poskytovatel:</strong> může okamžitě ukončit při závažném porušení podmínek nebo prodlení s platbou delším než 14 dní</li>
+  </ul>
+
+  <h2>VII. Podmínky pro hosty</h2>
+  <p>Hosté užívají aplikaci zdarma pro osobní nekomerční účely. Veškerý obsah (informace o hotelu, doporučení) je spravován hotelem — Poskytovatel za správnost obsahu neručí. Pro kritické informace (alergeny, ceny) doporučujeme ověření přímo u personálu.</p>
+
+  <h2>VIII. Závěrečná ustanovení</h2>
+  <ul>
+    <li>Podmínky se řídí právem České republiky</li>
+    <li>Spory řešíme přednostně smírnou cestou; jinak příslušné soudy ČR</li>
+    <li>O změnách podmínek informujeme e-mailem s předstihem 30 dní</li>
+  </ul>
+
+  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Účinnost od 1. 6. 2025</footer>
+</div>
+"""
+
+TERMS_EN = LEGAL_CSS + """
+<div class="topbar">
+  <div class="logo">Smartest<span>Guide</span></div>
+  <div class="lang-switch">
+    <a href="/terms?lang=cs">🇨🇿 CZ</a>
+    <a href="/terms?lang=en" class="active">🇬🇧 EN</a>
+  </div>
+</div>
+<div class="container">
+  <a href="/landing" class="back">← Back to homepage</a>
+  <h1>Terms of Service</h1>
+  <div class="subtitle">SmartestGuide for accommodation providers · Effective from 1 June 2025</div>
+
+  <h2>I. Introduction</h2>
+  <p><strong>Provider:</strong> Native Hotel Guide s.r.o., Korunní 2569/108, Prague 10, Czech Republic, Company ID: 231 12 905</p>
+  <p>These Terms govern the rights and obligations of the Provider and the accommodation facility (Client) in connection with the rental and use of the SmartestGuide application — an AI concierge for hotel guests.</p>
+
+  <h2>II. Pricing and payment</h2>
+  <ul>
+    <li>Monthly fee: <strong>€200</strong> for hotels up to 100 beds; above 100 beds +€3/bed/month</li>
+    <li>Payments are processed automatically by card or bank transfer via the payment gateway</li>
+    <li>First <strong>14 days free</strong> — trial period with no charge</li>
+    <li>Introductory pricing is maintained for the duration of continuous subscription</li>
+    <li>No activation or end-user licence fees</li>
+  </ul>
+
+  <h2>III. Client rights and obligations</h2>
+  <ul>
+    <li>The Client is solely responsible for the accuracy and legality of content uploaded to the app</li>
+    <li>Content must not be false, discriminatory, pornographic, violent or unlawful</li>
+    <li>The app may not be sublicensed, redistributed or used for other properties</li>
+    <li>The Client must protect administration access credentials</li>
+  </ul>
+
+  <h2>IV. Provider rights and obligations</h2>
+  <ul>
+    <li>The Provider operates the application on its own cloud infrastructure</li>
+    <li>The Provider may add new features over time (new features may be subject to additional charges)</li>
+    <li>The Provider collects anonymised usage data to improve the service</li>
+  </ul>
+
+  <h2>V. Limitation of liability</h2>
+  <p>The Provider is not liable for the accuracy of Client-uploaded content, technical outages caused by third parties, or loss of profit. Total Provider liability is limited to 3 monthly fees paid by the Client.</p>
+
+  <h2>VI. Termination</h2>
+  <ul>
+    <li><strong>Client:</strong> 1-month notice period (from the first day of the following month)</li>
+    <li><strong>Provider:</strong> may terminate immediately upon material breach or payment default exceeding 14 days</li>
+  </ul>
+
+  <h2>VII. Guest terms</h2>
+  <p>Guests use the app free of charge for personal, non-commercial purposes. All content (hotel information, recommendations) is managed by the hotel — the Provider does not warrant the accuracy of this content. For critical information (allergens, prices), we recommend verifying directly with hotel staff.</p>
+
+  <h2>VIII. General provisions</h2>
+  <ul>
+    <li>These Terms are governed by the laws of the Czech Republic</li>
+    <li>Disputes are resolved preferably amicably; otherwise by the competent courts of the Czech Republic</li>
+    <li>Changes to these Terms are communicated by email with 30 days' notice</li>
+  </ul>
+
+  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Effective from 1 June 2025</footer>
+</div>
+"""

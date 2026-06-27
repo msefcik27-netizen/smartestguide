@@ -9,6 +9,7 @@ Spuštění:
 
 import requests
 import sys
+import re
 
 BASE = "https://smartestguide-production.up.railway.app"
 
@@ -40,9 +41,21 @@ def section(title):
     print(f"{BOLD}{BLUE}  {title}{RESET}")
     print(f"{BOLD}{BLUE}{'─'*55}{RESET}")
 
+# ─────────────────────────────────────────────
+# 1. Základní dostupnost + verze
+# ─────────────────────────────────────────────
 def test_basic():
     section("1. Základní dostupnost stránek")
-    for path, label in [("/", "Admin panel"), ("/landing", "Landing page"), ("/hotel?token=x", "Hotel portál"), ("/sw.js", "Service Worker")]:
+    for path, label in [
+        ("/", "Admin panel"),
+        ("/landing", "Landing page"),
+        ("/hotel?token=x", "Hotel portál"),
+        ("/sw.js", "Service Worker"),
+        ("/privacy", "Privacy Policy (EN)"),
+        ("/privacy?lang=cs", "Privacy Policy (CZ)"),
+        ("/terms", "Terms of Service (EN)"),
+        ("/terms?lang=cs", "Terms of Service (CZ)"),
+    ]:
         try:
             r = requests.get(f"{BASE}{path}", timeout=10)
             if r.status_code == 200:
@@ -52,30 +65,38 @@ def test_basic():
         except Exception as e:
             fail(label, str(e))
 
-    # Kontrola JS syntax – hledáme nekompletní bloky v HTML
-    section("1b. Kontrola JS v HTML souborech")
-    import re
-    for path, label in [("/", "Admin panel JS"), ("/hotel?token=x", "Hotel portál JS"), ("/landing", "Landing page JS")]:
+    # /api/version
+    section("1b. Verze aplikace")
+    try:
+        r = requests.get(f"{BASE}/api/version", timeout=10)
+        d = r.json()
+        if r.status_code == 200 and d.get("commit"):
+            ok("/api/version", f"commit: {d['commit'][:7]}")
+        else:
+            fail("/api/version", f"status {r.status_code}")
+    except Exception as e:
+        fail("/api/version", str(e))
+
+    # Kontrola JS syntax
+    section("1c. Kontrola JS v HTML souborech")
+    for path, label in [
+        ("/", "Admin panel JS"),
+        ("/hotel?token=x", "Hotel portál JS"),
+        ("/landing", "Landing page JS"),
+    ]:
         try:
             r = requests.get(f"{BASE}{path}", timeout=10)
             content = r.text
             errors = []
-            # Počet script tagů musí sedět – ignoruj escaped varianty v JS stringech
-            open_tags = len(re.findall(r'<script(?:\s[^>]*)?>(?!.*\\\/script>)', content))
-            close_tags = len(re.findall(r'<\/script>', content))
-            # Přesnější: spočítej jen reálné HTML script tagy (ne ty v JS stringech s \/)
-            real_open = len(re.findall(r'<script(?:\s[^>]*)?>\s', content))
+            real_open  = len(re.findall(r'<script(?:\s[^>]*)?>\\s', content))
             real_close = len(re.findall(r'\s*<\/script>', content))
             if real_open != real_close:
                 errors.append(f"Nekompletní script tag ({real_open} open vs {real_close} close)")
-            # Extrahuj JS bloky a hledej extra závorky
             scripts = re.findall(r'<script[^>]*>(.*?)</script>', content, re.DOTALL)
             for script in scripts:
-                # Počet { musí přibližně odpovídat počtu }
-                open_br = script.count('{')
-                close_br = script.count('}')
-                if abs(open_br - close_br) > 10:
-                    errors.append(f"Nevyvážené závorky v JS ({{ {open_br} vs }} {close_br})")
+                diff = abs(script.count('{') - script.count('}'))
+                if diff > 10:
+                    errors.append(f"Nevyvážené závorky ({script.count('{')} vs {script.count('}')})")
                     break
             if errors:
                 fail(label, ", ".join(errors))
@@ -84,6 +105,9 @@ def test_basic():
         except Exception as e:
             fail(label, str(e))
 
+# ─────────────────────────────────────────────
+# 2. Nastavení a klíče
+# ─────────────────────────────────────────────
 def test_settings():
     section("2. Nastavení a klíče")
     try:
@@ -94,26 +118,39 @@ def test_settings():
             if d.get("has_api_key"):
                 ok("Anthropic API klíč nastaven")
             else:
-                fail("Anthropic API klíč CHYBÍ – scraping nefunguje")
+                fail("Anthropic API klíč CHYBÍ")
             if d.get("has_stripe_key"):
                 ok("Stripe klíč nastaven")
             else:
-                fail("Stripe klíč CHYBÍ – platby nefungují")
+                fail("Stripe klíč CHYBÍ")
+            # Zkontroluj pricing typy
+            pb = d.get("pricing_base")
+            if isinstance(pb, (int, float)) and pb > 0:
+                ok("pricing_base je číslo", f"{pb} EUR")
+            else:
+                fail("pricing_base není číslo", f"hodnota: {pb!r}")
         else:
             fail("GET /api/settings", f"status {r.status_code}")
     except Exception as e:
         fail("GET /api/settings", str(e))
 
+# ─────────────────────────────────────────────
+# 3. Hotely CRUD + portál
+# ─────────────────────────────────────────────
 def test_hotels():
     section("3. Hotely CRUD + portál")
     hotel_id = None
     token = None
 
-    # Vytvoř
     try:
-        r = requests.post(f"{BASE}/api/hotels", json={"name":"E2E Test Hotel","url":"https://example.com","bed_count":50,"email":"test@test.com"}, timeout=10)
+        r = requests.post(f"{BASE}/api/hotels", json={
+            "name": "E2E Test Hotel",
+            "url": "https://example.com",
+            "bed_count": 50,
+            "email": "test@test.com"
+        }, timeout=10)
         d = r.json()
-        if r.status_code == 200 and d.get("hotel",{}).get("id"):
+        if r.status_code == 200 and d.get("hotel", {}).get("id"):
             hotel_id = d["hotel"]["id"]
             ok("Vytvoření hotelu", f"ID: {hotel_id[:8]}…")
         else:
@@ -123,30 +160,42 @@ def test_hotels():
         fail("Vytvoření hotelu", str(e))
         return None, None
 
-    # Načti
-    try:
-        r = requests.get(f"{BASE}/api/hotels/{hotel_id}", timeout=10)
-        d = r.json()
-        ok("Načtení hotelu") if r.status_code==200 else fail("Načtení hotelu", f"status {r.status_code}")
-    except Exception as e:
-        fail("Načtení hotelu", str(e))
-
-    # Aktualizuj
-    try:
-        r = requests.patch(f"{BASE}/api/hotels/{hotel_id}", json={"star_rating":4,"checkin_time":"14:00"}, timeout=10)
-        d = r.json()
-        if r.status_code==200 and d.get("hotel",{}).get("star_rating")==4:
-            ok("Aktualizace hotelu (star_rating)")
-        else:
-            fail("Aktualizace hotelu", f"star_rating={d.get('hotel',{}).get('star_rating')}")
-    except Exception as e:
-        fail("Aktualizace hotelu", str(e))
+    for req_fn, label, check_fn in [
+        (
+            lambda: requests.get(f"{BASE}/api/hotels/{hotel_id}", timeout=10),
+            "Načtení hotelu",
+            lambda r: r.status_code == 200
+        ),
+        (
+            lambda: requests.patch(f"{BASE}/api/hotels/{hotel_id}", json={"star_rating": 4, "checkin_time": "14:00"}, timeout=10),
+            "Aktualizace hotelu (star_rating)",
+            lambda r: r.status_code == 200 and r.json().get("hotel", {}).get("star_rating") == 4
+        ),
+        (
+            lambda: requests.patch(f"{BASE}/api/hotels/{hotel_id}", json={
+                "whatsapp_number": "+420111222333",
+                "whatsapp_wellness": "+420111222334",
+                "whatsapp_restaurant": "+420111222335",
+                "whatsapp_sport": "+420111222336"
+            }, timeout=10),
+            "WhatsApp čísla (více oddělení)",
+            lambda r: r.status_code == 200 and r.json().get("hotel", {}).get("whatsapp_wellness") == "+420111222334"
+        ),
+    ]:
+        try:
+            r = req_fn()
+            if check_fn(r):
+                ok(label)
+            else:
+                fail(label, f"status {r.status_code}, data: {str(r.json())[:80]}")
+        except Exception as e:
+            fail(label, str(e))
 
     # Completeness
     try:
         r = requests.get(f"{BASE}/api/hotels/{hotel_id}/completeness", timeout=10)
         d = r.json()
-        if r.status_code==200 and "score" in d:
+        if r.status_code == 200 and "score" in d:
             ok("Completeness skóre", f"{d['score']}%")
         else:
             fail("Completeness", f"status {r.status_code}")
@@ -157,12 +206,12 @@ def test_hotels():
     try:
         r = requests.get(f"{BASE}/api/hotels/{hotel_id}/qr", timeout=15)
         d = r.json()
-        if r.status_code==200 and d.get("qr_base64"):
-            url = d.get("guest_url","")
+        if r.status_code == 200 and d.get("qr_base64"):
+            url = d.get("guest_url", "")
             if "localhost" in url:
                 fail("QR kód URL obsahuje localhost!", url)
             else:
-                ok("QR kód generován", url)
+                ok("QR kód generován", url[:60])
         else:
             fail("QR kód", f"status {r.status_code}")
     except Exception as e:
@@ -172,13 +221,13 @@ def test_hotels():
     try:
         r = requests.get(f"{BASE}/api/hotels/{hotel_id}/portal-link", timeout=10)
         d = r.json()
-        if r.status_code==200 and d.get("portal_url"):
+        if r.status_code == 200 and d.get("portal_url"):
             url = d["portal_url"]
             token = d.get("token")
             if "localhost" in url:
                 fail("Portal link URL obsahuje localhost!", url)
             else:
-                ok("Portal link", url[:60]+"…")
+                ok("Portal link", url[:60] + "…")
         else:
             fail("Portal link", f"status {r.status_code}")
     except Exception as e:
@@ -187,15 +236,18 @@ def test_hotels():
     # Leták PDF
     try:
         r = requests.get(f"{BASE}/api/hotels/{hotel_id}/flyer", timeout=30)
-        if r.status_code==200 and "pdf" in r.headers.get("content-type",""):
+        if r.status_code == 200 and "pdf" in r.headers.get("content-type", ""):
             ok("Leták PDF", f"{len(r.content)} bytes")
         else:
-            fail("Leták PDF", f"status {r.status_code}, content-type: {r.headers.get('content-type')}")
+            fail("Leták PDF", f"status {r.status_code}")
     except Exception as e:
         fail("Leták PDF", str(e))
 
     return hotel_id, token
 
+# ─────────────────────────────────────────────
+# 4. Hotel portál API
+# ─────────────────────────────────────────────
 def test_portal(hotel_id, token):
     section("4. Hotel portál API")
     if not token:
@@ -217,74 +269,121 @@ def test_portal(hotel_id, token):
         except Exception as e:
             fail(f"GET {label}", str(e))
 
-    # Portal update – star_rating
+    # Portal update – více WA čísel
     try:
-        r = requests.patch(f"{BASE}/api/hotel-portal/update?token={token}", json={"star_rating":3,"checkin_time":"15:00"}, timeout=10)
+        r = requests.patch(f"{BASE}/api/hotel-portal/update?token={token}", json={
+            "star_rating": 3,
+            "checkin_time": "15:00",
+            "whatsapp_wellness": "+420999888777",
+            "whatsapp_restaurant": "+420999888778"
+        }, timeout=10)
         d = r.json()
-        if r.status_code==200 and d.get("hotel",{}).get("star_rating")==3:
-            ok("Portal update – star_rating uložen")
+        if r.status_code == 200 and d.get("hotel", {}).get("star_rating") == 3:
+            ok("Portal update – star_rating + WA čísla uložena")
         else:
-            fail("Portal update – star_rating", f"vráceno: {d.get('hotel',{}).get('star_rating')}")
+            fail("Portal update", f"vráceno: {str(d)[:80]}")
     except Exception as e:
         fail("Portal update", str(e))
 
+# ─────────────────────────────────────────────
+# 5. Guest API
+# ─────────────────────────────────────────────
 def test_guest(hotel_id):
     section("5. Guest API")
 
-    # Aktivuj hotel
     try:
         requests.post(f"{BASE}/api/hotels/{hotel_id}/subscription?active=true", timeout=10)
     except:
         pass
 
-    # Guest data
     try:
         r = requests.get(f"{BASE}/api/guest/{hotel_id}", timeout=10)
         d = r.json()
-        if r.status_code==200 and d.get("hotel"):
-            ok("GET /api/guest/{id}", d["hotel"].get("name",""))
+        if r.status_code == 200 and d.get("hotel"):
+            ok("GET /api/guest/{id}", d["hotel"].get("name", ""))
         else:
             fail("GET /api/guest/{id}", f"status {r.status_code}")
     except Exception as e:
         fail("GET /api/guest/{id}", str(e))
 
-    # Guest HTML
     try:
         r = requests.get(f"{BASE}/guest/{hotel_id}", timeout=10)
-        if r.status_code==200 and "SmartestGuide" in r.text:
+        if r.status_code == 200 and "SmartestGuide" in r.text:
             ok("GET /guest/{id} HTML")
         else:
             fail("GET /guest/{id} HTML", f"status {r.status_code}")
     except Exception as e:
         fail("GET /guest/{id} HTML", str(e))
 
+    # Chat endpoint
+    try:
+        r = requests.post(f"{BASE}/api/guest/chat", json={
+            "hotel_id": hotel_id,
+            "message": "What time is check-in?",
+            "language": "en",
+            "history": []
+        }, timeout=30)
+        if r.status_code == 200:
+            d = r.json()
+            if d.get("reply"):
+                ok("POST /api/guest/chat", f"odpověď: {d['reply'][:60]}…")
+            else:
+                fail("POST /api/guest/chat", "prázdná odpověď")
+        else:
+            fail("POST /api/guest/chat", f"status {r.status_code}")
+    except Exception as e:
+        fail("POST /api/guest/chat", str(e))
+
+# ─────────────────────────────────────────────
+# 6. Ceník — dynamicky z API
+# ─────────────────────────────────────────────
 def test_pricing():
     section("6. Ceník")
-    cases = [(50,300),(100,300),(150,450),(200,600)]
-    for beds, expected in cases:
+    try:
+        s = requests.get(f"{BASE}/api/settings", timeout=10).json()
+        base      = int(s.get("pricing_base", 200))
+        threshold = int(s.get("pricing_threshold", 100))
+        per_bed   = float(s.get("pricing_per_bed", 3))
+    except Exception as e:
+        fail("Načtení ceníku z /api/settings", str(e))
+        return
+
+    def expected_price(beds):
+        if beds <= threshold:
+            return base
+        return int(base + (beds - threshold) * per_bed)
+
+    ok(f"Ceník načten z API", f"{base} EUR base, threshold {threshold}, +{per_bed} EUR/lůžko")
+
+    for beds in [50, 100, 150, 200]:
+        expected = expected_price(beds)
         try:
             r = requests.get(f"{BASE}/api/pricing?beds={beds}", timeout=10)
             d = r.json()
-            if r.status_code==200 and d.get("monthly_eur")==expected:
+            if r.status_code == 200 and d.get("monthly_eur") == expected:
                 ok(f"{beds} lůžek → {expected} EUR")
             else:
                 fail(f"{beds} lůžek", f"očekáváno {expected}, dostáno {d.get('monthly_eur')}")
         except Exception as e:
             fail(f"Ceník {beds} lůžek", str(e))
 
+# ─────────────────────────────────────────────
+# 7. Faktury
+# ─────────────────────────────────────────────
 def test_invoices(hotel_id):
-    section("8. Faktury")
+    section("7. Faktury")
 
-    # Aktivuj hotel aby šlo generovat fakturu
     try:
         requests.post(f"{BASE}/api/hotels/{hotel_id}/subscription?active=true", timeout=10)
     except:
         pass
 
-    # Nastavení firmy
+    # Company settings
     try:
         r = requests.post(f"{BASE}/api/settings/company", json={
-            "company_name": "Test s.r.o.", "company_email": "test@test.com"
+            "company_name": "Test s.r.o.",
+            "company_email": "test@test.com",
+            "company_ico": "12345678"
         }, timeout=10)
         ok("POST /api/settings/company") if r.status_code == 200 else fail("POST /api/settings/company", f"status {r.status_code}")
     except Exception as e:
@@ -308,9 +407,9 @@ def test_invoices(hotel_id):
         if r.status_code == 200 and d.get("invoice", {}).get("id"):
             inv_id = d["invoice"]["id"]
             num = d["invoice"].get("invoice_number", "")
-            ok("Generování faktury", f"{num}")
+            ok("Generování faktury", num)
         else:
-            fail("Generování faktury", str(d))
+            fail("Generování faktury", str(d)[:100])
     except Exception as e:
         fail("Generování faktury", str(e))
 
@@ -337,11 +436,11 @@ def test_invoices(hotel_id):
         if r.status_code == 200 and d.get("invoice", {}).get("status") == "paid":
             ok("PATCH /api/invoices/{id}/status", "→ paid")
         else:
-            fail("PATCH /api/invoices/{id}/status", str(d))
+            fail("PATCH /api/invoices/{id}/status", str(d)[:80])
     except Exception as e:
         fail("PATCH /api/invoices/{id}/status", str(e))
 
-    # PDF stažení
+    # PDF faktury
     try:
         r = requests.get(f"{BASE}/api/invoices/{inv_id}/pdf", timeout=30)
         if r.status_code == 200 and "pdf" in r.headers.get("content-type", ""):
@@ -352,24 +451,73 @@ def test_invoices(hotel_id):
                 detail = r.json().get("detail", r.text[:150])
             except:
                 detail = r.text[:150]
-            fail("GET /api/invoices/{id}/pdf", f"status {r.status_code} – {detail}")
+            fail("GET /api/invoices/{id}/pdf", f"status {r.status_code} — {detail}")
     except Exception as e:
         fail("GET /api/invoices/{id}/pdf", str(e))
 
+# ─────────────────────────────────────────────
+# 8. Legal stránky
+# ─────────────────────────────────────────────
+def test_legal():
+    section("8. Legal stránky")
+    for path, label, check_text in [
+        ("/privacy",          "Privacy Policy EN", "Privacy Policy"),
+        ("/privacy?lang=cs",  "Privacy Policy CZ", "Zásady ochrany"),
+        ("/terms",            "Terms EN",           "Terms of Service"),
+        ("/terms?lang=cs",    "Terms CZ",            "Obchodní podmínky"),
+    ]:
+        try:
+            r = requests.get(f"{BASE}{path}", timeout=10)
+            if r.status_code == 200 and check_text in r.text:
+                ok(label)
+            else:
+                fail(label, f"status {r.status_code}, text chybí: '{check_text}'")
+        except Exception as e:
+            fail(label, str(e))
 
+    # CZ/EN přepínač
+    try:
+        r = requests.get(f"{BASE}/privacy", timeout=10)
+        if "lang=cs" in r.text and "lang=en" in r.text:
+            ok("Privacy — CZ/EN přepínač přítomen")
+        else:
+            fail("Privacy — CZ/EN přepínač chybí")
+    except Exception as e:
+        fail("Privacy CZ/EN přepínač", str(e))
+
+# ─────────────────────────────────────────────
+# 9. Widget
+# ─────────────────────────────────────────────
+def test_widget(hotel_id):
+    section("9. Widget.js")
+    try:
+        r = requests.get(f"{BASE}/widget.js?hotel_id={hotel_id}", timeout=10)
+        if r.status_code == 200 and "SmartestGuide" in r.text:
+            ok("GET /widget.js", f"{len(r.content)} bytes")
+        else:
+            fail("GET /widget.js", f"status {r.status_code}")
+    except Exception as e:
+        fail("GET /widget.js", str(e))
+
+# ─────────────────────────────────────────────
+# 10. Úklid
+# ─────────────────────────────────────────────
 def cleanup(hotel_id):
-    section("7. Úklid")
+    section("10. Úklid")
     try:
         r = requests.delete(f"{BASE}/api/hotels/{hotel_id}", timeout=10)
-        if r.status_code==200:
+        if r.status_code == 200:
             ok("Testovací hotel smazán")
         else:
             fail("Mazání hotelu", f"status {r.status_code}")
     except Exception as e:
         fail("Mazání hotelu", str(e))
 
+# ─────────────────────────────────────────────
+# Souhrn
+# ─────────────────────────────────────────────
 def summary():
-    total = len(passed)+len(failed)+len(skipped)
+    total = len(passed) + len(failed) + len(skipped)
     print(f"\n{BOLD}{'═'*55}{RESET}")
     print(f"{BOLD}  SOUHRN TESTŮ{RESET}")
     print(f"{'═'*55}")
@@ -388,21 +536,31 @@ def summary():
         print(f"{RED}{BOLD}  ⚠️  {len(failed)} testů selhalo{RESET}")
     print(f"{'═'*55}\n")
 
+# ─────────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────────
 if __name__ == "__main__":
     print(f"\n{BOLD}SmartestGuide – E2E Test Runner{RESET}")
     print(f"URL: {BLUE}{BASE}{RESET}\n")
+
     test_basic()
     test_settings()
     hotel_id, token = test_hotels()
+
     if hotel_id:
         test_portal(hotel_id, token)
         test_guest(hotel_id)
     else:
         skip("Portal testy", "hotel se nepodařilo vytvořit")
         skip("Guest testy", "hotel se nepodařilo vytvořit")
+
     test_pricing()
+    test_invoices(hotel_id) if hotel_id else skip("Fakturační testy", "hotel chybí")
+    test_legal()
+    test_widget(hotel_id) if hotel_id else skip("Widget test", "hotel chybí")
+
     if hotel_id:
-        test_invoices(hotel_id)
         cleanup(hotel_id)
+
     summary()
     sys.exit(1 if failed else 0)
