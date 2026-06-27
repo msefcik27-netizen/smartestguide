@@ -615,6 +615,7 @@ function toggleKeyVisibility(){
 let scraped_data=null, all_hotels=[];
 
 async function loadHotels(){
+  await loadPricingSettings();
   addLog('info','Načítám hotely','hotels');
   try{
     const r=await fetch(API+'/api/hotels');
@@ -628,11 +629,27 @@ async function loadHotels(){
   }catch(e){addLog('error','Nelze načíst hotely: '+e.message,'hotels');toast('Nelze načíst hotely','err');}
 }
 
-function calcPriceNum(b){return!b?0:b<=100?200:200+(b-100)*3;}
+// Globální cenové proměnné — načtené z API
+let _pBase=200, _pThreshold=100, _pPerBed=3;
+
+async function loadPricingSettings(){
+  try {
+    const r=await fetch(API+'/api/settings');
+    const d=await r.json();
+    _pBase      = d.pricing_base      || 200;
+    _pThreshold = d.pricing_threshold || 100;
+    _pPerBed    = d.pricing_per_bed   || 3;
+  } catch(e){}
+}
+
+function calcPriceNum(b){
+  if(!b) return 0;
+  return b<=_pThreshold ? _pBase : _pBase+(b-_pThreshold)*_pPerBed;
+}
 function updateStats(){
   const t=all_hotels.length,a=all_hotels.filter(h=>h.subscription_active).length;
   const b=all_hotels.reduce((s,h)=>s+(h.bed_count||0),0);
-  const rev=all_hotels.filter(h=>h.subscription_active).reduce((s,h)=>s+calcPriceNum(h.bed_count||0),0);
+  const rev=all_hotels.filter(h=>h.subscription_active).reduce((s,h)=>s+(h.subscription_price||calcPriceNum(h.bed_count||0)),0);
   const potential=all_hotels.reduce((s,h)=>s+calcPriceNum(h.bed_count||0),0);
   document.getElementById('stat-total').textContent=t;
   document.getElementById('stat-active').textContent=a;
@@ -729,7 +746,7 @@ function renderHotelsTable(){
     <!-- LŮŽKA / CENA -->
     <td style="font-size:12px;white-space:nowrap;min-width:80px">
       <span style="font-weight:600">${h.bed_count||'<span style="color:var(--muted)">–</span>'}</span> lůžek<br>
-      <span style="color:var(--accent2);font-weight:600">${calcPriceNum(h.bed_count||0)} €</span>
+      <span style="color:var(--accent2);font-weight:600">${h.subscription_active && h.subscription_price ? h.subscription_price : calcPriceNum(h.bed_count||0)} €</span>
     </td>
     <!-- STAV -->
     <td style="min-width:90px">
@@ -799,7 +816,7 @@ async function startScrape(){
 }
 
 function showScrapedResult(data){
-  const beds=data.bed_count||0,price=beds?calcPriceNum(beds):200;
+  const beds=data.bed_count||0,price=data.subscription_active&&data.subscription_price?data.subscription_price:(beds?calcPriceNum(beds):_pBase);
   document.getElementById('result-price').textContent=price+' EUR';
   document.getElementById('result-beds-info').textContent=beds?`${beds} lůžek`:'Lůžka nebyla nalezena – doplň ručně';
   const fields=[['name','Název hotelu','text'],['star_rating','Hvězdičky ★ (1–5)','number'],['address','Adresa','text'],['phone','Telefon','text'],['email','E-mail','text'],
@@ -843,7 +860,7 @@ function openPanel(id){
   addLog('info',`Detail hotelu: ${h.name||id}`,'hotels');
   document.getElementById('panel-name').textContent=h.name||'Bez názvu';
   document.getElementById('panel-url').textContent=h.url||h.source_url||'';
-  const price=calcPriceNum(h.bed_count||0);
+  const price=h.subscription_active&&h.subscription_price?h.subscription_price:calcPriceNum(h.bed_count||0);
   let html=`<div class="price-pill"><div><div style="font-size:11px;color:var(--muted)">Měsíční platba</div><div class="amount">${price} EUR</div></div><div class="note">${h.bed_count?h.bed_count+' lůžek':'lůžka neuvedena'}</div></div>`;
   // Origin badge
   const originLabel = h.origin==='automatic' ? '🤖 Automatický (landing page)' : '✋ Ruční (admin)';

@@ -1,0 +1,48 @@
+name: E2E Test po deployi
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python setup
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalace závislostí
+        run: pip install requests
+
+      - name: Čekej na nasazení nového commitu (max 5 min)
+        run: |
+          EXPECTED="${{ github.sha }}"
+          echo "Čekám na commit: ${EXPECTED:0:7}..."
+          for i in $(seq 1 60); do
+            DEPLOYED=$(curl -s https://smartestguide-production.up.railway.app/api/version | python3 -c "import sys,json; print(json.load(sys.stdin).get('commit',''))" 2>/dev/null || echo "")
+            if [[ "$DEPLOYED" == "$EXPECTED"* ]] || [[ "$EXPECTED" == "$DEPLOYED"* && ${#DEPLOYED} -ge 7 ]]; then
+              echo "✅ Deploy dokončen (pokus $i): $DEPLOYED"
+              break
+            fi
+            echo "⏳ Pokus $i/60 – nasazeno: '${DEPLOYED:0:7}', čekám na: '${EXPECTED:0:7}'"
+            sleep 5
+          done
+          # Finální kontrola
+          DEPLOYED=$(curl -s https://smartestguide-production.up.railway.app/api/version | python3 -c "import sys,json; print(json.load(sys.stdin).get('commit',''))" 2>/dev/null || echo "")
+          if [[ "$DEPLOYED" != "$EXPECTED"* && "$EXPECTED" != "$DEPLOYED"* ]]; then
+            echo "⚠️  Timeout – spouštím testy na aktuální verzi ($DEPLOYED)"
+          fi
+
+      - name: Spusť E2E testy
+        run: python test_flow.py
+
+      - name: Výsledek
+        if: failure()
+        run: echo "❌ Testy selhaly – zkontroluj výstup výše"

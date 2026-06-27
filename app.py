@@ -941,6 +941,12 @@ def toggle_subscription(hotel_id: str, active: bool):
     if active:
         beds = db["hotels"][hotel_id].get("bed_count", 0)
         db["hotels"][hotel_id]["subscription_paid_beds"] = beds
+        s = db_get_settings()
+        base = s.get("pricing_base", 200)
+        threshold = s.get("pricing_threshold", 100)
+        per_bed = s.get("pricing_per_bed", 3)
+        price = base if beds <= threshold else base + (beds - threshold) * per_bed
+        db["hotels"][hotel_id]["subscription_price"] = round(price, 2)
     db_save(db)
     return {"status": "ok", "subscription_active": active}
 
