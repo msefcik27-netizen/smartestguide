@@ -185,17 +185,20 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
     <li><a href="#about">About</a></li>
     <li><a href="#contact">Contact</a></li>
   </ul>
-  <a href="/login" class="nav-cta-ghost">Přihlásit</a>
   <a href="#register" class="nav-cta" id="nav-cta">Get started →</a>
   <div class="lang-switch">
-    <button onclick="setLang('en')" id="btn-en" class="lang-sw-btn active">EN</button>
-    <button onclick="setLang('cs')" id="btn-cs" class="lang-sw-btn">CZ</button>
+    <button onclick="setLang('en')" id="btn-en" class="lang-sw-btn active"><img src="https://flagcdn.com/w20/gb.png" width="16" height="11" style="border-radius:2px;vertical-align:middle" alt="EN"> EN</button>
+    <button onclick="setLang('cs')" id="btn-cs" class="lang-sw-btn"><img src="https://flagcdn.com/w20/cz.png" width="16" height="11" style="border-radius:2px;vertical-align:middle" alt="CZ"> CZ</button>
+    <button onclick="setLang('de')" id="btn-de" class="lang-sw-btn"><img src="https://flagcdn.com/w20/de.png" width="16" height="11" style="border-radius:2px;vertical-align:middle" alt="DE"> DE</button>
+    <button onclick="setLang('es')" id="btn-es" class="lang-sw-btn"><img src="https://flagcdn.com/w20/es.png" width="16" height="11" style="border-radius:2px;vertical-align:middle" alt="ES"> ES</button>
+    <button onclick="setLang('zh')" id="btn-zh" class="lang-sw-btn"><img src="https://flagcdn.com/w20/cn.png" width="16" height="11" style="border-radius:2px;vertical-align:middle" alt="ZH"> 中文</button>
+    <button onclick="setLang('ja')" id="btn-ja" class="lang-sw-btn"><img src="https://flagcdn.com/w20/jp.png" width="16" height="11" style="border-radius:2px;vertical-align:middle" alt="JA"> 日本語</button>
   </div>
   <button class="nav-burger" onclick="toggleMenu()">☰</button>
 </nav>
 
 <section class="hero">
-  <div class="hero-badge" id="hero-badge">✦ AI Concierge pro váš hotel</div>
+  <div class="hero-badge" id="hero-badge">✦ AI-Powered Hotel Concierge</div>
   <h1 id="hero-h1">Stop answering the same questions. Let <span class="grad-text">Alex</span> handle it.</h1>
   <p id="hero-p">SMARTEST GUIDE answers your guests' questions 24/7 — in 14 languages, from a QR code at reception. No app installation required, no extra staff.</p>
   <div class="hero-btns">
@@ -249,14 +252,14 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
   <div class="section-inner">
     <div class="section-header">
       <span class="eyebrow" id="how-eyebrow">Process</span>
-      <h2 id="how-h2">Jak dlouho trvá <span class="grad-text">zaškolení personálu?</span></h2>
-      <p id="how-p">SMARTEST GUIDE vyškolíte během jednoho dne — a neustále ho můžete učit novým věcem, které si pamatuje.</p>
+      <h2 id="how-h2">How long does it take to <span class="grad-text">train your staff?</span></h2>
+      <p id="how-p">SMARTEST GUIDE trains in one day — and you can keep teaching it new things it will remember.</p>
     </div>
     <div class="steps">
-      <div class="step"><div class="step-num">01</div><h3 id="step1-h">Registrace</h3><p id="step1-p">Zadejte název hotelu, URL webu a počet lůžek. Dokončete platbu.</p></div>
-      <div class="step"><div class="step-num">02</div><h3 id="step2-h">Importujeme data hotelu</h3><p id="step2-p">Připravíme profil vašeho hotelu na základě informací které zadáte — rychle a bez zbytečné námahy.</p></div>
-      <div class="step"><div class="step-num">03</div><h3 id="step3-h">Doplňte a přizpůsobte</h3><p id="step3-p">Přihlaste se do portálu a doplňte chybějící detaily — otevírací doby, služby, lokální tipy. Alex se to okamžitě naučí.</p></div>
-      <div class="step"><div class="step-num">04</div><h3 id="step4-h">Vytiskněte a umístěte</h3><p id="step4-p">Vytiskněte QR plakát a umístěte ho do lobby nebo pokojů. Hosté naskenují a začnou chatovat.</p></div>
+      <div class="step"><div class="step-num">01</div><h3 id="step1-h">Register</h3><p id="step1-p">Fill in your hotel name, website URL and number of beds. Complete the payment.</p></div>
+      <div class="step"><div class="step-num">02</div><h3 id="step2-h">We import your hotel data</h3><p id="step2-p">We prepare your hotel profile based on the information you provide — quickly and without unnecessary effort on your part.</p></div>
+      <div class="step"><div class="step-num">03</div><h3 id="step3-h">Review & complete</h3><p id="step3-p">Log into your hotel portal and fill in any missing details — hours, services, local tips. Alex will learn it instantly.</p></div>
+      <div class="step"><div class="step-num">04</div><h3 id="step4-h">Print & place</h3><p id="step4-p">Print your QR poster and place it in the lobby or rooms. Guests scan and start chatting instantly.</p></div>
     </div>
   </div>
 </section>
@@ -265,16 +268,16 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
   <div class="section-inner">
     <div class="section-header">
       <span class="eyebrow" id="feat-eyebrow">Features</span>
-      <h2 id="feat-h2">Co hosté <span class="grad-text">ocení</span></h2>
-      <p id="feat-p">Rychlé odpovědi na jejich otázky — kdykoliv, srozumitelně, ve jejich jazyce.</p>
+      <h2 id="feat-h2">What guests <span class="grad-text">appreciate</span></h2>
+      <p id="feat-p">Quick answers to their questions — anytime, clearly, in their language.</p>
     </div>
     <div class="features-grid">
-      <div class="feature"><div class="feat-icon">🌍</div><div class="feat-body"><h3>Ve vašem jazyce</h3><p>Rychlé odpovědi ve 14 jazycích — Alex automaticky rozpozná jazyk hosta a odpovídá přirozeně.</p></div></div>
-      <div class="feature"><div class="feat-icon teal">🎤</div><div class="feat-body"><h3>Hlasové ovládání</h3><p>Hosté mohou otázku říct nahlas. Funguje na Android i Chrome — bez nutnosti psát.</p></div></div>
-      <div class="feature"><div class="feat-icon">📱</div><div class="feat-body"><h3>Bez nutnosti instalace aplikace</h3><p>Hosté naskenují QR kód a concierge se okamžitě otevře v prohlížeči. Žádné stahování, žádný účet.</p></div></div>
-      <div class="feature"><div class="feat-icon teal">🌤</div><div class="feat-body"><h3>Aktuální počasí</h3><p>Okamžité místní počasí pro lokalitu vašeho hotelu — teplota, vítr, vlhkost — v reálném čase.</p></div></div>
-      <div class="feature"><div class="feat-icon">🗺</div><div class="feat-body"><h3>Tipy v okolí</h3><p>Alex zná okolí: restaurace, památky, aktivity — vše co vy sami doporučíte v portálu.</p></div></div>
-      <div class="feature"><div class="feat-icon teal">✏️</div><div class="feat-body"><h3>Neustále se učí</h3><p>SMARTEST GUIDE vyškolíte za jeden den — a průběžně ho učíte novým věcem, které si pamatuje.</p></div></div>
+      <div class="feature"><div class="feat-icon">🌍</div><div class="feat-body"><h3>In your language</h3><p>Quick answers in 14 languages — Alex automatically detects the guest's language and responds naturally.</p></div></div>
+      <div class="feature"><div class="feat-icon teal">🎤</div><div class="feat-body"><h3>Voice control</h3><p>Guests can say their question out loud. Works on Android and Chrome — no typing required.</p></div></div>
+      <div class="feature"><div class="feat-icon">📱</div><div class="feat-body"><h3>No app installation needed</h3><p>Guests scan a QR code and the concierge opens instantly in their browser. No download, no account.</p></div></div>
+      <div class="feature"><div class="feat-icon teal">🌤</div><div class="feat-body"><h3>Live weather</h3><p>Instant local weather for your hotel's location — temperature, wind, humidity — in real time.</p></div></div>
+      <div class="feature"><div class="feat-icon">🗺</div><div class="feat-body"><h3>Local tips</h3><p>Alex knows the neighbourhood: restaurants, sights, activities — all curated by you in the portal.</p></div></div>
+      <div class="feature"><div class="feat-icon teal">✏️</div><div class="feat-body"><h3>Always learning</h3><p>SMARTEST GUIDE trains in one day — and you can keep teaching it new things it will remember.</p></div></div>
     </div>
     <div class="lang-strip">
       <img src="https://flagcdn.com/w40/cz.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="CZ">
@@ -299,44 +302,44 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
   <div class="section-inner">
     <div class="section-header">
       <span class="eyebrow" id="pricing-eyebrow">Pricing</span>
-      <h2 id="pricing-h2">Jednoduché, <span class="grad-text">transparentní ceny</span></h2>
-      <p id="pricing-p">Bez skrytých poplatků, bez dlouhodobých smluv. Zrušení kdykoliv.</p>
+      <h2 id="pricing-h2">Simple, transparent <span class="grad-text">pricing</span></h2>
+      <p id="pricing-p">No hidden fees, no long-term contracts. Cancel anytime.</p>
     </div>
     <div class="pricing-grid">
       <div class="price-card">
-        <div class="price-name">Základní</div>
-        <div class="price-amount" id="price-standard"><span class="pre">od</span><span class="currency">€</span><span class="num" id="price-base-val">199</span><span class="suffix">/měsíc</span></div>
-        <div class="price-desc">1 až <span id="price-threshold-val">100</span> lůžek</div>
+        <div class="price-name">Basic</div>
+        <div class="price-amount" id="price-standard"><span class="pre">from</span><span class="currency">€</span><span class="num" id="price-base-val">199</span><span class="suffix">/month</span></div>
+        <div class="price-desc">1 to <span id="price-threshold-val">100</span> beds</div>
         <ul class="price-features">
-          <li>AI concierge ve 14 jazycích</li>
-          <li>Hlasové ovládání</li>
-          <li>Aktuální počasí</li>
-          <li>QR plakát (print-ready PDF)</li>
-          <li>Hotelový management portál</li>
-          <li>Měsíční faktura PDF</li>
+          <li>AI concierge in 14 languages</li>
+          <li>Voice control</li>
+          <li>Live weather</li>
+          <li>QR poster (print-ready PDF)</li>
+          <li>Hotel management portal</li>
+          <li>Monthly invoice PDF</li>
         </ul>
-        <a href="#register" class="btn-primary" style="display:block;text-align:center">Začít zdarma →</a>
-        <div class="price-note" style="color:var(--teal);font-weight:600">✓ 14 dní zdarma — karta se neúčtuje</div>
+        <a href="#register" class="btn-primary" style="display:block;text-align:center">Get started →</a>
+        <div class="price-note" style="color:var(--teal);font-weight:600">✓ 14-day free trial — no charge today</div>
       </div>
       <div class="price-card featured">
-        <div class="price-name">Rozšířené</div>
-        <div class="price-amount" id="price-growing"><span class="currency">€</span><span class="num" id="price-base-val2">199</span><span class="suffix"> + €<span id="price-per-val">3</span>/lůžko</span></div>
-        <div class="price-desc">Nad 100 lůžek</div>
+        <div class="price-name">Extended</div>
+        <div class="price-amount" id="price-growing"><span class="currency">€</span><span class="num" id="price-base-val2">199</span><span class="suffix"> + €<span id="price-per-val">3</span>/bed</span></div>
+        <div class="price-desc">Over 100 beds</div>
         <ul class="price-features">
-          <li>Vše ze Základního tarifu</li>
-          <li>€3 za každé lůžko nad 100</li>
-          <li>Prioritní podpora</li>
-          <li>Přednostní přístup k novinkám</li>
-          <li>Vlastní branding (připravujeme)</li>
-          <li>Analytika (připravujeme)</li>
+          <li>Everything in Basic</li>
+          <li>€3 per bed over 100</li>
+          <li>Priority support</li>
+          <li>Early access to new features</li>
+          <li>Custom branding (coming soon)</li>
+          <li>Analytics (coming soon)</li>
         </ul>
-        <a href="#register" class="btn-primary" style="display:block;text-align:center">Začít zdarma →</a>
-        <div class="price-note" style="color:var(--teal);font-weight:600">✓ 14 dní zdarma — karta se neúčtuje</div>
+        <a href="#register" class="btn-primary" style="display:block;text-align:center">Get started →</a>
+        <div class="price-note" style="color:var(--teal);font-weight:600">✓ 14-day free trial — no charge today</div>
       </div>
     </div>
   </div>
-    <div style="text-align:center;margin-top:32px;padding:18px 24px;background:rgba(0,212,170,.06);border:1px solid rgba(0,212,170,.2);border-radius:12px;max-width:700px;margin-left:auto;margin-right:auto">
-      <span style="font-size:14px;color:var(--dim)">💡 <strong style="color:var(--text)">Srovnání:</strong> SMARTEST GUIDE pracuje 24/7 za nízký měsíční paušál — je vždy příjemný, nikdy nespí, nepotřebuje dovolenou ani pojištění. <strong style="color:var(--teal)">€<span id="price-per-day">7</span>/den</strong> za nepřetržitý servis ve 14 jazycích.</span>
+    <div style="text-align:center;margin-top:32px;padding:18px 24px;background:rgba(0,212,170,.06);border:1px solid rgba(0,212,170,.2);border-radius:12px;max-width:700px;margin-left:auto;margin-right:auto" id="pricing-compare-box">
+      <span style="font-size:14px;color:var(--dim)" id="pricing-compare">💡 <strong style="color:var(--text)">Perspective:</strong> SMARTEST GUIDE works 24/7 for a low monthly fee — always friendly, never sleeps, never needs a holiday or insurance. <strong style="color:var(--teal)">€<span id="price-per-day">7</span>/day</strong> for non-stop service in 14 languages.</span>
     </div>
 </div>
 </section>
@@ -344,25 +347,25 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
 <section>
   <div class="section-inner">
     <div class="section-header">
-      <span class="eyebrow" id="reviews-eyebrow">Výsledky</span>
-      <h2 id="reviews-h2">Co SMARTEST GUIDE <span class="grad-text">přináší</span></h2>
+      <span class="eyebrow" id="reviews-eyebrow">Results</span>
+      <h2 id="reviews-h2">What SMARTEST GUIDE <span class="grad-text">delivers</span></h2>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;margin-bottom:40px">
       <div style="background:var(--ink2);border:1px solid var(--border);border-radius:16px;padding:28px 24px;text-align:center">
         <div style="font-family:var(--font-display);font-size:42px;font-weight:800;color:var(--gold);line-height:1.1;margin-bottom:8px">24/7</div>
-        <div style="font-size:14px;color:var(--dim);line-height:1.5" id="stat-card1">Vždy dostupný<br>nikdy nespí, nepotřebuje dovolenou</div>
+        <div style="font-size:14px;color:var(--dim);line-height:1.5" id="stat-card1">Always available<br>never sleeps, never on holiday</div>
       </div>
       <div style="background:var(--ink2);border:1px solid var(--border);border-radius:16px;padding:28px 24px;text-align:center">
         <div style="font-family:var(--font-display);font-size:42px;font-weight:800;color:var(--gold);line-height:1.1;margin-bottom:8px">14</div>
-        <div style="font-size:14px;color:var(--dim);line-height:1.5" id="stat-card2">jazyků — hosté dostanou odpověď<br>ve svém jazyce</div>
+        <div style="font-size:14px;color:var(--dim);line-height:1.5" id="stat-card2">languages — guests get answers<br>in their own language</div>
       </div>
       <div style="background:var(--ink2);border:1px solid var(--border);border-radius:16px;padding:28px 24px;text-align:center">
         <div style="font-family:var(--font-display);font-size:42px;font-weight:800;color:var(--gold);line-height:1.1;margin-bottom:8px">&lt;2s</div>
-        <div style="font-size:14px;color:var(--dim);line-height:1.5" id="stat-card3">průměrná doba odpovědi<br>okamžitá reakce hostem</div>
+        <div style="font-size:14px;color:var(--dim);line-height:1.5" id="stat-card3">average response time<br>instant reply for every guest</div>
       </div>
       <div style="background:var(--ink2);border:1px solid var(--border);border-radius:16px;padding:28px 24px;text-align:center">
         <div style="font-family:var(--font-display);font-size:42px;font-weight:800;color:var(--gold);line-height:1.1;margin-bottom:8px">€0</div>
-        <div style="font-size:14px;color:var(--dim);line-height:1.5" id="stat-card4">náklady na instalaci<br>žádný hardware, žádné IT</div>
+        <div style="font-size:14px;color:var(--dim);line-height:1.5" id="stat-card4">installation cost<br>no hardware, no IT required</div>
       </div>
     </div>
   </div>
@@ -374,7 +377,7 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       <div class="about-text">
         <span class="eyebrow" id="about-eyebrow">About us</span>
         <h2 id="about-h2">Built for hoteliers,<br><span class="grad-text">by people who travel</span></h2>
-        <p>SMARTEST GUIDE vznikl z jednoduché frustration: why do guests still have to call reception to ask when breakfast ends, where the parking is, or what's worth seeing nearby?</p>
+        <p>SMARTEST GUIDE was born from a simple frustration: why do guests still have to call reception to ask when breakfast ends, where the parking is, or what's worth seeing nearby?</p>
         <p>We built a system that reads your website, learns your hotel, and becomes available to guests in seconds — via a QR code that works in any browser, in any language.</p>
         <p>We're a small team based in the Czech Republic, focused on the European hospitality market.</p>
       </div>
@@ -592,6 +595,7 @@ const TRANSLATIONS={
     step4_h:"Print & place",step4_p:"Download your QR poster and place it in the lobby or on the room. Guests scan it and instantly get answers in their own language.",
     feat_eyebrow:"Features",feat_h2:"What guests <span class=\"grad-text\">appreciate</span>",feat_p:"Quick answers to their questions — anytime, clearly, in their language.",
     pricing_eyebrow:"Pricing",pricing_h2:"Simple, transparent <span class=\"grad-text\">pricing</span>",pricing_p:"No hidden fees, no long-term contracts. Cancel anytime.",
+    pricing_compare:"💡 <strong style=\"color:var(--text)\">Perspective:</strong> SMARTEST GUIDE works 24/7 for a low monthly fee — always friendly, never sleeps, never needs a holiday or insurance. <strong style=\"color:var(--teal)\">€PERDAY/day</strong> for non-stop service in 14 languages.",
     reviews_eyebrow:"Results",reviews_h2:"What SMARTEST GUIDE <span class=\"grad-text\">delivers</span>",
     stat_card1:"Always available<br>never sleeps, never on holiday",
     stat_card2:"languages — guests get answers<br>in their own language",
@@ -616,7 +620,8 @@ const TRANSLATIONS={
     step3_h:"Zkontrolujte a doplňte",step3_p:"Přihlašte se do portálu a doplňte chybějící informace — hodiny, služby, tipy z okolí. Myslete jako váš host: autentické zážitky, skrytá místní místa, nejlepší místní jídlo.",
     step4_h:"Vytiskněte a umístěte",step4_p:"Stáhněte QR plakát a umístěte ho v lobby nebo pokoji. Hosté ho naskenují a okamžitě dostanou odpovědi ve svém jazyce.",
     feat_eyebrow:"Funkce",feat_h2:"Co hosté <span class=\"grad-text\">ocení</span>",feat_p:"Rychlé odpovědi na jejich otázky — kdykoliv, srozumitelně, ve jejich jazyce.",
-    pricing_eyebrow:"Ceník",pricing_h2:"Jednoduché, transparentní <span class=\"grad-text\">ceny</span>",pricing_p:"Platíte za lůžka, ne za funkce. Bez poplatku za nastavení, bez dlouhodobé smlouvy. Zrušení kdykoliv.",
+    pricing_eyebrow:"Ceník",pricing_h2:"Jednoduché, transparentní <span class=\"grad-text\">ceny</span>",pricing_p:"Bez skrytých poplatků, bez dlouhodobých smluv. Zrušení kdykoliv.",
+    pricing_compare:"💡 <strong style=\"color:var(--text)\">Srovnání:</strong> SMARTEST GUIDE pracuje 24/7 za nízký měsíční paušál — je vždy příjemný, nikdy nespí, nepotřebuje dovolenou ani pojištění. <strong style=\"color:var(--teal)\">€PERDAY/den</strong> za nepřetržitý servis ve 14 jazycích.",
     reviews_eyebrow:"Výsledky",reviews_h2:"Co SMARTEST GUIDE <span class=\"grad-text\">přináší</span>",
     stat_card1:"Vždy dostupný<br>nikdy nespí, nepotřebuje dovolenou",
     stat_card2:"jazyků — hosté dostanou odpověď<br>ve svém jazyce",
@@ -627,6 +632,110 @@ const TRANSLATIONS={
     reg_eyebrow:"Začít",reg_h2:"Zaregistrujte svůj hotel <span class=\"grad-text\">dnes</span>",reg_p:"Vyplňte údaje níže. Po zaplacení připravíme profil vašeho hotelu a zašleme vám přístup do portálu.",
     reg_btn:"Pokračovat k platbě →",reg_note:"Bezpečná platba přes Stripe · Bez dlouhodobé smlouvy · Zrušení kdykoliv",
     contact_eyebrow:"Kontakt",contact_h2:"Máte dotaz?<br><span class=\"grad-text\">Napište nám.</span>",contact_p:"Jsme malý tým a odpovídáme na každou zprávu osobně.",
+  },
+  de:{
+    nav_how:"So funktioniert's",nav_features:"Funktionen",nav_pricing:"Preise",nav_about:"Über uns",nav_contact:"Kontakt",nav_cta:"Jetzt starten →",
+    hero_badge:"KI-Concierge für Hotels",
+    hero_h1:"Ihre Gäste verdienen <span class=\"grad-text\">sofortige Antworten</span>",
+    hero_p:"SMARTEST GUIDE beantwortet die Fragen Ihrer Gäste 24/7 — in 14 Sprachen, per QR-Code an der Rezeption. Keine App erforderlich, kein Extra-Personal.",
+    hero_btn1:"14 Tage kostenlos →",hero_btn2:"So funktioniert's",
+    stat1_label:"Unterstützte Sprachen",stat2_label:"Immer verfügbar",stat3_label:"Durchschnittliche Antwortzeit",stat4_label:"App-Installationen",
+    how_eyebrow:"Prozess",how_h2:"Wie lange dauert die <span class=\"grad-text\">Einarbeitung?</span>",how_p:"SMARTEST GUIDE ist in einem Tag einsatzbereit — und lernt ständig neue Dinge, die er sich merkt.",
+    step1_h:"Registrierung",step1_p:"Geben Sie Hotelnamen, Website-URL und Bettenanzahl ein. Zahlung abschließen.",
+    step2_h:"Wir importieren Ihre Hoteldaten",step2_p:"Wir bereiten Ihr Hotelprofil anhand Ihrer Angaben vor — schnell und ohne unnötigen Aufwand.",
+    step3_h:"Prüfen & ergänzen",step3_p:"Melden Sie sich im Portal an und ergänzen Sie fehlende Details — Öffnungszeiten, Services, lokale Tipps.",
+    step4_h:"Drucken & aufstellen",step4_p:"Drucken Sie das QR-Plakat und stellen Sie es in der Lobby oder in Zimmern auf.",
+    feat_eyebrow:"Funktionen",feat_h2:"Was Gäste <span class=\"grad-text\">schätzen</span>",feat_p:"Schnelle Antworten auf ihre Fragen — jederzeit, klar, in ihrer Sprache.",
+    pricing_eyebrow:"Preise",pricing_h2:"Einfache, transparente <span class=\"grad-text\">Preise</span>",pricing_p:"Keine versteckten Gebühren, keine Langzeitverträge. Jederzeit kündbar.",
+    pricing_compare:"💡 <strong style=\"color:var(--text)\">Perspektive:</strong> SMARTEST GUIDE arbeitet 24/7 für eine niedrige monatliche Pauschale — immer freundlich, schläft nie, braucht keinen Urlaub. <strong style=\"color:var(--teal)\">€PERDAY/Tag</strong> für ununterbrochenen Service in 14 Sprachen.",
+    reviews_eyebrow:"Ergebnisse",reviews_h2:"Was SMARTEST GUIDE <span class=\"grad-text\">leistet</span>",
+    stat_card1:"Immer verfügbar<br>schläft nie, braucht keinen Urlaub",
+    stat_card2:"Sprachen — Gäste bekommen Antworten<br>in ihrer eigenen Sprache",
+    stat_card3:"durchschnittliche Antwortzeit<br>sofortige Reaktion für jeden Gast",
+    stat_card4:"Installationskosten<br>keine Hardware, keine IT nötig",
+    about_eyebrow:"Über uns",about_h2:"Entwickelt für Hoteliers,<br><span class=\"grad-text\">von Menschen die reisen</span>",
+    about_p:"SMARTEST GUIDE entstand aus unserer eigenen Frustration: Warum müssen Gäste noch immer die Rezeption anrufen, um zu fragen, wann das Frühstück endet oder wo der Parkplatz ist? Wir sind ein kleines Team in Prag, das sich ausschließlich auf den europäischen Hotelmarkt konzentriert.",
+    reg_eyebrow:"Loslegen",reg_h2:"Registrieren Sie Ihr Hotel <span class=\"grad-text\">heute</span>",reg_p:"Füllen Sie das Formular aus. Nach der Zahlung bereiten wir Ihr Hotelprofil vor und senden Ihnen Zugang zum Portal.",
+    reg_btn:"Weiter zur Zahlung →",reg_note:"14 Tage kostenlos · Sichere Zahlung via Stripe · Jederzeit kündbar",
+    contact_eyebrow:"Kontakt",contact_h2:"Haben Sie eine Frage?<br><span class=\"grad-text\">Schreiben Sie uns.</span>",contact_p:"Wir sind ein kleines Team und antworten auf jede Nachricht persönlich.",
+  },
+  es:{
+    nav_how:"Cómo funciona",nav_features:"Funciones",nav_pricing:"Precios",nav_about:"Nosotros",nav_contact:"Contacto",nav_cta:"Empezar →",
+    hero_badge:"Concierge IA para hoteles",
+    hero_h1:"Sus huéspedes merecen <span class=\"grad-text\">respuestas inmediatas</span>",
+    hero_p:"SMARTEST GUIDE responde las preguntas de sus huéspedes 24/7 — en 14 idiomas, desde un código QR en recepción. Sin instalar aplicación, sin personal extra.",
+    hero_btn1:"14 días gratis →",hero_btn2:"Cómo funciona",
+    stat1_label:"Idiomas disponibles",stat2_label:"Siempre disponible",stat3_label:"Tiempo medio de respuesta",stat4_label:"Apps a instalar",
+    how_eyebrow:"Proceso",how_h2:"¿Cuánto tarda <span class=\"grad-text\">la formación?</span>",how_p:"SMARTEST GUIDE se forma en un día — y puede seguir aprendiendo cosas nuevas que recordará.",
+    step1_h:"Registro",step1_p:"Introduzca el nombre del hotel, la URL del sitio web y el número de camas. Complete el pago.",
+    step2_h:"Importamos sus datos",step2_p:"Preparamos el perfil de su hotel con la información que nos proporcione — rápido y sin esfuerzo.",
+    step3_h:"Revisar y completar",step3_p:"Inicie sesión en el portal y complete los detalles que falten — horarios, servicios, consejos locales.",
+    step4_h:"Imprimir y colocar",step4_p:"Imprima el cartel QR y colóquelo en el vestíbulo o en las habitaciones.",
+    feat_eyebrow:"Funciones",feat_h2:"Lo que los huéspedes <span class=\"grad-text\">aprecian</span>",feat_p:"Respuestas rápidas a sus preguntas — siempre, claramente, en su idioma.",
+    pricing_eyebrow:"Precios",pricing_h2:"Precios simples y <span class=\"grad-text\">transparentes</span>",pricing_p:"Sin cargos ocultos, sin contratos a largo plazo. Cancelación en cualquier momento.",
+    pricing_compare:"💡 <strong style=\"color:var(--text)\">Perspectiva:</strong> SMARTEST GUIDE trabaja 24/7 por una baja cuota mensual — siempre amable, nunca duerme, no necesita vacaciones. <strong style=\"color:var(--teal)\">€PERDAY/día</strong> de servicio ininterrumpido en 14 idiomas.",
+    reviews_eyebrow:"Resultados",reviews_h2:"Lo que SMARTEST GUIDE <span class=\"grad-text\">aporta</span>",
+    stat_card1:"Siempre disponible<br>nunca duerme, nunca de vacaciones",
+    stat_card2:"idiomas — los huéspedes reciben respuestas<br>en su propio idioma",
+    stat_card3:"tiempo medio de respuesta<br>respuesta instantánea para cada huésped",
+    stat_card4:"coste de instalación<br>sin hardware, sin IT",
+    about_eyebrow:"Nosotros",about_h2:"Creado para hoteleros,<br><span class=\"grad-text\">por personas que viajan</span>",
+    about_p:"SMARTEST GUIDE nació de nuestra propia frustración: ¿por qué los huéspedes siguen teniendo que llamar a recepción para preguntar cuándo termina el desayuno? Somos un pequeño equipo en Praga, centrado exclusivamente en el mercado hotelero europeo.",
+    reg_eyebrow:"Empezar",reg_h2:"Registre su hotel <span class=\"grad-text\">hoy</span>",reg_p:"Complete el formulario. Tras el pago, prepararemos su perfil y le enviaremos acceso al portal.",
+    reg_btn:"Continuar al pago →",reg_note:"14 días gratis · Pago seguro via Stripe · Cancelación cuando quiera",
+    contact_eyebrow:"Contacto",contact_h2:"¿Tiene alguna pregunta?<br><span class=\"grad-text\">Escríbanos.</span>",contact_p:"Somos un equipo pequeño y respondemos a cada mensaje personalmente.",
+  },
+  zh:{
+    nav_how:"工作原理",nav_features:"功能",nav_pricing:"价格",nav_about:"关于我们",nav_contact:"联系我们",nav_cta:"立即开始 →",
+    hero_badge:"酒店 AI 礼宾服务",
+    hero_h1:"您的客人值得<span class=\"grad-text\">即时回答</span>",
+    hero_p:"SMARTEST GUIDE 全天候 24/7 用 14 种语言回答客人的问题——通过前台的二维码，无需安装应用，无需额外员工。",
+    hero_btn1:"免费试用 14 天 →",hero_btn2:"了解更多",
+    stat1_label:"支持的语言",stat2_label:"全天候可用",stat3_label:"平均响应时间",stat4_label:"需安装的应用",
+    how_eyebrow:"流程",how_h2:"培训需要<span class=\"grad-text\">多长时间？</span>",how_p:"SMARTEST GUIDE 一天内即可上线——并且可以不断学习您输入的新内容。",
+    step1_h:"注册",step1_p:"填写酒店名称、网站 URL 和床位数量，完成付款。",
+    step2_h:"我们导入您的酒店数据",step2_p:"我们根据您提供的信息快速准备酒店资料，无需您花费额外精力。",
+    step3_h:"审核并完善",step3_p:"登录酒店门户，补充缺失的详细信息——营业时间、服务、本地推荐。",
+    step4_h:"打印并放置",step4_p:"打印二维码海报，放置在大堂或房间内。客人扫描后即可立即获得帮助。",
+    feat_eyebrow:"功能",feat_h2:"客人<span class=\"grad-text\">喜爱的</span>",feat_p:"随时用他们自己的语言清晰地回答问题。",
+    pricing_eyebrow:"价格",pricing_h2:"简单透明的<span class=\"grad-text\">定价</span>",pricing_p:"无隐藏费用，无长期合同，随时可取消。",
+    pricing_compare:"💡 <strong style=\"color:var(--text)\">对比：</strong> SMARTEST GUIDE 以低廉的月费全天候工作——始终友好，永不休眠，不需要假期。<strong style=\"color:var(--teal)\">每天 €PERDAY</strong>，14 种语言不间断服务。",
+    reviews_eyebrow:"成果",reviews_h2:"SMARTEST GUIDE <span class=\"grad-text\">带来什么</span>",
+    stat_card1:"全天候可用<br>永不休眠，不需要假期",
+    stat_card2:"种语言——客人用<br>自己的语言获得回答",
+    stat_card3:"平均响应时间<br>每位客人即时回复",
+    stat_card4:"安装成本<br>无需硬件，无需 IT",
+    about_eyebrow:"关于我们",about_h2:"为酒店经营者打造，<br><span class=\"grad-text\">由旅行者创建</span>",
+    about_p:"SMARTEST GUIDE 源于我们自身的困惑：为什么客人还需要打电话到前台询问早餐时间或停车场在哪里？我们是一个总部位于布拉格的小团队，专注于欧洲酒店市场。",
+    reg_eyebrow:"开始使用",reg_h2:"立即<span class=\"grad-text\">注册您的酒店</span>",reg_p:"填写以下表格。付款后，我们将准备您的酒店资料并发送门户访问权限。",
+    reg_btn:"继续付款 →",reg_note:"14 天免费试用 · Stripe 安全支付 · 随时取消",
+    contact_eyebrow:"联系我们",contact_h2:"有问题？<br><span class=\"grad-text\">给我们留言。</span>",contact_p:"我们是一个小团队，会亲自回复每一条消息。",
+  },
+  ja:{
+    nav_how:"仕組み",nav_features:"機能",nav_pricing:"料金",nav_about:"私たちについて",nav_contact:"お問い合わせ",nav_cta:"今すぐ始める →",
+    hero_badge:"ホテル向け AI コンシェルジュ",
+    hero_h1:"お客様は<span class=\"grad-text\">即座の回答</span>を求めています",
+    hero_p:"SMARTEST GUIDE は 14 言語でゲストの質問に 24 時間 365 日対応します——フロントの QR コードから、アプリ不要、追加スタッフ不要。",
+    hero_btn1:"14 日間無料 →",hero_btn2:"仕組みを見る",
+    stat1_label:"対応言語数",stat2_label:"常時利用可能",stat3_label:"平均応答時間",stat4_label:"インストール不要",
+    how_eyebrow:"プロセス",how_h2:"研修には<span class=\"grad-text\">どのくらいかかりますか？</span>",how_p:"SMARTEST GUIDE は 1 日でセットアップ完了——新しい情報を追加すれば、すぐに覚えてくれます。",
+    step1_h:"登録",step1_p:"ホテル名、ウェブサイトの URL、ベッド数を入力して支払いを完了してください。",
+    step2_h:"ホテルデータをインポート",step2_p:"ご提供いただいた情報を基に、ホテルプロファイルを迅速に作成します。",
+    step3_h:"確認・補完",step3_p:"ポータルにログインして、営業時間やサービス、地元のおすすめ情報などを追加してください。",
+    step4_h:"印刷・設置",step4_p:"QR ポスターを印刷してロビーや客室に設置してください。ゲストがスキャンするとすぐに利用できます。",
+    feat_eyebrow:"機能",feat_h2:"ゲストが<span class=\"grad-text\">喜ぶこと</span>",feat_p:"いつでも、明確に、ゲストの言語で質問に素早く回答します。",
+    pricing_eyebrow:"料金",pricing_h2:"シンプルで透明な<span class=\"grad-text\">料金体系</span>",pricing_p:"隠れた費用なし、長期契約なし、いつでも解約可能。",
+    pricing_compare:"💡 <strong style=\"color:var(--text)\">比較：</strong> SMARTEST GUIDE は低い月額料金で 24 時間働きます——常に親切で、眠らず、休暇も保険も不要。<strong style=\"color:var(--teal)\">1 日 €PERDAY</strong>、14 言語で絶え間ないサービスを提供。",
+    reviews_eyebrow:"実績",reviews_h2:"SMARTEST GUIDE が<span class=\"grad-text\">もたらすもの</span>",
+    stat_card1:"常時利用可能<br>眠らず、休暇不要",
+    stat_card2:"言語対応——ゲストは<br>母国語で回答を受けられます",
+    stat_card3:"平均応答時間<br>すべてのゲストに即座に返答",
+    stat_card4:"導入コスト<br>ハードウェア不要、IT 不要",
+    about_eyebrow:"私たちについて",about_h2:"ホテル経営者のために、<br><span class=\"grad-text\">旅行者が作った</span>",
+    about_p:"SMARTEST GUIDE は私たち自身の不満から生まれました。なぜゲストは朝食の時間や駐車場の場所を知るためにフロントに電話しなければならないのか？私たちはプラハを拠点とする小さなチームで、欧州のホテル市場に特化しています。",
+    reg_eyebrow:"始めましょう",reg_h2:"今日<span class=\"grad-text\">ホテルを登録する</span>",reg_p:"以下のフォームに記入してください。お支払い後、ホテルプロファイルを準備してポータルへのアクセスをお送りします。",
+    reg_btn:"お支払いへ進む →",reg_note:"14 日間無料 · Stripe による安全な支払い · いつでも解約可能",
+    contact_eyebrow:"お問い合わせ",contact_h2:"ご質問がありますか？<br><span class=\"grad-text\">お気軽にご連絡ください。</span>",contact_p:"私たちは小さなチームで、すべてのメッセージに直接返信しています。",
   }
 };
 
@@ -658,15 +767,27 @@ async function loadLandingPricing(){
     if(bedsEl && bedsEl.value) bedsEl.dispatchEvent(new Event('input'));
   } catch(e) { /* fallback na výchozí hodnoty v HTML */ }
 }
-document.addEventListener('DOMContentLoaded', loadLandingPricing);
+document.addEventListener('DOMContentLoaded', ()=>{
+  loadLandingPricing();
+  const nav=(navigator.language||navigator.userLanguage||'en').toLowerCase();
+  if(nav.startsWith('cs')||nav.startsWith('sk')) setLang('cs');
+  else if(nav.startsWith('de')) setLang('de');
+  else if(nav.startsWith('es')) setLang('es');
+  else if(nav.startsWith('zh')) setLang('zh');
+  else if(nav.startsWith('ja')) setLang('ja');
+  else setLang('en');
+});
 
 function setLang(lang){
+  if(!TRANSLATIONS[lang]) lang='en';
   currentLang=lang;
   const T=TRANSLATIONS[lang];
-  document.getElementById('btn-en').classList.toggle('active',lang==='en');
-  document.getElementById('btn-cs').classList.toggle('active',lang==='cs');
+  ['en','cs','de','es','zh','ja'].forEach(l=>{
+    const btn=document.getElementById('btn-'+l);
+    if(btn) btn.classList.toggle('active',l===lang);
+  });
   document.getElementById('nav-cta').textContent=T.nav_cta;
-  document.querySelector('.nav-logo').innerHTML='Smartest<span class="t">Guide</span>';
+  // nav-logo se nemění při přepnutí jazyka
   const navLinks=document.querySelectorAll('.nav-links a');
   ['nav_how','nav_features','nav_pricing','nav_about','nav_contact'].forEach((k,i)=>{if(navLinks[i])navLinks[i].textContent=T[k];});
   const set=(id,html)=>{const el=document.getElementById(id);if(el)el.innerHTML=html;};
@@ -681,6 +802,8 @@ function setLang(lang){
   setText('step4-h',T.step4_h);setText('step4-p',T.step4_p);
   setText('feat-eyebrow',T.feat_eyebrow);set('feat-h2',T.feat_h2);setText('feat-p',T.feat_p);
   setText('pricing-eyebrow',T.pricing_eyebrow);set('pricing-h2',T.pricing_h2);setText('pricing-p',T.pricing_p);
+  const perDay = document.getElementById('price-per-day')?.textContent || '7';
+  set('pricing-compare', T.pricing_compare.replace('PERDAY', perDay));
   setText('reviews-eyebrow',T.reviews_eyebrow);set('reviews-h2',T.reviews_h2);
   set('stat-card1',T.stat_card1);set('stat-card2',T.stat_card2);set('stat-card3',T.stat_card3);set('stat-card4',T.stat_card4);
   setText('about-eyebrow',T.about_eyebrow);set('about-h2',T.about_h2);
