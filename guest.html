@@ -255,7 +255,7 @@
 <div id="onboarding">
   <div class="ob-hero">
     <div class="ob-avatar-wrap">
-      <div class="ob-avatar">🤖</div>
+      <div class="ob-avatar" style="color:#0a0b0f;font-weight:800;font-size:44px">✦</div>
       <div class="ob-avatar-ring"></div>
     </div>
     <div class="ob-hotel-name" id="ob-hotel-name">Načítám…</div>
@@ -289,7 +289,7 @@
 <!-- CHAT -->
 <div id="chat-screen">
   <div class="chat-header">
-    <div class="hdr-avatar">🤖<span class="hdr-status" id="hdr-status"></span></div>
+    <div class="hdr-avatar" style="background:linear-gradient(135deg,#f0c060,#00d4aa);color:#0a0b0f;font-weight:800;font-size:14px">✦<span class="hdr-status" id="hdr-status"></span></div>
     <div class="hdr-info">
       <div class="hdr-name" id="hdr-hotel-name" style="font-size:15px;font-weight:700;color:var(--text)">–</div>
       <div class="hdr-sub" style="font-size:11px;color:var(--accent2)">AI Concierge · SmartestGuide</div>
@@ -565,7 +565,7 @@ function addBot(text){
   const html=formatBotText(text);
   const d=document.createElement('div');
   d.className='msg bot';
-  d.innerHTML=`<div class="msg-av">🤖</div><div class="msg-body"><div class="msg-bubble">${html}</div><div class="msg-time">${time}</div></div>`;
+  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(135deg,#f0c060,#00d4aa);color:#0a0b0f;font-weight:800;font-size:16px">✦</div><div class="msg-body"><div class="msg-bubble">${html}</div><div class="msg-time">${time}</div></div>`;
   msgs.appendChild(d);
   msgs.scrollTop=msgs.scrollHeight;
 }
@@ -585,7 +585,7 @@ function showTyping(){
   const msgs=document.getElementById('messages');
   const d=document.createElement('div');
   d.id='typing';d.className='msg bot';
-  d.innerHTML=`<div class="msg-av">🤖</div><div class="msg-body"><div class="msg-bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div></div>`;
+  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(135deg,#f0c060,#00d4aa);color:#0a0b0f;font-weight:800;font-size:16px">✦</div><div class="msg-body"><div class="msg-bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div></div>`;
   msgs.appendChild(d);msgs.scrollTop=msgs.scrollHeight;
   document.getElementById('hdr-status').className='hdr-status typing';
 }
@@ -774,7 +774,7 @@ async function fetchWeather(){
     const time=new Date().toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
     const d=document.createElement('div');
     d.className='msg bot';
-    d.innerHTML=`<div class="msg-av">🤖</div><div class="msg-body">
+    d.innerHTML=`<div class="msg-av" style="background:linear-gradient(135deg,#f0c060,#00d4aa);color:#0a0b0f;font-weight:800;font-size:16px">✦</div><div class="msg-body">
       <div class="msg-bubble">
         <div class="chat-card">
           <div class="chat-card-title">🌤 Počasí — ${esc(loc)}</div>

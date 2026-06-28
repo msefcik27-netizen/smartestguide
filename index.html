@@ -4,13 +4,13 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SmartestGuide – Admin</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <style>
     :root {
       --bg:#0d0f1a; --surface:#161828; --card:#1e2135; --border:#2a2f4a;
-      --accent:#6c63ff; --accent2:#00d4aa; --danger:#ff4f6a;
-      --text:#e8eaf6; --muted:#7a7fa8; --success:#2ecc87; --warn:#ffaa33;
-      --radius:12px; --font-head:'Space Grotesk',sans-serif; --font-body:'Inter',sans-serif;
+      --accent:#f0c060; --accent2:#00d4aa; --danger:#ff4f6a;
+      --text:#f0ece0; --muted:#7a7fa8; --success:#2ecc87; --warn:#ffaa33;
+      --radius:12px; --font-head:'Syne',sans-serif; --font-body:'Inter',sans-serif;
     }
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;line-height:1.6;min-height:100vh}
@@ -22,8 +22,8 @@
     .logo span{color:var(--accent)}
     .logo sub{font-size:10px;color:var(--muted);display:block;font-weight:400;margin-top:2px}
     .nav-item{padding:10px 24px;cursor:pointer;border-left:3px solid transparent;color:var(--muted);font-size:13px;font-weight:500;transition:all .15s;display:flex;align-items:center;gap:10px;position:relative}
-    .nav-item:hover{color:var(--text);background:rgba(108,99,255,.08)}
-    .nav-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(108,99,255,.1)}
+    .nav-item:hover{color:var(--text);background:rgba(240,192,96,.08)}
+    .nav-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(240,192,96,.1)}
     .nav-icon{font-size:16px;width:20px;text-align:center}
     .nav-badge{position:absolute;right:14px;top:50%;transform:translateY(-50%);background:var(--danger);color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 6px;min-width:18px;text-align:center;display:none}
     .sidebar-footer{margin-top:auto;padding:16px 24px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)}
@@ -62,7 +62,7 @@
 
     /* Buttons */
     .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s;white-space:nowrap}
-    .btn-primary{background:var(--accent);color:#fff} .btn-primary:hover{background:#7c75ff}
+    .btn-primary{background:var(--accent);color:#0a0b0f;font-weight:700} .btn-primary:hover{background:#e8a830;color:#0a0b0f}
     .btn-secondary{background:var(--surface);color:var(--text);border:1px solid var(--border)} .btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
     .btn-danger{background:rgba(255,79,106,.15);color:var(--danger);border:1px solid rgba(255,79,106,.3)} .btn-danger:hover{background:rgba(255,79,106,.25)}
     .btn-success{background:rgba(46,204,135,.15);color:var(--success);border:1px solid rgba(46,204,135,.3)}
@@ -74,7 +74,7 @@
     thead tr{border-bottom:1px solid var(--border)}
     th{text-align:left;padding:10px 14px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:600}
     td{padding:14px;border-bottom:1px solid rgba(42,47,74,.6);font-size:13px}
-    tr:hover td{background:rgba(108,99,255,.04)}
+    tr:hover td{background:rgba(240,192,96,.04)}
     .badge{display:inline-block;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:600}
     .badge-green{background:rgba(46,204,135,.15);color:var(--success)}
     .badge-gray{background:rgba(122,127,168,.15);color:var(--muted)}
@@ -92,12 +92,12 @@
     .info-item-label{font-size:11px;color:var(--muted);margin-bottom:4px}
     .info-item-value{font-size:13px;font-weight:500}
     .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
-    .tag{background:rgba(108,99,255,.15);color:var(--accent);border:1px solid rgba(108,99,255,.3);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:500}
+    .tag{background:rgba(240,192,96,.15);color:var(--accent);border:1px solid rgba(240,192,96,.3);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:500}
     .qr-box{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;display:flex;align-items:center;gap:20px}
     .qr-box img{width:110px;height:110px;border-radius:8px}
 
     /* Price pill */
-    .price-pill{background:linear-gradient(135deg,rgba(108,99,255,.2),rgba(0,212,170,.2));border:1px solid rgba(108,99,255,.4);border-radius:10px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+    .price-pill{background:linear-gradient(135deg,rgba(240,192,96,.2),rgba(0,212,170,.2));border:1px solid rgba(240,192,96,.4);border-radius:10px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
     .price-pill .amount{font-family:var(--font-head);font-size:22px;font-weight:700;color:var(--accent2)}
     .price-pill .note{font-size:11px;color:var(--muted);margin-top:2px}
 
@@ -160,10 +160,11 @@
   </style>
 </head>
 <body>
+<div style="position:fixed;top:0;left:0;right:0;height:3px;z-index:9999;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#f0c060);box-shadow:0 0 10px rgba(0,212,170,.3)"></div>
 <div class="shell">
 
   <aside class="sidebar">
-    <div class="logo">Smartest<span>Guide</span><sub>Admin Panel v0.2</sub></div>
+    <div class="logo">SmartestGuide<span style="width:7px;height:7px;border-radius:50%;background:#f0c060;display:inline-block;margin-left:3px;margin-bottom:1px;box-shadow:0 0 8px rgba(240,192,96,.8)"></span><sub>Admin</sub></div>
     <div class="nav-item active" onclick="showPage('dashboard')"><span class="nav-icon">📊</span> Dashboard</div>
     <div class="nav-item" onclick="showPage('scrape')"><span class="nav-icon">🔍</span> Přidat hotel</div>
     <div class="nav-item" onclick="showPage('hotels')"><span class="nav-icon">🏨</span> Hotely</div>
@@ -763,7 +764,7 @@ function renderHotelsTable(){
     <!-- AKCE — 3×3 grid -->
     <td style="padding:8px;min-width:210px">
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px">
-        <button class="btn btn-primary" style="padding:5px 2px;font-size:10px;background:rgba(108,99,255,.2);color:var(--accent);border:1px solid rgba(108,99,255,.4)" onclick="openEdit('${h.id}')">✏ Editovat</button>
+        <button class="btn btn-primary" style="padding:5px 2px;font-size:10px;background:rgba(240,192,96,.2);color:var(--accent);border:1px solid rgba(240,192,96,.4)" onclick="openEdit('${h.id}')">✏ Editovat</button>
         <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px" onclick="showQrPopup('${h.id}','${esc(h.name||'')}')">📱 QR kód</button>
         <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px" onclick="openPanel('${h.id}')">ℹ Detail</button>
         <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(0,212,170,.4);color:var(--accent2)" onclick="showPortalLink('${h.id}','${esc(h.name||'')}')">🔗 Portál</button>
@@ -1052,7 +1053,7 @@ function openEdit(id){
             <button onclick="removeAdminCf(${i})" style="background:rgba(255,79,106,.1);border:1px solid rgba(255,79,106,.3);border-radius:6px;padding:6px 10px;color:var(--danger);cursor:pointer;font-size:11px">✕</button>
           </div>`).join('')}
         <div id="acf-add-row">
-          <button onclick="addAdminCf()" style="background:rgba(108,99,255,.1);border:1px solid rgba(108,99,255,.3);border-radius:6px;padding:7px 14px;color:var(--accent);cursor:pointer;font-size:12px;font-weight:600">+ Přidat informaci</button>
+          <button onclick="addAdminCf()" style="background:rgba(240,192,96,.1);border:1px solid rgba(240,192,96,.3);border-radius:6px;padding:7px 14px;color:var(--accent);cursor:pointer;font-size:12px;font-weight:600">+ Přidat informaci</button>
         </div>
       </div>
     </div>
@@ -1388,8 +1389,8 @@ function generatePdf(inv, co={}){
 <html><head><meta charset="UTF-8">
 <style>
   body{font-family:Arial,sans-serif;color:#1a1a2e;padding:40px;max-width:700px;margin:0 auto}
-  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px;padding-bottom:20px;border-bottom:3px solid #6c63ff}
-  .logo{font-size:24px;font-weight:700;color:#6c63ff}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px;padding-bottom:20px;border-bottom:3px solid #f0c060}
+  .logo{font-size:24px;font-weight:700;color:#f0c060}
   .logo span{color:#00d4aa}
   .invoice-title{font-size:28px;font-weight:700;color:#1a1a2e}
   .invoice-number{font-size:14px;color:#666;margin-top:4px}
@@ -1400,15 +1401,16 @@ function generatePdf(inv, co={}){
   .info-row:last-child{border-bottom:none}
   .info-label{color:#666}
   .info-value{font-weight:600;color:#1a1a2e}
-  .amount-box{background:linear-gradient(135deg,#6c63ff11,#00d4aa11);border:2px solid #6c63ff33;border-radius:12px;padding:20px 24px;margin:24px 0;text-align:center}
-  .amount-main{font-size:36px;font-weight:700;color:#6c63ff}
+  .amount-box{background:linear-gradient(135deg,#f0c06011,#00d4aa11);border:2px solid #f0c06033;border-radius:12px;padding:20px 24px;margin:24px 0;text-align:center}
+  .amount-main{font-size:36px;font-weight:700;color:#f0c060}
   .amount-sub{font-size:13px;color:#666;margin-top:4px}
   .footer{margin-top:40px;padding-top:20px;border-top:1px solid #eee;font-size:12px;color:#999;text-align:center}
   @media print{body{padding:20px}}
 </style>
 </head><body>
+<div style="position:fixed;top:0;left:0;right:0;height:3px;z-index:9999;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#f0c060);box-shadow:0 0 10px rgba(0,212,170,.3)"></div>
 <div class="header">
-  <div><div class="logo">Smartest<span>Guide</span></div><div style="font-size:12px;color:#999;margin-top:4px">smartestguide.com</div></div>
+  <div><div class="logo">SmartestGuide<span style="width:6px;height:6px;border-radius:50%;background:#f0c060;display:inline-block;margin-left:3px;box-shadow:0 0 6px rgba(240,192,96,.8)"></span></div><div style="font-size:12px;color:#9ba0c0;margin-top:4px">smartestguide.com</div></div>
   <div style="text-align:right">
     <div class="invoice-title">FAKTURA / INVOICE</div>
     <div class="invoice-number">${inv.invoice_number}</div>

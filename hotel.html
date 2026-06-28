@@ -4,13 +4,13 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SmartestGuide – Správa hotelu</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <style>
     :root {
       --bg:#0d0f1a; --surface:#161828; --card:#1e2135; --border:#2a2f4a;
-      --accent:#6c63ff; --accent2:#00d4aa; --danger:#ff4f6a;
-      --text:#e8eaf6; --muted:#7a7fa8; --success:#2ecc87; --warn:#ffaa33;
-      --radius:12px; --font-head:'Space Grotesk',sans-serif; --font-body:'Inter',sans-serif;
+      --accent:#f0c060; --accent2:#00d4aa; --danger:#ff4f6a;
+      --text:#f0ece0; --muted:#7a7fa8; --success:#2ecc87; --warn:#ffaa33;
+      --radius:12px; --font-head:'Syne',sans-serif; --font-body:'Inter',sans-serif;
     }
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;line-height:1.6;min-height:100vh}
@@ -31,9 +31,9 @@
     /* Sekce – accordion */
     .section{margin-bottom:12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
     .section-head{display:flex;align-items:center;gap:10px;padding:14px 18px;cursor:pointer;user-select:none;transition:background .15s}
-    .section-head:hover{background:rgba(108,99,255,.06)}
+    .section-head:hover{background:rgba(240,192,96,.06)}
     .section-head.open{border-bottom:1px solid var(--border)}
-    .section-icon{font-size:18px;width:34px;height:34px;background:rgba(108,99,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .section-icon{font-size:18px;width:34px;height:34px;background:rgba(240,192,96,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
     .section-title{font-family:var(--font-head);font-size:14px;font-weight:600}
     .section-desc{font-size:11px;color:var(--muted);margin-top:1px}
     .section-chevron{margin-left:auto;font-size:12px;color:var(--muted);transition:transform .2s;flex-shrink:0}
@@ -50,7 +50,7 @@
     .edit-table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
     .edit-table tr{border-bottom:1px solid rgba(42,47,74,.7)}
     .edit-table tr:last-child{border-bottom:none}
-    .edit-table tr:hover{background:rgba(108,99,255,.03)}
+    .edit-table tr:hover{background:rgba(240,192,96,.03)}
     .edit-table td:first-child{width:180px;padding:12px 16px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;font-weight:600;vertical-align:top;padding-top:14px}
     .edit-table td:last-child{padding:8px 12px 8px 0}
 
@@ -67,14 +67,14 @@
     .tags-wrap{display:flex;flex-wrap:wrap;gap:6px;padding:6px 10px;border:1px solid transparent;border-radius:6px;min-height:40px;cursor:text;transition:all .15s}
     .tags-wrap:hover{border-color:var(--border);background:var(--surface)}
     .tags-wrap:focus-within{border-color:var(--accent);background:var(--surface)}
-    .tag-item{background:rgba(108,99,255,.15);color:var(--accent);border:1px solid rgba(108,99,255,.3);border-radius:20px;padding:3px 10px;font-size:12px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+    .tag-item{background:rgba(240,192,96,.15);color:var(--accent);border:1px solid rgba(240,192,96,.3);border-radius:20px;padding:3px 10px;font-size:12px;display:flex;align-items:center;gap:6px;white-space:nowrap}
     .tag-item button{background:none;border:none;color:var(--accent);cursor:pointer;font-size:14px;line-height:1;padding:0;opacity:.7}
     .tag-item button:hover{opacity:1}
     .tag-input{border:none;background:transparent;color:var(--text);font-size:12px;outline:none;min-width:120px;padding:3px 4px}
 
     /* Buttons */
     .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:8px;font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s;white-space:nowrap}
-    .btn-primary{background:var(--accent);color:#fff} .btn-primary:hover{background:#7c75ff}
+    .btn-primary{background:var(--accent);color:#0a0b0f;font-weight:700} .btn-primary:hover{background:#e8a830;color:#0a0b0f}
     .btn-secondary{background:var(--surface);color:var(--text);border:1px solid var(--border)} .btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
     .btn:disabled{opacity:.5;cursor:not-allowed}
 
@@ -84,7 +84,7 @@
     .status-pill.inactive{background:rgba(122,127,168,.12);color:var(--muted);border:1px solid rgba(122,127,168,.3)}
 
     /* Info banner */
-    .info-banner{background:rgba(108,99,255,.08);border:1px solid rgba(108,99,255,.2);border-radius:10px;padding:14px 18px;font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.7}
+    .info-banner{background:rgba(240,192,96,.08);border:1px solid rgba(240,192,96,.2);border-radius:10px;padding:14px 18px;font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.7}
     .info-banner strong{color:var(--text)}
 
     /* Error/success */
@@ -94,12 +94,12 @@
 
     /* Toast */
     #portal-sidebar a{display:flex;align-items:center;gap:8px;padding:8px 16px;font-size:13px;color:var(--muted);text-decoration:none;border-left:2px solid transparent;transition:all .15s;cursor:pointer}
-    #portal-sidebar a:hover{color:var(--text);background:rgba(108,99,255,.06)}
-    #portal-sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:rgba(108,99,255,.08);font-weight:600}
+    #portal-sidebar a:hover{color:var(--text);background:rgba(240,192,96,.06)}
+    #portal-sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:rgba(240,192,96,.08);font-weight:600}
     #portal-sidebar .sidebar-section{padding:12px 16px 4px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-top:8px}
     #portal-sidebar a{display:flex;align-items:center;gap:8px;padding:8px 16px;font-size:13px;color:var(--muted);text-decoration:none;border-left:2px solid transparent;transition:all .15s;cursor:pointer}
-    #portal-sidebar a:hover{color:var(--text);background:rgba(108,99,255,.06)}
-    #portal-sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:rgba(108,99,255,.08);font-weight:600}
+    #portal-sidebar a:hover{color:var(--text);background:rgba(240,192,96,.06)}
+    #portal-sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:rgba(240,192,96,.08);font-weight:600}
     #portal-sidebar .sidebar-section{padding:12px 16px 4px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-top:8px}
     #toast{position:fixed;bottom:28px;right:28px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 18px;font-size:13px;display:none;z-index:999;max-width:320px;box-shadow:0 8px 32px rgba(0,0,0,.5)}
     #toast.show{display:block} #toast.ok{border-color:var(--success)} #toast.err{border-color:var(--danger)} #toast.warn{border-color:var(--warn)}
@@ -111,14 +111,15 @@
     /* Last saved */
     .last-saved{font-size:11px;color:var(--muted)}
   .plang-btn{background:none;border:none;color:var(--muted);font-size:11px;font-weight:700;padding:4px 7px;border-radius:5px;cursor:pointer;transition:all .15s}
-.plang-btn.active{background:var(--accent);color:#fff}
+.plang-btn.active{background:var(--accent);color:#0a0b0f;font-weight:700}
 </style>
 </head>
 <body>
+<div style="position:fixed;top:0;left:0;right:0;height:3px;z-index:9999;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#f0c060);box-shadow:0 0 10px rgba(0,212,170,.3)"></div>
 
 <div class="topbar">
   <div style="display:flex;align-items:center;gap:16px">
-    <div class="logo">Smartest<span>Guide</span></div>
+    <div class="logo">SmartestGuide<span style="width:6px;height:6px;border-radius:50%;background:#f0c060;display:inline-block;margin-left:3px;margin-bottom:1px;box-shadow:0 0 6px rgba(240,192,96,.8)"></span></div>
     <div class="hotel-name-bar">Správa hotelu: <strong id="hotel-name-bar">–</strong></div>
   </div>
   <div class="save-bar">
@@ -489,9 +490,8 @@ function renderPortal() {
       </div>
       <div id="embed-note" style="font-size:12px;margin-bottom:12px;padding:8px 12px;background:var(--card);border-radius:6px"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button onclick="copyEmbedCode()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer">📋 Kopírovat kód</button>
+        <button onclick="copyEmbedCode()" style="background:var(--accent);color:#0a0b0f;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer">📋 Kopírovat kód</button>
         <button onclick="previewWidget()" style="background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px 18px;font-size:13px;cursor:pointer">👁 Náhled</button>
-        <button onclick="openQrPoster()" style="background:#f0c060;color:#0a0b0f;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer">🖨️ QR plakát</button>
       </div>
     `, [])}
 
@@ -507,7 +507,7 @@ function renderPortal() {
             <button onclick="removeCf(${i})" style="background:rgba(255,79,106,.1);border:1px solid rgba(255,79,106,.3);border-radius:6px;padding:10px 12px;color:var(--danger);cursor:pointer;font-size:12px;margin-top:0">✕</button>
           </div>`).join('')}
         <div id="cf-add-row" style="margin-top:8px">
-          <button onclick="addCf()" style="background:rgba(108,99,255,.1);border:1px solid rgba(108,99,255,.3);border-radius:8px;padding:10px 18px;color:var(--accent);cursor:pointer;font-size:13px;font-weight:600">+ Přidat další informaci pro Alexe</button>
+          <button onclick="addCf()" style="background:rgba(240,192,96,.1);border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px 18px;color:var(--accent);cursor:pointer;font-size:13px;font-weight:600">+ Přidat další informaci pro Alexe</button>
         </div>
       </div>
     `, [])}
@@ -1112,7 +1112,7 @@ function generateInvoicePdf(inv){
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
 <style>
   body{font-family:Arial,sans-serif;color:#1a1a2e;padding:40px;max-width:700px;margin:0 auto}
-  .logo{font-size:24px;font-weight:700;color:#6c63ff;margin-bottom:4px}
+  .logo{font-size:24px;font-weight:700;color:#f0c060;margin-bottom:4px}
   .logo span{color:#00d4aa}
   h1{font-size:28px;font-weight:700;margin:0}
   .meta{font-size:13px;color:#666}
@@ -1120,12 +1120,13 @@ function generateInvoicePdf(inv){
   .label{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#999;margin-bottom:8px}
   .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:14px}
   .row:last-child{border-bottom:none}
-  .amount{background:#f7f7ff;border:2px solid #6c63ff33;border-radius:12px;padding:20px;text-align:center;margin:20px 0}
-  .amount-val{font-size:36px;font-weight:700;color:#6c63ff}
+  .amount{background:#f7f7ff;border:2px solid #f0c06033;border-radius:12px;padding:20px;text-align:center;margin:20px 0}
+  .amount-val{font-size:36px;font-weight:700;color:#f0c060}
   .badge{display:inline-block;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;background:${statusColor[inv.status]||'#666'}22;color:${statusColor[inv.status]||'#666'}}
   .footer{margin-top:32px;padding-top:16px;border-top:1px solid #eee;font-size:12px;color:#999;text-align:center}
 </style></head><body>
-<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:16px;border-bottom:3px solid #6c63ff">
+<div style="position:fixed;top:0;left:0;right:0;height:3px;z-index:9999;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#f0c060);box-shadow:0 0 10px rgba(0,212,170,.3)"></div>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:16px;border-bottom:3px solid #f0c060">
   <div><div class="logo">Smartest<span>Guide</span></div><div class="meta">smartestguide.com</div></div>
   <div style="text-align:right"><h1>FAKTURA</h1><div class="meta">${inv.invoice_number}</div><div style="margin-top:6px"><span class="badge">${statusLabel[inv.status]||inv.status}</span></div></div>
 </div>
@@ -1244,11 +1245,6 @@ function copyEmbedCode(){
 function previewWidget(){
   const base = window.location.origin;
   window.open(`${base}/guest/${hotelData.id}`, 'sg_preview', 'width=420,height=700');
-}
-
-function openQrPoster(){
-  const base = window.location.origin;
-  window.open(`${base}/api/hotels/${hotelData.id}/qr-poster`, '_blank');
 }
 
 // ── Zrušení předplatného ─────────────────────
