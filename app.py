@@ -131,6 +131,7 @@ class HotelData(BaseModel):
     continent: Optional[str] = None
     extra_info: Optional[str] = None
     active_offer: Optional[str] = None
+    hidden_gems: Optional[List[str]] = None
     subscription_active: Optional[bool] = None
     stripe_customer_id: Optional[str] = None
     scraped_pages: Optional[List[str]] = None
@@ -548,6 +549,7 @@ class HotelPortalUpdate(BaseModel):
     parking_info: Optional[str] = None
     amenities: Optional[List[str]] = None
     nearby_places: Optional[List[str]] = None
+    hidden_gems: Optional[List[str]] = None
     extra_info: Optional[str] = None
     active_offer: Optional[str] = None
     bed_count: Optional[int] = None
@@ -2201,7 +2203,9 @@ Pokud host žádá cestu nebo navigaci, použij PŘESNÝ popis výše krok za kr
 - WhatsApp Restaurace: {h.get('whatsapp_restaurant', 'N/A')}
 - WhatsApp Sport: {h.get('whatsapp_sport', 'N/A')}
 - Amenities: {', '.join(h.get('amenities', []))}
-- Nearby: {', '.join(h.get('nearby_places', []))}
+- Turistická místa v okolí: {', '.join(h.get('nearby_places', []))}
+- Skrytá místa (kam chodí místní, ne turisté): {', '.join(h.get('hidden_gems', []))}
+INSTRUKCE K MÍSTŮM: Pokud host žádá tipy na okolí, doporučuj turistická místa přirozeně. Pokud se ptá na "místní tipy", "kam chodí místní", "co turisté neznají" nebo chce autentický zážitek — zdůrazni skrytá místa a uveď je jako insider tip: "tohle turisté obvykle neznají, ale místní to milují".
 - Description: {h.get('description', 'N/A')}
 - Extra info: {h.get('extra_info', 'N/A')}
 {("- Menu links (share these as plain URLs when guest asks about food, drinks or menu):\n" + "\n".join([f"  {u}" for u in h.get('menu_urls', []) if u])) if h.get('menu_urls') else ''}

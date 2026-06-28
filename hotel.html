@@ -461,17 +461,36 @@ function renderPortal() {
       </div>
     `, ['amenities'])}
 
-    ${renderSection('🗺️', 'Místa v okolí', 'Tipy na výlety a restaurace které doporučujete', `
+    ${renderSection('🗺️', 'Místa v okolí — turistická', 'Známé památky a místa která doporučujete všem hostům', `
+      <div style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+        📍 <strong style="color:var(--text)">Turistická místa</strong> — známé památky, restaurace, výlety. Alex je doporučí každému kdo se ptá na okolí.
+      </div>
       <table class="edit-table">
         <tr>
-          <td>Doporučená místa</td>
+          <td>Turistická místa</td>
           <td>${tagsInput('nearby_places', h.nearby_places||[], 'Přidej místo a stiskni Enter…')}</td>
         </tr>
       </table>
       <div style="font-size:11px;color:var(--muted);margin-top:8px;padding:0 4px">
-        Příklady: Restaurace U Zlaté hvězdy (5 min), Hrad Veveří (20 km), Aquapark Delfín…
+        Příklady: Karlův most (20 min), Restaurace U Zlaté hvězdy (5 min), Hrad Veveří (20 km)…
       </div>
     `, ['nearby_places'])}
+
+    ${renderSection('💎', 'Místa v okolí — skrytá tipy', 'Kam chodí místní — místa která turisté obvykle neznají', `
+      <div style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+        🤫 <strong style="color:var(--text)">Skrytá místa</strong> — kam chodí místní, autentická místa mimo turistické trasy. Alex je představí jako insider tip — <em>"tady turisté obvykle nechodí, ale místní to milují"</em>.
+        <br><br>💡 <strong style="color:var(--text)">Tip:</strong> Čím konkrétnější, tím lépe. Přidejte proč je místo výjimečné — "nejlepší svíčková ve městě", "klidný park kde se dá v klidu číst" apod.
+      </div>
+      <table class="edit-table">
+        <tr>
+          <td>Skrytá místa</td>
+          <td>${tagsInput('hidden_gems', h.hidden_gems||[], 'Přidej tip a stiskni Enter…')}</td>
+        </tr>
+      </table>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;padding:0 4px">
+        Příklady: Hospoda U Chvojena (místní oblíbená, 10 min pěšky), Tajný park nad řekou (nikdo ho nezná), Ranní trh v úterý…
+      </div>
+    `, ['hidden_gems'])}
 
     ${renderSection('📝', 'Popis a další informace', 'Co byste chtěli hostům sdělit navíc', `
       <table class="edit-table">
@@ -528,6 +547,7 @@ function renderPortal() {
   // Init tag inputs
   initTagInput('amenities');
   initTagInput('nearby_places');
+  initTagInput('hidden_gems');
 
   // Spočítej scoring sekcí po renderování DOM
   updateAllSectionScores();
@@ -1001,6 +1021,7 @@ async function saveAll() {
   });
   data.amenities = getTagValues('amenities');
   data.nearby_places = getTagValues('nearby_places');
+  data.hidden_gems = getTagValues('hidden_gems');
 
   // Menu URLs
   const menuUrls = [];
