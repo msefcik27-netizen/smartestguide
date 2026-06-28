@@ -696,12 +696,18 @@ def generate_qr(hotel_id: str, request: Request):
     qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=10, border=4)
     qr.add_data(guest_url)
     qr.make(fit=True)
-    img = qr.make_image(fill_color="#f0c060", back_color="#0a0b0f")
+    try:
+        from qrcode.image.styledpil import StyledPilImage
+        from qrcode.image.styles.moduledrawers import RoundedModuleDrawer
+        img = qr.make_image(image_factory=StyledPilImage, module_drawer=RoundedModuleDrawer(),
+                            fill_color=(240, 192, 96), back_color=(10, 11, 15))
+    except Exception:
+        img = qr.make_image(fill_color=(240, 192, 96), back_color=(10, 11, 15))
     buf = BytesIO()
     img.save(buf, format="PNG")
     return {"status": "ok", "qr_base64": base64.b64encode(buf.getvalue()).decode(), "guest_url": guest_url}
 
-# QR plakát — branded HTML pro tisk
+# QR plakát hub — výběr formátu
 # ─────────────────────────────────────────────
 @app.get("/api/hotels/{hotel_id}/qr-poster")
 def generate_qr_poster(hotel_id: str, request: Request):
@@ -713,6 +719,383 @@ def generate_qr_poster(hotel_id: str, request: Request):
     base = get_base_url(request)
     guest_url = f"{base}/guest/{hotel_id}"
     hotel_name = hotel.get("name", "Hotel")
+
+    # Vlajky jako inline SVG (stejné jako v designérových letácích)
+    flags_svg = """
+      <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="8" fill="#fff"/><rect y="8" width="24" height="8" fill="#D7141A"/><path d="M0 0 L12 8 L0 16 Z" fill="#11457E"/></svg></span>
+      <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#012169"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#fff" stroke-width="3.2"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#C8102E" stroke-width="1.6"/><path d="M12 0 V16 M0 8 H24" stroke="#fff" stroke-width="5"/><path d="M12 0 V16 M0 8 H24" stroke="#C8102E" stroke-width="3"/></svg></span>
+      <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#000"/><rect y="5.33" width="24" height="5.33" fill="#DD0000"/><rect y="10.66" width="24" height="5.34" fill="#FFCE00"/></svg></span>
+      <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="8" height="16" fill="#002395"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#ED2939"/></svg></span>
+      <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#009246"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#CE2B37"/></svg></span>
+      <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#c60b1e"/><rect y="5.5" width="24" height="5" fill="#ffc400"/></svg></span>
+      <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#fff"/><rect y="10.67" width="24" height="5.33" fill="#dc143c"/><rect width="8" height="16" fill="#dc143c"/></svg></span>
+      <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="8" height="16" fill="#fff"/><rect x="8" width="8" height="16" fill="#0b4ea2"/><rect x="16" width="8" height="16" fill="#fff"/><rect y="6" width="24" height="4" fill="#ee1c25"/></svg></span>
+      <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="8" height="16" fill="#477050"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#ce2939"/></svg></span>
+      <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="5.33" fill="#fff"/><rect y="5.33" width="24" height="5.33" fill="#003DA5"/><rect y="10.66" width="24" height="5.34" fill="#fff"/></svg></span>
+      <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#EE1C25"/><rect x="4" y="3" width="6" height="10" fill="#FFFF00" rx="3"/></svg></span>
+      <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#fff"/><circle cx="12" cy="8" r="5" fill="#BC002D"/></svg></span>
+      <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#006C35"/><rect x="0" y="0" width="8" height="16" fill="#006C35"/><circle cx="8" cy="8" r="4" fill="#fff"/></svg></span>
+      <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="5.33" fill="#fff"/><rect y="5.33" width="24" height="5.33" fill="#003DA5"/><rect y="10.66" width="24" height="5.34" fill="#CE1126"/></svg></span>"""
+
+    # QR JS generátor (sdílený pro všechny formáty)
+    qr_js = f"""
+function drawQR(holderId, size){{
+  var holder = document.getElementById(holderId);
+  if(!holder) return;
+  if(!window.qrcode){{ setTimeout(function(){{drawQR(holderId,size);}}, 120); return; }}
+  var qr = window.qrcode(0,'H');
+  qr.addData('{guest_url}');
+  qr.make();
+  var n = qr.getModuleCount();
+  var S = size || 300;
+  var cell = S/n;
+  var rects='';
+  for(var r=0;r<n;r++){{
+    for(var c=0;c<n;c++){{
+      if(qr.isDark(r,c)){{
+        rects+='<rect x="'+(c*cell).toFixed(2)+'" y="'+(r*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#f0c060"/>';
+      }}
+    }}
+  }}
+  holder.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+rects+'</svg>';
+}}"""
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tiskové materiály — {hotel_name}</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height:100vh}}
+.topbar{{position:fixed;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#f0c060);z-index:200}}
+.hub{{max-width:960px;margin:0 auto;padding:60px 24px 80px}}
+.hub-header{{text-align:center;margin-bottom:48px}}
+.hub-logo{{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;color:#f0ece0;display:inline-flex;align-items:center;gap:4px;margin-bottom:8px}}
+.hub-dot{{width:9px;height:9px;border-radius:50%;background:#f0c060;box-shadow:0 0 10px rgba(240,192,96,.8);margin-left:2px}}
+.hub-hotel{{font-size:15px;color:#9ba0c0;margin-top:4px}}
+.hub-title{{font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:#f0ece0;margin-top:16px}}
+.formats{{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-top:0}}
+.fmt-card{{background:#181920;border:1px solid #222330;border-radius:16px;overflow:hidden;display:flex;flex-direction:column}}
+.fmt-card:hover{{border-color:rgba(240,192,96,.4)}}
+.fmt-preview{{background:#0a0b0f;padding:24px;display:flex;justify-content:center;align-items:center;min-height:200px;cursor:pointer;position:relative;overflow:hidden}}
+.fmt-preview::before{{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 80% at 50% 50%,rgba(240,192,96,.08),transparent 70%);pointer-events:none}}
+.fmt-info{{padding:20px}}
+.fmt-name{{font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:#f0ece0;margin-bottom:4px}}
+.fmt-desc{{font-size:13px;color:#9ba0c0;line-height:1.5;margin-bottom:16px}}
+.fmt-btn{{display:block;width:100%;background:#f0c060;color:#0a0b0f;border:none;border-radius:8px;padding:11px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-align:center;text-decoration:none;transition:opacity .15s}}
+.fmt-btn:hover{{opacity:.88}}
+/* Print styles */
+@media print{{
+  .topbar,.hub-header,.fmt-info,.formats,.fmt-preview:not(.printing){{display:none!important}}
+  body{{background:#fff;padding:0}}
+  .active-print{{display:block!important}}
+  @page{{margin:0;size:auto}}
+}}
+</style>
+</head>
+<body>
+<div class="topbar"></div>
+
+<div class="hub">
+  <div class="hub-header">
+    <div class="hub-logo">SmartestGuide<span class="hub-dot"></span></div>
+    <div class="hub-hotel">{hotel_name}</div>
+    <div class="hub-title">Tiskové materiály / Print materials</div>
+  </div>
+
+  <div class="formats">
+
+    <!-- QR Plakát -->
+    <div class="fmt-card">
+      <div class="fmt-preview" onclick="openFormat('qr-poster')">
+        <div style="position:relative;padding:16px;background:#0c0d12;border:1px solid rgba(240,192,96,.4);border-radius:14px">
+          <div id="qr-thumb" style="width:160px;height:160px"></div>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;background:#0a0b0f;border:2px solid #f0c060;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:#f0c060">SG</div>
+        </div>
+      </div>
+      <div class="fmt-info">
+        <div class="fmt-name">QR Plakát · 800×800px</div>
+        <div class="fmt-desc">Čtvercový plakát s QR kódem. Ideální pro recepci, výtah nebo restaurační stoly.</div>
+        <button class="fmt-btn" onclick="openFormat('qr-poster')">🖨️ Otevřít a tisknout</button>
+      </div>
+    </div>
+
+    <!-- A4 Leták EN -->
+    <div class="fmt-card">
+      <div class="fmt-preview" onclick="openFormat('flyer-en')">
+        <div style="width:120px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:11px;color:#f0c060;line-height:1.2;margin-bottom:8px">Your personal<br>AI concierge</div>
+          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center;margin-bottom:8px">{flags_svg}</div>
+          <div id="qr-a4-en" style="width:80px;height:80px;margin:0 auto"></div>
+        </div>
+      </div>
+      <div class="fmt-info">
+        <div class="fmt-name">A4 Leták · English</div>
+        <div class="fmt-desc">Anglický leták A4 pro mezinárodní hosty. Print-ready, tmavý brand.</div>
+        <button class="fmt-btn" onclick="openFormat('flyer-en')">🖨️ Otevřít a tisknout</button>
+      </div>
+    </div>
+
+    <!-- A4 Leták CZ -->
+    <div class="fmt-card">
+      <div class="fmt-preview" onclick="openFormat('flyer-cz')">
+        <div style="width:120px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:11px;color:#f0c060;line-height:1.2;margin-bottom:8px">Váš osobní<br>AI concierge</div>
+          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center;margin-bottom:8px">{flags_svg}</div>
+          <div id="qr-a4-cz" style="width:80px;height:80px;margin:0 auto"></div>
+        </div>
+      </div>
+      <div class="fmt-info">
+        <div class="fmt-name">A4 Leták · Česky</div>
+        <div class="fmt-desc">Český leták A4 pro české a slovenské hosty. Print-ready, tmavý brand.</div>
+        <button class="fmt-btn" onclick="openFormat('flyer-cz')">🖨️ Otevřít a tisknout</button>
+      </div>
+    </div>
+
+    <!-- Roll-up -->
+    <div class="fmt-card">
+      <div class="fmt-preview" onclick="openFormat('rollup')">
+        <div style="width:60px;height:144px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:6px;padding:8px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:7px;color:#f0c060;line-height:1.2">Your<br>personal<br>AI<br>concierge</div>
+          <div id="qr-rollup" style="width:44px;height:44px"></div>
+          <div style="font-size:6px;color:#00d4aa">smartestguide.com</div>
+        </div>
+      </div>
+      <div class="fmt-info">
+        <div class="fmt-name">Roll-up Banner · 850×2000mm</div>
+        <div class="fmt-desc">Vysoký banner pro lobby, veletrh nebo konferenci. Formát 1:2.4.</div>
+        <button class="fmt-btn" onclick="openFormat('rollup')">🖨️ Otevřít a tisknout</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Hidden print frames -->
+<iframe id="print-frame" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:9999;background:#0a0b0f"></iframe>
+
+<script>
+{qr_js}
+
+window.addEventListener('load', function(){{
+  setTimeout(function(){{
+    drawQR('qr-thumb', 160);
+    drawQR('qr-a4-en', 80);
+    drawQR('qr-a4-cz', 80);
+    drawQR('qr-rollup', 44);
+  }}, 300);
+}});
+
+function openFormat(fmt){{
+  var urls = {{
+    'qr-poster': '/api/hotels/{hotel_id}/qr-poster-print',
+    'flyer-en':  '/api/hotels/{hotel_id}/flyer-en',
+    'flyer-cz':  '/api/hotels/{hotel_id}/flyer-cz',
+    'rollup':    '/api/hotels/{hotel_id}/rollup'
+  }};
+  window.open(urls[fmt], '_blank');
+}}
+</script>
+</body>
+</html>"""
+
+    return HTMLResponse(content=html)
+
+# QR Plakát — print view
+@app.get("/api/hotels/{hotel_id}/qr-poster-print")
+def qr_poster_print(hotel_id: str, request: Request):
+    db = db_load()
+    hotel = db["hotels"].get(hotel_id)
+    if not hotel:
+        raise HTTPException(404, "Hotel nenalezen")
+    base = get_base_url(request)
+    guest_url = f"{base}/guest/{hotel_id}"
+    hotel_name = hotel.get("name", "Hotel")
+    return HTMLResponse(content=_render_qr_poster(hotel_name, guest_url))
+
+def _render_qr_poster(hotel_name: str, guest_url: str) -> str:
+    return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>*{{box-sizing:border-box}}body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
+.btn{{position:fixed;top:16px;right:16px;background:#f0c060;color:#0a0b0f;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:14px;cursor:pointer}}
+@media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{margin:0}}}}</style></head>
+<body><button class="btn" onclick="window.print()">🖨️ Tisknout / PDF</button>
+<div style="position:relative;width:800px;height:800px;background:#0a0b0f;border:1px solid rgba(240,192,96,.35);border-radius:24px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5)">
+  <div style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#f0c060)"></div>
+  <div style="position:absolute;top:300px;left:50%;width:620px;height:620px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(240,192,96,.16),transparent 70%);pointer-events:none"></div>
+  <div style="height:100%;display:flex;flex-direction:column;align-items:center;padding:58px 48px 48px;position:relative">
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:34px;color:#f0ece0;display:flex;align-items:center;gap:4px">SmartestGuide<span style="width:10px;height:10px;border-radius:50%;background:#f0c060;display:inline-block;margin-left:2px;box-shadow:0 0 14px rgba(240,192,96,.9)"></span></div>
+    <div style="margin-top:10px;font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:#00d4aa">AI Concierge for Hotels</div>
+    <div style="margin-top:26px;font-family:'Syne',sans-serif;font-weight:700;font-size:22px;color:#f0ece0;text-align:center">{hotel_name}</div>
+    <div style="position:relative;margin-top:22px;padding:22px;background:#0c0d12;border:1px solid rgba(240,192,96,.4);border-radius:20px;box-shadow:0 0 40px rgba(240,192,96,.12)">
+      <div id="qr" style="width:420px;height:420px;display:flex;align-items:center;justify-content:center"></div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:50%;background:#0a0b0f;border:3px solid #f0c060;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:30px;color:#f0c060;box-shadow:0 0 22px rgba(240,192,96,.5)">SG</div>
+    </div>
+    <div style="margin-top:30px;font-family:'Syne',sans-serif;font-weight:700;font-size:24px;color:#f0ece0;text-align:center">Scan for your personal AI concierge</div>
+    <div style="margin-top:10px;font-size:15px;color:#9ba0c0">14 languages · No app needed · 24/7</div>
+    <div style="flex:1"></div>
+    <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,170,.5),transparent)"></div>
+    <div style="margin-top:18px;font-size:14px;font-weight:600;color:#00d4aa">smartestguide.com</div>
+  </div>
+</div>
+<script>
+(function(){{function draw(){{var h=document.getElementById('qr');if(!h)return;if(!window.qrcode){{setTimeout(draw,120);return;}}
+var qr=window.qrcode(0,'H');qr.addData('{guest_url}');qr.make();var n=qr.getModuleCount(),S=420,cell=S/n,r='';
+for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#f0c060"/>';
+h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
+</script></body></html>"""
+
+def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en") -> str:
+    flags_html = """<span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="8" fill="#fff"/><rect y="8" width="24" height="8" fill="#D7141A"/><path d="M0 0 L12 8 L0 16 Z" fill="#11457E"/></svg></span>
+<span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#012169"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#fff" stroke-width="3.2"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#C8102E" stroke-width="1.6"/><path d="M12 0 V16 M0 8 H24" stroke="#fff" stroke-width="5"/><path d="M12 0 V16 M0 8 H24" stroke="#C8102E" stroke-width="3"/></svg></span>
+<span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#000"/><rect y="5.33" width="24" height="5.33" fill="#DD0000"/><rect y="10.66" width="24" height="5.34" fill="#FFCE00"/></svg></span>
+<span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="8" height="16" fill="#002395"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#ED2939"/></svg></span>
+<span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#009246"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#CE2B37"/></svg></span>
+<span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#c60b1e"/><rect y="5.5" width="24" height="5" fill="#ffc400"/></svg></span>
+<span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#fff"/><rect y="10.67" width="24" height="5.33" fill="#dc143c"/><rect width="8" height="16" fill="#dc143c"/></svg></span>
+<span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="8" height="16" fill="#fff"/><rect x="8" width="8" height="16" fill="#0b4ea2"/><rect x="16" width="8" height="16" fill="#fff"/><rect y="6" width="24" height="4" fill="#ee1c25"/></svg></span>
+<span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="8" height="16" fill="#477050"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#ce2939"/></svg></span>
+<span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="5.33" fill="#fff"/><rect y="5.33" width="24" height="5.33" fill="#003DA5"/><rect y="10.66" width="24" height="5.34" fill="#fff"/></svg></span>
+<span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#EE1C25"/><rect x="4" y="3" width="6" height="10" fill="#FFFF00" rx="3"/></svg></span>
+<span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#fff"/><circle cx="12" cy="8" r="5" fill="#BC002D"/></svg></span>
+<span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#006C35"/><circle cx="8" cy="8" r="4" fill="#fff"/></svg></span>
+<span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="5.33" fill="#fff"/><rect y="5.33" width="24" height="5.33" fill="#003DA5"/><rect y="10.66" width="24" height="5.34" fill="#CE1126"/></svg></span>"""
+
+    check = """<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>"""
+
+    if lang == "cz":
+        headline = "Váš osobní<br>AI concierge"
+        subline = f'Nechte <span style="color:#f0c060;font-weight:600">Alexe</span> odpovědět na všechny vaše otázky — okamžitě, ve vašem jazyce, 24/7.'
+        features = ["Snídaně a restaurace", "Tipy na výlety a skrytá místa", "Počasí a doprava", "Služby hotelu a WiFi", "K dispozici 24/7"]
+        scan_text = "Naskenujte mě"
+        no_app = "Bez instalace aplikace"
+    else:
+        headline = "Your personal<br>AI concierge"
+        subline = f'Let <span style="color:#f0c060;font-weight:600">Alex</span> answer all your questions — instantly, in your language, 24/7.'
+        features = ["Breakfast times & restaurant info", "Local tips & hidden gems", "Weather & transport", "Hotel services & WiFi", "Available 24/7"]
+        scan_text = "Scan me"
+        no_app = "No app needed"
+
+    feats_html = "".join(f'<div style="display:flex;gap:12px;align-items:center;font-size:16px;color:#e7e2d8">{check}{f}</div>' for f in features)
+
+    return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>*{{box-sizing:border-box}}
+body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
+.btn{{position:fixed;top:16px;right:16px;background:#f0c060;color:#0a0b0f;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:14px;cursor:pointer}}
+@media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:A4;margin:0}}}}</style></head>
+<body><button class="btn" onclick="window.print()">🖨️ Tisknout / PDF</button>
+<div style="width:210mm;min-height:297mm;background:#0a0b0f;position:relative;overflow:hidden;padding:0">
+  <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#f0c060)"></div>
+  <div style="position:absolute;top:80px;left:50%;width:500px;height:500px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(240,192,96,.1),transparent 70%);pointer-events:none"></div>
+  <div style="padding:48px 44px;display:flex;flex-direction:column;align-items:center;text-align:center;min-height:297mm">
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:#f0ece0;display:flex;align-items:center;gap:4px">SmartestGuide<span style="width:8px;height:8px;border-radius:50%;background:#f0c060;display:inline-block;margin-left:2px;box-shadow:0 0 10px rgba(240,192,96,.9)"></span></div>
+    <div style="margin-top:6px;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00d4aa">AI Concierge for Hotels</div>
+    <div style="margin-top:8px;font-size:13px;color:#9ba0c0">{hotel_name}</div>
+    <h1 style="font-family:'Syne',sans-serif;font-weight:800;font-size:48px;line-height:1.05;letter-spacing:-.02em;margin:36px 0 0;color:#f0c060">{headline}</h1>
+    <p style="font-size:17px;line-height:1.6;color:#cfcad0;max-width:480px;margin:18px 0 0">{subline}</p>
+    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:28px;max-width:500px">{flags_html}</div>
+    <div style="margin-top:32px;display:flex;flex-direction:column;gap:12px;align-items:flex-start;text-align:left;width:100%;max-width:420px">{feats_html}</div>
+    <div style="margin-top:40px;position:relative;padding:18px;background:#0c0d12;border:1px solid rgba(240,192,96,.4);border-radius:16px;box-shadow:0 0 30px rgba(240,192,96,.1)">
+      <div id="qr-flyer" style="width:200px;height:200px;display:flex;align-items:center;justify-content:center"></div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;background:#0a0b0f;border:2px solid #f0c060;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:#f0c060">SG</div>
+    </div>
+    <div style="margin-top:20px;font-family:'Syne',sans-serif;font-weight:700;font-size:20px;color:#f0ece0">{scan_text}</div>
+    <div style="margin-top:6px;font-size:14px;color:#9ba0c0">{no_app} · 14 languages · 24/7</div>
+    <div style="flex:1;min-height:32px"></div>
+    <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,170,.4),transparent);margin-top:32px"></div>
+    <div style="margin-top:14px;font-size:13px;font-weight:600;color:#00d4aa">smartestguide.com</div>
+  </div>
+</div>
+<script>
+(function(){{function draw(){{var h=document.getElementById('qr-flyer');if(!h)return;if(!window.qrcode){{setTimeout(draw,120);return;}}
+var qr=window.qrcode(0,'H');qr.addData('{guest_url}');qr.make();var n=qr.getModuleCount(),S=200,cell=S/n,r='';
+for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#f0c060"/>';
+h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
+</script></body></html>"""
+
+def _render_rollup(hotel_name: str, guest_url: str) -> str:
+    flags_html = """<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="8" fill="#fff"/><rect y="8" width="24" height="8" fill="#D7141A"/><path d="M0 0 L12 8 L0 16 Z" fill="#11457E"/></svg></span>
+<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#012169"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#fff" stroke-width="3.2"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#C8102E" stroke-width="1.6"/><path d="M12 0 V16 M0 8 H24" stroke="#fff" stroke-width="5"/><path d="M12 0 V16 M0 8 H24" stroke="#C8102E" stroke-width="3"/></svg></span>
+<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#000"/><rect y="5.33" width="24" height="5.33" fill="#DD0000"/><rect y="10.66" width="24" height="5.34" fill="#FFCE00"/></svg></span>
+<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="8" height="16" fill="#002395"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#ED2939"/></svg></span>
+<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#009246"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#CE2B37"/></svg></span>
+<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#c60b1e"/><rect y="5.5" width="24" height="5" fill="#ffc400"/></svg></span>
+<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#fff"/><rect y="10.67" width="24" height="5.33" fill="#dc143c"/><rect width="8" height="16" fill="#dc143c"/></svg></span>
+<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="8" height="16" fill="#fff"/><rect x="8" width="8" height="16" fill="#0b4ea2"/><rect x="16" width="8" height="16" fill="#fff"/><rect y="6" width="24" height="4" fill="#ee1c25"/></svg></span>
+<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="8" height="16" fill="#477050"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#ce2939"/></svg></span>
+<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="5.33" fill="#fff"/><rect y="5.33" width="24" height="5.33" fill="#003DA5"/><rect y="10.66" width="24" height="5.34" fill="#fff"/></svg></span>
+<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#EE1C25"/><rect x="4" y="3" width="6" height="10" fill="#FFFF00" rx="3"/></svg></span>
+<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#fff"/><circle cx="12" cy="8" r="5" fill="#BC002D"/></svg></span>
+<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#006C35"/><circle cx="8" cy="8" r="4" fill="#fff"/></svg></span>
+<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="5.33" fill="#fff"/><rect y="5.33" width="24" height="5.33" fill="#003DA5"/><rect y="10.66" width="24" height="5.34" fill="#CE1126"/></svg></span>"""
+
+    return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>*{{box-sizing:border-box}}
+body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
+.btn{{position:fixed;top:16px;right:16px;background:#f0c060;color:#0a0b0f;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:14px;cursor:pointer}}
+@media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:85mm 200mm;margin:0}}}}</style></head>
+<body><button class="btn" onclick="window.print()">🖨️ Tisknout / PDF</button>
+<div style="width:340px;background:#0a0b0f;position:relative;overflow:hidden;padding:0;border:1px solid rgba(240,192,96,.3);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+  <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#f0c060)"></div>
+  <div style="position:absolute;top:120px;left:50%;width:400px;height:400px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(240,192,96,.1),transparent 70%);pointer-events:none"></div>
+  <div style="padding:36px 28px;display:flex;flex-direction:column;align-items:center;text-align:center">
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:#f0ece0;display:flex;align-items:center;gap:3px">SmartestGuide<span style="width:7px;height:7px;border-radius:50%;background:#f0c060;display:inline-block;margin-left:2px;box-shadow:0 0 8px rgba(240,192,96,.9)"></span></div>
+    <div style="margin-top:5px;font-size:9px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00d4aa">AI CONCIERGE FOR HOTELS</div>
+    <div style="margin-top:6px;font-size:12px;color:#9ba0c0">{hotel_name}</div>
+    <h1 style="font-family:'Syne',sans-serif;font-weight:800;font-size:36px;line-height:1.05;letter-spacing:-.02em;margin:28px 0 0;color:#f0c060">Your<br>personal<br>AI<br>concierge</h1>
+    <p style="font-size:14px;line-height:1.6;color:#cfcad0;margin:16px 0 0">Let <span style="color:#f0c060;font-weight:600">Alex</span> answer every question — instantly, in your language, around the clock.</p>
+    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:5px;margin-top:22px;max-width:300px">{flags_html}</div>
+    <div style="margin-top:28px;position:relative;padding:14px;background:#0c0d12;border:1px solid rgba(240,192,96,.4);border-radius:14px;box-shadow:0 0 24px rgba(240,192,96,.1)">
+      <div id="qr-rollup" style="width:180px;height:180px;display:flex;align-items:center;justify-content:center"></div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:42px;height:42px;border-radius:50%;background:#0a0b0f;border:2px solid #f0c060;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:#f0c060">SG</div>
+    </div>
+    <div style="margin-top:18px;font-family:'Syne',sans-serif;font-weight:700;font-size:18px;color:#f0ece0">Scan me</div>
+    <div style="margin-top:5px;font-size:13px;color:#9ba0c0">14 languages · No app needed · 24/7</div>
+    <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,170,.4),transparent);margin-top:32px"></div>
+    <div style="margin-top:12px;font-size:12px;font-weight:600;color:#00d4aa">smartestguide.com</div>
+  </div>
+</div>
+<script>
+(function(){{function draw(){{var h=document.getElementById('qr-rollup');if(!h)return;if(!window.qrcode){{setTimeout(draw,120);return;}}
+var qr=window.qrcode(0,'H');qr.addData('{guest_url}');qr.make();var n=qr.getModuleCount(),S=180,cell=S/n,r='';
+for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#f0c060"/>';
+h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
+</script></body></html>"""
+
+@app.get("/api/hotels/{hotel_id}/flyer-en")
+def flyer_en(hotel_id: str, request: Request):
+    db = db_load()
+    hotel = db["hotels"].get(hotel_id)
+    if not hotel: raise HTTPException(404, "Hotel nenalezen")
+    base = get_base_url(request)
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "en"))
+
+@app.get("/api/hotels/{hotel_id}/flyer-cz")
+def flyer_cz(hotel_id: str, request: Request):
+    db = db_load()
+    hotel = db["hotels"].get(hotel_id)
+    if not hotel: raise HTTPException(404, "Hotel nenalezen")
+    base = get_base_url(request)
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "cz"))
+
+@app.get("/api/hotels/{hotel_id}/rollup")
+def rollup(hotel_id: str, request: Request):
+    db = db_load()
+    hotel = db["hotels"].get(hotel_id)
+    if not hotel: raise HTTPException(404, "Hotel nenalezen")
+    base = get_base_url(request)
+    return HTMLResponse(content=_render_rollup(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}"))
+
+
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -1082,10 +1465,16 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
         from io import BytesIO
         import base64
         guest_url = f"{base_url}/guest/{hotel_id}"
-        qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=10, border=4)
-        qr.add_data(guest_url)
-        qr.make(fit=True)
-        img = qr.make_image(fill_color="#f0c060", back_color="#0a0b0f")
+        qr_img = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=10, border=4)
+        qr_img.add_data(guest_url)
+        qr_img.make(fit=True)
+        from qrcode.image.styledpil import StyledPilImage
+        from qrcode.image.styles.moduledrawers import RoundedModuleDrawer
+        try:
+            img = qr_img.make_image(image_factory=StyledPilImage, module_drawer=RoundedModuleDrawer(),
+                                     fill_color=(240, 192, 96), back_color=(10, 11, 15))
+        except Exception:
+            img = qr_img.make_image(fill_color=(240, 192, 96), back_color=(10, 11, 15))
         buf = BytesIO()
         img.save(buf, format="PNG")
         qr_b64 = base64.b64encode(buf.getvalue()).decode()
