@@ -41,7 +41,7 @@ def init_settings_from_env():
 app = FastAPI(title="SmartestGuide", version="0.2.0")
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.2.2"
+APP_VERSION = "0.2.3"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
