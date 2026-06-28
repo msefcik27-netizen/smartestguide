@@ -108,10 +108,12 @@ section{padding:100px 5vw}
 .pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;max-width:800px;margin:0 auto}
 .price-card{background:var(--ink);border:1px solid var(--border);border-radius:20px;padding:36px 32px;text-align:center;position:relative;overflow:hidden}
 .price-card.featured{border-color:var(--gold);background:linear-gradient(160deg,rgba(240,192,96,.07) 0%,var(--ink) 100%)}
-.price-card.featured::before{content:'MOST POPULAR';position:absolute;top:16px;right:-24px;background:var(--gold);color:#0a0b0f;font-size:10px;font-weight:700;letter-spacing:1.5px;padding:4px 40px;transform:rotate(45deg)}
 .price-name{font-size:13px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:16px}
-.price-amount{font-family:var(--font-display);font-size:48px;font-weight:800;line-height:1;margin-bottom:6px}
-.price-amount span{font-size:20px;font-weight:400;color:var(--muted)}
+.price-amount{font-family:var(--font-display);font-size:56px;font-weight:800;line-height:1;margin-bottom:6px;display:flex;align-items:flex-start;justify-content:center;gap:2px}
+.price-amount .pre{font-size:14px;font-weight:400;color:var(--muted);align-self:flex-start;margin-top:6px;margin-right:4px}
+.price-amount .currency{font-size:20px;font-weight:600;color:var(--muted);align-self:flex-start;margin-top:8px}
+.price-amount .num{font-size:56px;font-weight:800;color:var(--text);line-height:1}
+.price-amount .suffix{font-size:16px;font-weight:400;color:var(--muted);align-self:flex-end;margin-bottom:6px}
 .price-desc{font-size:13px;color:var(--dim);margin-bottom:28px}
 .price-features{list-style:none;text-align:left;margin-bottom:32px;display:flex;flex-direction:column;gap:10px}
 .price-features li{font-size:14px;color:var(--dim);display:flex;gap:10px;align-items:flex-start}
@@ -199,21 +201,21 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
   </div>
   <div style="margin:0 auto 48px;max-width:620px;text-align:center">
     <div style="font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#5a5a6a;margin-bottom:14px">Fluent in 14 languages</div>
-    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px 14px">
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:22px">🇨🇿</span><span style="font-size:10px;font-weight:600;color:#6b6f8e">CZ</span></div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:22px">🇬🇧</span><span style="font-size:10px;font-weight:600;color:#6b6f8e">EN</span></div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:22px">🇩🇪</span><span style="font-size:10px;font-weight:600;color:#6b6f8e">DE</span></div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:22px">🇫🇷</span><span style="font-size:10px;font-weight:600;color:#6b6f8e">FR</span></div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:22px">🇮🇹</span><span style="font-size:10px;font-weight:600;color:#6b6f8e">IT</span></div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:22px">🇪🇸</span><span style="font-size:10px;font-weight:600;color:#6b6f8e">ES</span></div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:22px">🇵🇱</span><span style="font-size:10px;font-weight:600;color:#6b6f8e">PL</span></div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:22px">🇸🇰</span><span style="font-size:10px;font-weight:600;color:#6b6f8e">SK</span></div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:22px">🇭🇺</span><span style="font-size:10px;font-weight:600;color:#6b6f8e">HU</span></div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:22px">🇷🇺</span><span style="font-size:10px;font-weight:600;color:#6b6f8e">RU</span></div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:22px">🇺🇦</span><span style="font-size:10px;font-weight:600;color:#6b6f8e">UA</span></div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:22px">🇨🇳</span><span style="font-size:10px;font-weight:600;color:#6b6f8e">ZH</span></div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:22px">🇯🇵</span><span style="font-size:10px;font-weight:600;color:#6b6f8e">JP</span></div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:22px">🇸🇦</span><span style="font-size:10px;font-weight:600;color:#6b6f8e">AR</span></div>
+    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px 12px">
+      <img src="https://flagcdn.com/w40/cz.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="CZ">
+      <img src="https://flagcdn.com/w40/gb.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="EN">
+      <img src="https://flagcdn.com/w40/de.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="DE">
+      <img src="https://flagcdn.com/w40/fr.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="FR">
+      <img src="https://flagcdn.com/w40/it.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="IT">
+      <img src="https://flagcdn.com/w40/es.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="ES">
+      <img src="https://flagcdn.com/w40/pl.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="PL">
+      <img src="https://flagcdn.com/w40/sk.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="SK">
+      <img src="https://flagcdn.com/w40/hu.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="HU">
+      <img src="https://flagcdn.com/w40/ru.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="RU">
+      <img src="https://flagcdn.com/w40/ua.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="UA">
+      <img src="https://flagcdn.com/w40/cn.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="ZH">
+      <img src="https://flagcdn.com/w40/jp.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="JP">
+      <img src="https://flagcdn.com/w40/sa.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="AR">
     </div>
   </div>
   <div class="hero-mockup">
@@ -272,13 +274,20 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       <div class="feature"><div class="feat-icon teal">📶</div><div class="feat-body"><h3>Offline fallback</h3><p>No internet? No problem. Basic hotel information is cached and available even without a connection.</p></div></div>
     </div>
     <div class="lang-strip">
-      <span class="lang-pill">🇨🇿 Čeština</span><span class="lang-pill">🇬🇧 English</span>
-      <span class="lang-pill">🇩🇪 Deutsch</span><span class="lang-pill">🇫🇷 Français</span>
-      <span class="lang-pill">🇮🇹 Italiano</span><span class="lang-pill">🇪🇸 Español</span>
-      <span class="lang-pill">🇵🇱 Polski</span><span class="lang-pill">🇸🇰 Slovenčina</span>
-      <span class="lang-pill">🇭🇺 Magyar</span><span class="lang-pill">🇷🇺 Русский</span>
-      <span class="lang-pill">🇺🇦 Українська</span><span class="lang-pill">🇨🇳 中文</span>
-      <span class="lang-pill">🇯🇵 日本語</span><span class="lang-pill">🇸🇦 العربية</span>
+      <img src="https://flagcdn.com/w40/cz.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="CZ">
+      <img src="https://flagcdn.com/w40/gb.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="EN">
+      <img src="https://flagcdn.com/w40/de.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="DE">
+      <img src="https://flagcdn.com/w40/fr.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="FR">
+      <img src="https://flagcdn.com/w40/it.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="IT">
+      <img src="https://flagcdn.com/w40/es.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="ES">
+      <img src="https://flagcdn.com/w40/pl.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="PL">
+      <img src="https://flagcdn.com/w40/sk.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="SK">
+      <img src="https://flagcdn.com/w40/hu.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="HU">
+      <img src="https://flagcdn.com/w40/ru.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="RU">
+      <img src="https://flagcdn.com/w40/ua.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="UA">
+      <img src="https://flagcdn.com/w40/cn.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="ZH">
+      <img src="https://flagcdn.com/w40/jp.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="JP">
+      <img src="https://flagcdn.com/w40/sa.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="AR">
     </div>
   </div>
 </section>
@@ -293,7 +302,7 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
     <div class="pricing-grid">
       <div class="price-card">
         <div class="price-name">Standard</div>
-        <div class="price-amount" id="price-standard"><span>from </span>€<span id="price-base-val">200</span><span>/mo</span></div>
+        <div class="price-amount" id="price-standard"><span class="pre">from</span><span class="currency">€</span><span class="num" id="price-base-val">199</span><span class="suffix">/mo</span></div>
         <div class="price-desc">Up to <span id="price-threshold-val">100</span> beds</div>
         <ul class="price-features">
           <li>AI concierge in 14 languages</li>
@@ -308,7 +317,7 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       </div>
       <div class="price-card featured">
         <div class="price-name">Growing</div>
-        <div class="price-amount" id="price-growing"><span>€<span id="price-base-val2">200</span> + </span>€<span id="price-per-val">3</span><span>/bed</span></div>
+        <div class="price-amount" id="price-growing"><span class="currency">€</span><span class="num" id="price-base-val2">199</span><span class="suffix"> + €<span id="price-per-val">3</span>/bed</span></div>
         <div class="price-desc">Over 100 beds</div>
         <ul class="price-features">
           <li>Everything in Standard</li>
@@ -352,11 +361,6 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
         <div style="font-family:var(--font-display);font-size:42px;font-weight:800;color:var(--gold);line-height:1.1;margin-bottom:8px">14</div>
         <div style="font-size:14px;color:var(--dim);line-height:1.5">languages — guests are answered<br>in their own language</div>
       </div>
-    </div>
-    <div style="text-align:center;padding:32px;background:var(--ink2);border:1px solid rgba(240,192,96,.3);border-radius:16px;max-width:620px;margin:0 auto">
-      <div style="font-size:13px;color:var(--teal);font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">🚀 Currently in beta</div>
-      <div style="font-size:16px;color:var(--dim);line-height:1.7;margin-bottom:20px">Be among the first hotels to offer your guests a 24/7 AI concierge. Early adopters get priority support and influence the product roadmap.</div>
-      <a href="#register" class="btn-primary">Join the beta →</a>
     </div>
   </div>
 </section>
