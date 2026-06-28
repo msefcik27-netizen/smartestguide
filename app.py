@@ -696,10 +696,91 @@ def generate_qr(hotel_id: str, request: Request):
     qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=10, border=4)
     qr.add_data(guest_url)
     qr.make(fit=True)
-    img = qr.make_image(fill_color="#1a1a2e", back_color="white")
+    img = qr.make_image(fill_color="#f0c060", back_color="#0a0b0f")
     buf = BytesIO()
     img.save(buf, format="PNG")
     return {"status": "ok", "qr_base64": base64.b64encode(buf.getvalue()).decode(), "guest_url": guest_url}
+
+# QR plakát — branded HTML pro tisk
+# ─────────────────────────────────────────────
+@app.get("/api/hotels/{hotel_id}/qr-poster")
+def generate_qr_poster(hotel_id: str, request: Request):
+    db = db_load()
+    hotel = db["hotels"].get(hotel_id)
+    if not hotel:
+        raise HTTPException(404, "Hotel nenalezen")
+
+    base = get_base_url(request)
+    guest_url = f"{base}/guest/{hotel_id}"
+    hotel_name = hotel.get("name", "Hotel")
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QR plakát — {hotel_name}</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>
+  *{{box-sizing:border-box}}
+  body{{margin:0;background:#1b1c22;font-family:'Inter',sans-serif;display:flex;justify-content:center;align-items:flex-start;padding:32px;min-height:100vh}}
+  @media print{{body{{background:#fff;padding:0;display:block}} @page{{margin:0}}}}
+  .print-btn{{position:fixed;top:20px;right:20px;background:#f0c060;color:#0a0b0f;border:none;border-radius:10px;padding:12px 22px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;z-index:100;box-shadow:0 4px 16px rgba(240,192,96,.4)}}
+  .print-btn:hover{{opacity:.88}}
+  @media print{{.print-btn{{display:none}}}}
+</style>
+</head>
+<body>
+<button class="print-btn" onclick="window.print()">🖨️ Tisknout / Uložit PDF</button>
+<div style="position:relative;width:800px;height:800px;background:#0a0b0f;border:1px solid rgba(240,192,96,.35);border-radius:24px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5)">
+  <div style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#f0c060)"></div>
+  <div style="position:absolute;top:300px;left:50%;width:620px;height:620px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(240,192,96,.16),transparent 70%);pointer-events:none"></div>
+  <div style="position:relative;height:100%;display:flex;flex-direction:column;align-items:center;padding:58px 48px 48px">
+    <div style="display:flex;align-items:center;gap:4px;font-family:'Syne',sans-serif;font-weight:800;font-size:34px;letter-spacing:-.02em;color:#f0ece0">SmartestGuide<span style="width:10px;height:10px;border-radius:50%;background:#f0c060;display:inline-block;margin-left:2px;box-shadow:0 0 14px rgba(240,192,96,.9)"></span></div>
+    <div style="margin-top:10px;font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:#00d4aa">AI Concierge for Hotels</div>
+    <div style="margin-top:26px;font-family:'Syne',sans-serif;font-weight:700;font-size:22px;color:#f0ece0;text-align:center">{hotel_name}</div>
+    <div style="position:relative;margin-top:22px;padding:22px;background:#0c0d12;border:1px solid rgba(240,192,96,.4);border-radius:20px;box-shadow:0 0 40px rgba(240,192,96,.12)">
+      <div id="sg-qr-holder" style="width:420px;height:420px;display:flex;align-items:center;justify-content:center"></div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:50%;background:#0a0b0f;border:3px solid #f0c060;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:30px;color:#f0c060;box-shadow:0 0 22px rgba(240,192,96,.5)">SG</div>
+    </div>
+    <div style="margin-top:30px;font-family:'Syne',sans-serif;font-weight:700;font-size:24px;color:#f0ece0;text-align:center">Scan for your personal AI concierge</div>
+    <div style="margin-top:10px;font-size:15px;color:#9ba0c0;letter-spacing:.02em">14 languages · No app needed · 24/7</div>
+    <div style="flex:1"></div>
+    <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,170,.5),transparent)"></div>
+    <div style="margin-top:18px;font-size:14px;font-weight:600;color:#00d4aa;letter-spacing:.04em">smartestguide.com</div>
+  </div>
+</div>
+<script>
+(function(){{
+  function draw(){{
+    var holder = document.getElementById('sg-qr-holder');
+    if(!holder) return;
+    if(!window.qrcode){{ setTimeout(draw, 120); return; }}
+    var url = '{guest_url}';
+    var qr = window.qrcode(0, 'H');
+    qr.addData(url);
+    qr.make();
+    var n = qr.getModuleCount();
+    var S = 420;
+    var cell = S / n;
+    var rects = '';
+    for(var r=0;r<n;r++){{
+      for(var c=0;c<n;c++){{
+        if(qr.isDark(r,c)){{
+          rects += '<rect x="'+(c*cell).toFixed(2)+'" y="'+(r*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#f0c060"/>';
+        }}
+      }}
+    }}
+    holder.innerHTML = '<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+rects+'</svg>';
+  }}
+  draw();
+}})();
+</script>
+</body>
+</html>"""
+
+    return HTMLResponse(content=html)
 
 # ─────────────────────────────────────────────
 # Ceník
@@ -994,7 +1075,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
         qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=10, border=4)
         qr.add_data(guest_url)
         qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white")
+        img = qr.make_image(fill_color="#f0c060", back_color="#0a0b0f")
         buf = BytesIO()
         img.save(buf, format="PNG")
         qr_b64 = base64.b64encode(buf.getvalue()).decode()
