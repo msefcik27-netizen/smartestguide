@@ -966,6 +966,10 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
     if not brevo_key:
         logging.warning("BREVO_API_KEY neni nastaven")
         return
+
+    # Odvoď base_url z portal_url
+    base_url = portal_url.split("/hotel?")[0] if "/hotel?" in portal_url else portal_url.rsplit("/", 1)[0]
+    poster_url = f"{base_url}/api/hotels/{hotel_id}/qr-poster"
     if not hotel_email:
         logging.warning(f"Hotel {hotel_id} nema email")
         return
@@ -989,7 +993,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
             "Prihlaste se do portalu a zkontrolujte informace o hotelu",
             "Doplnte orientaci v hotelu (wellness, parkoviste, restaurace, bar)",
             "Pridejte lokalni tipy pro hosty",
-            "Stahnete QR kod (v priloze) a umistete ho na recepci, do pokoju nebo na stoly v restauraci",
+            "Stahnete QR plakat k tisku (odkaz nize) a umistete ho na recepci, do pokoju nebo na stoly v restauraci",
         ]
         it_title = "Jak pridat chat tlacitko na web hotelu"
         it_intro = "Predejte prosim nasledujici instrukce vasemu IT oddeleni nebo webmasterovi:"
@@ -998,8 +1002,10 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
         it_step3 = "Po ulozeni a nasazeni se na webu zobrazi plovouci chat tlacitko pro hosty."
         it_note = "Tlacitko funguje na vsech zarizeni (mobil, tablet, PC) a nevyzaduje zadne dalsi nastaveni."
         help_text = "Potrebujete pomoc?"
-        qr_label = "QR kod pro hosty"
-        qr_desc = "Vytisknete a umistete na recepci, do pokoju nebo restaurace. Hosté naskenují a okamžitě chatují s Alexem."
+        qr_label = "QR plakát pro hosty"
+        qr_desc = "Otevřete odkaz níže, vytiskněte plakát nebo uložte jako PDF a umístěte na recepci, do pokojů nebo restaurace."
+        qr_btn_text = "Otevřít QR plakát k tisku"
+        qr_attach_note = "QR kód je také přiložen jako PNG pro přímé použití."
     else:
         subject = f"Welcome to SmartestGuide - {hotel_name} is ready!"
         greeting = f"Welcome, {hotel_name}!"
@@ -1011,7 +1017,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
             "Log in to the portal and review your hotel information",
             "Add hotel navigation (wellness, parking, restaurant, bar)",
             "Add local tips for guests",
-            "Print the QR code (attached) and place it at reception, in rooms or on restaurant tables",
+            "Download the QR poster for printing (link below) and place it at reception, in rooms or on restaurant tables",
         ]
         it_title = "How to add the chat button to your hotel website"
         it_intro = "Please forward the following instructions to your IT department or webmaster:"
@@ -1020,8 +1026,10 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
         it_step3 = "After saving and deploying, a floating chat button will appear on your website for guests."
         it_note = "The button works on all devices (mobile, tablet, desktop) and requires no additional configuration."
         help_text = "Need help?"
-        qr_label = "QR code for guests"
-        qr_desc = "Print and place at reception, in rooms or on restaurant tables. Guests scan and instantly chat with Alex."
+        qr_label = "QR poster for guests"
+        qr_desc = "Open the link below, print the poster or save as PDF and place it at reception, in rooms or on restaurant tables."
+        qr_btn_text = "Open QR poster for printing"
+        qr_attach_note = "The QR code is also attached as PNG for direct use."
 
     steps_html = "".join(f"<li style='margin-bottom:8px'>{s}</li>" for s in steps)
 
@@ -1041,9 +1049,11 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
         <h3 style="color:#6c63ff;margin-bottom:12px">{steps_title}</h3>
         <ol style="color:#555;line-height:1.8;padding-left:20px;margin-bottom:24px">{steps_html}</ol>
 
-        <div style="background:#fff;border:1px solid #e0e0f0;border-radius:10px;padding:20px;margin-bottom:24px">
-          <p style="font-size:13px;color:#9ba0c0;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px">📎 {qr_label}</p>
-          <p style="color:#555;font-size:13px;line-height:1.6">{qr_desc}</p>
+        <div style="background:#0a0b0f;border:1px solid rgba(240,192,96,.4);border-radius:10px;padding:24px;margin-bottom:24px;text-align:center">
+          <div style="font-size:11px;color:#00d4aa;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:12px">🖨️ {qr_label}</div>
+          <p style="color:#9ba0c0;font-size:13px;line-height:1.6;margin-bottom:16px">{qr_desc}</p>
+          <a href="{poster_url}" style="display:inline-block;background:#f0c060;color:#0a0b0f;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:14px">🖨️ {qr_btn_text}</a>
+          <p style="color:#555;font-size:11px;margin-top:12px">{qr_attach_note}</p>
         </div>
 
         <div style="background:#1a1a2e;border-radius:10px;padding:24px;margin-bottom:24px">
