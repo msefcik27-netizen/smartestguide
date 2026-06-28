@@ -130,6 +130,7 @@ class HotelData(BaseModel):
     country: Optional[str] = None
     continent: Optional[str] = None
     extra_info: Optional[str] = None
+    active_offer: Optional[str] = None
     subscription_active: Optional[bool] = None
     stripe_customer_id: Optional[str] = None
     scraped_pages: Optional[List[str]] = None
@@ -548,6 +549,7 @@ class HotelPortalUpdate(BaseModel):
     amenities: Optional[List[str]] = None
     nearby_places: Optional[List[str]] = None
     extra_info: Optional[str] = None
+    active_offer: Optional[str] = None
     bed_count: Optional[int] = None
     room_count: Optional[int] = None
     star_rating: Optional[int] = None
@@ -2204,6 +2206,7 @@ Pokud host žádá cestu nebo navigaci, použij PŘESNÝ popis výše krok za kr
 - Extra info: {h.get('extra_info', 'N/A')}
 {("- Menu links (share these as plain URLs when guest asks about food, drinks or menu):\n" + "\n".join([f"  {u}" for u in h.get('menu_urls', []) if u])) if h.get('menu_urls') else ''}
 {chr(10).join([f"- {cf.get('label','Info')}: {cf.get('value','')}" for cf in h.get('custom_fields', []) if cf.get('value')]) if h.get('custom_fields') else ''}
+{"\n⭐ AKTIVNÍ NABÍDKA HOTELU: " + h.get('active_offer') + "\nTuto nabídku VŽDY zmíň pokud se host ptá na téma které s ní souvisí (wellness, restaurace, bar, aktivity, služby apod.). Zmiň ji přirozeně jako součást odpovědi — ne jako reklamu, ale jako přátelský tip." if h.get('active_offer') else ''}
 
 Guest name: {req.guest_name or 'Guest'}"""
 

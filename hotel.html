@@ -495,6 +495,15 @@ function renderPortal() {
       </div>
     `, [])}
 
+    ${renderSection('⭐', 'Aktivní nabídka pro hosty', 'Alex ji zmíní hostům když se ptají na relevantní téma', `
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">
+        💡 <strong style="color:var(--text)">Jak to funguje:</strong> Zadejte aktuální akci nebo slevu. Když se host zeptá na téma které s nabídkou souvisí (wellness, restaurace, aktivity…), Alex ji přirozeně zmíní. Zadejte vždy jen jednu — aktuálně platnou nabídku.
+        <br><br>📝 <strong style="color:var(--text)">Příklady:</strong> "Dnes sleva 20% na masáže do 20:00" · "Tento týden happy hour v baru 17–19h, všechny drinky −30%" · "Volné kapacity v bazénu dopoledne — doporučte hostům přijít před 11h"
+      </div>
+      <textarea id="f-active_offer" placeholder="např. Dnes sleva 20% na wellness do 20:00. Stačí zmínit Alexe na recepci." oninput="markChanged()" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;padding:12px 14px;outline:none;resize:vertical;min-height:80px;font-family:var(--font-body)">${h.active_offer||''}</textarea>
+      <div style="margin-top:8px;font-size:12px;color:var(--muted)">Nechte prázdné pokud žádná akce není aktivní — Alex pak nabídku nezmiňuje.</div>
+    \`, ['active_offer'])}
+
     ${renderSection('✨', 'Vlastní informace pro Alexe', 'Přidejte cokoliv co hosté chtějí vědět — Alex to použije při odpovědích', `
       <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">
         💡 <strong style="color:var(--text)">Tip:</strong> Přidejte libovolné informace — kde je nejlepší zmrzlina, kdy je otevřená recepce, house rules, lokální tipy, speciální služby… Čím více vyplníte, tím lépe Alex poradí!
@@ -974,7 +983,7 @@ async function saveAll() {
   const numFields = ['bed_count', 'room_count', 'star_rating'];
   const textFields = ['checkin_time','checkout_time','breakfast_hours','lunch_hours','dinner_hours',
     'phone','email','whatsapp_number','whatsapp_wellness','restaurant_name','wellness_info','parking_info',
-    'description','extra_info','address','country',
+    'description','extra_info','active_offer','address','country',
     'nav_pool','nav_wellness','nav_fitness','nav_restaurant','nav_bar',
     'nav_parking','nav_arrival','nav_elevator','nav_conference','nav_other'];
 
