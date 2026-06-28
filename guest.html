@@ -7,14 +7,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="theme-color" content="#0a0b0f"/>
-  <title>SmartestGuide</title>
+  <title>SMARTEST GUIDE</title>
   <!-- PWA manifest inline -->
   <link rel="manifest" href="data:application/json,{}"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet"/>
   <style>
     :root{
       --bg:#0a0b0f; --surface:#0f1018; --card:#181920; --border:#222330;
-      --accent:#f0c060; --accent2:#00d4aa; --teal:#00d4aa; --text:#f0ece0; --muted:#9ba0c0;
+      --accent:#f5a623; --accent2:#00d4aa; --teal:#00d4aa; --text:#f0ece0; --muted:#9ba0c0;
       --success:#2ecc87; --danger:#ff4f6a; --warn:#ffaa33; --radius:16px;
       --font-head:'Syne',sans-serif; --font-body:'Inter',sans-serif;
     }
@@ -42,7 +42,7 @@
     }
     .ob-hero::before{
       content:'';position:absolute;inset:0;
-      background:radial-gradient(ellipse at 50% 0%, rgba(240,192,96,.25) 0%, transparent 70%);
+      background:radial-gradient(ellipse at 50% 0%, rgba(245,166,35,.25) 0%, transparent 70%);
     }
 
     /* Animovaný avatar */
@@ -52,16 +52,16 @@
       background:linear-gradient(135deg,var(--accent),var(--accent2));
       display:flex;align-items:center;justify-content:center;
       font-size:44px;
-      box-shadow:0 0 0 0 rgba(240,192,96,.5);
+      box-shadow:0 0 0 0 rgba(245,166,35,.5);
       animation:avatarPulse 2.5s ease-in-out infinite;
     }
     @keyframes avatarPulse{
-      0%,100%{box-shadow:0 0 0 0 rgba(240,192,96,.5),0 0 40px rgba(240,192,96,.2)}
-      50%{box-shadow:0 0 0 16px rgba(240,192,96,.0),0 0 60px rgba(240,192,96,.35)}
+      0%,100%{box-shadow:0 0 0 0 rgba(245,166,35,.5),0 0 40px rgba(245,166,35,.2)}
+      50%{box-shadow:0 0 0 16px rgba(245,166,35,.0),0 0 60px rgba(245,166,35,.35)}
     }
     .ob-avatar-ring{
       position:absolute;inset:-8px;border-radius:50%;
-      border:2px solid rgba(240,192,96,.3);
+      border:2px solid rgba(245,166,35,.3);
       animation:ringRotate 8s linear infinite;
     }
     .ob-avatar-ring::after{
@@ -92,7 +92,7 @@
       transition:all .15s;text-align:center;
     }
     .lang-btn:hover{border-color:var(--accent);color:var(--text)}
-    .lang-btn.selected{background:rgba(240,192,96,.15);border-color:var(--accent);color:var(--accent)}
+    .lang-btn.selected{background:rgba(245,166,35,.15);border-color:var(--accent);color:var(--accent)}
     .lang-btn .flag{font-size:20px}
     .lang-btn .lname{font-size:11px}
 
@@ -101,7 +101,7 @@
       color:#0a0b0f;border:none;border-radius:14px;
       font-family:var(--font-body);font-size:16px;font-weight:700;
       padding:18px;cursor:pointer;transition:all .2s;
-      box-shadow:0 4px 24px rgba(240,192,96,.4);
+      box-shadow:0 4px 24px rgba(245,166,35,.4);
       display:flex;align-items:center;justify-content:center;gap:10px;
     }
     .ob-start-btn:active{transform:scale(.97)}
@@ -185,7 +185,7 @@
       color:var(--text);font-size:13px;padding:7px 14px;cursor:pointer;
       white-space:nowrap;flex-shrink:0;transition:all .15s;
     }
-    .qr-btn:active{background:rgba(240,192,96,.2);border-color:var(--accent)}
+    .qr-btn:active{background:rgba(245,166,35,.2);border-color:var(--accent)}
 
     /* Input */
     .input-area{
@@ -228,7 +228,7 @@
     .info-label{font-size:11px;color:var(--muted);margin-bottom:2px}
     .info-val{font-size:13px;font-weight:500}
     .tag-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-    .tag{background:rgba(240,192,96,.12);color:var(--accent);border:1px solid rgba(240,192,96,.25);border-radius:20px;padding:3px 10px;font-size:11px}
+    .tag{background:rgba(245,166,35,.12);color:var(--accent);border:1px solid rgba(245,166,35,.25);border-radius:20px;padding:3px 10px;font-size:11px}
     .close-sheet{width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:13px;color:var(--text);font-size:14px;font-weight:600;cursor:pointer;margin-top:16px}
 
     /* ══ ERROR PAGE ══ */
@@ -236,13 +236,13 @@
     .err-page h2{font-family:var(--font-head);font-size:20px;margin-bottom:10px}
     .err-page p{color:var(--muted);font-size:14px;line-height:1.7}
   /* PWA install banner */
-#pwa-banner{position:fixed;bottom:0;left:0;right:0;background:linear-gradient(135deg,#f0c060,#00d4aa);color:#0a0b0f;padding:14px 18px;display:none;align-items:center;justify-content:space-between;gap:12px;z-index:500;box-shadow:0 -4px 20px rgba(0,0,0,.3)}
+#pwa-banner{position:fixed;bottom:0;left:0;right:0;background:linear-gradient(135deg,#f5a623,#00d4aa);color:#0a0b0f;padding:14px 18px;display:none;align-items:center;justify-content:space-between;gap:12px;z-index:500;box-shadow:0 -4px 20px rgba(0,0,0,.3)}
 #pwa-banner.show{display:flex}
 .pwa-banner-text{font-size:13px;font-weight:500;flex:1}
 .pwa-banner-text strong{display:block;font-size:14px;margin-bottom:2px}
 .pwa-btn{background:rgba(10,11,15,.18);border:1px solid rgba(10,11,15,.35);color:#0a0b0f;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
 .pwa-btn-dismiss{background:none;border:none;color:rgba(10,11,15,.55);font-size:18px;cursor:pointer;padding:4px}
-  #sg-topbar{position:fixed;top:0;left:0;right:0;height:3px;z-index:1000;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#f0c060);box-shadow:0 0 14px rgba(0,212,170,.45)}
+  #sg-topbar{position:fixed;top:0;left:0;right:0;height:3px;z-index:1000;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#f5a623);box-shadow:0 0 14px rgba(0,212,170,.45)}
 </style>
 </head>
 <body>
@@ -280,7 +280,7 @@
     </div>
 
     <button class="ob-start-btn" id="ob-start" onclick="startChat()">
-      <span>Spustit SmartestGuide</span>
+      <span>Spustit SMARTEST GUIDE</span>
       <span style="font-size:20px">→</span>
     </button>
   </div>
@@ -289,10 +289,10 @@
 <!-- CHAT -->
 <div id="chat-screen">
   <div class="chat-header">
-    <div class="hdr-avatar" style="background:linear-gradient(135deg,#f0c060,#00d4aa);color:#0a0b0f;font-weight:800;font-size:14px">✦<span class="hdr-status" id="hdr-status"></span></div>
+    <div class="hdr-avatar" style="background:linear-gradient(135deg,#f5a623,#00d4aa);color:#0a0b0f;font-weight:800;font-size:14px">✦<span class="hdr-status" id="hdr-status"></span></div>
     <div class="hdr-info">
       <div class="hdr-name" id="hdr-hotel-name" style="font-size:15px;font-weight:700;color:var(--text)">–</div>
-      <div class="hdr-sub" style="font-size:11px;color:var(--accent2)">AI Concierge · SmartestGuide</div>
+      <div class="hdr-sub" style="font-size:11px;color:var(--accent2)">AI Concierge · SMARTEST GUIDE</div>
     </div>
     <button class="hdr-btn" id="wa-hdr-btn" onclick="openWhatsAppMenu()" title="WhatsApp" style="display:none;background:rgba(37,211,102,.15);border-color:rgba(37,211,102,.3);color:#25d366">💬</button>
     <button class="hdr-btn" onclick="fetchWeather()" title="Počasí">🌤</button>
@@ -433,7 +433,7 @@ async function loadHotel(){
   }
 
   document.getElementById('ob-hotel-name').textContent=hotelData.name||'';
-  document.title='SmartestGuide – '+(hotelData.name||'Hotel');
+  document.title='SMARTEST GUIDE – '+(hotelData.name||'Hotel');
 
   // Auto-detekce jazyka telefonu
   const bl=(navigator.language||'en').slice(0,2).toLowerCase();
@@ -531,7 +531,7 @@ function quickSend(t){
 function formatBotText(text){
   // 1. Bold **text**
   let h = text.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
-  h = h.replace(/\b(Alex)\b/g,'<span style="color:#f0c060;font-weight:600">$1</span>');
+  h = h.replace(/\b(Alex)\b/g,'<span style="color:#f5a623;font-weight:600">$1</span>');
   // 2. Klikatelné URL — otevřít v nové záložce
   h = h.replace(/(https?:\/\/[^\s<>"']+)/g, function(url){
     let trail = '';
@@ -565,7 +565,7 @@ function addBot(text){
   const html=formatBotText(text);
   const d=document.createElement('div');
   d.className='msg bot';
-  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(135deg,#f0c060,#00d4aa);color:#0a0b0f;font-weight:800;font-size:16px">✦</div><div class="msg-body"><div class="msg-bubble">${html}</div><div class="msg-time">${time}</div></div>`;
+  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(135deg,#f5a623,#00d4aa);color:#0a0b0f;font-weight:800;font-size:16px">✦</div><div class="msg-body"><div class="msg-bubble">${html}</div><div class="msg-time">${time}</div></div>`;
   msgs.appendChild(d);
   msgs.scrollTop=msgs.scrollHeight;
 }
@@ -585,7 +585,7 @@ function showTyping(){
   const msgs=document.getElementById('messages');
   const d=document.createElement('div');
   d.id='typing';d.className='msg bot';
-  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(135deg,#f0c060,#00d4aa);color:#0a0b0f;font-weight:800;font-size:16px">✦</div><div class="msg-body"><div class="msg-bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div></div>`;
+  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(135deg,#f5a623,#00d4aa);color:#0a0b0f;font-weight:800;font-size:16px">✦</div><div class="msg-body"><div class="msg-bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div></div>`;
   msgs.appendChild(d);msgs.scrollTop=msgs.scrollHeight;
   document.getElementById('hdr-status').className='hdr-status typing';
 }
@@ -699,7 +699,7 @@ function openWhatsAppMenu(){
   popup.id = 'wa-dept-popup';
   popup.style.cssText = 'position:fixed;bottom:80px;right:16px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:8px;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.5);min-width:200px';
   popup.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:4px 8px 8px;text-transform:uppercase;letter-spacing:.6px">Kontaktovat oddělení</div>'
-    + depts.map(d => `<button onclick="openWhatsApp('${d.key}');document.getElementById('wa-dept-popup').remove()" style="display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;color:var(--text);padding:8px 10px;border-radius:8px;cursor:pointer;font-size:14px;text-align:left" onmouseover="this.style.background='rgba(240,192,96,.1)'" onmouseout="this.style.background='none'">${d.label}</button>`).join('');
+    + depts.map(d => `<button onclick="openWhatsApp('${d.key}');document.getElementById('wa-dept-popup').remove()" style="display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;color:var(--text);padding:8px 10px;border-radius:8px;cursor:pointer;font-size:14px;text-align:left" onmouseover="this.style.background='rgba(245,166,35,.1)'" onmouseout="this.style.background='none'">${d.label}</button>`).join('');
   document.body.appendChild(popup);
   setTimeout(() => document.addEventListener('click', function h(e){ if(!popup.contains(e.target)){popup.remove();document.removeEventListener('click',h);} }), 100);
 }
@@ -774,7 +774,7 @@ async function fetchWeather(){
     const time=new Date().toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
     const d=document.createElement('div');
     d.className='msg bot';
-    d.innerHTML=`<div class="msg-av" style="background:linear-gradient(135deg,#f0c060,#00d4aa);color:#0a0b0f;font-weight:800;font-size:16px">✦</div><div class="msg-body">
+    d.innerHTML=`<div class="msg-av" style="background:linear-gradient(135deg,#f5a623,#00d4aa);color:#0a0b0f;font-weight:800;font-size:16px">✦</div><div class="msg-body">
       <div class="msg-bubble">
         <div class="chat-card">
           <div class="chat-card-title">🌤 Počasí — ${esc(loc)}</div>
@@ -886,7 +886,7 @@ function showInfo(){
         return '<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;gap:8px">'
           +'<span style="font-size:13px;color:var(--text)">📍 '+esc(p)+'</span>'
           +'<div style="display:flex;gap:6px;flex-shrink:0">'
-          +'<a href="'+searchUrl+'" target="_blank" style="background:rgba(240,192,96,.15);color:var(--accent);border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🔍 Mapa</a>'
+          +'<a href="'+searchUrl+'" target="_blank" style="background:rgba(245,166,35,.15);color:var(--accent);border:1px solid rgba(245,166,35,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🔍 Mapa</a>'
           +'<a href="'+navUrl+'" target="_blank" style="background:rgba(0,212,170,.15);color:var(--teal);border:1px solid rgba(0,212,170,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🧭 Navigovat</a>'
           +'</div></div>';
       }).join('')}</div></div></div>`;
