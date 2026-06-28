@@ -41,7 +41,7 @@ def init_settings_from_env():
 app = FastAPI(title="SmartestGuide", version="0.2.0")
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.2.1"
+APP_VERSION = "0.2.2"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -676,6 +676,33 @@ def get_base_url(request: Request) -> str:
     return f"{scheme}://{host}"
 
 # ─────────────────────────────────────────────
+def _generate_qr_png_branded(data: str, size: int = 400) -> bytes:
+    """Generuje zlatý QR kód jako PNG pomocí Pillow — kreslí matici ručně."""
+    import qrcode
+    from PIL import Image, ImageDraw
+    from io import BytesIO
+
+    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=1, border=4)
+    qr.add_data(data)
+    qr.make(fit=True)
+    matrix = qr.get_matrix()
+    n = len(matrix)
+
+    cell = size // n
+    img_size = cell * n
+    img = Image.new("RGB", (img_size, img_size), (10, 11, 15))
+    draw = ImageDraw.Draw(img)
+
+    for r, row in enumerate(matrix):
+        for c, dark in enumerate(row):
+            if dark:
+                x0, y0 = c * cell, r * cell
+                draw.rectangle([x0, y0, x0 + cell - 1, y0 + cell - 1], fill=(240, 192, 96))
+
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
 # QR kód
 # ─────────────────────────────────────────────
 @app.get("/api/hotels/{hotel_id}/qr")
@@ -693,19 +720,13 @@ def generate_qr(hotel_id: str, request: Request):
 
     base = get_base_url(request)
     guest_url = f"{base}/guest/{hotel_id}"
-    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=10, border=4)
-    qr.add_data(guest_url)
-    qr.make(fit=True)
     try:
-        from qrcode.image.styledpil import StyledPilImage
-        from qrcode.image.styles.moduledrawers import RoundedModuleDrawer
-        img = qr.make_image(image_factory=StyledPilImage, module_drawer=RoundedModuleDrawer(),
-                            fill_color=(240, 192, 96), back_color=(10, 11, 15))
-    except Exception:
-        img = qr.make_image(fill_color=(240, 192, 96), back_color=(10, 11, 15))
+        png_bytes = _generate_qr_png_branded(guest_url, size=400)
+    except Exception as e:
+        raise HTTPException(500, f"Chyba generování QR: {e}")
     buf = BytesIO()
-    img.save(buf, format="PNG")
-    return {"status": "ok", "qr_base64": base64.b64encode(buf.getvalue()).decode(), "guest_url": guest_url}
+    buf.write(png_bytes)
+    return {"status": "ok", "qr_base64": base64.b64encode(png_bytes).decode(), "guest_url": guest_url}
 
 # QR plakát hub — výběr formátu
 # ─────────────────────────────────────────────
@@ -719,6 +740,20 @@ def generate_qr_poster(hotel_id: str, request: Request):
     base = get_base_url(request)
     guest_url = f"{base}/guest/{hotel_id}"
     hotel_name = hotel.get("name", "Hotel")
+    country = hotel.get("country", "").upper()
+    is_cs = country in ("CZ", "SK")
+    primary_lang = "cz" if is_cs else "en"
+    btn_print = "🖨️ Otevřít a tisknout" if is_cs else "🖨️ Open and print"
+    hub_title = "Tiskové materiály" if is_cs else "Print materials"
+    qr_poster_label = "QR Plakát · 800×800px" if is_cs else "QR Poster · 800×800px"
+    qr_poster_desc = "Čtvercový plakát s QR kódem. Ideální pro recepci, výtah nebo restaurační stoly." if is_cs else "Square poster with QR code. Perfect for reception, elevator or restaurant tables."
+    flyer_primary_name = "A4 Leták · Česky" if is_cs else "A4 Flyer · English"
+    flyer_primary_desc = "Český leták A4, print-ready." if is_cs else "English A4 flyer, print-ready."
+    flyer_primary_url = f"flyer-cz" if is_cs else "flyer-en"
+    flyer_secondary_name = "A4 Flyer · English" if is_cs else "A4 Leták · Česky"
+    flyer_secondary_desc = "Anglický leták pro mezinárodní hosty." if is_cs else "Český leták pro české hosty."
+    flyer_secondary_url = "flyer-en" if is_cs else "flyer-cz"
+    rollup_desc = "Vysoký banner pro lobby, veletrh nebo konferenci." if is_cs else "Tall banner for lobby or trade show."
 
     # Vlajky jako inline SVG (stejné jako v designérových letácích)
     flags_svg = """
@@ -804,7 +839,7 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
   <div class="hub-header">
     <div class="hub-logo">SmartestGuide<span class="hub-dot"></span></div>
     <div class="hub-hotel">{hotel_name}</div>
-    <div class="hub-title">Tiskové materiály / Print materials</div>
+    <div class="hub-title">{hub_title}</div>
   </div>
 
   <div class="formats">
@@ -818,57 +853,60 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
         </div>
       </div>
       <div class="fmt-info">
-        <div class="fmt-name">QR Plakát · 800×800px</div>
-        <div class="fmt-desc">Čtvercový plakát s QR kódem. Ideální pro recepci, výtah nebo restaurační stoly.</div>
-        <button class="fmt-btn" onclick="openFormat('qr-poster')">🖨️ Otevřít a tisknout</button>
+        <div class="fmt-name">{qr_poster_label}</div>
+        <div class="fmt-desc">{qr_poster_desc}</div>
+        <button class="fmt-btn" onclick="openFormat('qr-poster')">{btn_print}</button>
       </div>
     </div>
 
-    <!-- A4 Leták EN -->
+    <!-- A4 Primární jazyk -->
     <div class="fmt-card">
-      <div class="fmt-preview" onclick="openFormat('flyer-en')">
-        <div style="width:120px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:12px;text-align:center">
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:11px;color:#f0c060;line-height:1.2;margin-bottom:8px">Your personal<br>AI concierge</div>
-          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center;margin-bottom:8px">{flags_svg}</div>
-          <div id="qr-a4-en" style="width:80px;height:80px;margin:0 auto"></div>
+      <div class="fmt-preview" onclick="openFormat('{flyer_primary_url}')">
+        <div style="width:110px;min-height:155px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f0c060;line-height:1.2">{'Váš osobní<br>AI concierge' if is_cs else 'Your personal<br>AI concierge'}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center">{flags_svg}</div>
+          <div id="qr-a4-primary" style="width:70px;height:70px"></div>
+          <div style="font-size:7px;color:#00d4aa">smartestguide.com</div>
         </div>
       </div>
       <div class="fmt-info">
-        <div class="fmt-name">A4 Leták · English</div>
-        <div class="fmt-desc">Anglický leták A4 pro mezinárodní hosty. Print-ready, tmavý brand.</div>
-        <button class="fmt-btn" onclick="openFormat('flyer-en')">🖨️ Otevřít a tisknout</button>
+        <div class="fmt-name">{flyer_primary_name}</div>
+        <div class="fmt-desc">{flyer_primary_desc}</div>
+        <button class="fmt-btn" onclick="openFormat('{flyer_primary_url}')">{btn_print}</button>
       </div>
     </div>
 
-    <!-- A4 Leták CZ -->
+    <!-- A4 Sekundární jazyk -->
     <div class="fmt-card">
-      <div class="fmt-preview" onclick="openFormat('flyer-cz')">
-        <div style="width:120px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:12px;text-align:center">
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:11px;color:#f0c060;line-height:1.2;margin-bottom:8px">Váš osobní<br>AI concierge</div>
-          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center;margin-bottom:8px">{flags_svg}</div>
-          <div id="qr-a4-cz" style="width:80px;height:80px;margin:0 auto"></div>
+      <div class="fmt-preview" onclick="openFormat('{flyer_secondary_url}')">
+        <div style="width:110px;min-height:155px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f0c060;line-height:1.2">{'Your personal<br>AI concierge' if is_cs else 'Váš osobní<br>AI concierge'}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center">{flags_svg}</div>
+          <div id="qr-a4-secondary" style="width:70px;height:70px"></div>
+          <div style="font-size:7px;color:#00d4aa">smartestguide.com</div>
         </div>
       </div>
       <div class="fmt-info">
-        <div class="fmt-name">A4 Leták · Česky</div>
-        <div class="fmt-desc">Český leták A4 pro české a slovenské hosty. Print-ready, tmavý brand.</div>
-        <button class="fmt-btn" onclick="openFormat('flyer-cz')">🖨️ Otevřít a tisknout</button>
+        <div class="fmt-name">{flyer_secondary_name}</div>
+        <div class="fmt-desc">{flyer_secondary_desc}</div>
+        <button class="fmt-btn" onclick="openFormat('{flyer_secondary_url}')">{btn_print}</button>
       </div>
     </div>
 
     <!-- Roll-up -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('rollup')">
-        <div style="width:60px;height:144px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:6px;padding:8px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
+        <div style="width:65px;height:156px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:6px;padding:8px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:7px;color:#f0c060;line-height:1.2">Your<br>personal<br>AI<br>concierge</div>
+          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center;max-width:55px">{flags_svg}</div>
           <div id="qr-rollup" style="width:44px;height:44px"></div>
           <div style="font-size:6px;color:#00d4aa">smartestguide.com</div>
         </div>
       </div>
       <div class="fmt-info">
         <div class="fmt-name">Roll-up Banner · 850×2000mm</div>
-        <div class="fmt-desc">Vysoký banner pro lobby, veletrh nebo konferenci. Formát 1:2.4.</div>
-        <button class="fmt-btn" onclick="openFormat('rollup')">🖨️ Otevřít a tisknout</button>
+        <div class="fmt-desc">{rollup_desc}</div>
+        <button class="fmt-btn" onclick="openFormat('rollup')">{btn_print}</button>
       </div>
     </div>
 
@@ -884,8 +922,8 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
 window.addEventListener('load', function(){{
   setTimeout(function(){{
     drawQR('qr-thumb', 160);
-    drawQR('qr-a4-en', 80);
-    drawQR('qr-a4-cz', 80);
+    drawQR('qr-a4-primary', 70);
+    drawQR('qr-a4-secondary', 70);
     drawQR('qr-rollup', 44);
   }}, 300);
 }});
@@ -1461,23 +1499,9 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
     # Vygeneruj QR kod jako PNG prilohu
     attachments = []
     try:
-        import qrcode
-        from io import BytesIO
-        import base64
         guest_url = f"{base_url}/guest/{hotel_id}"
-        qr_img = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=10, border=4)
-        qr_img.add_data(guest_url)
-        qr_img.make(fit=True)
-        from qrcode.image.styledpil import StyledPilImage
-        from qrcode.image.styles.moduledrawers import RoundedModuleDrawer
-        try:
-            img = qr_img.make_image(image_factory=StyledPilImage, module_drawer=RoundedModuleDrawer(),
-                                     fill_color=(240, 192, 96), back_color=(10, 11, 15))
-        except Exception:
-            img = qr_img.make_image(fill_color=(240, 192, 96), back_color=(10, 11, 15))
-        buf = BytesIO()
-        img.save(buf, format="PNG")
-        qr_b64 = base64.b64encode(buf.getvalue()).decode()
+        qr_bytes = _generate_qr_png_branded(guest_url, size=400)
+        qr_b64 = base64.b64encode(qr_bytes).decode()
         attachments.append({
             "name": f"SmartestGuide_QR_{hotel_name.replace(' ','_')}.png",
             "content": qr_b64,

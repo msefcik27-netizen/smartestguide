@@ -50,9 +50,17 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 5vw;display:flex;a
 .nav-cta-ghost{background:transparent;color:var(--teal);border:1px solid rgba(0,212,170,.4);border-radius:8px;padding:8px 18px;font-family:var(--font-body);font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;transition:all .15s;margin-right:8px}
 .nav-cta-ghost:hover{border-color:var(--teal);background:rgba(0,212,170,.08)}
 .nav-burger{display:none;background:none;border:none;color:var(--text);font-size:22px;cursor:pointer}
-.lang-switch{display:flex;gap:4px;background:var(--ink3);border:1px solid var(--border);border-radius:8px;padding:3px}
-.lang-sw-btn{background:none;border:none;color:var(--muted);font-size:12px;font-weight:700;padding:4px 10px;border-radius:5px;cursor:pointer;transition:all .15s}
-.lang-sw-btn.active{background:var(--gold);color:#0a0b0f}
+.lang-switch{position:relative;display:inline-block}
+.lang-trigger{display:flex;align-items:center;gap:6px;background:var(--ink3);border:1px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:700;color:var(--text);transition:border-color .15s;white-space:nowrap}
+.lang-trigger:hover{border-color:var(--gold)}
+.lang-trigger .chevron{font-size:10px;color:var(--muted);transition:transform .2s}
+.lang-switch.open .chevron{transform:rotate(180deg)}
+.lang-dropdown{position:absolute;top:calc(100% + 6px);right:0;background:var(--ink2);border:1px solid var(--border);border-radius:10px;padding:4px;min-width:130px;box-shadow:0 8px 24px rgba(0,0,0,.4);opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .15s,transform .15s;z-index:200}
+.lang-switch.open .lang-dropdown{opacity:1;transform:translateY(0);pointer-events:all}
+.lang-option{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;color:var(--text);font-size:13px;font-weight:600;padding:7px 10px;border-radius:7px;cursor:pointer;text-align:left;transition:background .12s}
+.lang-option:hover{background:var(--ink3)}
+.lang-option.active{color:var(--gold)}
+.lang-option img{border-radius:2px;flex-shrink:0}
 .hero{min-height:100vh;padding:120px 5vw 80px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;position:relative;overflow:hidden}
 .hero::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(240,192,96,.18) 0%,transparent 70%),radial-gradient(ellipse 50% 40% at 80% 60%,rgba(0,212,170,.08) 0%,transparent 60%);pointer-events:none}
 .hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(0,212,170,.08);border:1px solid rgba(0,212,170,.3);border-radius:20px;padding:6px 16px;font-size:13px;color:var(--teal);font-weight:500;margin-bottom:28px}
@@ -186,13 +194,20 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
     <li><a href="#contact">Contact</a></li>
   </ul>
   <a href="#register" class="nav-cta" id="nav-cta">Get started →</a>
-  <div class="lang-switch">
-    <button onclick="setLang('en')" id="btn-en" class="lang-sw-btn active"><img src="https://flagcdn.com/w20/gb.png" width="16" height="11" style="border-radius:2px;vertical-align:middle" alt="EN"> EN</button>
-    <button onclick="setLang('cs')" id="btn-cs" class="lang-sw-btn"><img src="https://flagcdn.com/w20/cz.png" width="16" height="11" style="border-radius:2px;vertical-align:middle" alt="CZ"> CZ</button>
-    <button onclick="setLang('de')" id="btn-de" class="lang-sw-btn"><img src="https://flagcdn.com/w20/de.png" width="16" height="11" style="border-radius:2px;vertical-align:middle" alt="DE"> DE</button>
-    <button onclick="setLang('es')" id="btn-es" class="lang-sw-btn"><img src="https://flagcdn.com/w20/es.png" width="16" height="11" style="border-radius:2px;vertical-align:middle" alt="ES"> ES</button>
-    <button onclick="setLang('zh')" id="btn-zh" class="lang-sw-btn"><img src="https://flagcdn.com/w20/cn.png" width="16" height="11" style="border-radius:2px;vertical-align:middle" alt="ZH"> 中文</button>
-    <button onclick="setLang('ja')" id="btn-ja" class="lang-sw-btn"><img src="https://flagcdn.com/w20/jp.png" width="16" height="11" style="border-radius:2px;vertical-align:middle" alt="JA"> 日本語</button>
+  <div class="lang-switch" id="lang-switch">
+    <button class="lang-trigger" onclick="toggleLangMenu(event)" id="lang-trigger">
+      <img src="https://flagcdn.com/w20/gb.png" width="16" height="11" style="border-radius:2px" id="lang-flag" alt=""> 
+      <span id="lang-label">EN</span>
+      <span class="chevron">▾</span>
+    </button>
+    <div class="lang-dropdown">
+      <button class="lang-option active" id="btn-en" onclick="selectLang('en')"><img src="https://flagcdn.com/w20/gb.png" width="18" height="13" alt=""> English</button>
+      <button class="lang-option" id="btn-cs" onclick="selectLang('cs')"><img src="https://flagcdn.com/w20/cz.png" width="18" height="13" alt=""> Čeština</button>
+      <button class="lang-option" id="btn-de" onclick="selectLang('de')"><img src="https://flagcdn.com/w20/de.png" width="18" height="13" alt=""> Deutsch</button>
+      <button class="lang-option" id="btn-es" onclick="selectLang('es')"><img src="https://flagcdn.com/w20/es.png" width="18" height="13" alt=""> Español</button>
+      <button class="lang-option" id="btn-zh" onclick="selectLang('zh')"><img src="https://flagcdn.com/w20/cn.png" width="18" height="13" alt=""> 中文</button>
+      <button class="lang-option" id="btn-ja" onclick="selectLang('ja')"><img src="https://flagcdn.com/w20/jp.png" width="18" height="13" alt=""> 日本語</button>
+    </div>
   </div>
   <button class="nav-burger" onclick="toggleMenu()">☰</button>
 </nav>
@@ -782,6 +797,14 @@ function setLang(lang){
   if(!TRANSLATIONS[lang]) lang='en';
   currentLang=lang;
   const T=TRANSLATIONS[lang];
+  // Updatuj trigger vlajku a label
+  const FLAGS={en:['https://flagcdn.com/w20/gb.png','EN'],cs:['https://flagcdn.com/w20/cz.png','CZ'],de:['https://flagcdn.com/w20/de.png','DE'],es:['https://flagcdn.com/w20/es.png','ES'],zh:['https://flagcdn.com/w20/cn.png','中文'],ja:['https://flagcdn.com/w20/jp.png','JP']};
+  const f=FLAGS[lang]||FLAGS.en;
+  const flagEl=document.getElementById('lang-flag');
+  const labelEl=document.getElementById('lang-label');
+  if(flagEl) flagEl.src=f[0];
+  if(labelEl) labelEl.textContent=f[1];
+  // Updatuj active stav v dropdownu
   ['en','cs','de','es','zh','ja'].forEach(l=>{
     const btn=document.getElementById('btn-'+l);
     if(btn) btn.classList.toggle('active',l===lang);
@@ -811,6 +834,16 @@ function setLang(lang){
   setText('reg-btn',T.reg_btn);setText('reg-note',T.reg_note);
   setText('contact-eyebrow',T.contact_eyebrow);set('contact-h2',T.contact_h2);setText('contact-p',T.contact_p);
 }
+
+function toggleLangMenu(e){
+  e.stopPropagation();
+  document.getElementById('lang-switch').classList.toggle('open');
+}
+function selectLang(lang){
+  setLang(lang);
+  document.getElementById('lang-switch').classList.remove('open');
+}
+document.addEventListener('click',()=>document.getElementById('lang-switch')?.classList.remove('open'));
 
 const observer=new IntersectionObserver((entries)=>{
   entries.forEach(e=>{if(e.isIntersecting){e.target.style.opacity='1';e.target.style.transform='translateY(0)';}});
