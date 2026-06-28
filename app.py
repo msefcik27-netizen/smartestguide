@@ -111,6 +111,17 @@ class HotelData(BaseModel):
     wellness_info: Optional[str] = None
     parking_info: Optional[str] = None
     phone2: Optional[str] = None
+    nav_pool: Optional[str] = None
+    nav_wellness: Optional[str] = None
+    nav_fitness: Optional[str] = None
+    nav_restaurant: Optional[str] = None
+    nav_bar: Optional[str] = None
+    nav_parking: Optional[str] = None
+    nav_arrival: Optional[str] = None
+    nav_elevator: Optional[str] = None
+    nav_conference: Optional[str] = None
+    nav_other: Optional[str] = None
+    nav_custom: Optional[list] = None
     whatsapp_number: Optional[str] = None
     whatsapp_wellness: Optional[str] = None
     whatsapp_restaurant: Optional[str] = None
@@ -511,6 +522,17 @@ class HotelPortalUpdate(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     phone2: Optional[str] = None
+    nav_pool: Optional[str] = None
+    nav_wellness: Optional[str] = None
+    nav_fitness: Optional[str] = None
+    nav_restaurant: Optional[str] = None
+    nav_bar: Optional[str] = None
+    nav_parking: Optional[str] = None
+    nav_arrival: Optional[str] = None
+    nav_elevator: Optional[str] = None
+    nav_conference: Optional[str] = None
+    nav_other: Optional[str] = None
+    nav_custom: Optional[list] = None
     whatsapp_number: Optional[str] = None
     whatsapp_wellness: Optional[str] = None
     whatsapp_restaurant: Optional[str] = None
@@ -1654,6 +1676,21 @@ Hotel information:
 - Parking: {h.get('parking_info', 'N/A')}
 - Wellness: {h.get('wellness_info', 'N/A')}
 - WhatsApp Recepce: {h.get('whatsapp_number', 'N/A')}
+
+ORIENTACE V HOTELU (krok za krokem):
+- Bazén: {h.get('nav_pool', 'neuvedeno')}
+- Wellness/Spa: {h.get('nav_wellness', 'neuvedeno')}
+- Fitness: {h.get('nav_fitness', 'neuvedeno')}
+- Restaurace: {h.get('nav_restaurant', 'neuvedeno')}
+- Bar: {h.get('nav_bar', 'neuvedeno')}
+- Parkování/Garáž: {h.get('nav_parking', 'neuvedeno')}
+- Příjezd k hotelu: {h.get('nav_arrival', 'neuvedeno')}
+- Výtah: {h.get('nav_elevator', 'neuvedeno')}
+- Konferenční sály: {h.get('nav_conference', 'neuvedeno')}
+- Další: {h.get('nav_other', 'neuvedeno')}
+{chr(10).join([f"- {item.get('name','')}: {item.get('desc','')}" for item in (h.get('nav_custom') or []) if item.get('name')])}
+
+Pokud host žádá cestu nebo navigaci, použij PŘESNÝ popis výše krok za krokem.
 - WhatsApp Wellness: {h.get('whatsapp_wellness', 'N/A')}
 - WhatsApp Restaurace: {h.get('whatsapp_restaurant', 'N/A')}
 - WhatsApp Sport: {h.get('whatsapp_sport', 'N/A')}

@@ -400,6 +400,38 @@ function renderPortal() {
       </div>
     `, ['restaurant_name','breakfast_type','bar_info'])}
 
+    ${renderSection('🗺️', 'Orientace v hotelu', 'Navigace pro hosty — kde co najdou', `
+      <div style="background:rgba(0,212,170,.06);border:1px solid rgba(0,212,170,.2);border-radius:10px;padding:16px;margin-bottom:16px;font-size:12px;color:var(--muted);line-height:1.7">
+        <div style="font-weight:700;color:#00d4aa;margin-bottom:8px;font-size:13px">💡 Jak správně vyplnit navigaci pro hosty</div>
+        <p style="margin-bottom:8px">Představte si, že jste host který právě přijel. Pište <strong style="color:var(--text)">krok za krokem</strong> jak se dostane na místo — jako kdybyste mu cestu popsali osobně na recepci.</p>
+        <p style="margin-bottom:8px"><strong style="color:var(--text)">✅ Dobře:</strong> <em>"Jděte chodbou doprava, u výtahu zvolte -1, vyjděte a dejte se doleva. Wellness je na konci chodby, 50 metrů."</em></p>
+        <p style="margin-bottom:8px"><strong style="color:var(--text)">❌ Špatně:</strong> <em>"Wellness je v suterénu."</em> — to hostu nestačí!</p>
+        <p><strong style="color:var(--text)">Tipy:</strong> Uveďte patro nebo číslo poschodí · Zmiňte výtah nebo schodiště · Přidejte orientační body (recepce, bar, restaurace) · Uveďte otevírací dobu</p>
+      </div>
+      <table class="edit-table">
+        <tr><td colspan="2" style="padding:8px 0 4px;font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px">🏊 Bazén & Wellness</td></tr>
+        ${rowTextarea('Jak se dostat k bazénu', 'nav_pool', h.nav_pool, 'např. Jděte výtahem na patro -1, vyjděte a dejte se doprava. Bazén je na konci chodby, otevřeno 7:00–21:00.')}
+        ${rowTextarea('Jak se dostat do wellness / spa', 'nav_wellness', h.nav_wellness, 'např. Wellness je vedle bazénu na patře -1. Vstupenky si kupte na recepci.')}
+        ${rowTextarea('Jak se dostat do fitness', 'nav_fitness', h.nav_fitness, 'např. Fitness centrum je v 1. patře, dostanete se tam schodištěm u recepce. Otevřeno nonstop.')}
+        <tr><td colspan="2" style="padding:12px 0 4px;font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px">🍽️ Stravování</td></tr>
+        ${rowTextarea('Jak se dostat do restaurace', 'nav_restaurant', h.nav_restaurant, 'např. Restaurace je v přízemí vpravo od recepce. Vstup je také z parkoviště.')}
+        ${rowTextarea('Jak se dostat do baru', 'nav_bar', h.nav_bar, 'např. Bar je vedle recepce vlevo, otevřeno 16:00–01:00.')}
+        <tr><td colspan="2" style="padding:12px 0 4px;font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px">🅿️ Parkování & příjezd</td></tr>
+        ${rowTextarea('Jak se dostat na parkoviště / do garáže', 'nav_parking', h.nav_parking, 'např. Podzemní garáž je přístupná z ulice Nádražní. Vjezd je označen cedulí P. Použijte klíčovou kartu z pokoje.')}
+        ${rowTextarea('Příjezd k hotelu (pro navigaci)', 'nav_arrival', h.nav_arrival, 'např. Hlavní vchod je z náměstí. Taxi a Uber zastavují před hotelem. Nejbližší MHD zastávka je 50m vlevo.')}
+        <tr><td colspan="2" style="padding:12px 0 4px;font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px">🏨 Další prostory</td></tr>
+        ${rowTextarea('Výtah — kde se nachází', 'nav_elevator', h.nav_elevator, 'např. Výtah je uprostřed hlavní chodby naproti recepci. Druhý výtah je v zadní části budovy u schodiště.')}
+        ${rowTextarea('Konferenční sály / Meeting rooms', 'nav_conference', h.nav_conference, 'např. Konferenční sál Morava je v 1. patře, výtahem nebo schodištěm vpravo od recepce.')}
+        ${rowTextarea('Jiné důležité místo (volitelné)', 'nav_other', h.nav_other, 'např. Obchod se suvenýry je v přízemí vlevo od recepce, otevřeno 9:00–20:00.')}
+        <tr><td colspan="2" style="padding:12px 0 4px;font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px">➕ Vlastní navigační body</td></tr>
+        <tr><td colspan="2">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Přidejte libovolný počet vlastních míst — knihovna, dětský koutek, lyžárna, prodejna…</div>
+          <div id="nav-custom-list">${renderNavCustom(h.nav_custom||[])}</div>
+          <button type="button" onclick="addNavCustom()" class="btn btn-secondary" style="margin-top:8px;font-size:12px;padding:6px 14px">+ Přidat místo</button>
+        </td></tr>
+      </table>
+    `, ['nav_pool','nav_wellness','nav_restaurant','nav_parking','nav_elevator'])}
+
     ${renderSection('🏊', 'Služby hotelu & Wellness', 'Fitness, bazén, spa, doprava', `
       <table class="edit-table">
         ${row('Wellness / Spa info', 'wellness_info', 'text', h.wellness_info, 'např. Sauna, bazén, masáže – otevřeno 8–21')}
@@ -602,6 +634,103 @@ function toggleSection(id) {
   body.classList.toggle('open', !isOpen);
   head.classList.toggle('open', !isOpen);
   chev.classList.toggle('open', !isOpen);
+}
+
+// ── Vlastní navigační body ──────────────────
+function renderNavCustom(items) {
+  if (!items || !items.length) return '';
+  return items.map((item, i) => `
+    <div id="nav-custom-${i}" style="display:flex;gap:8px;margin-bottom:8px;align-items:flex-start">
+      <div style="flex:1;display:grid;grid-template-columns:1fr 2fr;gap:6px">
+        <input type="text" placeholder="Název místa (např. Knihovna)" value="${esc(item.name||'')}"
+          id="nav-custom-name-${i}" oninput="markChanged()"
+          style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px"/>
+        <textarea placeholder="Popis cesty krok za krokem…" id="nav-custom-desc-${i}" oninput="markChanged()"
+          style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;resize:vertical;min-height:60px">${esc(item.desc||'')}</textarea>
+      </div>
+      <button type="button" onclick="removeNavCustom(${i})" style="background:rgba(255,80,80,.15);border:1px solid rgba(255,80,80,.3);color:#ff5050;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;flex-shrink:0">✕</button>
+    </div>`).join('');
+}
+
+function addNavCustom() {
+  const list = document.getElementById('nav-custom-list');
+  const current = getNavCustomItems();
+  current.push({name:'', desc:''});
+  list.innerHTML = renderNavCustom(current);
+  markChanged();
+  // Focus na nový input
+  const inputs = list.querySelectorAll('input[id^="nav-custom-name-"]');
+  if (inputs.length) inputs[inputs.length-1].focus();
+}
+
+function removeNavCustom(idx) {
+  const current = getNavCustomItems();
+  current.splice(idx, 1);
+  document.getElementById('nav-custom-list').innerHTML = renderNavCustom(current);
+  markChanged();
+}
+
+function getNavCustomItems() {
+  const list = document.getElementById('nav-custom-list');
+  if (!list) return [];
+  const items = [];
+  let i = 0;
+  while (document.getElementById('nav-custom-name-'+i) !== null) {
+    items.push({
+      name: document.getElementById('nav-custom-name-'+i).value,
+      desc: document.getElementById('nav-custom-desc-'+i).value
+    });
+    i++;
+  }
+  return items;
+}
+
+// ── Vlastní navigační body ──────────────────
+function renderNavCustom(items) {
+  if (!items || !items.length) return '';
+  return items.map((item, i) => `
+    <div id="nav-custom-${i}" style="display:flex;gap:8px;margin-bottom:8px;align-items:flex-start">
+      <div style="flex:1;display:grid;grid-template-columns:1fr 2fr;gap:6px">
+        <input type="text" placeholder="Název místa (např. Knihovna)" value="${esc(item.name||'')}"
+          id="nav-custom-name-${i}" oninput="markChanged()"
+          style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px"/>
+        <textarea placeholder="Popis cesty krok za krokem…" id="nav-custom-desc-${i}" oninput="markChanged()"
+          style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;resize:vertical;min-height:60px">${esc(item.desc||'')}</textarea>
+      </div>
+      <button type="button" onclick="removeNavCustom(${i})" style="background:rgba(255,80,80,.15);border:1px solid rgba(255,80,80,.3);color:#ff5050;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;flex-shrink:0">✕</button>
+    </div>`).join('');
+}
+
+function addNavCustom() {
+  const list = document.getElementById('nav-custom-list');
+  const current = getNavCustomItems();
+  current.push({name:'', desc:''});
+  list.innerHTML = renderNavCustom(current);
+  markChanged();
+  const inputs = list.querySelectorAll('input[id^="nav-custom-name-"]');
+  if (inputs.length) inputs[inputs.length-1].focus();
+}
+
+function removeNavCustom(idx) {
+  const current = getNavCustomItems();
+  current.splice(idx, 1);
+  document.getElementById('nav-custom-list').innerHTML = renderNavCustom(current);
+  markChanged();
+}
+
+function getNavCustomItems() {
+  const list = document.getElementById('nav-custom-list');
+  if (!list) return [];
+  const items = [];
+  let i = 0;
+  while (document.getElementById('nav-custom-name-'+i) !== null) {
+    items.push({
+      name: document.getElementById('nav-custom-name-'+i).value,
+      desc: document.getElementById('nav-custom-desc-'+i).value
+    });
+    i++;
+  }
+  return items;
 }
 
 function row(label, key, type, val, placeholder) {
@@ -844,7 +973,9 @@ async function saveAll() {
   const numFields = ['bed_count', 'room_count', 'star_rating'];
   const textFields = ['checkin_time','checkout_time','breakfast_hours','lunch_hours','dinner_hours',
     'phone','email','whatsapp_number','whatsapp_wellness','restaurant_name','wellness_info','parking_info',
-    'description','extra_info','address','country'];
+    'description','extra_info','address','country',
+    'nav_pool','nav_wellness','nav_fitness','nav_restaurant','nav_bar',
+    'nav_parking','nav_arrival','nav_elevator','nav_conference','nav_other'];
 
   const data = {};
   textFields.forEach(k => {
@@ -868,6 +999,9 @@ async function saveAll() {
     if(el && el.value.trim()) menuUrls.push(el.value.trim());
   }
   data.menu_urls = menuUrls.length ? menuUrls : null;
+
+  // Vlastní navigační body
+  data.nav_custom = getNavCustomItems().filter(i => i.name || i.desc);
 
   // Vlastní pole
   const customFields = [];
