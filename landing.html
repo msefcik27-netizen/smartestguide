@@ -145,9 +145,9 @@ section{padding:100px 5vw}
 .form-group{display:flex;flex-direction:column;gap:6px}
 .form-group.full{grid-column:1/-1}
 label{font-size:12px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
-input,select,textarea{background:var(--ink);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--font-body);font-size:15px;padding:12px 14px;outline:none;width:100%;transition:border-color .15s}
+input,select,textarea{background:#ffffff;border:1.5px solid var(--border);border-radius:10px;color:#1a1a1a;font-family:var(--font-body);font-size:15px;padding:12px 14px;outline:none;width:100%;transition:border-color .15s}
 input:focus,select:focus,textarea:focus{border-color:var(--gold)}
-select option{background:var(--ink)}
+select option{background:#ffffff;color:#1a1a1a}
 .form-submit{width:100%;margin-top:8px;background:var(--gold);color:#0a0b0f;border:none;border-radius:12px;font-family:var(--font-body);font-size:16px;font-weight:700;padding:16px;cursor:pointer;transition:all .2s;box-shadow:0 4px 24px rgba(255,107,0,.3)}
 .form-submit:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(255,107,0,.45)}
 .form-submit:disabled{opacity:.6;cursor:not-allowed;transform:none}
@@ -427,7 +427,7 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
     <div class="register-wrap">
       <form id="reg-form" onsubmit="return false;">
         <div class="form-grid">
-          <div class="form-group"><label>Hotel name *</label><input type="text" id="reg-name" placeholder="Grand Hotel Praha" required/></div>
+          <div class="form-group"><label id="reg-l-name">Hotel name *</label><input type="text" id="reg-name" placeholder="Grand Hotel Praha" required/><span style="font-size:11px;color:var(--muted);margin-top:2px" id="reg-name-hint">⚠️ This name will appear on all print materials and QR posters — enter it exactly as you want it printed.</span></div>
           <div class="form-group"><label>Hotel website *</label><input type="text" id="reg-url" placeholder="https://www.yourhotel.com" required/></div>
           <div class="form-group"><label>Contact email *</label><input type="email" id="reg-email" placeholder="reception@yourhotel.com" required/></div>
           <div class="form-group"><label>Phone number</label><input type="tel" id="reg-phone" placeholder="+420 123 456 789"/></div>
@@ -655,6 +655,7 @@ const TRANSLATIONS={
     about_p:"SMARTEST GUIDE vznikl z naší vlastní frustrace: proč hosté stále musí volat na recepci, aby se zeptali, v kolik hodin začíná snídaně, kde je parkoviště nebo kde je nejlepší místní zmrzlina? Každý hotel tuto informaci má — jen není 24/7 dostupná z telefonu hosta. Jsme malý tým se sídlem v Praze, zaměřený výhradně na evropský trh pohostinství.",
     reg_eyebrow:"Začít",reg_h2:"Zaregistrujte svůj hotel <span class=\"grad-text\">dnes</span>",reg_p:"Vyplňte údaje níže. Po zaplacení připravíme profil vašeho hotelu a zašleme vám přístup do portálu.",
     reg_btn:"Pokračovat k platbě →",reg_note:"Bezpečná platba přes Stripe · Bez dlouhodobé smlouvy · Zrušení kdykoliv",
+    reg_name_hint:"⚠️ Tento název se zobrazí na všech tiskových materiálech a QR plakátech — zadejte ho přesně tak, jak chcete mít vytištěno.",
     contact_eyebrow:"Kontakt",contact_h2:"Máte dotaz?<br><span class=\"grad-text\">Napište nám.</span>",contact_p:"Jsme malý tým a odpovídáme na každou zprávu osobně.",
   },
   de:{
@@ -841,6 +842,7 @@ function setLang(lang){
   setText('about-eyebrow',T.about_eyebrow);set('about-h2',T.about_h2);
   setText('reg-eyebrow',T.reg_eyebrow);set('reg-h2',T.reg_h2);setText('reg-p',T.reg_p);
   setText('reg-btn',T.reg_btn);setText('reg-note',T.reg_note);
+  if(T.reg_name_hint) setText('reg-name-hint', T.reg_name_hint);
   setText('contact-eyebrow',T.contact_eyebrow);set('contact-h2',T.contact_h2);setText('contact-p',T.contact_p);
 }
 

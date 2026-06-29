@@ -204,7 +204,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.4.0"
+APP_VERSION = "0.4.1"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -1022,22 +1022,22 @@ function drawQR(holderId, size){{
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height:100vh}}
+body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height:100vh}}
 .topbar{{position:fixed;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#FF6B00);z-index:200}}
 .hub{{max-width:960px;margin:0 auto;padding:60px 24px 80px}}
 .hub-header{{text-align:center;margin-bottom:48px}}
-.hub-logo{{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;color:#f0ece0;display:inline-flex;align-items:center;gap:4px;margin-bottom:8px}}
+.hub-logo{{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;color:#1a1a1a;display:inline-flex;align-items:center;gap:4px;margin-bottom:8px}}
 .hub-dot{{width:9px;height:9px;border-radius:50%;background:#FF6B00;box-shadow:0 0 10px rgba(255,107,0,.8);margin-left:2px}}
-.hub-hotel{{font-size:15px;color:#9ba0c0;margin-top:4px}}
-.hub-title{{font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:#f0ece0;margin-top:16px}}
+.hub-hotel{{font-size:15px;color:#6b6b6b;margin-top:4px}}
+.hub-title{{font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:#1a1a1a;margin-top:16px}}
 .formats{{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:0}}
 .fmt-card{{background:#181920;border:1px solid #222330;border-radius:16px;overflow:hidden;display:flex;flex-direction:column}}
-.fmt-card:hover{{border-color:rgba(255,107,0,.4)}}
+.fmt-card:hover{{border-color:#FF6B00;box-shadow:0 4px 16px rgba(255,107,0,.12)}}
 .fmt-preview{{background:#1a1a1a;padding:24px;display:flex;justify-content:center;align-items:center;min-height:200px;cursor:pointer;position:relative;overflow:hidden}}
 .fmt-preview::before{{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 80% at 50% 50%,rgba(255,107,0,.08),transparent 70%);pointer-events:none}}
 .fmt-info{{padding:20px}}
 .fmt-name{{font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:#f0ece0;margin-bottom:4px}}
-.fmt-desc{{font-size:13px;color:#9ba0c0;line-height:1.5;margin-bottom:16px}}
+.fmt-desc{{font-size:13px;color:#6b6b6b;line-height:1.5;margin-bottom:16px}}
 .fmt-btn{{display:block;width:100%;background:#FF6B00;color:#0a0b0f;border:none;border-radius:8px;padding:11px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-align:center;text-decoration:none;transition:opacity .15s}}
 .fmt-btn:hover{{opacity:.88}}
 /* Print styles */

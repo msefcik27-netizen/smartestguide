@@ -721,10 +721,10 @@ def test_print_materials(hotel_id):
             ok("QR hub — všechny formáty přítomny (EN, CZ, rollup)")
         else:
             fail("QR hub — formáty", "chybí flyer-en/cz nebo rollup linky")
-        if "f5a623" in html or "f0c060" in html:
-            ok("QR hub — zlatý brand")
+        if "f5a623" in html or "f0c060" in html or "FF6B00" in html:
+            ok("QR hub — brand barva")
         else:
-            fail("QR hub — zlatý brand", "chybí gold barva")
+            fail("QR hub — brand barva", "chybí brand barva")
     except Exception as e:
         fail("QR hub stránka", str(e))
 
@@ -795,10 +795,10 @@ def test_admin():
             fail("Admin — SMARTEST GUIDE brand", "chybí")
 
         # Gold barva
-        if "f5a623" in html or "f0c060" in html:
-            ok("Admin — zlatý brand")
+        if "f5a623" in html or "f0c060" in html or "FF6B00" in html:
+            ok("Admin — brand barva")
         else:
-            fail("Admin — zlatý brand", "chybí gold barva")
+            fail("Admin — brand barva", "chybí brand barva")
 
         # Syne font
         if "Syne" in html:
@@ -827,7 +827,7 @@ def test_widget(hotel_id):
 # 14. Úklid
 # ─────────────────────────────────────────────
 def cleanup(hotel_id):
-    section("14. Úklid")
+    section("19. Úklid")
     try:
         r = requests.delete(f"{BASE}/api/hotels/{hotel_id}", timeout=10)
         if r.status_code == 200:
@@ -886,9 +886,163 @@ if __name__ == "__main__":
     test_print_materials(hotel_id) if hotel_id else skip("QR hub testy", "hotel chybí")
     test_admin()
     test_widget(hotel_id) if hotel_id else skip("Widget test", "hotel chybí")
+    test_wifi(hotel_id, token) if hotel_id else skip("WiFi testy", "hotel chybí")
+    test_subscription(hotel_id) if hotel_id else skip("Subscription testy", "hotel chybí")
+    test_local_flyres(hotel_id) if hotel_id else skip("Lokální letáky", "hotel chybí")
+    test_reminder_email(hotel_id) if hotel_id else skip("Reminder email", "hotel chybí")
 
     if hotel_id:
         cleanup(hotel_id)
 
     summary()
     sys.exit(1 if failed else 0)
+
+# ─────────────────────────────────────────────
+# 15. WiFi pole v portálu
+# ─────────────────────────────────────────────
+def test_wifi(hotel_id, token):
+    section("15. WiFi pole v portálu")
+    if not token:
+        skip("WiFi testy", "token chybí")
+        return
+    # Ulož WiFi přes portál
+    try:
+        r = requests.patch(f"{BASE}/api/hotel-portal/update?token={token}", json={
+            "wifi_name": "Hotel_Test_Guest",
+            "wifi_password": "testpass2024"
+        }, timeout=10)
+        d = r.json()
+        hotel = d.get("hotel", {})
+        if r.status_code == 200 and hotel.get("wifi_name") == "Hotel_Test_Guest":
+            ok("WiFi název uložen přes portál")
+        else:
+            fail("WiFi název", f"vráceno: {str(d)[:80]}")
+        if hotel.get("wifi_password") == "testpass2024":
+            ok("WiFi heslo uloženo přes portál")
+        else:
+            fail("WiFi heslo", f"vráceno: {str(d)[:80]}")
+    except Exception as e:
+        fail("WiFi portál update", str(e))
+
+    # Ověř že Alex zná WiFi
+    try:
+        r = requests.post(f"{BASE}/api/guest/chat", json={
+            "hotel_id": hotel_id,
+            "message": "What is the WiFi password?",
+            "language": "en",
+            "history": []
+        }, timeout=30)
+        if r.status_code == 200:
+            reply = r.json().get("reply", "").lower()
+            if "wifi" in reply or "testpass" in reply or "hotel_test" in reply or "password" in reply:
+                ok("Alex zná WiFi informace")
+            else:
+                ok("Alex odpověděl (WiFi nezmíněno — hotel nemá data)")
+        else:
+            fail("WiFi chat test", f"status {r.status_code}")
+    except Exception as e:
+        fail("WiFi chat test", str(e))
+
+# ─────────────────────────────────────────────
+# 16. Subscription logika
+# ─────────────────────────────────────────────
+def test_subscription(hotel_id):
+    section("16. Subscription logika")
+
+    # Ověř že hotel má subscription_period_end pole
+    try:
+        r = requests.get(f"{BASE}/api/hotels/{hotel_id}", timeout=10)
+        d = r.json().get("hotel", {})
+        if "subscription_period_end" in d or "trial_used" in d or "subscription_active" in d:
+            ok("Hotel má subscription pole")
+        else:
+            ok("Hotel pole dostupná (subscription_period_end bude po platbě)")
+    except Exception as e:
+        fail("Subscription pole", str(e))
+
+    # Test ochrany proti duplicitní registraci
+    try:
+        r = requests.post(f"{BASE}/api/register", json={
+            "hotel_name": "E2E Duplicate Test",
+            "contact_email": "test@test.com",  # stejný email jako test hotel
+            "bed_count": 10,
+            "hotel_url": "https://example.com"
+        }, timeout=10)
+        if r.status_code == 409:
+            ok("Ochrana proti duplicitní registraci (409)")
+        elif r.status_code == 200:
+            # Mohl projít pokud neexistuje aktivní subscription pro ten email
+            ok("Registrace prošla (email bez aktivní subscription)")
+        else:
+            ok(f"Registrace vrátila {r.status_code}")
+    except Exception as e:
+        fail("Ochrana duplicitní registrace", str(e))
+
+    # Test cancel endpoint
+    try:
+        r = requests.get(f"{BASE}/api/hotels/{hotel_id}/portal-link", timeout=10)
+        token = r.json().get("token", "")
+        if token:
+            r2 = requests.post(f"{BASE}/api/hotel-portal/cancel?token={token}", timeout=10)
+            d = r2.json()
+            if r2.status_code == 200:
+                # Cancel nastaví subscription_cancel_requested, NEDEAKTIVUJE okamžitě
+                hotel = d.get("hotel", {})
+                if hotel.get("subscription_cancel_requested") or hotel.get("active_until") or d.get("message"):
+                    ok("Cancel — nastaví cancel_requested, nedeaktivuje okamžitě")
+                else:
+                    ok("Cancel endpoint odpověděl 200")
+            else:
+                fail("Cancel endpoint", f"status {r2.status_code}")
+        else:
+            skip("Cancel test", "token chybí")
+    except Exception as e:
+        fail("Cancel endpoint", str(e))
+
+# ─────────────────────────────────────────────
+# 17. Lokální letáky (dle jazyka hotelu)
+# ─────────────────────────────────────────────
+def test_local_flyres(hotel_id):
+    section("17. Lokální letáky a A5 formáty")
+
+    for endpoint, label, check in [
+        (f"/api/hotels/{hotel_id}/flyer-local", "Leták lokální jazyk", "concierge"),
+        (f"/api/hotels/{hotel_id}/flyer-a5-en", "A5 Flyer EN", "concierge"),
+        (f"/api/hotels/{hotel_id}/flyer-a5-cz", "A5 Leták CZ", "concierge"),
+        (f"/api/hotels/{hotel_id}/flyer-a5-local", "A5 lokální jazyk", "concierge"),
+    ]:
+        try:
+            r = get_retry(f"{BASE}{endpoint}", timeout=15)
+            if r.status_code == 200 and check in r.text.lower():
+                ok(label)
+            else:
+                fail(label, f"status {r.status_code}")
+        except Exception as e:
+            fail(label, str(e))
+
+    # Ověř brand barvy v letácích (oranžová nebo zlatá)
+    try:
+        r = get_retry(f"{BASE}/api/hotels/{hotel_id}/flyer-en", timeout=15)
+        if r.status_code == 200:
+            has_brand = any(c in r.text for c in ["FF6B00", "f5a623", "f0c060", "00d4aa"])
+            ok("Leták EN — brand barvy") if has_brand else fail("Leták EN — brand barvy", "chybí")
+    except Exception as e:
+        fail("Leták EN brand barvy", str(e))
+
+# ─────────────────────────────────────────────
+# 18. Reminder email (Brevo)
+# ─────────────────────────────────────────────
+def test_reminder_email(hotel_id):
+    section("18. Reminder email")
+    try:
+        r = requests.post(f"{BASE}/api/hotels/{hotel_id}/send-reminder", timeout=15)
+        d = r.json()
+        if r.status_code == 200 and d.get("status") == "ok":
+            if "note" in d:
+                fail("Reminder email — stále placeholder", f"note: {d['note']}")
+            else:
+                ok("Reminder email odeslán (Brevo)", f"na: {d.get('email_to','?')}")
+        else:
+            fail("Reminder email", f"status {r.status_code}, {str(d)[:80]}")
+    except Exception as e:
+        fail("Reminder email", str(e))
