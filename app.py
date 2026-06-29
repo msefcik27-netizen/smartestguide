@@ -180,7 +180,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.3.3"
+APP_VERSION = "0.3.5"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -893,12 +893,17 @@ def generate_qr_poster(hotel_id: str, request: Request):
     hub_title = "Tiskové materiály" if is_cs else "Print materials"
     qr_poster_label = "QR Plakát · 800×800px" if is_cs else "QR Poster · 800×800px"
     qr_poster_desc = "Čtvercový plakát s QR kódem. Ideální pro recepci, výtah nebo restaurační stoly." if is_cs else "Square poster with QR code. Perfect for reception, elevator or restaurant tables."
-    flyer_primary_name = "A4 Leták · Česky" if is_cs else "A4 Flyer · English"
-    flyer_primary_desc = "Český leták A4, print-ready." if is_cs else "English A4 flyer, print-ready."
-    flyer_primary_url = f"flyer-cz" if is_cs else "flyer-en"
-    flyer_secondary_name = "A4 Flyer · English" if is_cs else "A4 Leták · Česky"
-    flyer_secondary_desc = "Anglický leták pro mezinárodní hosty." if is_cs else "Český leták pro české hosty."
-    flyer_secondary_url = "flyer-en" if is_cs else "flyer-cz"
+    local_lang = get_hotel_local_lang(hotel)
+    local_lang_name = get_flyer_lang_name(local_lang)
+    has_local = local_lang != "en"
+
+    # EN je vždy primární, lokální jazyk je sekundární
+    flyer_primary_name = f"A4 Flyer · English"
+    flyer_primary_desc = "English A4 flyer, print-ready."
+    flyer_primary_url = "flyer-en"
+    flyer_secondary_name = f"A4 Leták · {local_lang_name}" if has_local else "A4 Leták · Česky"
+    flyer_secondary_desc = f"Leták v jazyce {local_lang_name} pro místní hosty." if has_local else "Český leták pro české hosty."
+    flyer_secondary_url = "flyer-local" if has_local else "flyer-cz"
     rollup_desc = "Vysoký banner pro lobby, veletrh nebo konferenci." if is_cs else "Tall banner for lobby or trade show."
 
     # Vlajky jako inline SVG (stejné jako v designérových letácích)
@@ -974,7 +979,7 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
 .hub-dot{{width:9px;height:9px;border-radius:50%;background:#f0c060;box-shadow:0 0 10px rgba(240,192,96,.8);margin-left:2px}}
 .hub-hotel{{font-size:15px;color:#9ba0c0;margin-top:4px}}
 .hub-title{{font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:#f0ece0;margin-top:16px}}
-.formats{{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-top:0}}
+.formats{{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;margin-top:0}}
 .fmt-card{{background:#181920;border:1px solid #222330;border-radius:16px;overflow:hidden;display:flex;flex-direction:column}}
 .fmt-card:hover{{border-color:rgba(240,192,96,.4)}}
 .fmt-preview{{background:#0a0b0f;padding:24px;display:flex;justify-content:center;align-items:center;min-height:200px;cursor:pointer;position:relative;overflow:hidden}}
@@ -1006,21 +1011,6 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
 
   <div class="formats">
 
-    <!-- QR Plakát -->
-    <div class="fmt-card">
-      <div class="fmt-preview" onclick="openFormat('qr-poster')">
-        <div style="position:relative;padding:16px;background:#0c0d12;border:1px solid rgba(240,192,96,.4);border-radius:14px;display:inline-block">
-          <div id="qr-thumb" style="width:160px;height:160px;display:block"></div>
-          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;background:#0a0b0f;border:2px solid #f5a623;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:#f5a623;z-index:10;pointer-events:none">SG</div>
-        </div>
-      </div>
-      <div class="fmt-info">
-        <div class="fmt-name">{qr_poster_label}</div>
-        <div class="fmt-desc">{qr_poster_desc}</div>
-        <button class="fmt-btn" onclick="openFormat('qr-poster')">{btn_print}</button>
-      </div>
-    </div>
-
     <!-- A4 Primární jazyk -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('{flyer_primary_url}')">
@@ -1037,7 +1027,21 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
         <button class="fmt-btn" onclick="openFormat('{flyer_primary_url}')">{btn_print}</button>
       </div>
     </div>
-
+    <!-- A5 primární jazyk (EN) -->
+    <div class="fmt-card">
+      <div class="fmt-preview" onclick="openFormat('flyer-a5-en')">
+        <div style="width:130px;height:92px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f5a623;line-height:1.2">Your AI concierge</div>
+          <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 14 LANGUAGES</div>
+          <div id="qr-a5-primary" style="width:50px;height:50px"></div>
+        </div>
+      </div>
+      <div class="fmt-info">
+        <div class="fmt-name">A5 Flyer · English</div>
+        <div class="fmt-desc">Compact A5 — perfect for rooms and tables.</div>
+        <button class="fmt-btn" onclick="openFormat('flyer-a5-en')">{btn_print}</button>
+      </div>
+    </div>
     <!-- A4 Sekundární jazyk -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('{flyer_secondary_url}')">
@@ -1054,39 +1058,35 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
         <button class="fmt-btn" onclick="openFormat('{flyer_secondary_url}')">{btn_print}</button>
       </div>
     </div>
-
-    <!-- A5 primární jazyk -->
+    <!-- A5 sekundární jazyk (lokální) -->
     <div class="fmt-card">
-      <div class="fmt-preview" onclick="openFormat('flyer-a5-{'cz' if is_cs else 'en'}')">
+      <div class="fmt-preview" onclick="openFormat('flyer-a5-local')">
         <div style="width:130px;height:92px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f5a623;line-height:1.2">{'Váš AI concierge' if is_cs else 'Your AI concierge'}</div>
-          <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 14 LANGUAGES</div>
-          <div id="qr-a5-primary" style="width:50px;height:50px"></div>
-        </div>
-      </div>
-      <div class="fmt-info">
-        <div class="fmt-name">{'A5 Leták · Česky' if is_cs else 'A5 Flyer · English'}</div>
-        <div class="fmt-desc">{'Kompaktní A5 — ideální do pokojů a na stoly.' if is_cs else 'Compact A5 — perfect for rooms and tables.'}</div>
-        <button class="fmt-btn" onclick="openFormat('flyer-a5-{'cz' if is_cs else 'en'}')">{btn_print}</button>
-      </div>
-    </div>
-
-    <!-- A5 sekundární jazyk -->
-    <div class="fmt-card">
-      <div class="fmt-preview" onclick="openFormat('flyer-a5-{'en' if is_cs else 'cz'}')">
-        <div style="width:130px;height:92px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f5a623;line-height:1.2">{'Your AI concierge' if is_cs else 'Váš AI concierge'}</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f5a623;line-height:1.2">AI concierge</div>
           <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 14 LANGUAGES</div>
           <div id="qr-a5-secondary" style="width:50px;height:50px"></div>
         </div>
       </div>
       <div class="fmt-info">
-        <div class="fmt-name">{'A5 Flyer · English' if is_cs else 'A5 Leták · Česky'}</div>
-        <div class="fmt-desc">{'Anglická A5 verze pro mezinárodní hosty.' if is_cs else 'Česká A5 verze pro české hosty.'}</div>
-        <button class="fmt-btn" onclick="openFormat('flyer-a5-{'en' if is_cs else 'cz'}')">{btn_print}</button>
+        <div class="fmt-name">A5 Leták · {local_lang_name}</div>
+        <div class="fmt-desc">Kompaktní A5 v lokálním jazyce hotelu.</div>
+        <button class="fmt-btn" onclick="openFormat('flyer-a5-local')">{btn_print}</button>
       </div>
     </div>
-
+    <!-- QR Plakát -->
+    <div class="fmt-card">
+      <div class="fmt-preview" onclick="openFormat('qr-poster')">
+        <div style="position:relative;padding:16px;background:#0c0d12;border:1px solid rgba(240,192,96,.4);border-radius:14px;display:inline-block">
+          <div id="qr-thumb" style="width:160px;height:160px;display:block"></div>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;background:#0a0b0f;border:2px solid #f5a623;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:#f5a623;z-index:10;pointer-events:none">SG</div>
+        </div>
+      </div>
+      <div class="fmt-info">
+        <div class="fmt-name">{qr_poster_label}</div>
+        <div class="fmt-desc">{qr_poster_desc}</div>
+        <button class="fmt-btn" onclick="openFormat('qr-poster')">{btn_print}</button>
+      </div>
+    </div>
     <!-- Roll-up -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('rollup')">
@@ -1186,6 +1186,35 @@ for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell
 h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
 </script></body></html>"""
 
+# Mapování country → lokální jazyk letáku
+COUNTRY_LANG_MAP = {
+    "CZ": "cs", "SK": "cs",
+    "DE": "de", "AT": "de", "CH": "de",
+    "FR": "fr", "BE": "fr", "LU": "fr",
+    "IT": "it",
+    "ES": "es", "MX": "es", "AR": "es",
+    "PL": "pl",
+    "HU": "hu",
+    "RU": "ru",
+    "UA": "uk",
+    "GB": "en", "US": "en", "AU": "en", "IE": "en",
+}
+
+def get_hotel_local_lang(hotel: dict) -> str:
+    """Vrátí kód lokálního jazyka hotelu dle země. Fallback: en."""
+    country = hotel.get("country", "").upper().strip()
+    return COUNTRY_LANG_MAP.get(country, "en")
+
+def get_flyer_lang_name(lang: str, in_lang: str = None) -> str:
+    """Vrátí název jazyka pro zobrazení."""
+    names = {
+        "cs": "Česky", "de": "Deutsch", "fr": "Français",
+        "it": "Italiano", "es": "Español", "pl": "Polski",
+        "hu": "Magyar", "ru": "Русский", "uk": "Українська", "en": "English"
+    }
+    return names.get(lang, lang.upper())
+
+
 def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str = "a4") -> str:
     is_a5 = size == "a5"
     page_size = "A5" if is_a5 else "A4"
@@ -1211,12 +1240,42 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
 
     check = """<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>"""
 
-    if lang == "cz":
+    if lang == "cs":
         headline = "Váš osobní<br>AI concierge"
         subline = f'Nechte <span style="color:#f0c060;font-weight:600">Alexe</span> odpovědět na všechny vaše otázky — okamžitě, ve vašem jazyce, 24/7.'
         features = ["Snídaně a restaurace", "Tipy na výlety a skrytá místa", "Počasí a doprava", "Služby hotelu a WiFi", "K dispozici 24/7"]
         scan_text = "Naskenujte mě"
         no_app = "Bez instalace aplikace"
+    elif lang == "de":
+        headline = "Ihr persönlicher<br>AI-Concierge"
+        subline = f'Lassen Sie <span style="color:#f0c060;font-weight:600">Alex</span> alle Ihre Fragen beantworten — sofort, in Ihrer Sprache, 24/7.'
+        features = ["Frühstück & Restaurant", "Ausflugstipps & versteckte Orte", "Wetter & Transport", "Hotelservices & WLAN", "Rund um die Uhr verfügbar"]
+        scan_text = "Scannen Sie mich"
+        no_app = "Keine App erforderlich"
+    elif lang == "fr":
+        headline = "Votre concierge<br>IA personnel"
+        subline = f'Laissez <span style="color:#f0c060;font-weight:600">Alex</span> répondre à toutes vos questions — instantanément, dans votre langue, 24/7.'
+        features = ["Petit-déjeuner & restaurant", "Conseils locaux & lieux cachés", "Météo & transport", "Services hôtel & WiFi", "Disponible 24h/24"]
+        scan_text = "Scannez-moi"
+        no_app = "Sans installation d'app"
+    elif lang == "it":
+        headline = "Il vostro concierge<br>IA personale"
+        subline = f'Lasciate che <span style="color:#f0c060;font-weight:600">Alex</span> risponda a tutte le vostre domande — immediatamente, nella vostra lingua, 24/7.'
+        features = ["Colazione & ristorante", "Consigli locali & luoghi nascosti", "Meteo & trasporti", "Servizi hotel & WiFi", "Disponibile 24/7"]
+        scan_text = "Scansionami"
+        no_app = "Nessuna app richiesta"
+    elif lang == "es":
+        headline = "Su concierge<br>IA personal"
+        subline = f'Deje que <span style="color:#f0c060;font-weight:600">Alex</span> responda todas sus preguntas — al instante, en su idioma, 24/7.'
+        features = ["Desayuno & restaurante", "Consejos locales & lugares ocultos", "Tiempo & transporte", "Servicios hotel & WiFi", "Disponible 24/7"]
+        scan_text = "Escanéame"
+        no_app = "Sin instalación de app"
+    elif lang == "pl":
+        headline = "Twój osobisty<br>concierge AI"
+        subline = f'Pozwól <span style="color:#f0c060;font-weight:600">Alexowi</span> odpowiedzieć na wszystkie Twoje pytania — natychmiast, w Twoim języku, 24/7.'
+        features = ["Śniadanie & restauracja", "Lokalne wskazówki & ukryte miejsca", "Pogoda & transport", "Usługi hotelowe & WiFi", "Dostępny 24/7"]
+        scan_text = "Zeskanuj mnie"
+        no_app = "Bez instalacji aplikacji"
     else:
         headline = "Your personal<br>AI concierge"
         subline = f'Let <span style="color:#f0c060;font-weight:600">Alex</span> answer all your questions — instantly, in your language, 24/7.'
@@ -1316,43 +1375,56 @@ h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-r
 
 @app.get("/api/hotels/{hotel_id}/flyer-en")
 def flyer_en(hotel_id: str, request: Request):
-    db = db_load()
-    hotel = db["hotels"].get(hotel_id)
+    db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
     return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "en"))
 
 @app.get("/api/hotels/{hotel_id}/flyer-cz")
 def flyer_cz(hotel_id: str, request: Request):
-    db = db_load()
-    hotel = db["hotels"].get(hotel_id)
+    db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "cz"))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "cs"))
 
-@app.get("/api/hotels/{hotel_id}/rollup")
-def rollup(hotel_id: str, request: Request):
-    db = db_load()
-    hotel = db["hotels"].get(hotel_id)
+@app.get("/api/hotels/{hotel_id}/flyer-local")
+def flyer_local(hotel_id: str, request: Request):
+    """Leták v lokálním jazyce hotelu."""
+    db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_rollup(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}"))
+    lang = get_hotel_local_lang(hotel)
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", lang))
 
 @app.get("/api/hotels/{hotel_id}/flyer-a5-en")
 def flyer_a5_en(hotel_id: str, request: Request):
-    db = db_load()
-    hotel = db["hotels"].get(hotel_id)
+    db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
     return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "en", size="a5"))
 
 @app.get("/api/hotels/{hotel_id}/flyer-a5-cz")
 def flyer_a5_cz(hotel_id: str, request: Request):
-    db = db_load()
-    hotel = db["hotels"].get(hotel_id)
+    db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "cz", size="a5"))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "cs", size="a5"))
+
+@app.get("/api/hotels/{hotel_id}/flyer-a5-local")
+def flyer_a5_local(hotel_id: str, request: Request):
+    """A5 leták v lokálním jazyce hotelu."""
+    db = db_load(); hotel = db["hotels"].get(hotel_id)
+    if not hotel: raise HTTPException(404, "Hotel nenalezen")
+    base = get_base_url(request)
+    lang = get_hotel_local_lang(hotel)
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", lang, size="a5"))
+
+@app.get("/api/hotels/{hotel_id}/rollup")
+def rollup(hotel_id: str, request: Request):
+    db = db_load(); hotel = db["hotels"].get(hotel_id)
+    if not hotel: raise HTTPException(404, "Hotel nenalezen")
+    base = get_base_url(request)
+    return HTMLResponse(content=_render_rollup(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}"))
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -1620,34 +1692,98 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
     country = hotel.get("country", "").upper()
     base_url = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app")
     widget_code = f'<script src="{base_url}/widget.js?hotel_id={hotel_id}"></script>'
-    is_cs = country in ("CZ", "SK")
+    local_lang = COUNTRY_LANG_MAP.get(country, "en")
 
-    if is_cs:
-        subject = f"Vitejte v SmartestGuide - {hotel_name} je pripraven!"
-        greeting = f"Vitejte, {hotel_name}!"
-        subtitle = "AI Concierge pro vas hotel"
-        intro = f"Vas hotel byl uspesne zaregistrovan a platba probehla. Alex je pripraven odpovidat hostum ve 14 jazycich 24 hodin denne."
-        portal_btn_text = "Otevrit hotelovy portal"
-        steps_title = "Co delat jako prvni:"
-        steps = [
-            "Prihlaste se do portalu a zkontrolujte informace o hotelu",
-            "Doplnte orientaci v hotelu (wellness, parkoviste, restaurace, bar)",
-            "Pridejte lokalni tipy pro hosty",
-            "Stahnete QR plakat k tisku (odkaz nize) a umistete ho na recepci, do pokoju nebo na stoly v restauraci",
-        ]
-        it_title = "Jak pridat chat tlacitko na web hotelu"
-        it_intro = "Predejte prosim nasledujici instrukce vasemu IT oddeleni nebo webmasterovi:"
-        it_step1 = "Otevrete zdrojovy kod stranky vasho webu (nebo kontaktujte IT)."
-        it_step2 = "Vlozit nasledujici kod tesne pred uzavirajici tag </body> na kazde strance kde chcete zobrazit chat tlacitko:"
-        it_step3 = "Po ulozeni a nasazeni se na webu zobrazi plovouci chat tlacitko pro hosty."
-        it_note = "Tlacitko funguje na vsech zarizeni (mobil, tablet, PC) a nevyzaduje zadne dalsi nastaveni."
-        help_text = "Potrebujete pomoc?"
-        qr_label = "QR plakát pro hosty"
-        qr_desc = "Otevřete odkaz níže, vytiskněte plakát nebo uložte jako PDF a umístěte na recepci, do pokojů nebo restaurace."
-        qr_btn_text = "Otevřít QR plakát k tisku"
-        qr_attach_note = "QR kód je také přiložen jako PNG pro přímé použití."
+    # Texty emailu dle jazyka hotelu
+    email_texts = {
+        "cs": {
+            "subject": f"Vitejte v SMARTEST GUIDE - {hotel_name} je pripraven!",
+            "greeting": f"Vitejte, {hotel_name}!",
+            "subtitle": "AI Concierge pro vas hotel",
+            "intro": f"Vas hotel byl uspesne zaregistrovan a platba probehla. Alex je pripraven odpovidat hostum ve 14 jazycich 24 hodin denne.",
+            "portal_btn_text": "Otevrit hotelovy portal",
+            "steps_title": "Co delat jako prvni:",
+            "steps": ["Prihlaste se do portalu a zkontrolujte informace o hotelu","Doplnte orientaci v hotelu (wellness, parkoviste, restaurace, bar)","Pridejte lokalni tipy pro hosty","Stahnete QR plakat k tisku (odkaz nize) a umistete ho na recepci"],
+            "help_text": "Potrebujete pomoc?",
+            "qr_label": "QR plakát pro hosty", "qr_desc": "Otevřete odkaz níže, vytiskněte plakát nebo uložte jako PDF.", "qr_btn_text": "Otevřít QR plakát k tisku", "qr_attach_note": "QR kód je také přiložen jako PNG.",
+            "it_title": "Jak pridat chat tlacitko na web hotelu", "it_intro": "Predejte instrukce vasemu IT oddeleni:", "it_step1": "Otevrete zdrojovy kod stranky.", "it_step2": "Vlozit kod tesne pred </body>:", "it_step3": "Po nasazeni se zobrazi plovouci chat tlacitko.", "it_note": "Funguje na vsech zarizeni.",
+        },
+        "de": {
+            "subject": f"Willkommen bei SMARTEST GUIDE - {hotel_name} ist bereit!",
+            "greeting": f"Willkommen, {hotel_name}!",
+            "subtitle": "KI-Concierge für Ihr Hotel",
+            "intro": f"Ihr Hotel wurde erfolgreich registriert und die Zahlung bestätigt. Alex ist bereit, Ihren Gästen in 14 Sprachen rund um die Uhr zu antworten.",
+            "portal_btn_text": "Hotel-Portal öffnen",
+            "steps_title": "Was zuerst tun:",
+            "steps": ["Im Portal anmelden und Hotelinformationen überprüfen","Hotelnavigation hinzufügen (Wellness, Parkplatz, Restaurant, Bar)","Lokale Tipps für Gäste hinzufügen","QR-Poster herunterladen und an der Rezeption platzieren"],
+            "help_text": "Brauchen Sie Hilfe?",
+            "qr_label": "QR-Poster für Gäste", "qr_desc": "Öffnen Sie den Link, drucken Sie das Poster oder speichern Sie es als PDF.", "qr_btn_text": "QR-Poster zum Drucken öffnen", "qr_attach_note": "Der QR-Code ist auch als PNG beigefügt.",
+            "it_title": "Chat-Button auf Ihrer Website hinzufügen", "it_intro": "Leiten Sie diese Anweisungen an Ihre IT-Abteilung weiter:", "it_step1": "Öffnen Sie den Quellcode Ihrer Website.", "it_step2": "Fügen Sie den Code vor dem </body>-Tag ein:", "it_step3": "Nach der Bereitstellung erscheint ein Chat-Button.", "it_note": "Funktioniert auf allen Geräten.",
+        },
+        "fr": {
+            "subject": f"Bienvenue sur SMARTEST GUIDE - {hotel_name} est prêt!",
+            "greeting": f"Bienvenue, {hotel_name}!",
+            "subtitle": "Concierge IA pour votre hôtel",
+            "intro": f"Votre hôtel a été enregistré avec succès et le paiement confirmé. Alex est prêt à répondre à vos clients en 14 langues, 24h/24.",
+            "portal_btn_text": "Ouvrir le portail hôtel",
+            "steps_title": "Que faire en premier:",
+            "steps": ["Se connecter au portail et vérifier les informations","Ajouter la navigation de l'hôtel (bien-être, parking, restaurant)","Ajouter des conseils locaux pour les clients","Télécharger l'affiche QR et la placer à la réception"],
+            "help_text": "Besoin d'aide?",
+            "qr_label": "Affiche QR pour les clients", "qr_desc": "Ouvrez le lien, imprimez l'affiche ou enregistrez en PDF.", "qr_btn_text": "Ouvrir l'affiche QR", "qr_attach_note": "Le QR code est également joint en PNG.",
+            "it_title": "Ajouter le bouton de chat à votre site", "it_intro": "Transmettez ces instructions à votre équipe IT:", "it_step1": "Ouvrez le code source de votre site.", "it_step2": "Insérez le code avant la balise </body>:", "it_step3": "Après déploiement, un bouton de chat apparaîtra.", "it_note": "Fonctionne sur tous les appareils.",
+        },
+        "it": {
+            "subject": f"Benvenuto su SMARTEST GUIDE - {hotel_name} è pronto!",
+            "greeting": f"Benvenuto, {hotel_name}!",
+            "subtitle": "Concierge IA per il vostro hotel",
+            "intro": f"Il vostro hotel è stato registrato con successo e il pagamento confermato. Alex è pronto a rispondere ai vostri ospiti in 14 lingue, 24/7.",
+            "portal_btn_text": "Apri portale hotel",
+            "steps_title": "Cosa fare prima:",
+            "steps": ["Accedere al portale e verificare le informazioni","Aggiungere la navigazione dell'hotel (wellness, parcheggio, ristorante)","Aggiungere consigli locali per gli ospiti","Scaricare il poster QR e posizionarlo alla reception"],
+            "help_text": "Hai bisogno di aiuto?",
+            "qr_label": "Poster QR per gli ospiti", "qr_desc": "Apri il link, stampa il poster o salvalo come PDF.", "qr_btn_text": "Apri poster QR", "qr_attach_note": "Il QR code è allegato anche come PNG.",
+            "it_title": "Aggiungere il pulsante chat al sito web", "it_intro": "Inoltrate queste istruzioni al vostro team IT:", "it_step1": "Aprite il codice sorgente del vostro sito.", "it_step2": "Inserite il codice prima del tag </body>:", "it_step3": "Dopo il deploy apparirà un pulsante chat.", "it_note": "Funziona su tutti i dispositivi.",
+        },
+        "es": {
+            "subject": f"Bienvenido a SMARTEST GUIDE - {hotel_name} está listo!",
+            "greeting": f"Bienvenido, {hotel_name}!",
+            "subtitle": "Concierge IA para su hotel",
+            "intro": f"Su hotel ha sido registrado con éxito y el pago confirmado. Alex está listo para responder a sus huéspedes en 14 idiomas, 24/7.",
+            "portal_btn_text": "Abrir portal del hotel",
+            "steps_title": "Qué hacer primero:",
+            "steps": ["Iniciar sesión en el portal y revisar la información","Añadir navegación del hotel (spa, aparcamiento, restaurante)","Añadir consejos locales para los huéspedes","Descargar el cartel QR y colocarlo en recepción"],
+            "help_text": "¿Necesita ayuda?",
+            "qr_label": "Cartel QR para huéspedes", "qr_desc": "Abra el enlace, imprima el cartel o guárdelo como PDF.", "qr_btn_text": "Abrir cartel QR", "qr_attach_note": "El código QR también se adjunta como PNG.",
+            "it_title": "Añadir botón de chat al sitio web", "it_intro": "Reenvíe estas instrucciones a su equipo de IT:", "it_step1": "Abra el código fuente de su sitio web.", "it_step2": "Inserte el código antes de la etiqueta </body>:", "it_step3": "Tras el despliegue aparecerá un botón de chat.", "it_note": "Funciona en todos los dispositivos.",
+        },
+    }
+
+    # Použij lokální jazyk, fallback na EN
+    t = email_texts.get(local_lang, None)
+    is_cs = local_lang == "cs"
+
+    if t:
+        subject = t["subject"]
+        greeting = t["greeting"]
+        subtitle = t["subtitle"]
+        intro = t["intro"]
+        portal_btn_text = t["portal_btn_text"]
+        steps_title = t["steps_title"]
+        steps = t["steps"]
+        help_text = t["help_text"]
+        qr_label = t["qr_label"]
+        qr_desc = t["qr_desc"]
+        qr_btn_text = t["qr_btn_text"]
+        qr_attach_note = t["qr_attach_note"]
+        it_title = t["it_title"]
+        it_intro = t["it_intro"]
+        it_step1 = t["it_step1"]
+        it_step2 = t["it_step2"]
+        it_step3 = t["it_step3"]
+        it_note = t["it_note"]
     else:
-        subject = f"Welcome to SmartestGuide - {hotel_name} is ready!"
+        # EN fallback (všechny ostatní jazyky)
+        subject = f"Welcome to SMARTEST GUIDE - {hotel_name} is ready!"
         greeting = f"Welcome, {hotel_name}!"
         subtitle = "AI Concierge for your hotel"
         intro = f"Your hotel has been successfully registered and payment confirmed. Alex is ready to answer your guests in 14 languages, 24/7."
@@ -1662,7 +1798,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
         it_title = "How to add the chat button to your hotel website"
         it_intro = "Please forward the following instructions to your IT department or webmaster:"
         it_step1 = "Open the source code of your hotel website (or contact your IT team)."
-        it_step2 = "Insert the following code just before the closing </body> tag on every page where you want the chat button to appear:"
+        it_step2 = "Insert the following code just before the closing </body> tag:"
         it_step3 = "After saving and deploying, a floating chat button will appear on your website for guests."
         it_note = "The button works on all devices (mobile, tablet, desktop) and requires no additional configuration."
         help_text = "Need help?"
