@@ -41,7 +41,7 @@ def init_settings_from_env():
 app = FastAPI(title="SmartestGuide", version="0.2.0")
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.2.8"
+APP_VERSION = "0.2.9"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -705,20 +705,38 @@ def _generate_qr_png_branded(data: str, size: int = 400) -> bytes:
 
     # SG logo uprostřed — tmavý kruh s zlatým textem
     cx, cy = img_size // 2, img_size // 2
-    r_logo = int(img_size * 0.1)  # 10% velikosti
+    r_logo = int(img_size * 0.13)  # 13% velikosti — větší
+    # Vymaž střed QR (přes tmavý čtverec) aby logo bylo čitelné
+    draw.rectangle([cx - r_logo, cy - r_logo, cx + r_logo, cy + r_logo], fill=(10, 11, 15))
     # Tmavý kruh s zlatým okrajem
-    draw.ellipse([cx - r_logo, cy - r_logo, cx + r_logo, cy + r_logo], fill=(10, 11, 15), outline=(245, 166, 35), width=max(2, r_logo // 8))
-    # Text "SG"
-    try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", int(r_logo * 0.9))
-    except Exception:
+    border_w = max(3, r_logo // 6)
+    draw.ellipse([cx - r_logo, cy - r_logo, cx + r_logo, cy + r_logo],
+                 fill=(10, 11, 15), outline=(245, 166, 35), width=border_w)
+    # Text "SG" — zkus různé fonty
+    font_size = int(r_logo * 1.1)
+    font = None
+    for font_path in [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+    ]:
+        try:
+            font = ImageFont.truetype(font_path, font_size)
+            break
+        except Exception:
+            continue
+    if font is None:
         font = ImageFont.load_default()
+    # Přesné centrování přes textbbox
     try:
         bbox = draw.textbbox((0, 0), "SG", font=font)
-        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        tw = bbox[2] - bbox[0]
+        th = bbox[3] - bbox[1]
+        tx = cx - tw // 2 - bbox[0]
+        ty = cy - th // 2 - bbox[1]
     except Exception:
-        tw, th = r_logo, r_logo // 2
-    draw.text((cx - tw // 2, cy - th // 2), "SG", fill=(245, 166, 35), font=font)
+        tx, ty = cx - r_logo // 2, cy - r_logo // 2
+    draw.text((tx, ty), "SG", fill=(245, 166, 35), font=font)
 
     buf = BytesIO()
     img.save(buf, format="PNG")
