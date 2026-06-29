@@ -507,7 +507,7 @@ function showPage(name){
   if(name==='dashboard'||name==='hotels')loadHotels();
   if(name==='settings'){loadKeyStatus();loadCompanySettings();}
   if(name==='billing')loadBilling();
-  if(name==='pricing')loadPricingSettings();
+  if(name==='pricing')loadPricingForm();
 }
 
 // ══ TOAST ════════════════════════════════════
@@ -1189,13 +1189,15 @@ async function calcPrice(){
   }catch(e){}
 }
 
-async function loadPricingSettings(){
+async function loadPricingForm(){
   try{
     const r=await fetch(`${API}/api/settings`);
     const d=await r.json();
     const base=d.pricing_base||200;
     const threshold=d.pricing_threshold||100;
     const perBed=d.pricing_per_bed||3;
+    // Aktualizuj také globální proměnné
+    _pBase=base; _pThreshold=threshold; _pPerBed=perBed;
     document.getElementById('pricing-base').value=base;
     document.getElementById('pricing-threshold').value=threshold;
     document.getElementById('pricing-per-bed').value=perBed;
