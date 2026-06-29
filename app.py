@@ -38,10 +38,149 @@ def init_settings_from_env():
 # ─────────────────────────────────────────────
 # Aplikace
 # ─────────────────────────────────────────────
-app = FastAPI(title="SmartestGuide", version="0.2.0")
+async def _reminder_background_loop():
+    """Kontroluje každých 6 hodin hotely a posílá reminder emaily."""
+    await asyncio.sleep(60)  # Počkej minutu po startu
+    while True:
+        try:
+            await _check_and_send_reminders()
+        except Exception as e:
+            logging.error("Reminder loop error: %s", e)
+        await asyncio.sleep(6 * 60 * 60)  # Každých 6 hodin
+
+async def _check_and_send_reminders():
+    """Zkontroluje všechny hotely a pošle reminder pokud splňují podmínky."""
+    import httpx as _httpx
+    brevo_key = os.getenv("BREVO_API_KEY", "")
+    base_url = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app")
+    if not brevo_key:
+        return
+
+    db = db_load()
+    now = datetime.utcnow()
+    sent_count = 0
+
+    for hotel_id, h in db["hotels"].items():
+        try:
+            # Pouze aktivní hotely
+            if not h.get("subscription_active"):
+                continue
+
+            # Completeness skóre
+            completeness = hotel_profile_completeness(h)
+            score = completeness.get("score", 100)
+            if score >= 80:
+                continue  # Profil je kompletní, neposílej
+
+            # Datum registrace / subscription_start
+            reg_str = h.get("subscription_start") or h.get("created_at", "")
+            if not reg_str:
+                continue
+            try:
+                reg_date = datetime.fromisoformat(reg_str.replace("Z", ""))
+            except Exception:
+                continue
+
+            days_since = (now - reg_date).days
+            last_reminder_str = h.get("last_reminder_sent", "")
+            last_reminder = datetime.fromisoformat(last_reminder_str.replace("Z", "")) if last_reminder_str else None
+            reminder_count = h.get("reminder_count", 0)
+
+            # Pravidla:
+            # 1. Po 14 dnech — první reminder (pokud ještě nebyl poslán)
+            # 2. Po 30 dnech — opakuj každých 30 dní dokud score < 80%
+            should_send = False
+            if days_since >= 14 and reminder_count == 0:
+                should_send = True
+            elif days_since >= 30:
+                if last_reminder is None:
+                    should_send = True
+                elif (now - last_reminder).days >= 30:
+                    should_send = True
+
+            if not should_send:
+                continue
+
+            # Pošli reminder
+            hotel_name = h.get("name", "Hotel")
+            hotel_email = h.get("registration_email") or h.get("email", "")
+            if not hotel_email:
+                continue
+
+            portal_url = f"{base_url}/hotel?token={h.get('hotel_token','')}"
+            missing_labels = {
+                "address": "Adresa hotelu", "phone": "Telefon recepce",
+                "email": "Email", "checkin_time": "Check-in čas",
+                "checkout_time": "Check-out čas", "breakfast_hours": "Hodiny snídaně",
+                "bed_count": "Počet lůžek", "star_rating": "Hvězdičky",
+            }
+            missing_list = [missing_labels.get(f, f) for f in completeness.get("missing", [])]
+            missing_html = "".join(f"<li>{m}</li>" for m in missing_list) if missing_list else ""
+
+            subject = f"Připomínka: doplňte profil hotelu {hotel_name} ({score}%)"
+            html_body = f"""
+            <div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;background:#0a0b0f;color:#f0ece0;padding:32px;border-radius:12px">
+              <div style="font-weight:800;font-size:24px;color:#f0ece0;margin-bottom:4px">SMARTEST GUIDE<span style="width:7px;height:7px;border-radius:50%;background:#f5a623;display:inline-block;margin-left:3px"></span></div>
+              <div style="font-size:12px;color:#00d4aa;letter-spacing:.15em;text-transform:uppercase;margin-bottom:24px">AI Concierge for Hotels</div>
+              <h2 style="color:#f5a623;font-size:20px;margin-bottom:12px">Profil hotelu {hotel_name} je vyplněn z {score}%</h2>
+              <p style="color:#9ba0c0;line-height:1.7">Dobrý den,<br><br>váš hotel <strong style="color:#f0ece0">{hotel_name}</strong> má aktivní předplatné SmartestGuide, ale profil není kompletní. Čím více informací Alex zná, tím lépe pomáhá hostům.</p>
+              {"<p style='color:#9ba0c0'>Chybějící informace:</p><ul style='color:#f0ece0;line-height:2'>" + missing_html + "</ul>" if missing_list else ""}
+              <a href="{portal_url}" style="display:inline-block;margin-top:20px;background:#f5a623;color:#0a0b0f;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:15px">Přejít do portálu →</a>
+              <p style="margin-top:32px;font-size:12px;color:#6b6f8e">SMARTEST GUIDE · support@smartestguide.com</p>
+            </div>"""
+
+            bcc_list = [
+                {"email": "martin.1303@seznam.cz"},
+                {"email": "admin@smartestguide.com"},
+            ]
+            admin_cc = os.getenv("ADMIN_CC_EMAIL", "")
+            if admin_cc and admin_cc not in ["martin.1303@seznam.cz", "admin@smartestguide.com"]:
+                bcc_list.append({"email": admin_cc})
+
+            payload = {
+                "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
+                "to": [{"email": hotel_email, "name": hotel_name}],
+                "bcc": bcc_list,
+                "subject": subject,
+                "htmlContent": html_body,
+            }
+
+            resp = _httpx.post(
+                "https://api.brevo.com/v3/smtp/email",
+                headers={"api-key": brevo_key, "Content-Type": "application/json"},
+                json=payload, timeout=15
+            )
+            if resp.status_code in (200, 201):
+                db["hotels"][hotel_id]["last_reminder_sent"] = now.isoformat()
+                db["hotels"][hotel_id]["reminder_count"] = reminder_count + 1
+                db_save(db)
+                sent_count += 1
+                logging.info("Auto-reminder sent to %s (%s%%, day %s)", hotel_email, score, days_since)
+            else:
+                logging.warning("Auto-reminder Brevo error: %s %s", resp.status_code, resp.text[:200])
+
+        except Exception as e:
+            logging.error("Auto-reminder error for hotel %s: %s", hotel_id, e)
+
+    if sent_count:
+        logging.info("Auto-reminder loop: sent %s reminders", sent_count)
+
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app):
+    task = asyncio.create_task(_reminder_background_loop())
+    yield
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.2.9"
+APP_VERSION = "0.3.1"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -703,40 +842,45 @@ def _generate_qr_png_branded(data: str, size: int = 400) -> bytes:
                 x0, y0 = c * cell, r * cell
                 draw.rectangle([x0, y0, x0 + cell - 1, y0 + cell - 1], fill=(240, 192, 96))
 
-    # SG logo uprostřed — tmavý kruh s zlatým textem
+    # SG logo uprostřed — tmavý kruh s zlatým okrajem, uvnitř "SG" text
     cx, cy = img_size // 2, img_size // 2
-    r_logo = int(img_size * 0.13)  # 13% velikosti — větší
-    # Vymaž střed QR (přes tmavý čtverec) aby logo bylo čitelné
-    draw.rectangle([cx - r_logo, cy - r_logo, cx + r_logo, cy + r_logo], fill=(10, 11, 15))
-    # Tmavý kruh s zlatým okrajem
-    border_w = max(3, r_logo // 6)
+    r_logo = int(img_size * 0.13)
+    # Vymaž střed
+    draw.rectangle([cx - r_logo - 4, cy - r_logo - 4, cx + r_logo + 4, cy + r_logo + 4], fill=(10, 11, 15))
+    # Kruh s okrajem
+    border_w = max(4, r_logo // 5)
     draw.ellipse([cx - r_logo, cy - r_logo, cx + r_logo, cy + r_logo],
                  fill=(10, 11, 15), outline=(245, 166, 35), width=border_w)
-    # Text "SG" — zkus různé fonty
-    font_size = int(r_logo * 1.1)
+    # Text SG — použij největší dostupný font, přesně centruj
+    gold = (245, 166, 35)
     font = None
-    for font_path in [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-    ]:
+    for fp in ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+               "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+               "/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf",
+               "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf"]:
         try:
-            font = ImageFont.truetype(font_path, font_size)
+            font = ImageFont.truetype(fp, int(r_logo * 1.0))
             break
         except Exception:
             continue
-    if font is None:
-        font = ImageFont.load_default()
-    # Přesné centrování přes textbbox
-    try:
-        bbox = draw.textbbox((0, 0), "SG", font=font)
-        tw = bbox[2] - bbox[0]
-        th = bbox[3] - bbox[1]
+    if font:
+        # Přesné centrování
+        bbox = font.getbbox("SG")
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
         tx = cx - tw // 2 - bbox[0]
         ty = cy - th // 2 - bbox[1]
-    except Exception:
-        tx, ty = cx - r_logo // 2, cy - r_logo // 2
-    draw.text((tx, ty), "SG", fill=(245, 166, 35), font=font)
+        draw.text((tx, ty), "SG", fill=gold, font=font)
+    else:
+        # Fallback — nakresli S a G jako jednoduché čáry
+        lw = max(3, r_logo // 8)
+        # S
+        sx, sy, sr = cx - r_logo//2, cy - r_logo//2, r_logo//3
+        draw.arc([sx-sr, sy-sr, sx+sr, sy], 180, 0, fill=gold, width=lw)
+        draw.arc([sx-sr, sy, sx+sr, sy+sr*2], 0, 180, fill=gold, width=lw)
+        # G
+        gx = cx + r_logo//8
+        draw.arc([gx-sr, sy-sr, gx+sr, sy+sr*2], 60, 300, fill=gold, width=lw)
+        draw.line([gx, cy, gx+sr, cy], fill=gold, width=lw)
 
     buf = BytesIO()
     img.save(buf, format="PNG")
