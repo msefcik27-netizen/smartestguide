@@ -41,7 +41,7 @@ def init_settings_from_env():
 app = FastAPI(title="SmartestGuide", version="0.2.0")
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.2.5"
+APP_VERSION = "0.2.8"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -681,9 +681,9 @@ def get_base_url(request: Request) -> str:
 
 # ─────────────────────────────────────────────
 def _generate_qr_png_branded(data: str, size: int = 400) -> bytes:
-    """Generuje zlatý QR kód jako PNG pomocí Pillow — kreslí matici ručně."""
+    """Generuje zlatý QR kód jako PNG pomocí Pillow — kreslí matici ručně + SG logo uprostřed."""
     import qrcode
-    from PIL import Image, ImageDraw
+    from PIL import Image, ImageDraw, ImageFont
     from io import BytesIO
 
     qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=1, border=4)
@@ -702,6 +702,23 @@ def _generate_qr_png_branded(data: str, size: int = 400) -> bytes:
             if dark:
                 x0, y0 = c * cell, r * cell
                 draw.rectangle([x0, y0, x0 + cell - 1, y0 + cell - 1], fill=(240, 192, 96))
+
+    # SG logo uprostřed — tmavý kruh s zlatým textem
+    cx, cy = img_size // 2, img_size // 2
+    r_logo = int(img_size * 0.1)  # 10% velikosti
+    # Tmavý kruh s zlatým okrajem
+    draw.ellipse([cx - r_logo, cy - r_logo, cx + r_logo, cy + r_logo], fill=(10, 11, 15), outline=(245, 166, 35), width=max(2, r_logo // 8))
+    # Text "SG"
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", int(r_logo * 0.9))
+    except Exception:
+        font = ImageFont.load_default()
+    try:
+        bbox = draw.textbbox((0, 0), "SG", font=font)
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    except Exception:
+        tw, th = r_logo, r_logo // 2
+    draw.text((cx - tw // 2, cy - th // 2), "SG", fill=(245, 166, 35), font=font)
 
     buf = BytesIO()
     img.save(buf, format="PNG")
@@ -916,6 +933,38 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
       </div>
     </div>
 
+    <!-- A5 primární jazyk -->
+    <div class="fmt-card">
+      <div class="fmt-preview" onclick="openFormat('flyer-a5-{'cz' if is_cs else 'en'}')">
+        <div style="width:130px;height:92px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f5a623;line-height:1.2">{'Váš AI concierge' if is_cs else 'Your AI concierge'}</div>
+          <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 14 LANGUAGES</div>
+          <div id="qr-a5-primary" style="width:50px;height:50px"></div>
+        </div>
+      </div>
+      <div class="fmt-info">
+        <div class="fmt-name">{'A5 Leták · Česky' if is_cs else 'A5 Flyer · English'}</div>
+        <div class="fmt-desc">{'Kompaktní A5 — ideální do pokojů a na stoly.' if is_cs else 'Compact A5 — perfect for rooms and tables.'}</div>
+        <button class="fmt-btn" onclick="openFormat('flyer-a5-{'cz' if is_cs else 'en'}')">{btn_print}</button>
+      </div>
+    </div>
+
+    <!-- A5 sekundární jazyk -->
+    <div class="fmt-card">
+      <div class="fmt-preview" onclick="openFormat('flyer-a5-{'en' if is_cs else 'cz'}')">
+        <div style="width:130px;height:92px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f5a623;line-height:1.2">{'Your AI concierge' if is_cs else 'Váš AI concierge'}</div>
+          <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 14 LANGUAGES</div>
+          <div id="qr-a5-secondary" style="width:50px;height:50px"></div>
+        </div>
+      </div>
+      <div class="fmt-info">
+        <div class="fmt-name">{'A5 Flyer · English' if is_cs else 'A5 Leták · Česky'}</div>
+        <div class="fmt-desc">{'Anglická A5 verze pro mezinárodní hosty.' if is_cs else 'Česká A5 verze pro české hosty.'}</div>
+        <button class="fmt-btn" onclick="openFormat('flyer-a5-{'en' if is_cs else 'cz'}')">{btn_print}</button>
+      </div>
+    </div>
+
     <!-- Roll-up -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('rollup')">
@@ -947,6 +996,8 @@ window.addEventListener('load', function(){{
     drawQR('qr-thumb', 160);
     drawQR('qr-a4-primary', 70);
     drawQR('qr-a4-secondary', 70);
+    drawQR('qr-a5-primary', 50);
+    drawQR('qr-a5-secondary', 50);
     drawQR('qr-rollup', 44);
   }}, 300);
 }});
@@ -956,6 +1007,8 @@ function openFormat(fmt){{
     'qr-poster': '/api/hotels/{hotel_id}/qr-poster-print',
     'flyer-en':  '/api/hotels/{hotel_id}/flyer-en',
     'flyer-cz':  '/api/hotels/{hotel_id}/flyer-cz',
+    'flyer-a5-en': '/api/hotels/{hotel_id}/flyer-a5-en',
+    'flyer-a5-cz': '/api/hotels/{hotel_id}/flyer-a5-cz',
     'rollup':    '/api/hotels/{hotel_id}/rollup'
   }};
   window.open(urls[fmt], '_blank');
@@ -1011,7 +1064,14 @@ for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell
 h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
 </script></body></html>"""
 
-def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en") -> str:
+def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str = "a4") -> str:
+    is_a5 = size == "a5"
+    page_size = "A5" if is_a5 else "A4"
+    page_w = "148mm" if is_a5 else "210mm"
+    page_h = "210mm" if is_a5 else "297mm"
+    h1_size = "32px" if is_a5 else "48px"
+    qr_size = "140px" if is_a5 else "200px"
+    pad = "28px 28px" if is_a5 else "48px 44px"
     flags_html = """<span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="8" fill="#fff"/><rect y="8" width="24" height="8" fill="#D7141A"/><path d="M0 0 L12 8 L0 16 Z" fill="#11457E"/></svg></span>
 <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#012169"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#fff" stroke-width="3.2"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#C8102E" stroke-width="1.6"/><path d="M12 0 V16 M0 8 H24" stroke="#fff" stroke-width="5"/><path d="M12 0 V16 M0 8 H24" stroke="#C8102E" stroke-width="3"/></svg></span>
 <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#000"/><rect y="5.33" width="24" height="5.33" fill="#DD0000"/><rect y="10.66" width="24" height="5.34" fill="#FFCE00"/></svg></span>
@@ -1050,21 +1110,21 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en") -> str:
 <style>*{{box-sizing:border-box}}
 body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
 .btn{{position:fixed;top:16px;right:16px;background:#f0c060;color:#0a0b0f;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:14px;cursor:pointer}}
-@media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:A4;margin:0}}}}</style></head>
+@media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:{page_size};margin:0}}}}</style></head>
 <body><button class="btn" onclick="window.print()">🖨️ Tisknout / PDF</button>
-<div style="width:210mm;min-height:297mm;background:#0a0b0f;position:relative;overflow:hidden;padding:0">
+<div style="width:{page_w};min-height:{page_h};background:#0a0b0f;position:relative;overflow:hidden;padding:0">
   <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#f0c060)"></div>
   <div style="position:absolute;top:80px;left:50%;width:500px;height:500px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(240,192,96,.1),transparent 70%);pointer-events:none"></div>
-  <div style="padding:48px 44px;display:flex;flex-direction:column;align-items:center;text-align:center;min-height:297mm">
+  <div style="padding:{pad};display:flex;flex-direction:column;align-items:center;text-align:center;min-height:{page_h}">
     <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:#f0ece0;display:flex;align-items:center;gap:4px">SmartestGuide<span style="width:8px;height:8px;border-radius:50%;background:#f0c060;display:inline-block;margin-left:2px;box-shadow:0 0 10px rgba(240,192,96,.9)"></span></div>
     <div style="margin-top:6px;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00d4aa">AI Concierge for Hotels</div>
     <div style="margin-top:8px;font-size:13px;color:#9ba0c0">{hotel_name}</div>
-    <h1 style="font-family:'Syne',sans-serif;font-weight:800;font-size:48px;line-height:1.05;letter-spacing:-.02em;margin:36px 0 0;color:#f0c060">{headline}</h1>
+    <h1 style="font-family:'Syne',sans-serif;font-weight:800;font-size:{h1_size};line-height:1.05;letter-spacing:-.02em;margin:36px 0 0;color:#f0c060">{headline}</h1>
     <p style="font-size:17px;line-height:1.6;color:#cfcad0;max-width:480px;margin:18px 0 0">{subline}</p>
     <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:28px;max-width:500px">{flags_html}</div>
     <div style="margin-top:32px;display:flex;flex-direction:column;gap:12px;align-items:flex-start;text-align:left;width:100%;max-width:420px">{feats_html}</div>
     <div style="margin-top:40px;position:relative;padding:18px;background:#0c0d12;border:1px solid rgba(240,192,96,.4);border-radius:16px;box-shadow:0 0 30px rgba(240,192,96,.1)">
-      <div id="qr-flyer" style="width:200px;height:200px;display:flex;align-items:center;justify-content:center"></div>
+      <div id="qr-flyer" style="width:{qr_size};height:{qr_size};display:flex;align-items:center;justify-content:center"></div>
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;background:#0a0b0f;border:2px solid #f0c060;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:#f0c060">SG</div>
     </div>
     <div style="margin-top:20px;font-family:'Syne',sans-serif;font-weight:700;font-size:20px;color:#f0ece0">{scan_text}</div>
@@ -1156,7 +1216,21 @@ def rollup(hotel_id: str, request: Request):
     base = get_base_url(request)
     return HTMLResponse(content=_render_rollup(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}"))
 
+@app.get("/api/hotels/{hotel_id}/flyer-a5-en")
+def flyer_a5_en(hotel_id: str, request: Request):
+    db = db_load()
+    hotel = db["hotels"].get(hotel_id)
+    if not hotel: raise HTTPException(404, "Hotel nenalezen")
+    base = get_base_url(request)
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "en", size="a5"))
 
+@app.get("/api/hotels/{hotel_id}/flyer-a5-cz")
+def flyer_a5_cz(hotel_id: str, request: Request):
+    db = db_load()
+    hotel = db["hotels"].get(hotel_id)
+    if not hotel: raise HTTPException(404, "Hotel nenalezen")
+    base = get_base_url(request)
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "cz", size="a5"))
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -1478,7 +1552,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
     steps_html = "".join(f"<li style='margin-bottom:8px'>{s}</li>" for s in steps)
 
     html_body = f"""<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a2e">
-      <div style="background:linear-gradient(135deg,#6c63ff,#00d4aa);padding:32px;text-align:center;border-radius:12px 12px 0 0">
+      <div style="background:#0a0b0f;padding:32px;text-align:center;border-radius:12px 12px 0 0;border-bottom:3px solid #f5a623">
         <h1 style="color:#fff;margin:0;font-size:28px">SmartestGuide</h1>
         <p style="color:rgba(255,255,255,.85);margin:8px 0 0">{subtitle}</p>
       </div>
@@ -1487,10 +1561,10 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
         <p style="color:#555;line-height:1.7;margin-bottom:24px">{intro}</p>
 
         <div style="background:#fff;border:2px solid #00d4aa;border-radius:10px;padding:20px;margin-bottom:24px;text-align:center">
-          <a href="{portal_url}" style="display:inline-block;background:linear-gradient(135deg,#6c63ff,#00d4aa);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:700;font-size:16px">{portal_btn_text} →</a>
+          <a href="{portal_url}" style="display:inline-block;background:#f5a623;color:#0a0b0f;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:700;font-size:16px">{portal_btn_text} →</a>
         </div>
 
-        <h3 style="color:#6c63ff;margin-bottom:12px">{steps_title}</h3>
+        <h3 style="color:#f5a623;margin-bottom:12px">{steps_title}</h3>
         <ol style="color:#555;line-height:1.8;padding-left:20px;margin-bottom:24px">{steps_html}</ol>
 
         <div style="background:#0a0b0f;border:1px solid rgba(240,192,96,.4);border-radius:10px;padding:24px;margin-bottom:24px;text-align:center">
@@ -1512,7 +1586,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
 
         <hr style="border:none;border-top:1px solid #e0e0f0;margin:20px 0"/>
         <p style="color:#888;font-size:12px;text-align:center">
-          {help_text} <a href="mailto:admin@smartestguide.com" style="color:#6c63ff">admin@smartestguide.com</a>
+          {help_text} <a href="mailto:admin@smartestguide.com" style="color:#f5a623">admin@smartestguide.com</a>
         </p>
       </div>
     </div>"""
