@@ -180,7 +180,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.3.2"
+APP_VERSION = "0.3.3"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -841,28 +841,6 @@ def _generate_qr_png_branded(data: str, size: int = 400) -> bytes:
             if dark:
                 x0, y0 = c * cell, r * cell
                 draw.rectangle([x0, y0, x0 + cell - 1, y0 + cell - 1], fill=(240, 192, 96))
-
-    # SG logo uprostřed — tmavý kruh s zlatým okrajem, uvnitř "SG" text
-    cx, cy = img_size // 2, img_size // 2
-    r_logo = int(img_size * 0.13)
-    # Vymaž střed
-    draw.rectangle([cx - r_logo - 4, cy - r_logo - 4, cx + r_logo + 4, cy + r_logo + 4], fill=(10, 11, 15))
-    # Kruh s okrajem
-    border_w = max(4, r_logo // 5)
-    draw.ellipse([cx - r_logo, cy - r_logo, cx + r_logo, cy + r_logo],
-                 fill=(10, 11, 15), outline=(245, 166, 35), width=border_w)
-    # Text SG
-    gold = (245, 166, 35)
-    font_size = int(r_logo * 1.0)
-    try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", font_size)
-        bbox = font.getbbox("SG")
-        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-        tx = cx - tw // 2 - bbox[0]
-        ty = cy - th // 2 - bbox[1]
-        draw.text((tx, ty), "SG", fill=gold, font=font)
-    except Exception as e:
-        logging.warning("QR PNG font error: %s", e)
 
     buf = BytesIO()
     img.save(buf, format="PNG")
