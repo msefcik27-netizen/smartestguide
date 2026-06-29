@@ -41,7 +41,7 @@ def init_settings_from_env():
 app = FastAPI(title="SmartestGuide", version="0.2.0")
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.2.3"
+APP_VERSION = "0.2.4"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -1829,13 +1829,13 @@ def get_completeness(hotel_id: str):
     return {"status": "ok", **hotel_profile_completeness(h)}
 
 @app.post("/api/hotels/{hotel_id}/send-reminder")
-def send_reminder(hotel_id: str):
+def send_reminder(hotel_id: str, request: Request):
     db = db_load()
     h = db["hotels"].get(hotel_id)
     if not h:
         raise HTTPException(404, "Hotel nenalezen")
     completeness = hotel_profile_completeness(h)
-    portal_url = get_base_url() + "/hotel?token=" + h.get("hotel_token","")
+    portal_url = get_base_url(request) + "/hotel?token=" + h.get("hotel_token","")
     hotel_email = h.get("registration_email") or h.get("email", "")
     missing_labels = {
         "address": "Adresa hotelu", "phone": "Telefon recepce",

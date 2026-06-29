@@ -768,11 +768,11 @@ function renderHotelsTable(){
     <td style="padding:8px;min-width:210px">
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px">
         <button class="btn btn-primary" style="padding:5px 2px;font-size:10px;background:rgba(240,192,96,.2);color:var(--accent);border:1px solid rgba(240,192,96,.4)" onclick="openEdit('${h.id}')">✏ Editovat</button>
-        <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px" onclick="showQrPopup('${h.id}','${esc(h.name||'')}')">📱 QR kód</button>
+        <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px" data-id="${h.id}" data-name="${esc(h.name||'')}" onclick="showQrPopup(this.dataset.id,this.dataset.name)">📱 QR kód</button>
         <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px" onclick="openPanel('${h.id}')">ℹ Detail</button>
-        <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(0,212,170,.4);color:var(--accent2)" onclick="showPortalLink('${h.id}','${esc(h.name||'')}')">🔗 Portál</button>
-        <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(46,204,135,.4);color:var(--success)" onclick="downloadFlyer('${h.id}','${esc(h.name||'')}')">📄 Leták</button>
-        <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(255,170,51,.4);color:var(--warn)" onclick="sendReminder('${h.id}','${esc(h.name||'')}')">📧 Reminder</button>
+        <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(0,212,170,.4);color:var(--accent2)" data-id="${h.id}" data-name="${esc(h.name||'')}" onclick="showPortalLink(this.dataset.id,this.dataset.name)">🔗 Portál</button>
+        <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(46,204,135,.4);color:var(--success)" data-id="${h.id}" data-name="${esc(h.name||'')}" onclick="downloadFlyer(this.dataset.id,this.dataset.name)">📄 Leták</button>
+        <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(255,170,51,.4);color:var(--warn)" data-id="${h.id}" data-name="${esc(h.name||'')}" onclick="sendReminder(this.dataset.id,this.dataset.name)">📧 Reminder</button>
         <button class="btn btn-danger" style="padding:5px 2px;font-size:10px;grid-column:span 3" onclick="deleteHotel('${h.id}')">✕ Smazat hotel</button>
       </div>
     </td></tr>`;
