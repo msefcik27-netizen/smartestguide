@@ -521,7 +521,7 @@ function renderPortal() {
       </div>
       <textarea id="f-active_offer" placeholder="např. Dnes sleva 20% na wellness do 20:00. Stačí zmínit Alexe na recepci." oninput="markChanged()" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;padding:12px 14px;outline:none;resize:vertical;min-height:80px;font-family:var(--font-body)">${h.active_offer||''}</textarea>
       <div style="margin-top:8px;font-size:12px;color:var(--muted)">Nechte prázdné pokud žádná akce není aktivní — Alex pak nabídku nezmiňuje.</div>
-    \`, ['active_offer'])}
+    `, ['active_offer'])}
 
     ${renderSection('✨', 'Vlastní informace pro Alexe', 'Přidejte cokoliv co hosté chtějí vědět — Alex to použije při odpovědích', `
       <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">
