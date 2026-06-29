@@ -39,14 +39,38 @@ def init_settings_from_env():
 # Aplikace
 # ─────────────────────────────────────────────
 async def _reminder_background_loop():
-    """Kontroluje každých 6 hodin hotely a posílá reminder emaily."""
-    await asyncio.sleep(60)  # Počkej minutu po startu
+    """Kontroluje každých 6 hodin hotely — posílá reminder emaily a deaktivuje expirované."""
+    await asyncio.sleep(60)
     while True:
         try:
             await _check_and_send_reminders()
+            await _deactivate_expired_subscriptions()
         except Exception as e:
-            logging.error("Reminder loop error: %s", e)
-        await asyncio.sleep(6 * 60 * 60)  # Každých 6 hodin
+            logging.error("Background loop error: %s", e)
+        await asyncio.sleep(6 * 60 * 60)
+
+async def _deactivate_expired_subscriptions():
+    """Deaktivuje hotely jejichž subscription_period_end uplynul."""
+    db = db_load()
+    now = datetime.utcnow()
+    changed = False
+    for hotel_id, h in db["hotels"].items():
+        if not h.get("subscription_active"):
+            continue
+        period_end_str = h.get("subscription_period_end", "")
+        if not period_end_str:
+            continue
+        try:
+            period_end = datetime.fromisoformat(period_end_str)
+        except Exception:
+            continue
+        if now > period_end:
+            db["hotels"][hotel_id]["subscription_active"] = False
+            db["hotels"][hotel_id]["subscription_deactivated_at"] = now.isoformat()
+            changed = True
+            logging.info("Auto-deactivated hotel %s (period ended %s)", hotel_id, period_end_str)
+    if changed:
+        db_save(db)
 
 async def _check_and_send_reminders():
     """Zkontroluje všechny hotely a pošle reminder pokud splňují podmínky."""
@@ -119,13 +143,13 @@ async def _check_and_send_reminders():
 
             subject = f"Připomínka: doplňte profil hotelu {hotel_name} ({score}%)"
             html_body = f"""
-            <div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;background:#0a0b0f;color:#f0ece0;padding:32px;border-radius:12px">
-              <div style="font-weight:800;font-size:24px;color:#f0ece0;margin-bottom:4px">SMARTEST GUIDE<span style="width:7px;height:7px;border-radius:50%;background:#f5a623;display:inline-block;margin-left:3px"></span></div>
+            <div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;background:#1a1a1a;color:#f0ece0;padding:32px;border-radius:12px">
+              <div style="font-weight:800;font-size:24px;color:#f0ece0;margin-bottom:4px">SMARTEST GUIDE<span style="width:7px;height:7px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:3px"></span></div>
               <div style="font-size:12px;color:#00d4aa;letter-spacing:.15em;text-transform:uppercase;margin-bottom:24px">AI Concierge for Hotels</div>
-              <h2 style="color:#f5a623;font-size:20px;margin-bottom:12px">Profil hotelu {hotel_name} je vyplněn z {score}%</h2>
+              <h2 style="color:#FF6B00;font-size:20px;margin-bottom:12px">Profil hotelu {hotel_name} je vyplněn z {score}%</h2>
               <p style="color:#9ba0c0;line-height:1.7">Dobrý den,<br><br>váš hotel <strong style="color:#f0ece0">{hotel_name}</strong> má aktivní předplatné SmartestGuide, ale profil není kompletní. Čím více informací Alex zná, tím lépe pomáhá hostům.</p>
               {"<p style='color:#9ba0c0'>Chybějící informace:</p><ul style='color:#f0ece0;line-height:2'>" + missing_html + "</ul>" if missing_list else ""}
-              <a href="{portal_url}" style="display:inline-block;margin-top:20px;background:#f5a623;color:#0a0b0f;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:15px">Přejít do portálu →</a>
+              <a href="{portal_url}" style="display:inline-block;margin-top:20px;background:#FF6B00;color:#0a0b0f;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:15px">Přejít do portálu →</a>
               <p style="margin-top:32px;font-size:12px;color:#6b6f8e">SMARTEST GUIDE · support@smartestguide.com</p>
             </div>"""
 
@@ -180,7 +204,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.3.6"
+APP_VERSION = "0.4.0"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -249,6 +273,8 @@ class HotelData(BaseModel):
     restaurant_name: Optional[str] = None
     wellness_info: Optional[str] = None
     parking_info: Optional[str] = None
+    wifi_name: Optional[str] = None
+    wifi_password: Optional[str] = None
     phone2: Optional[str] = None
     nav_pool: Optional[str] = None
     nav_wellness: Optional[str] = None
@@ -685,6 +711,8 @@ class HotelPortalUpdate(BaseModel):
     dinner_hours: Optional[str] = None
     restaurant_name: Optional[str] = None
     wellness_info: Optional[str] = None
+    wifi_name: Optional[str] = None
+    wifi_password: Optional[str] = None
     parking_info: Optional[str] = None
     amenities: Optional[List[str]] = None
     nearby_places: Optional[List[str]] = None
@@ -727,12 +755,35 @@ def hotel_portal_cancel(token: str):
     if not h:
         raise HTTPException(403, "Neplatny token")
     db = db_load()
-    db["hotels"][h["id"]]["subscription_active"] = False
-    db["hotels"][h["id"]]["subscription_cancelled_at"] = datetime.utcnow().isoformat()
-    db["hotels"][h["id"]]["updated_at"] = datetime.utcnow().isoformat()
+    now = datetime.utcnow()
+    # Zrušení platí od konce aktuálního placeného období — NEDEAKTIVUJEME OKAMŽITĚ
+    # Služba běží do subscription_period_end, poté se automaticky deaktivuje
+    db["hotels"][h["id"]]["subscription_cancel_requested"] = True
+    db["hotels"][h["id"]]["subscription_cancel_requested_at"] = now.isoformat()
+    db["hotels"][h["id"]]["updated_at"] = now.isoformat()
+    # Zruš v Stripe (zakáže automatické obnovení)
+    stripe_sub_id = h.get("stripe_subscription_id", "")
+    stripe_key = os.getenv("STRIPE_SECRET_KEY", "")
+    if stripe_sub_id and stripe_key:
+        try:
+            import httpx as _httpx
+            _httpx.post(
+                f"https://api.stripe.com/v1/subscriptions/{stripe_sub_id}",
+                headers={"Authorization": f"Bearer {stripe_key}"},
+                data={"cancel_at_period_end": "true"},
+                timeout=10
+            )
+        except Exception as e:
+            logging.warning("Stripe cancel error: %s", e)
     db_save(db)
+    period_end = h.get("subscription_period_end", "")
     safe = {k: v for k, v in db["hotels"][h["id"]].items() if k != "hotel_token"}
-    return {"status": "ok", "hotel": safe}
+    return {
+        "status": "ok",
+        "message": "Předplatné bude zrušeno na konci aktuálního období.",
+        "active_until": period_end,
+        "hotel": safe
+    }
 
 @app.get("/api/hotel-portal/invoices")
 def hotel_portal_invoices(token: str):
@@ -840,7 +891,7 @@ def _generate_qr_png_branded(data: str, size: int = 400) -> bytes:
         for c, dark in enumerate(row):
             if dark:
                 x0, y0 = c * cell, r * cell
-                draw.rectangle([x0, y0, x0 + cell - 1, y0 + cell - 1], fill=(240, 192, 96))
+                draw.rectangle([x0, y0, x0 + cell - 1, y0 + cell - 1], fill=(255, 107, 0))
 
     buf = BytesIO()
     img.save(buf, format="PNG")
@@ -954,7 +1005,7 @@ function drawQR(holderId, size){{
   for(var r=0;r<n;r++){{
     for(var c=0;c<n;c++){{
       if(qr.isDark(r,c)){{
-        rects+='<rect x="'+(c*cell).toFixed(2)+'" y="'+(r*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#f0c060"/>';
+        rects+='<rect x="'+(c*cell).toFixed(2)+'" y="'+(r*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#FF6B00"/>';
       }}
     }}
   }}
@@ -972,22 +1023,22 @@ function drawQR(holderId, size){{
 <style>
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height:100vh}}
-.topbar{{position:fixed;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#f0c060);z-index:200}}
+.topbar{{position:fixed;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#FF6B00);z-index:200}}
 .hub{{max-width:960px;margin:0 auto;padding:60px 24px 80px}}
 .hub-header{{text-align:center;margin-bottom:48px}}
 .hub-logo{{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;color:#f0ece0;display:inline-flex;align-items:center;gap:4px;margin-bottom:8px}}
-.hub-dot{{width:9px;height:9px;border-radius:50%;background:#f0c060;box-shadow:0 0 10px rgba(240,192,96,.8);margin-left:2px}}
+.hub-dot{{width:9px;height:9px;border-radius:50%;background:#FF6B00;box-shadow:0 0 10px rgba(255,107,0,.8);margin-left:2px}}
 .hub-hotel{{font-size:15px;color:#9ba0c0;margin-top:4px}}
 .hub-title{{font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:#f0ece0;margin-top:16px}}
 .formats{{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:0}}
 .fmt-card{{background:#181920;border:1px solid #222330;border-radius:16px;overflow:hidden;display:flex;flex-direction:column}}
-.fmt-card:hover{{border-color:rgba(240,192,96,.4)}}
-.fmt-preview{{background:#0a0b0f;padding:24px;display:flex;justify-content:center;align-items:center;min-height:200px;cursor:pointer;position:relative;overflow:hidden}}
-.fmt-preview::before{{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 80% at 50% 50%,rgba(240,192,96,.08),transparent 70%);pointer-events:none}}
+.fmt-card:hover{{border-color:rgba(255,107,0,.4)}}
+.fmt-preview{{background:#1a1a1a;padding:24px;display:flex;justify-content:center;align-items:center;min-height:200px;cursor:pointer;position:relative;overflow:hidden}}
+.fmt-preview::before{{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 80% at 50% 50%,rgba(255,107,0,.08),transparent 70%);pointer-events:none}}
 .fmt-info{{padding:20px}}
 .fmt-name{{font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:#f0ece0;margin-bottom:4px}}
 .fmt-desc{{font-size:13px;color:#9ba0c0;line-height:1.5;margin-bottom:16px}}
-.fmt-btn{{display:block;width:100%;background:#f0c060;color:#0a0b0f;border:none;border-radius:8px;padding:11px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-align:center;text-decoration:none;transition:opacity .15s}}
+.fmt-btn{{display:block;width:100%;background:#FF6B00;color:#0a0b0f;border:none;border-radius:8px;padding:11px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-align:center;text-decoration:none;transition:opacity .15s}}
 .fmt-btn:hover{{opacity:.88}}
 /* Print styles */
 @media print{{
@@ -1006,7 +1057,7 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
     <div class="hub-logo">SmartestGuide<span class="hub-dot"></span></div>
     <div class="hub-hotel">{hotel_name}</div>
     <div class="hub-title">{hub_title}</div>
-    {f'<a href="{portal_url}" style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;color:#f5a623;text-decoration:none;transition:opacity .15s" onmouseover="this.style.opacity=.8" onmouseout="this.style.opacity=1">⚙️ {portal_label}</a>' if portal_url else ''}
+    {f'<a href="{portal_url}" style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:rgba(255,107,0,.1);border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;color:#FF6B00;text-decoration:none;transition:opacity .15s" onmouseover="this.style.opacity=.8" onmouseout="this.style.opacity=1">⚙️ {portal_label}</a>' if portal_url else ''}
   </div>
 
   <div class="formats">
@@ -1014,8 +1065,8 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
     <!-- Roll-up -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('rollup')">
-        <div style="width:65px;height:156px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:6px;padding:8px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:7px;color:#f0c060;line-height:1.2">Your<br>personal<br>AI<br>concierge</div>
+        <div style="width:65px;height:156px;background:#1a1a1a;border:1px solid rgba(255,107,0,.3);border-radius:6px;padding:8px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:7px;color:#FF6B00;line-height:1.2">Your<br>personal<br>AI<br>concierge</div>
           <div style="font-size:7px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 14 LANG</div>
           <div id="qr-rollup" style="width:44px;height:44px"></div>
           <div style="font-size:6px;color:#00d4aa">smartestguide.com</div>
@@ -1030,8 +1081,8 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
     <!-- A4 Primární jazyk -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('{flyer_primary_url}')">
-        <div style="width:110px;min-height:155px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f0c060;line-height:1.2">{'Váš osobní<br>AI concierge' if is_cs else 'Your personal<br>AI concierge'}</div>
+        <div style="width:110px;min-height:155px;background:#1a1a1a;border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#FF6B00;line-height:1.2">{'Váš osobní<br>AI concierge' if is_cs else 'Your personal<br>AI concierge'}</div>
           <div style="font-size:8px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 14 LANGUAGES</div>
           <div id="qr-a4-primary" style="width:70px;height:70px"></div>
           <div style="font-size:7px;color:#00d4aa">smartestguide.com</div>
@@ -1045,8 +1096,8 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
     </div>    <!-- A4 Sekundární jazyk -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('{flyer_secondary_url}')">
-        <div style="width:110px;min-height:155px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f0c060;line-height:1.2">{'Your personal<br>AI concierge' if is_cs else 'Váš osobní<br>AI concierge'}</div>
+        <div style="width:110px;min-height:155px;background:#1a1a1a;border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#FF6B00;line-height:1.2">{'Your personal<br>AI concierge' if is_cs else 'Váš osobní<br>AI concierge'}</div>
           <div style="font-size:8px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 14 LANGUAGES</div>
           <div id="qr-a4-secondary" style="width:70px;height:70px"></div>
           <div style="font-size:7px;color:#00d4aa">smartestguide.com</div>
@@ -1060,9 +1111,9 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
     </div>    <!-- QR Plakát -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('qr-poster')">
-        <div style="position:relative;padding:16px;background:#0c0d12;border:1px solid rgba(240,192,96,.4);border-radius:14px;display:inline-block">
+        <div style="position:relative;padding:16px;background:#0c0d12;border:1px solid rgba(255,107,0,.4);border-radius:14px;display:inline-block">
           <div id="qr-thumb" style="width:160px;height:160px;display:block"></div>
-          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;background:#0a0b0f;border:2px solid #f5a623;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:#f5a623;z-index:10;pointer-events:none">SG</div>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;background:#1a1a1a;border:2px solid #FF6B00;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:#FF6B00;z-index:10;pointer-events:none">SG</div>
         </div>
       </div>
       <div class="fmt-info">
@@ -1073,8 +1124,8 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
     </div>    <!-- A5 primární jazyk (EN) -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('flyer-a5-en')">
-        <div style="width:130px;height:92px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f5a623;line-height:1.2">Your AI concierge</div>
+        <div style="width:130px;height:92px;background:#1a1a1a;border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#FF6B00;line-height:1.2">Your AI concierge</div>
           <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 14 LANGUAGES</div>
           <div id="qr-a5-primary" style="width:50px;height:50px"></div>
         </div>
@@ -1087,8 +1138,8 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
     </div>    <!-- A5 sekundární jazyk (lokální) -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('flyer-a5-local')">
-        <div style="width:130px;height:92px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f5a623;line-height:1.2">AI concierge</div>
+        <div style="width:130px;height:92px;background:#1a1a1a;border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#FF6B00;line-height:1.2">AI concierge</div>
           <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 14 LANGUAGES</div>
           <div id="qr-a5-secondary" style="width:50px;height:50px"></div>
         </div>
@@ -1103,7 +1154,7 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
 </div>
 
 <!-- Hidden print frames -->
-<iframe id="print-frame" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:9999;background:#0a0b0f"></iframe>
+<iframe id="print-frame" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:9999;background:#1a1a1a"></iframe>
 
 <script>
 {qr_js}
@@ -1153,19 +1204,19 @@ def _render_qr_poster(hotel_name: str, guest_url: str) -> str:
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>*{{box-sizing:border-box}}body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
-.btn{{position:fixed;top:16px;right:16px;background:#f0c060;color:#0a0b0f;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:14px;cursor:pointer}}
+.btn{{position:fixed;top:16px;right:16px;background:#FF6B00;color:#0a0b0f;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:14px;cursor:pointer}}
 @media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{margin:0}}}}</style></head>
 <body><button class="btn" onclick="window.print()">🖨️ Tisknout / PDF</button>
-<div style="position:relative;width:800px;height:800px;background:#0a0b0f;border:1px solid rgba(240,192,96,.35);border-radius:24px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5)">
-  <div style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#f0c060)"></div>
-  <div style="position:absolute;top:300px;left:50%;width:620px;height:620px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(240,192,96,.16),transparent 70%);pointer-events:none"></div>
+<div style="position:relative;width:800px;height:800px;background:#1a1a1a;border:1px solid rgba(255,107,0,.35);border-radius:24px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5)">
+  <div style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#FF6B00)"></div>
+  <div style="position:absolute;top:300px;left:50%;width:620px;height:620px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(255,107,0,.16),transparent 70%);pointer-events:none"></div>
   <div style="height:100%;display:flex;flex-direction:column;align-items:center;padding:58px 48px 48px;position:relative">
-    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:34px;color:#f0ece0;display:flex;align-items:center;gap:4px">SmartestGuide<span style="width:10px;height:10px;border-radius:50%;background:#f0c060;display:inline-block;margin-left:2px;box-shadow:0 0 14px rgba(240,192,96,.9)"></span></div>
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:34px;color:#f0ece0;display:flex;align-items:center;gap:4px">SmartestGuide<span style="width:10px;height:10px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:2px;box-shadow:0 0 14px rgba(255,107,0,.9)"></span></div>
     <div style="margin-top:10px;font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:#00d4aa">AI Concierge for Hotels</div>
     <div style="margin-top:26px;font-family:'Syne',sans-serif;font-weight:700;font-size:22px;color:#f0ece0;text-align:center">{hotel_name}</div>
-    <div style="position:relative;margin-top:22px;padding:22px;background:#0c0d12;border:1px solid rgba(240,192,96,.4);border-radius:20px;box-shadow:0 0 40px rgba(240,192,96,.12)">
+    <div style="position:relative;margin-top:22px;padding:22px;background:#0c0d12;border:1px solid rgba(255,107,0,.4);border-radius:20px;box-shadow:0 0 40px rgba(255,107,0,.12)">
       <div id="qr" style="width:420px;height:420px;display:flex;align-items:center;justify-content:center"></div>
-      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:50%;background:#0a0b0f;border:3px solid #f0c060;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:30px;color:#f0c060;box-shadow:0 0 22px rgba(240,192,96,.5)">SG</div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:50%;background:#1a1a1a;border:3px solid #FF6B00;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:30px;color:#FF6B00;box-shadow:0 0 22px rgba(255,107,0,.5)">SG</div>
     </div>
     <div style="margin-top:30px;font-family:'Syne',sans-serif;font-weight:700;font-size:24px;color:#f0ece0;text-align:center">Scan for your personal AI concierge</div>
     <div style="margin-top:10px;font-size:15px;color:#9ba0c0">14 languages · No app needed · 24/7</div>
@@ -1177,7 +1228,7 @@ def _render_qr_poster(hotel_name: str, guest_url: str) -> str:
 <script>
 (function(){{function draw(){{var h=document.getElementById('qr');if(!h)return;if(!window.qrcode){{setTimeout(draw,120);return;}}
 var qr=window.qrcode(0,'H');qr.addData('{guest_url}');qr.make();var n=qr.getModuleCount(),S=420,cell=S/n,r='';
-for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#f0c060"/>';
+for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#FF6B00"/>';
 h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
 </script></body></html>"""
 
@@ -1237,43 +1288,43 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
 
     if lang == "cs":
         headline = "Váš osobní<br>AI concierge"
-        subline = f'Nechte <span style="color:#f0c060;font-weight:600">Alexe</span> odpovědět na všechny vaše otázky — okamžitě, ve vašem jazyce, 24/7.'
+        subline = f'Nechte <span style="color:#FF6B00;font-weight:600">Alexe</span> odpovědět na všechny vaše otázky — okamžitě, ve vašem jazyce, 24/7.'
         features = ["Snídaně a restaurace", "Tipy na výlety a skrytá místa", "Počasí a doprava", "Služby hotelu a WiFi", "K dispozici 24/7"]
         scan_text = "Naskenujte mě"
         no_app = "Bez instalace aplikace"
     elif lang == "de":
         headline = "Ihr persönlicher<br>AI-Concierge"
-        subline = f'Lassen Sie <span style="color:#f0c060;font-weight:600">Alex</span> alle Ihre Fragen beantworten — sofort, in Ihrer Sprache, 24/7.'
+        subline = f'Lassen Sie <span style="color:#FF6B00;font-weight:600">Alex</span> alle Ihre Fragen beantworten — sofort, in Ihrer Sprache, 24/7.'
         features = ["Frühstück & Restaurant", "Ausflugstipps & versteckte Orte", "Wetter & Transport", "Hotelservices & WLAN", "Rund um die Uhr verfügbar"]
         scan_text = "Scannen Sie mich"
         no_app = "Keine App erforderlich"
     elif lang == "fr":
         headline = "Votre concierge<br>IA personnel"
-        subline = f'Laissez <span style="color:#f0c060;font-weight:600">Alex</span> répondre à toutes vos questions — instantanément, dans votre langue, 24/7.'
+        subline = f'Laissez <span style="color:#FF6B00;font-weight:600">Alex</span> répondre à toutes vos questions — instantanément, dans votre langue, 24/7.'
         features = ["Petit-déjeuner & restaurant", "Conseils locaux & lieux cachés", "Météo & transport", "Services hôtel & WiFi", "Disponible 24h/24"]
         scan_text = "Scannez-moi"
         no_app = "Sans installation d'app"
     elif lang == "it":
         headline = "Il vostro concierge<br>IA personale"
-        subline = f'Lasciate che <span style="color:#f0c060;font-weight:600">Alex</span> risponda a tutte le vostre domande — immediatamente, nella vostra lingua, 24/7.'
+        subline = f'Lasciate che <span style="color:#FF6B00;font-weight:600">Alex</span> risponda a tutte le vostre domande — immediatamente, nella vostra lingua, 24/7.'
         features = ["Colazione & ristorante", "Consigli locali & luoghi nascosti", "Meteo & trasporti", "Servizi hotel & WiFi", "Disponibile 24/7"]
         scan_text = "Scansionami"
         no_app = "Nessuna app richiesta"
     elif lang == "es":
         headline = "Su concierge<br>IA personal"
-        subline = f'Deje que <span style="color:#f0c060;font-weight:600">Alex</span> responda todas sus preguntas — al instante, en su idioma, 24/7.'
+        subline = f'Deje que <span style="color:#FF6B00;font-weight:600">Alex</span> responda todas sus preguntas — al instante, en su idioma, 24/7.'
         features = ["Desayuno & restaurante", "Consejos locales & lugares ocultos", "Tiempo & transporte", "Servicios hotel & WiFi", "Disponible 24/7"]
         scan_text = "Escanéame"
         no_app = "Sin instalación de app"
     elif lang == "pl":
         headline = "Twój osobisty<br>concierge AI"
-        subline = f'Pozwól <span style="color:#f0c060;font-weight:600">Alexowi</span> odpowiedzieć na wszystkie Twoje pytania — natychmiast, w Twoim języku, 24/7.'
+        subline = f'Pozwól <span style="color:#FF6B00;font-weight:600">Alexowi</span> odpowiedzieć na wszystkie Twoje pytania — natychmiast, w Twoim języku, 24/7.'
         features = ["Śniadanie & restauracja", "Lokalne wskazówki & ukryte miejsca", "Pogoda & transport", "Usługi hotelowe & WiFi", "Dostępny 24/7"]
         scan_text = "Zeskanuj mnie"
         no_app = "Bez instalacji aplikacji"
     else:
         headline = "Your personal<br>AI concierge"
-        subline = f'Let <span style="color:#f0c060;font-weight:600">Alex</span> answer all your questions — instantly, in your language, 24/7.'
+        subline = f'Let <span style="color:#FF6B00;font-weight:600">Alex</span> answer all your questions — instantly, in your language, 24/7.'
         features = ["Breakfast times & restaurant info", "Local tips & hidden gems", "Weather & transport", "Hotel services & WiFi", "Available 24/7"]
         scan_text = "Scan me"
         no_app = "No app needed"
@@ -1285,23 +1336,23 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>*{{box-sizing:border-box}}
 body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
-.btn{{position:fixed;top:16px;right:16px;background:#f0c060;color:#0a0b0f;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:14px;cursor:pointer}}
+.btn{{position:fixed;top:16px;right:16px;background:#FF6B00;color:#0a0b0f;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:14px;cursor:pointer}}
 @media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:{page_size};margin:0}}}}</style></head>
 <body><button class="btn" onclick="window.print()">🖨️ Tisknout / PDF</button>
-<div style="width:{page_w};min-height:{page_h};background:#0a0b0f;position:relative;overflow:hidden;padding:0">
-  <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#f0c060)"></div>
-  <div style="position:absolute;top:80px;left:50%;width:500px;height:500px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(240,192,96,.1),transparent 70%);pointer-events:none"></div>
+<div style="width:{page_w};min-height:{page_h};background:#1a1a1a;position:relative;overflow:hidden;padding:0">
+  <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#FF6B00)"></div>
+  <div style="position:absolute;top:80px;left:50%;width:500px;height:500px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(255,107,0,.1),transparent 70%);pointer-events:none"></div>
   <div style="padding:{pad};display:flex;flex-direction:column;align-items:center;text-align:center;min-height:{page_h}">
-    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:#f0ece0;display:flex;align-items:center;gap:4px">SmartestGuide<span style="width:8px;height:8px;border-radius:50%;background:#f0c060;display:inline-block;margin-left:2px;box-shadow:0 0 10px rgba(240,192,96,.9)"></span></div>
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:#f0ece0;display:flex;align-items:center;gap:4px">SmartestGuide<span style="width:8px;height:8px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:2px;box-shadow:0 0 10px rgba(255,107,0,.9)"></span></div>
     <div style="margin-top:6px;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00d4aa">AI Concierge for Hotels</div>
     <div style="margin-top:8px;font-size:13px;color:#9ba0c0">{hotel_name}</div>
-    <h1 style="font-family:'Syne',sans-serif;font-weight:800;font-size:{h1_size};line-height:1.05;letter-spacing:-.02em;margin:36px 0 0;color:#f0c060">{headline}</h1>
+    <h1 style="font-family:'Syne',sans-serif;font-weight:800;font-size:{h1_size};line-height:1.05;letter-spacing:-.02em;margin:36px 0 0;color:#FF6B00">{headline}</h1>
     <p style="font-size:17px;line-height:1.6;color:#cfcad0;max-width:480px;margin:18px 0 0">{subline}</p>
     <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:28px;max-width:500px">{flags_html}</div>
     <div style="margin-top:32px;display:flex;flex-direction:column;gap:12px;align-items:flex-start;text-align:left;width:100%;max-width:420px">{feats_html}</div>
-    <div style="margin-top:40px;position:relative;padding:18px;background:#0c0d12;border:1px solid rgba(240,192,96,.4);border-radius:16px;box-shadow:0 0 30px rgba(240,192,96,.1)">
+    <div style="margin-top:40px;position:relative;padding:18px;background:#0c0d12;border:1px solid rgba(255,107,0,.4);border-radius:16px;box-shadow:0 0 30px rgba(255,107,0,.1)">
       <div id="qr-flyer" style="width:{qr_size};height:{qr_size};display:flex;align-items:center;justify-content:center"></div>
-      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;background:#0a0b0f;border:2px solid #f0c060;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:#f0c060">SG</div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;background:#1a1a1a;border:2px solid #FF6B00;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:#FF6B00">SG</div>
     </div>
     <div style="margin-top:20px;font-family:'Syne',sans-serif;font-weight:700;font-size:20px;color:#f0ece0">{scan_text}</div>
     <div style="margin-top:6px;font-size:14px;color:#9ba0c0">{no_app} · 14 languages · 24/7</div>
@@ -1313,7 +1364,7 @@ body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32
 <script>
 (function(){{function draw(){{var h=document.getElementById('qr-flyer');if(!h)return;if(!window.qrcode){{setTimeout(draw,120);return;}}
 var qr=window.qrcode(0,'H');qr.addData('{guest_url}');qr.make();var n=qr.getModuleCount(),S=200,cell=S/n,r='';
-for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#f0c060"/>';
+for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#FF6B00"/>';
 h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
 </script></body></html>"""
 
@@ -1338,22 +1389,22 @@ def _render_rollup(hotel_name: str, guest_url: str) -> str:
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>*{{box-sizing:border-box}}
 body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
-.btn{{position:fixed;top:16px;right:16px;background:#f0c060;color:#0a0b0f;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:14px;cursor:pointer}}
+.btn{{position:fixed;top:16px;right:16px;background:#FF6B00;color:#0a0b0f;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:14px;cursor:pointer}}
 @media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:85mm 200mm;margin:0}}}}</style></head>
 <body><button class="btn" onclick="window.print()">🖨️ Tisknout / PDF</button>
-<div style="width:340px;background:#0a0b0f;position:relative;overflow:hidden;padding:0;border:1px solid rgba(240,192,96,.3);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.6)">
-  <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#f0c060)"></div>
-  <div style="position:absolute;top:120px;left:50%;width:400px;height:400px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(240,192,96,.1),transparent 70%);pointer-events:none"></div>
+<div style="width:340px;background:#1a1a1a;position:relative;overflow:hidden;padding:0;border:1px solid rgba(255,107,0,.3);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+  <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#FF6B00)"></div>
+  <div style="position:absolute;top:120px;left:50%;width:400px;height:400px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(255,107,0,.1),transparent 70%);pointer-events:none"></div>
   <div style="padding:36px 28px;display:flex;flex-direction:column;align-items:center;text-align:center">
-    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:#f0ece0;display:flex;align-items:center;gap:3px">SmartestGuide<span style="width:7px;height:7px;border-radius:50%;background:#f0c060;display:inline-block;margin-left:2px;box-shadow:0 0 8px rgba(240,192,96,.9)"></span></div>
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:#f0ece0;display:flex;align-items:center;gap:3px">SmartestGuide<span style="width:7px;height:7px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:2px;box-shadow:0 0 8px rgba(255,107,0,.9)"></span></div>
     <div style="margin-top:5px;font-size:9px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00d4aa">AI CONCIERGE FOR HOTELS</div>
     <div style="margin-top:6px;font-size:12px;color:#9ba0c0">{hotel_name}</div>
-    <h1 style="font-family:'Syne',sans-serif;font-weight:800;font-size:36px;line-height:1.05;letter-spacing:-.02em;margin:28px 0 0;color:#f0c060">Your<br>personal<br>AI<br>concierge</h1>
-    <p style="font-size:14px;line-height:1.6;color:#cfcad0;margin:16px 0 0">Let <span style="color:#f0c060;font-weight:600">Alex</span> answer every question — instantly, in your language, around the clock.</p>
+    <h1 style="font-family:'Syne',sans-serif;font-weight:800;font-size:36px;line-height:1.05;letter-spacing:-.02em;margin:28px 0 0;color:#FF6B00">Your<br>personal<br>AI<br>concierge</h1>
+    <p style="font-size:14px;line-height:1.6;color:#cfcad0;margin:16px 0 0">Let <span style="color:#FF6B00;font-weight:600">Alex</span> answer every question — instantly, in your language, around the clock.</p>
     <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:5px;margin-top:22px;max-width:300px">{flags_html}</div>
-    <div style="margin-top:28px;position:relative;padding:14px;background:#0c0d12;border:1px solid rgba(240,192,96,.4);border-radius:14px;box-shadow:0 0 24px rgba(240,192,96,.1)">
+    <div style="margin-top:28px;position:relative;padding:14px;background:#0c0d12;border:1px solid rgba(255,107,0,.4);border-radius:14px;box-shadow:0 0 24px rgba(255,107,0,.1)">
       <div id="qr-rollup" style="width:180px;height:180px;display:flex;align-items:center;justify-content:center"></div>
-      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:42px;height:42px;border-radius:50%;background:#0a0b0f;border:2px solid #f0c060;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:#f0c060">SG</div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:42px;height:42px;border-radius:50%;background:#1a1a1a;border:2px solid #FF6B00;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:#FF6B00">SG</div>
     </div>
     <div style="margin-top:18px;font-family:'Syne',sans-serif;font-weight:700;font-size:18px;color:#f0ece0">Scan me</div>
     <div style="margin-top:5px;font-size:13px;color:#9ba0c0">14 languages · No app needed · 24/7</div>
@@ -1364,7 +1415,7 @@ body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32
 <script>
 (function(){{function draw(){{var h=document.getElementById('qr-rollup');if(!h)return;if(!window.qrcode){{setTimeout(draw,120);return;}}
 var qr=window.qrcode(0,'H');qr.addData('{guest_url}');qr.make();var n=qr.getModuleCount(),S=180,cell=S/n,r='';
-for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#f0c060"/>';
+for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#FF6B00"/>';
 h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
 </script></body></html>"""
 
@@ -1433,23 +1484,23 @@ def rollup(hotel_id: str, request: Request):
   *{{box-sizing:border-box}}
   body{{margin:0;background:#1b1c22;font-family:'Inter',sans-serif;display:flex;justify-content:center;align-items:flex-start;padding:32px;min-height:100vh}}
   @media print{{body{{background:#fff;padding:0;display:block}} @page{{margin:0}}}}
-  .print-btn{{position:fixed;top:20px;right:20px;background:#f0c060;color:#0a0b0f;border:none;border-radius:10px;padding:12px 22px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;z-index:100;box-shadow:0 4px 16px rgba(240,192,96,.4)}}
+  .print-btn{{position:fixed;top:20px;right:20px;background:#FF6B00;color:#0a0b0f;border:none;border-radius:10px;padding:12px 22px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;z-index:100;box-shadow:0 4px 16px rgba(255,107,0,.4)}}
   .print-btn:hover{{opacity:.88}}
   @media print{{.print-btn{{display:none}}}}
 </style>
 </head>
 <body>
 <button class="print-btn" onclick="window.print()">🖨️ Tisknout / Uložit PDF</button>
-<div style="position:relative;width:800px;height:800px;background:#0a0b0f;border:1px solid rgba(240,192,96,.35);border-radius:24px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5)">
-  <div style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#f0c060)"></div>
-  <div style="position:absolute;top:300px;left:50%;width:620px;height:620px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(240,192,96,.16),transparent 70%);pointer-events:none"></div>
+<div style="position:relative;width:800px;height:800px;background:#1a1a1a;border:1px solid rgba(255,107,0,.35);border-radius:24px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5)">
+  <div style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#FF6B00)"></div>
+  <div style="position:absolute;top:300px;left:50%;width:620px;height:620px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(255,107,0,.16),transparent 70%);pointer-events:none"></div>
   <div style="position:relative;height:100%;display:flex;flex-direction:column;align-items:center;padding:58px 48px 48px">
-    <div style="display:flex;align-items:center;gap:4px;font-family:'Syne',sans-serif;font-weight:800;font-size:34px;letter-spacing:-.02em;color:#f0ece0">SmartestGuide<span style="width:10px;height:10px;border-radius:50%;background:#f0c060;display:inline-block;margin-left:2px;box-shadow:0 0 14px rgba(240,192,96,.9)"></span></div>
+    <div style="display:flex;align-items:center;gap:4px;font-family:'Syne',sans-serif;font-weight:800;font-size:34px;letter-spacing:-.02em;color:#f0ece0">SmartestGuide<span style="width:10px;height:10px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:2px;box-shadow:0 0 14px rgba(255,107,0,.9)"></span></div>
     <div style="margin-top:10px;font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:#00d4aa">AI Concierge for Hotels</div>
     <div style="margin-top:26px;font-family:'Syne',sans-serif;font-weight:700;font-size:22px;color:#f0ece0;text-align:center">{hotel_name}</div>
-    <div style="position:relative;margin-top:22px;padding:22px;background:#0c0d12;border:1px solid rgba(240,192,96,.4);border-radius:20px;box-shadow:0 0 40px rgba(240,192,96,.12)">
+    <div style="position:relative;margin-top:22px;padding:22px;background:#0c0d12;border:1px solid rgba(255,107,0,.4);border-radius:20px;box-shadow:0 0 40px rgba(255,107,0,.12)">
       <div id="sg-qr-holder" style="width:420px;height:420px;display:flex;align-items:center;justify-content:center"></div>
-      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:50%;background:#0a0b0f;border:3px solid #f0c060;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:30px;color:#f0c060;box-shadow:0 0 22px rgba(240,192,96,.5)">SG</div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:50%;background:#1a1a1a;border:3px solid #FF6B00;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:30px;color:#FF6B00;box-shadow:0 0 22px rgba(255,107,0,.5)">SG</div>
     </div>
     <div style="margin-top:30px;font-family:'Syne',sans-serif;font-weight:700;font-size:24px;color:#f0ece0;text-align:center">Scan for your personal AI concierge</div>
     <div style="margin-top:10px;font-size:15px;color:#9ba0c0;letter-spacing:.02em">14 languages · No app needed · 24/7</div>
@@ -1475,7 +1526,7 @@ def rollup(hotel_id: str, request: Request):
     for(var r=0;r<n;r++){{
       for(var c=0;c<n;c++){{
         if(qr.isDark(r,c)){{
-          rects += '<rect x="'+(c*cell).toFixed(2)+'" y="'+(r*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#f0c060"/>';
+          rects += '<rect x="'+(c*cell).toFixed(2)+'" y="'+(r*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#FF6B00"/>';
         }}
       }}
     }}
@@ -1531,11 +1582,34 @@ async def register_hotel(req: RegistrationRequest, request: Request):
 
     # 1. Vytvoř hotel v DB
     db = db_load()
+
+    # Ochrana proti duplicitní registraci — zkontroluj email
+    email_lower = req.contact_email.lower().strip()
+    existing = [(hid, h) for hid, h in db["hotels"].items()
+                if h.get("email","").lower().strip() == email_lower
+                or h.get("registration_email","").lower().strip() == email_lower]
+
+    for hid_ex, h_ex in existing:
+        if h_ex.get("subscription_active"):
+            # Hotel s tímto emailem již má aktivní předplatné
+            raise HTTPException(409, f"Hotel s emailem {req.contact_email} již má aktivní předplatné. Přihlaste se do portálu nebo kontaktujte podporu.")
+        if not h_ex.get("subscription_active") and h_ex.get("stripe_subscription_id"):
+            # Zaplatil ale subscription ještě nebyla aktivována (race condition) — počkej
+            raise HTTPException(409, f"Registrace s emailem {req.contact_email} již probíhá. Zkontrolujte svůj email.")
+
+    # Načti aktuální ceník z DB
+    pricing_base = int(s.get("pricing_base", 199))
+    pricing_threshold = int(s.get("pricing_threshold", 100))
+    pricing_per_bed = float(s.get("pricing_per_bed", 3))
+
     hid = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
     hotel_token = str(uuid.uuid4()).replace("-", "")
     beds = req.bed_count or 0
-    price = 300 if beds <= 100 else 300 + (beds - 100) * 3
+    if beds <= pricing_threshold:
+        price = pricing_base
+    else:
+        price = int(pricing_base + (beds - pricing_threshold) * pricing_per_bed)
 
     hotel = {
         "id": hid,
@@ -1562,6 +1636,19 @@ async def register_hotel(req: RegistrationRequest, request: Request):
     base = get_base_url(request)
     try:
         async with httpx.AsyncClient() as client:
+            # Zkontroluj jestli email již trial využil (ochrana proti opakovanému trialu)
+            contact_email_lower = req.contact_email.lower().strip()
+            db_check = db_load()
+            trial_already_used = any(
+                h.get("registration_email","").lower().strip() == contact_email_lower and
+                h.get("trial_used", False)
+                for h in db_check["hotels"].values()
+            )
+
+            trial_params = {}
+            if not trial_already_used:
+                trial_params = {"subscription_data[trial_period_days]": "14"}
+
             r = await client.post(
                 "https://api.stripe.com/v1/checkout/sessions",
                 headers={
@@ -1582,6 +1669,8 @@ async def register_hotel(req: RegistrationRequest, request: Request):
                     "line_items[0][quantity]": "1",
                     "metadata[hotel_id]": hid,
                     "metadata[hotel_name]": req.hotel_name,
+                    "metadata[trial_used]": "0" if not trial_already_used else "1",
+                    **trial_params,
                 },
                 timeout=30.0,
             )
@@ -1805,7 +1894,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
     steps_html = "".join(f"<li style='margin-bottom:8px'>{s}</li>" for s in steps)
 
     html_body = f"""<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a2e">
-      <div style="background:#0a0b0f;padding:32px;text-align:center;border-radius:12px 12px 0 0;border-bottom:3px solid #f5a623">
+      <div style="background:#1a1a1a;padding:32px;text-align:center;border-radius:12px 12px 0 0;border-bottom:3px solid #FF6B00">
         <h1 style="color:#fff;margin:0;font-size:28px">SmartestGuide</h1>
         <p style="color:rgba(255,255,255,.85);margin:8px 0 0">{subtitle}</p>
       </div>
@@ -1814,16 +1903,16 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
         <p style="color:#555;line-height:1.7;margin-bottom:24px">{intro}</p>
 
         <div style="background:#fff;border:2px solid #00d4aa;border-radius:10px;padding:20px;margin-bottom:24px;text-align:center">
-          <a href="{portal_url}" style="display:inline-block;background:#f5a623;color:#0a0b0f;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:700;font-size:16px">{portal_btn_text} →</a>
+          <a href="{portal_url}" style="display:inline-block;background:#FF6B00;color:#0a0b0f;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:700;font-size:16px">{portal_btn_text} →</a>
         </div>
 
-        <h3 style="color:#f5a623;margin-bottom:12px">{steps_title}</h3>
+        <h3 style="color:#FF6B00;margin-bottom:12px">{steps_title}</h3>
         <ol style="color:#555;line-height:1.8;padding-left:20px;margin-bottom:24px">{steps_html}</ol>
 
-        <div style="background:#0a0b0f;border:1px solid rgba(240,192,96,.4);border-radius:10px;padding:24px;margin-bottom:24px;text-align:center">
+        <div style="background:#1a1a1a;border:1px solid rgba(255,107,0,.4);border-radius:10px;padding:24px;margin-bottom:24px;text-align:center">
           <div style="font-size:11px;color:#00d4aa;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:12px">🖨️ {qr_label}</div>
           <p style="color:#9ba0c0;font-size:13px;line-height:1.6;margin-bottom:16px">{qr_desc}</p>
-          <a href="{poster_url}" style="display:inline-block;background:#f0c060;color:#0a0b0f;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:14px">🖨️ {qr_btn_text}</a>
+          <a href="{poster_url}" style="display:inline-block;background:#FF6B00;color:#0a0b0f;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:14px">🖨️ {qr_btn_text}</a>
           <p style="color:#555;font-size:11px;margin-top:12px">{qr_attach_note}</p>
         </div>
 
@@ -1839,7 +1928,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
 
         <hr style="border:none;border-top:1px solid #e0e0f0;margin:20px 0"/>
         <p style="color:#888;font-size:12px;text-align:center">
-          {help_text} <a href="mailto:admin@smartestguide.com" style="color:#f5a623">admin@smartestguide.com</a>
+          {help_text} <a href="mailto:admin@smartestguide.com" style="color:#FF6B00">admin@smartestguide.com</a>
         </p>
       </div>
     </div>"""
@@ -1980,14 +2069,55 @@ async def stripe_webhook(request: Request):
         customer_id = obj.get("customer", "")
         subscription_id = obj.get("subscription", "")
 
+        # Pro invoice.payment_succeeded najdi hotel dle customer_id pokud chybí hotel_id
+        if not hotel_id and customer_id and event_type == "invoice.payment_succeeded":
+            db_tmp = db_load()
+            for hid, h in db_tmp["hotels"].items():
+                if h.get("stripe_customer_id") == customer_id:
+                    hotel_id = hid
+                    break
+
         if hotel_id:
             db = db_load()
             if hotel_id in db["hotels"]:
+                from datetime import timedelta
+                now = datetime.utcnow()
                 db["hotels"][hotel_id]["subscription_active"] = True
                 db["hotels"][hotel_id]["stripe_customer_id"] = customer_id
-                db["hotels"][hotel_id]["stripe_subscription_id"] = subscription_id
-                db["hotels"][hotel_id]["subscription_start"] = datetime.utcnow().isoformat()
-                db["hotels"][hotel_id]["updated_at"] = datetime.utcnow().isoformat()
+                if subscription_id:
+                    db["hotels"][hotel_id]["stripe_subscription_id"] = subscription_id
+                db["hotels"][hotel_id]["updated_at"] = now.isoformat()
+
+                if event_type == "checkout.session.completed":
+                    # První platba — nastav trial a subscription_start
+                    trial_used_meta = obj.get("metadata", {}).get("trial_used", "0")
+                    db["hotels"][hotel_id]["subscription_start"] = now.isoformat()
+                    if trial_used_meta == "0":
+                        # Trial 14 dní zdarma, pak 30 dní placeno
+                        db["hotels"][hotel_id]["trial_used"] = True
+                        db["hotels"][hotel_id]["trial_start"] = now.isoformat()
+                        db["hotels"][hotel_id]["subscription_period_end"] = (now + timedelta(days=44)).isoformat()
+                    else:
+                        # Bez trialu — rovnou 30 dní
+                        db["hotels"][hotel_id]["subscription_period_end"] = (now + timedelta(days=30)).isoformat()
+
+                elif event_type == "invoice.payment_succeeded":
+                    # Obnovení předplatného — prodloužit o 30 dní od konce aktuálního období
+                    # Idempotency check — Stripe může poslat event 2x
+                    invoice_id = obj.get("id", "")
+                    last_invoice = db["hotels"][hotel_id].get("last_processed_invoice", "")
+                    if invoice_id and invoice_id == last_invoice:
+                        logging.info("Duplicate invoice event %s for hotel %s, skipping", invoice_id, hotel_id)
+                        return {"status": "ok", "note": "duplicate"}
+                    db["hotels"][hotel_id]["last_processed_invoice"] = invoice_id
+                    current_end_str = db["hotels"][hotel_id].get("subscription_period_end", "")
+                    try:
+                        current_end = datetime.fromisoformat(current_end_str)
+                        new_end = max(current_end, now) + timedelta(days=30)
+                    except Exception:
+                        new_end = now + timedelta(days=30)
+                    db["hotels"][hotel_id]["subscription_period_end"] = new_end.isoformat()
+
                 db_save(db)
 
                 # Spusť automatický scraping webu hotelu na pozadí
@@ -2182,13 +2312,13 @@ def send_reminder(hotel_id: str, request: Request):
 
         subject = f"Připomínka: doplňte profil hotelu {hotel_name}"
         html_body = f"""
-        <div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;background:#0a0b0f;color:#f0ece0;padding:32px;border-radius:12px">
-          <div style="font-family:Syne,sans-serif;font-weight:800;font-size:24px;color:#f0ece0;margin-bottom:4px">SMARTEST GUIDE<span style="width:7px;height:7px;border-radius:50%;background:#f5a623;display:inline-block;margin-left:3px"></span></div>
+        <div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;background:#1a1a1a;color:#f0ece0;padding:32px;border-radius:12px">
+          <div style="font-family:Syne,sans-serif;font-weight:800;font-size:24px;color:#f0ece0;margin-bottom:4px">SMARTEST GUIDE<span style="width:7px;height:7px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:3px"></span></div>
           <div style="font-size:12px;color:#00d4aa;letter-spacing:.15em;text-transform:uppercase;margin-bottom:24px">AI Concierge for Hotels</div>
-          <h2 style="color:#f5a623;font-size:20px;margin-bottom:12px">Profil hotelu {hotel_name} je vyplněn z {score}%</h2>
+          <h2 style="color:#FF6B00;font-size:20px;margin-bottom:12px">Profil hotelu {hotel_name} je vyplněn z {score}%</h2>
           <p style="color:#9ba0c0;line-height:1.7">Dobrý den,<br><br>váš hotel <strong style="color:#f0ece0">{hotel_name}</strong> má aktivní předplatné SmartestGuide, ale profil není kompletní. Čím více informací Alex zná, tím lépe pomáhá hostům.</p>
           {"<p style='color:#9ba0c0'>Chybějící informace:</p><ul style='color:#f0ece0;line-height:2'>" + missing_html + "</ul>" if missing_list else ""}
-          <a href="{portal_url}" style="display:inline-block;margin-top:20px;background:#f5a623;color:#0a0b0f;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:15px">Přejít do portálu →</a>
+          <a href="{portal_url}" style="display:inline-block;margin-top:20px;background:#FF6B00;color:#0a0b0f;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:15px">Přejít do portálu →</a>
           <p style="margin-top:32px;font-size:12px;color:#6b6f8e">SMARTEST GUIDE · support@smartestguide.com</p>
         </div>"""
 
@@ -2558,6 +2688,7 @@ Hotel information:
 - Dinner: {h.get('dinner_hours', 'N/A')}
 - Restaurant: {h.get('restaurant_name', 'N/A')}
 - Parking: {h.get('parking_info', 'N/A')}
+- WiFi: {h.get('wifi_name', 'N/A')}{(' / Heslo: ' + h.get('wifi_password','')) if h.get('wifi_password') else ''}
 - Wellness: {h.get('wellness_info', 'N/A')}
 - WhatsApp Recepce: {h.get('whatsapp_number', 'N/A')}
 
