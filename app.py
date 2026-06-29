@@ -887,7 +887,7 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
       <div class="fmt-preview" onclick="openFormat('{flyer_primary_url}')">
         <div style="width:110px;min-height:155px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f0c060;line-height:1.2">{'Váš osobní<br>AI concierge' if is_cs else 'Your personal<br>AI concierge'}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center">{flags_svg_small}</div>
+          <div style="font-size:8px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 14 LANGUAGES</div>
           <div id="qr-a4-primary" style="width:70px;height:70px"></div>
           <div style="font-size:7px;color:#00d4aa">smartestguide.com</div>
         </div>
@@ -904,7 +904,7 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
       <div class="fmt-preview" onclick="openFormat('{flyer_secondary_url}')">
         <div style="width:110px;min-height:155px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f0c060;line-height:1.2">{'Your personal<br>AI concierge' if is_cs else 'Váš osobní<br>AI concierge'}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center">{flags_svg_small}</div>
+          <div style="font-size:8px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 14 LANGUAGES</div>
           <div id="qr-a4-secondary" style="width:70px;height:70px"></div>
           <div style="font-size:7px;color:#00d4aa">smartestguide.com</div>
         </div>
@@ -921,7 +921,7 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
       <div class="fmt-preview" onclick="openFormat('rollup')">
         <div style="width:65px;height:156px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:6px;padding:8px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:7px;color:#f0c060;line-height:1.2">Your<br>personal<br>AI<br>concierge</div>
-          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center;max-width:55px">{flags_svg_small}</div>
+          <div style="font-size:7px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 14 LANG</div>
           <div id="qr-rollup" style="width:44px;height:44px"></div>
           <div style="font-size:6px;color:#00d4aa">smartestguide.com</div>
         </div>
