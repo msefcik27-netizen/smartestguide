@@ -744,6 +744,9 @@ def generate_qr_poster(hotel_id: str, request: Request):
     base = get_base_url(request)
     guest_url = f"{base}/guest/{hotel_id}"
     hotel_name = hotel.get("name", "Hotel")
+    hotel_token = hotel.get("hotel_token", "")
+    portal_url = f"{base}/hotel?token={hotel_token}" if hotel_token else ""
+    portal_label = "Přejít do portálu hotelu" if hotel.get("country","").upper() in ("CZ","SK") else "Go to hotel portal"
     country = hotel.get("country", "").upper()
     is_cs = country in ("CZ", "SK")
     primary_lang = "cz" if is_cs else "en"
@@ -775,6 +778,21 @@ def generate_qr_poster(hotel_id: str, request: Request):
       <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#fff"/><circle cx="12" cy="8" r="5" fill="#BC002D"/></svg></span>
       <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#006C35"/><rect x="0" y="0" width="8" height="16" fill="#006C35"/><circle cx="8" cy="8" r="4" fill="#fff"/></svg></span>
       <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="5.33" fill="#fff"/><rect y="5.33" width="24" height="5.33" fill="#003DA5"/><rect y="10.66" width="24" height="5.34" fill="#CE1126"/></svg></span>"""
+    flags_svg_small = """
+      <span style="width:14px;height:10px;border-radius:3px;overflow:hidden;display:inline-block;box-shadow:none"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="8" fill="#fff"/><rect y="8" width="24" height="8" fill="#D7141A"/><path d="M0 0 L12 8 L0 16 Z" fill="#11457E"/></svg></span>
+      <span style="width:14px;height:10px;border-radius:3px;overflow:hidden;display:inline-block;box-shadow:none"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#012169"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#fff" stroke-width="3.2"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#C8102E" stroke-width="1.6"/><path d="M12 0 V16 M0 8 H24" stroke="#fff" stroke-width="5"/><path d="M12 0 V16 M0 8 H24" stroke="#C8102E" stroke-width="3"/></svg></span>
+      <span style="width:14px;height:10px;border-radius:3px;overflow:hidden;display:inline-block;box-shadow:none"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#000"/><rect y="5.33" width="24" height="5.33" fill="#DD0000"/><rect y="10.66" width="24" height="5.34" fill="#FFCE00"/></svg></span>
+      <span style="width:14px;height:10px;border-radius:3px;overflow:hidden;display:inline-block;box-shadow:none"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="8" height="16" fill="#002395"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#ED2939"/></svg></span>
+      <span style="width:14px;height:10px;border-radius:3px;overflow:hidden;display:inline-block;box-shadow:none"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#009246"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#CE2B37"/></svg></span>
+      <span style="width:14px;height:10px;border-radius:3px;overflow:hidden;display:inline-block;box-shadow:none"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#c60b1e"/><rect y="5.5" width="24" height="5" fill="#ffc400"/></svg></span>
+      <span style="width:14px;height:10px;border-radius:3px;overflow:hidden;display:inline-block;box-shadow:none"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#fff"/><rect y="10.67" width="24" height="5.33" fill="#dc143c"/><rect width="8" height="16" fill="#dc143c"/></svg></span>
+      <span style="width:14px;height:10px;border-radius:3px;overflow:hidden;display:inline-block;box-shadow:none"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="8" height="16" fill="#fff"/><rect x="8" width="8" height="16" fill="#0b4ea2"/><rect x="16" width="8" height="16" fill="#fff"/><rect y="6" width="24" height="4" fill="#ee1c25"/></svg></span>
+      <span style="width:14px;height:10px;border-radius:3px;overflow:hidden;display:inline-block;box-shadow:none"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="8" height="16" fill="#477050"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#ce2939"/></svg></span>
+      <span style="width:14px;height:10px;border-radius:3px;overflow:hidden;display:inline-block;box-shadow:none"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="5.33" fill="#fff"/><rect y="5.33" width="24" height="5.33" fill="#003DA5"/><rect y="10.66" width="24" height="5.34" fill="#fff"/></svg></span>
+      <span style="width:14px;height:10px;border-radius:3px;overflow:hidden;display:inline-block;box-shadow:none"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#EE1C25"/><rect x="4" y="3" width="6" height="10" fill="#FFFF00" rx="3"/></svg></span>
+      <span style="width:14px;height:10px;border-radius:3px;overflow:hidden;display:inline-block;box-shadow:none"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#fff"/><circle cx="12" cy="8" r="5" fill="#BC002D"/></svg></span>
+      <span style="width:14px;height:10px;border-radius:3px;overflow:hidden;display:inline-block;box-shadow:none"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#006C35"/><rect x="0" y="0" width="8" height="16" fill="#006C35"/><circle cx="8" cy="8" r="4" fill="#fff"/></svg></span>
+      <span style="width:14px;height:10px;border-radius:3px;overflow:hidden;display:inline-block;box-shadow:none"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="5.33" fill="#fff"/><rect y="5.33" width="24" height="5.33" fill="#003DA5"/><rect y="10.66" width="24" height="5.34" fill="#CE1126"/></svg></span>"""
 
     # QR JS generátor (sdílený pro všechny formáty)
     qr_js = f"""
@@ -844,6 +862,7 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
     <div class="hub-logo">SmartestGuide<span class="hub-dot"></span></div>
     <div class="hub-hotel">{hotel_name}</div>
     <div class="hub-title">{hub_title}</div>
+    {f'<a href="{portal_url}" style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;color:#f5a623;text-decoration:none;transition:opacity .15s" onmouseover="this.style.opacity=.8" onmouseout="this.style.opacity=1">⚙️ {portal_label}</a>' if portal_url else ''}
   </div>
 
   <div class="formats">
@@ -851,9 +870,9 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
     <!-- QR Plakát -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('qr-poster')">
-        <div style="position:relative;padding:16px;background:#0c0d12;border:1px solid rgba(240,192,96,.4);border-radius:14px">
-          <div id="qr-thumb" style="width:160px;height:160px"></div>
-          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;background:#0a0b0f;border:2px solid #f0c060;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:#f0c060">SG</div>
+        <div style="position:relative;padding:16px;background:#0c0d12;border:1px solid rgba(240,192,96,.4);border-radius:14px;display:inline-block">
+          <div id="qr-thumb" style="width:160px;height:160px;display:block"></div>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;background:#0a0b0f;border:2px solid #f5a623;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:#f5a623;z-index:10;pointer-events:none">SG</div>
         </div>
       </div>
       <div class="fmt-info">
@@ -868,7 +887,7 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
       <div class="fmt-preview" onclick="openFormat('{flyer_primary_url}')">
         <div style="width:110px;min-height:155px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f0c060;line-height:1.2">{'Váš osobní<br>AI concierge' if is_cs else 'Your personal<br>AI concierge'}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center">{flags_svg}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center">{flags_svg_small}</div>
           <div id="qr-a4-primary" style="width:70px;height:70px"></div>
           <div style="font-size:7px;color:#00d4aa">smartestguide.com</div>
         </div>
@@ -885,7 +904,7 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
       <div class="fmt-preview" onclick="openFormat('{flyer_secondary_url}')">
         <div style="width:110px;min-height:155px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f0c060;line-height:1.2">{'Your personal<br>AI concierge' if is_cs else 'Váš osobní<br>AI concierge'}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center">{flags_svg}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center">{flags_svg_small}</div>
           <div id="qr-a4-secondary" style="width:70px;height:70px"></div>
           <div style="font-size:7px;color:#00d4aa">smartestguide.com</div>
         </div>
@@ -902,7 +921,7 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
       <div class="fmt-preview" onclick="openFormat('rollup')">
         <div style="width:65px;height:156px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:6px;padding:8px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:7px;color:#f0c060;line-height:1.2">Your<br>personal<br>AI<br>concierge</div>
-          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center;max-width:55px">{flags_svg}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center;max-width:55px">{flags_svg_small}</div>
           <div id="qr-rollup" style="width:44px;height:44px"></div>
           <div style="font-size:6px;color:#00d4aa">smartestguide.com</div>
         </div>
