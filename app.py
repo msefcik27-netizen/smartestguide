@@ -41,7 +41,7 @@ def init_settings_from_env():
 app = FastAPI(title="SmartestGuide", version="0.2.0")
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.2.4"
+APP_VERSION = "0.2.5"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -1832,29 +1832,60 @@ def get_completeness(hotel_id: str):
 def send_reminder(hotel_id: str, request: Request):
     db = db_load()
     h = db["hotels"].get(hotel_id)
-    if not h:
+    if not hotel_id or not h:
         raise HTTPException(404, "Hotel nenalezen")
     completeness = hotel_profile_completeness(h)
     portal_url = get_base_url(request) + "/hotel?token=" + h.get("hotel_token","")
     hotel_email = h.get("registration_email") or h.get("email", "")
+    hotel_name = h.get("name", "Hotel")
     missing_labels = {
         "address": "Adresa hotelu", "phone": "Telefon recepce",
-        "email": "Email", "checkin_time": "Check-in cas",
-        "checkout_time": "Check-out cas", "breakfast_hours": "Hodiny snidane",
-        "bed_count": "Pocet luzek", "star_rating": "Hvezdicky",
+        "email": "Email", "checkin_time": "Check-in čas",
+        "checkout_time": "Check-out čas", "breakfast_hours": "Hodiny snídaně",
+        "bed_count": "Počet lůžek", "star_rating": "Hvězdičky",
     }
     missing_list = [missing_labels.get(f, f) for f in completeness["missing"]]
-    email_body = (
-        "Predmet: Pripominka - doplnte informace o hotelu " + h.get("name","") + "\n\n"
-        "Dobry den,\n\n"
-        "vas hotel " + h.get("name","") + " ma aktivni predplatne SmartestGuide, "
-        "ale profil je vyplnen pouze z " + str(completeness["score"]) + "%.\n\n"
-        "Chybejici informace:\n" + "\n".join("- " + m for m in missing_list) + "\n\n"
-        "Prihlaste se do portalu a doplnte chybejici informace:\n" + portal_url + "\n\n"
-        "SmartestGuide\nsupport@smartestguide.com"
-    )
-    import logging
-    logging.info("EMAIL REMINDER to %s: %s", hotel_email, email_body[:300])
+    score = completeness["score"]
+    missing_html = "".join(f"<li>{m}</li>" for m in missing_list) if missing_list else "<li>Profil je kompletní!</li>"
+
+    brevo_key = os.getenv("BREVO_API_KEY", "")
+    if brevo_key and hotel_email:
+        import httpx as _httpx
+        import asyncio as _asyncio
+
+        subject = f"Připomínka: doplňte profil hotelu {hotel_name}"
+        html_body = f"""
+        <div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;background:#0a0b0f;color:#f0ece0;padding:32px;border-radius:12px">
+          <div style="font-family:Syne,sans-serif;font-weight:800;font-size:24px;color:#f0ece0;margin-bottom:4px">SMARTEST GUIDE<span style="width:7px;height:7px;border-radius:50%;background:#f5a623;display:inline-block;margin-left:3px"></span></div>
+          <div style="font-size:12px;color:#00d4aa;letter-spacing:.15em;text-transform:uppercase;margin-bottom:24px">AI Concierge for Hotels</div>
+          <h2 style="color:#f5a623;font-size:20px;margin-bottom:12px">Profil hotelu {hotel_name} je vyplněn z {score}%</h2>
+          <p style="color:#9ba0c0;line-height:1.7">Dobrý den,<br><br>váš hotel <strong style="color:#f0ece0">{hotel_name}</strong> má aktivní předplatné SmartestGuide, ale profil není kompletní. Čím více informací Alex zná, tím lépe pomáhá hostům.</p>
+          {"<p style='color:#9ba0c0'>Chybějící informace:</p><ul style='color:#f0ece0;line-height:2'>" + missing_html + "</ul>" if missing_list else ""}
+          <a href="{portal_url}" style="display:inline-block;margin-top:20px;background:#f5a623;color:#0a0b0f;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:15px">Přejít do portálu →</a>
+          <p style="margin-top:32px;font-size:12px;color:#6b6f8e">SMARTEST GUIDE · support@smartestguide.com</p>
+        </div>"""
+
+        payload = {
+            "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
+            "to": [{"email": hotel_email, "name": hotel_name}],
+            "bcc": [{"email": "martin.1303@seznam.cz"}],
+            "subject": subject,
+            "htmlContent": html_body,
+        }
+        admin_cc = os.getenv("ADMIN_CC_EMAIL", "")
+        if admin_cc:
+            payload["bcc"].append({"email": admin_cc})
+        try:
+            resp = _httpx.post(
+                "https://api.brevo.com/v3/smtp/email",
+                headers={"api-key": brevo_key, "Content-Type": "application/json"},
+                json=payload, timeout=15
+            )
+            if resp.status_code not in (200, 201):
+                logging.warning("Brevo reminder error: %s %s", resp.status_code, resp.text[:200])
+        except Exception as e:
+            logging.error("Brevo reminder exception: %s", e)
+
     now = datetime.utcnow().isoformat()
     db["hotels"][hotel_id]["last_reminder_sent"] = now
     db["hotels"][hotel_id]["reminder_count"] = db["hotels"][hotel_id].get("reminder_count", 0) + 1
@@ -1864,7 +1895,6 @@ def send_reminder(hotel_id: str, request: Request):
         "email_to": hotel_email,
         "completeness": completeness,
         "portal_url": portal_url,
-        "note": "Email pripraven - odesilani aktivni po nasazeni SendGrid"
     }
 
 

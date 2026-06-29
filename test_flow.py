@@ -194,6 +194,11 @@ def test_hotels():
             "Aktivní nabídka + skrytá místa uložena",
             lambda r: r.status_code == 200 and r.json().get("hotel", {}).get("active_offer") == "Dnes sleva 20% na wellness do 20:00"
         ),
+        (
+            lambda: requests.post(f"{BASE}/api/hotels/{hotel_id}/send-reminder", timeout=15),
+            "Reminder email odeslán (Brevo)",
+            lambda r: r.status_code == 200 and r.json().get("status") == "ok" and "note" not in r.json()
+        ),
     ]:
         try:
             for attempt in range(3):
