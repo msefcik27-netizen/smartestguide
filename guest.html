@@ -84,17 +84,17 @@
     .ob-input{background:var(--card);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:var(--font-body);font-size:15px;padding:14px 16px;outline:none;width:100%;transition:border-color .2s}
     .ob-input:focus{border-color:var(--accent)}
 
-    .lang-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .lang-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
     .lang-btn{
       background:var(--card);border:1px solid var(--border);border-radius:10px;
-      color:var(--muted);font-size:13px;padding:10px 6px;cursor:pointer;
-      display:flex;flex-direction:column;align-items:center;gap:3px;
+      color:var(--muted);font-size:13px;padding:7px 4px;cursor:pointer;
+      display:flex;flex-direction:column;align-items:center;gap:2px;
       transition:all .15s;text-align:center;
     }
     .lang-btn:hover{border-color:var(--accent);color:var(--text)}
     .lang-btn.selected{background:rgba(245,166,35,.15);border-color:var(--accent);color:var(--accent)}
-    .lang-btn .flag{font-size:20px}
-    .lang-btn .lname{font-size:11px}
+    .lang-btn .flag{font-size:16px}
+    .lang-btn .lname{font-size:10px}
 
     .ob-start-btn{
       background:linear-gradient(135deg,var(--accent) 0%,#d4a843 100%);
@@ -190,14 +190,16 @@
     /* Input */
     .input-area{
       background:var(--surface);border-top:1px solid var(--border);
-      padding:10px 14px;display:flex;align-items:flex-end;gap:8px;flex-shrink:0;
+      padding:10px 14px;display:flex;flex-direction:column;gap:8px;flex-shrink:0;
       padding-bottom:max(10px,env(safe-area-inset-bottom));
     }
+    .input-row-top{display:flex;align-items:flex-end;gap:8px}
+    .input-row-btns{display:flex;gap:8px;align-items:center}
     #msg-input{
       flex:1;background:var(--card);border:1px solid var(--border);border-radius:22px;
       color:var(--text);font-family:var(--font-body);font-size:15px;
       padding:10px 16px;outline:none;resize:none;max-height:90px;line-height:1.4;
-      transition:border-color .15s;
+      transition:border-color .15s;width:100%;
     }
     #msg-input:focus{border-color:var(--accent)}
     .ipt-btn{
@@ -208,7 +210,7 @@
     #voice-btn{background:var(--card);border:1px solid var(--border);color:var(--muted)}
     #voice-btn.listening{background:var(--danger);border-color:var(--danger);color:#fff;animation:voicePulse 1s infinite}
     @keyframes voicePulse{0%,100%{box-shadow:0 0 0 0 rgba(255,79,106,.4)}70%{box-shadow:0 0 0 8px rgba(255,79,106,0)}}
-    #send-btn{background:var(--accent);color:#0a0b0f}
+    #send-btn{background:var(--accent);color:#0a0b0f;flex:1;border-radius:22px;width:auto}
     #send-btn:active{background:#d4a843}
     #send-btn:disabled{opacity:.35}
 
@@ -303,11 +305,15 @@
   <div id="quick-replies"></div>
 
   <div class="input-area">
-    <textarea id="msg-input" rows="1" placeholder="Napište zprávu…" onkeydown="onKey(event)" oninput="autoResize(this)"></textarea>
-    <button class="ipt-btn" id="photo-btn" onclick="triggerPhoto()" title="Přeložit menu">📷</button>
-    <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" onchange="translateMenu(event)"/>
-    <button class="ipt-btn" id="voice-btn" onclick="toggleVoice()">🎤</button>
-    <button class="ipt-btn" id="send-btn" onclick="sendMsg()">➤</button>
+    <div class="input-row-top">
+      <textarea id="msg-input" rows="1" placeholder="Napište zprávu…" onkeydown="onKey(event)" oninput="autoResize(this)"></textarea>
+    </div>
+    <div class="input-row-btns">
+      <button class="ipt-btn" id="photo-btn" onclick="triggerPhoto()" title="Přeložit menu">📷</button>
+      <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" onchange="translateMenu(event)"/>
+      <button class="ipt-btn" id="voice-btn" onclick="toggleVoice()">🎤</button>
+      <button class="ipt-btn" id="send-btn" onclick="sendMsg()">➤</button>
+    </div>
   </div>
 </div>
 

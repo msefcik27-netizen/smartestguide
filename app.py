@@ -180,7 +180,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.3.1"
+APP_VERSION = "0.3.2"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -851,36 +851,18 @@ def _generate_qr_png_branded(data: str, size: int = 400) -> bytes:
     border_w = max(4, r_logo // 5)
     draw.ellipse([cx - r_logo, cy - r_logo, cx + r_logo, cy + r_logo],
                  fill=(10, 11, 15), outline=(245, 166, 35), width=border_w)
-    # Text SG — použij největší dostupný font, přesně centruj
+    # Text SG
     gold = (245, 166, 35)
-    font = None
-    for fp in ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-               "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-               "/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf",
-               "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf"]:
-        try:
-            font = ImageFont.truetype(fp, int(r_logo * 1.0))
-            break
-        except Exception:
-            continue
-    if font:
-        # Přesné centrování
+    font_size = int(r_logo * 1.0)
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", font_size)
         bbox = font.getbbox("SG")
         tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
         tx = cx - tw // 2 - bbox[0]
         ty = cy - th // 2 - bbox[1]
         draw.text((tx, ty), "SG", fill=gold, font=font)
-    else:
-        # Fallback — nakresli S a G jako jednoduché čáry
-        lw = max(3, r_logo // 8)
-        # S
-        sx, sy, sr = cx - r_logo//2, cy - r_logo//2, r_logo//3
-        draw.arc([sx-sr, sy-sr, sx+sr, sy], 180, 0, fill=gold, width=lw)
-        draw.arc([sx-sr, sy, sx+sr, sy+sr*2], 0, 180, fill=gold, width=lw)
-        # G
-        gx = cx + r_logo//8
-        draw.arc([gx-sr, sy-sr, gx+sr, sy+sr*2], 60, 300, fill=gold, width=lw)
-        draw.line([gx, cy, gx+sr, cy], fill=gold, width=lw)
+    except Exception as e:
+        logging.warning("QR PNG font error: %s", e)
 
     buf = BytesIO()
     img.save(buf, format="PNG")
