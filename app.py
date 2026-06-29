@@ -204,7 +204,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.4.1"
+APP_VERSION = "0.4.2"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -1329,7 +1329,7 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
         scan_text = "Scan me"
         no_app = "No app needed"
 
-    feats_html = "".join(f'<div style="display:flex;gap:12px;align-items:center;font-size:16px;color:#e7e2d8">{check}{f}</div>' for f in features)
+    feats_html = "".join('<div style="display:flex;gap:12px;align-items:center;font-size:16px;color:#e7e2d8">' + check + feat + '</div>' for feat in features)
 
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -1363,7 +1363,7 @@ body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32
 </div>
 <script>
 (function(){{function draw(){{var h=document.getElementById('qr-flyer');if(!h)return;if(!window.qrcode){{setTimeout(draw,120);return;}}
-var qr=window.qrcode(0,'H');qr.addData('{guest_url}');qr.make();var n=qr.getModuleCount(),S=200,cell=S/n,r='';
+var qr=window.qrcode(0,'H');qr.addData('{guest_url.replace("'", "%27")}');qr.make();var n=qr.getModuleCount(),S=200,cell=S/n,r='';
 for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#FF6B00"/>';
 h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
 </script></body></html>"""
