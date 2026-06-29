@@ -204,7 +204,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.4.2"
+APP_VERSION = "0.4.3"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -1431,7 +1431,16 @@ def flyer_cz(hotel_id: str, request: Request):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "cs"))
+    try:
+        html = _render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "cs")
+        if not html:
+            return HTMLResponse(content="<h1>Render vrátil prázdný string</h1>", status_code=500)
+        return HTMLResponse(content=html)
+    except Exception as e:
+        import traceback
+        err = traceback.format_exc()
+        logging.error("flyer-cz error: %s", err)
+        return HTMLResponse(content=f"<pre>CHYBA:\n{err}</pre>", status_code=500)
 
 @app.get("/api/hotels/{hotel_id}/flyer-local")
 def flyer_local(hotel_id: str, request: Request):
