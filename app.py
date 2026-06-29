@@ -180,7 +180,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.3.5"
+APP_VERSION = "0.3.6"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -979,7 +979,7 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
 .hub-dot{{width:9px;height:9px;border-radius:50%;background:#f0c060;box-shadow:0 0 10px rgba(240,192,96,.8);margin-left:2px}}
 .hub-hotel{{font-size:15px;color:#9ba0c0;margin-top:4px}}
 .hub-title{{font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:#f0ece0;margin-top:16px}}
-.formats{{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;margin-top:0}}
+.formats{{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:0}}
 .fmt-card{{background:#181920;border:1px solid #222330;border-radius:16px;overflow:hidden;display:flex;flex-direction:column}}
 .fmt-card:hover{{border-color:rgba(240,192,96,.4)}}
 .fmt-preview{{background:#0a0b0f;padding:24px;display:flex;justify-content:center;align-items:center;min-height:200px;cursor:pointer;position:relative;overflow:hidden}}
@@ -1011,82 +1011,6 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
 
   <div class="formats">
 
-    <!-- A4 Primární jazyk -->
-    <div class="fmt-card">
-      <div class="fmt-preview" onclick="openFormat('{flyer_primary_url}')">
-        <div style="width:110px;min-height:155px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f0c060;line-height:1.2">{'Váš osobní<br>AI concierge' if is_cs else 'Your personal<br>AI concierge'}</div>
-          <div style="font-size:8px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 14 LANGUAGES</div>
-          <div id="qr-a4-primary" style="width:70px;height:70px"></div>
-          <div style="font-size:7px;color:#00d4aa">smartestguide.com</div>
-        </div>
-      </div>
-      <div class="fmt-info">
-        <div class="fmt-name">{flyer_primary_name}</div>
-        <div class="fmt-desc">{flyer_primary_desc}</div>
-        <button class="fmt-btn" onclick="openFormat('{flyer_primary_url}')">{btn_print}</button>
-      </div>
-    </div>
-    <!-- A5 primární jazyk (EN) -->
-    <div class="fmt-card">
-      <div class="fmt-preview" onclick="openFormat('flyer-a5-en')">
-        <div style="width:130px;height:92px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f5a623;line-height:1.2">Your AI concierge</div>
-          <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 14 LANGUAGES</div>
-          <div id="qr-a5-primary" style="width:50px;height:50px"></div>
-        </div>
-      </div>
-      <div class="fmt-info">
-        <div class="fmt-name">A5 Flyer · English</div>
-        <div class="fmt-desc">Compact A5 — perfect for rooms and tables.</div>
-        <button class="fmt-btn" onclick="openFormat('flyer-a5-en')">{btn_print}</button>
-      </div>
-    </div>
-    <!-- A4 Sekundární jazyk -->
-    <div class="fmt-card">
-      <div class="fmt-preview" onclick="openFormat('{flyer_secondary_url}')">
-        <div style="width:110px;min-height:155px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f0c060;line-height:1.2">{'Your personal<br>AI concierge' if is_cs else 'Váš osobní<br>AI concierge'}</div>
-          <div style="font-size:8px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 14 LANGUAGES</div>
-          <div id="qr-a4-secondary" style="width:70px;height:70px"></div>
-          <div style="font-size:7px;color:#00d4aa">smartestguide.com</div>
-        </div>
-      </div>
-      <div class="fmt-info">
-        <div class="fmt-name">{flyer_secondary_name}</div>
-        <div class="fmt-desc">{flyer_secondary_desc}</div>
-        <button class="fmt-btn" onclick="openFormat('{flyer_secondary_url}')">{btn_print}</button>
-      </div>
-    </div>
-    <!-- A5 sekundární jazyk (lokální) -->
-    <div class="fmt-card">
-      <div class="fmt-preview" onclick="openFormat('flyer-a5-local')">
-        <div style="width:130px;height:92px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f5a623;line-height:1.2">AI concierge</div>
-          <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 14 LANGUAGES</div>
-          <div id="qr-a5-secondary" style="width:50px;height:50px"></div>
-        </div>
-      </div>
-      <div class="fmt-info">
-        <div class="fmt-name">A5 Leták · {local_lang_name}</div>
-        <div class="fmt-desc">Kompaktní A5 v lokálním jazyce hotelu.</div>
-        <button class="fmt-btn" onclick="openFormat('flyer-a5-local')">{btn_print}</button>
-      </div>
-    </div>
-    <!-- QR Plakát -->
-    <div class="fmt-card">
-      <div class="fmt-preview" onclick="openFormat('qr-poster')">
-        <div style="position:relative;padding:16px;background:#0c0d12;border:1px solid rgba(240,192,96,.4);border-radius:14px;display:inline-block">
-          <div id="qr-thumb" style="width:160px;height:160px;display:block"></div>
-          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;background:#0a0b0f;border:2px solid #f5a623;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:#f5a623;z-index:10;pointer-events:none">SG</div>
-        </div>
-      </div>
-      <div class="fmt-info">
-        <div class="fmt-name">{qr_poster_label}</div>
-        <div class="fmt-desc">{qr_poster_desc}</div>
-        <button class="fmt-btn" onclick="openFormat('qr-poster')">{btn_print}</button>
-      </div>
-    </div>
     <!-- Roll-up -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('rollup')">
@@ -1103,7 +1027,78 @@ body{{background:#0f1018;font-family:'Inter',sans-serif;color:#f0ece0;min-height
         <button class="fmt-btn" onclick="openFormat('rollup')">{btn_print}</button>
       </div>
     </div>
-
+    <!-- A4 Primární jazyk -->
+    <div class="fmt-card">
+      <div class="fmt-preview" onclick="openFormat('{flyer_primary_url}')">
+        <div style="width:110px;min-height:155px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f0c060;line-height:1.2">{'Váš osobní<br>AI concierge' if is_cs else 'Your personal<br>AI concierge'}</div>
+          <div style="font-size:8px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 14 LANGUAGES</div>
+          <div id="qr-a4-primary" style="width:70px;height:70px"></div>
+          <div style="font-size:7px;color:#00d4aa">smartestguide.com</div>
+        </div>
+      </div>
+      <div class="fmt-info">
+        <div class="fmt-name">{flyer_primary_name}</div>
+        <div class="fmt-desc">{flyer_primary_desc}</div>
+        <button class="fmt-btn" onclick="openFormat('{flyer_primary_url}')">{btn_print}</button>
+      </div>
+    </div>    <!-- A4 Sekundární jazyk -->
+    <div class="fmt-card">
+      <div class="fmt-preview" onclick="openFormat('{flyer_secondary_url}')">
+        <div style="width:110px;min-height:155px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f0c060;line-height:1.2">{'Your personal<br>AI concierge' if is_cs else 'Váš osobní<br>AI concierge'}</div>
+          <div style="font-size:8px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 14 LANGUAGES</div>
+          <div id="qr-a4-secondary" style="width:70px;height:70px"></div>
+          <div style="font-size:7px;color:#00d4aa">smartestguide.com</div>
+        </div>
+      </div>
+      <div class="fmt-info">
+        <div class="fmt-name">{flyer_secondary_name}</div>
+        <div class="fmt-desc">{flyer_secondary_desc}</div>
+        <button class="fmt-btn" onclick="openFormat('{flyer_secondary_url}')">{btn_print}</button>
+      </div>
+    </div>    <!-- QR Plakát -->
+    <div class="fmt-card">
+      <div class="fmt-preview" onclick="openFormat('qr-poster')">
+        <div style="position:relative;padding:16px;background:#0c0d12;border:1px solid rgba(240,192,96,.4);border-radius:14px;display:inline-block">
+          <div id="qr-thumb" style="width:160px;height:160px;display:block"></div>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;background:#0a0b0f;border:2px solid #f5a623;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:#f5a623;z-index:10;pointer-events:none">SG</div>
+        </div>
+      </div>
+      <div class="fmt-info">
+        <div class="fmt-name">{qr_poster_label}</div>
+        <div class="fmt-desc">{qr_poster_desc}</div>
+        <button class="fmt-btn" onclick="openFormat('qr-poster')">{btn_print}</button>
+      </div>
+    </div>    <!-- A5 primární jazyk (EN) -->
+    <div class="fmt-card">
+      <div class="fmt-preview" onclick="openFormat('flyer-a5-en')">
+        <div style="width:130px;height:92px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f5a623;line-height:1.2">Your AI concierge</div>
+          <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 14 LANGUAGES</div>
+          <div id="qr-a5-primary" style="width:50px;height:50px"></div>
+        </div>
+      </div>
+      <div class="fmt-info">
+        <div class="fmt-name">A5 Flyer · English</div>
+        <div class="fmt-desc">Compact A5 — perfect for rooms and tables.</div>
+        <button class="fmt-btn" onclick="openFormat('flyer-a5-en')">{btn_print}</button>
+      </div>
+    </div>    <!-- A5 sekundární jazyk (lokální) -->
+    <div class="fmt-card">
+      <div class="fmt-preview" onclick="openFormat('flyer-a5-local')">
+        <div style="width:130px;height:92px;background:#0a0b0f;border:1px solid rgba(240,192,96,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#f5a623;line-height:1.2">AI concierge</div>
+          <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 14 LANGUAGES</div>
+          <div id="qr-a5-secondary" style="width:50px;height:50px"></div>
+        </div>
+      </div>
+      <div class="fmt-info">
+        <div class="fmt-name">A5 Leták · {local_lang_name}</div>
+        <div class="fmt-desc">Kompaktní A5 v lokálním jazyce hotelu.</div>
+        <button class="fmt-btn" onclick="openFormat('flyer-a5-local')">{btn_print}</button>
+      </div>
+    </div>
   </div>
 </div>
 
