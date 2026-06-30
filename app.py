@@ -1,3 +1,4 @@
+# SmartestGuide v0.4.4
 """
 SmartestGuide – vše v jednom souboru
 Spusť: python -m uvicorn app:app --reload

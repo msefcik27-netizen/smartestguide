@@ -1,3 +1,4 @@
+# SmartestGuide v0.4.4
 name: E2E Test po deployi
 
 on:
@@ -8,7 +9,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,19 +21,10 @@ jobs:
       - name: Instalace závislostí
         run: pip install requests
 
-      - name: Restart Railway service přes API (volitelný "kopanec")
-        run: |
-          RESPONSE=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
-            -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d '{"query":"mutation { serviceInstanceRedeploy(environmentId: \"${{ secrets.RAILWAY_ENV_ID }}\", serviceId: \"${{ secrets.RAILWAY_SERVICE_ID }}\") }"}')
-          echo "Railway API response: $RESPONSE"
-
-      - name: Čekej až bude live SPRÁVNÝ COMMIT (max 8 min)
+      - name: Čekej až bude live TENTO commit (max 8 min)
         run: |
           EXPECTED_SHA="${{ github.sha }}"
-          EXPECTED_VER=$(grep 'APP_VERSION' app.py | head -1 | grep -oP '"\K[^"]+')
-          echo "Čekám na commit: $EXPECTED_SHA (app.py verze $EXPECTED_VER)"
+          echo "Čekám až produkce nasadí commit: $EXPECTED_SHA"
           SUCCESS=false
           for i in $(seq 1 96); do
             HTTP=$(curl -s -o /tmp/ver.json -w "%{http_code}" \
@@ -41,28 +32,19 @@ jobs:
             if [ "$HTTP" = "200" ]; then
               DEPLOYED_SHA=$(python3 -c "import json;print(json.load(open('/tmp/ver.json')).get('commit',''))" 2>/dev/null || echo "")
               DEPLOYED_VER=$(python3 -c "import json;print(json.load(open('/tmp/ver.json')).get('version',''))" 2>/dev/null || echo "")
-              # Shoda commitu — funguje i pro zkrácený short-SHA fallback (DEPLOYED je prefix EXPECTED)
               if [ -n "$DEPLOYED_SHA" ] && { [ "$DEPLOYED_SHA" = "$EXPECTED_SHA" ] || [ "${EXPECTED_SHA#$DEPLOYED_SHA}" != "$EXPECTED_SHA" ]; }; then
-                echo "✅ Commit $DEPLOYED_SHA je live (verze $DEPLOYED_VER, pokus $i)"
-                echo "Čekám 20s na stabilizaci..."
-                sleep 20
+                echo "✅ Commit $DEPLOYED_SHA je live (verze $DEPLOYED_VER, pokus $i). Stabilizace 15s."
+                sleep 15
                 SUCCESS=true
                 break
               fi
-              echo "⏳ Pokus $i/96 – live commit: '$DEPLOYED_SHA' (v$DEPLOYED_VER), čekám na: '$EXPECTED_SHA'"
+              echo "⏳ $i/96 – live: '$DEPLOYED_SHA' (v$DEPLOYED_VER), čekám na '$EXPECTED_SHA'"
             else
-              echo "⏳ Pokus $i/96 – HTTP $HTTP (server se restartuje...)"
+              echo "⏳ $i/96 – HTTP $HTTP (deploy probíhá / restart)"
             fi
             sleep 5
           done
-          if [ "$SUCCESS" = "false" ]; then
-            echo "❌ Timeout – nový commit se na produkci nenasadil včas. Test NEspouštím proti staré verzi."
-            exit 1
-          fi
+          [ "$SUCCESS" = "true" ] || { echo "❌ Timeout: commit $EXPECTED_SHA se nenasadil včas"; exit 1; }
 
       - name: Spusť E2E testy
         run: python test_flow.py
-
-      - name: Výsledek
-        if: failure()
-        run: echo "❌ Testy selhaly – zkontroluj výstup výše"

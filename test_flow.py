@@ -1,3 +1,4 @@
+# SmartestGuide v0.4.4
 """
 SmartestGuide – Automatický E2E test
 Testuje celý flow na Railway produkci.
@@ -863,39 +864,6 @@ def summary():
 # ─────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────
-if __name__ == "__main__":
-    print(f"\n{BOLD}SmartestGuide – E2E Test Runner{RESET}")
-    print(f"URL: {BLUE}{BASE}{RESET}\n")
-
-    test_basic()
-    test_settings()
-    hotel_id, token = test_hotels()
-
-    if hotel_id:
-        test_portal(hotel_id, token)
-        test_guest(hotel_id)
-    else:
-        skip("Portal testy", "hotel se nepodařilo vytvořit")
-        skip("Guest testy", "hotel se nepodařilo vytvořit")
-
-    test_pricing()
-    test_invoices(hotel_id) if hotel_id else skip("Fakturační testy", "hotel chybí")
-    test_legal()
-    test_stripe(hotel_id) if hotel_id else skip("Stripe testy", "hotel chybí")
-    test_landing()
-    test_print_materials(hotel_id) if hotel_id else skip("QR hub testy", "hotel chybí")
-    test_admin()
-    test_widget(hotel_id) if hotel_id else skip("Widget test", "hotel chybí")
-    test_wifi(hotel_id, token) if hotel_id else skip("WiFi testy", "hotel chybí")
-    test_subscription(hotel_id) if hotel_id else skip("Subscription testy", "hotel chybí")
-    test_local_flyres(hotel_id) if hotel_id else skip("Lokální letáky", "hotel chybí")
-    test_reminder_email(hotel_id) if hotel_id else skip("Reminder email", "hotel chybí")
-
-    if hotel_id:
-        cleanup(hotel_id)
-
-    summary()
-    sys.exit(1 if failed else 0)
 
 # ─────────────────────────────────────────────
 # 15. WiFi pole v portálu
@@ -1046,3 +1014,38 @@ def test_reminder_email(hotel_id):
             fail("Reminder email", f"status {r.status_code}, {str(d)[:80]}")
     except Exception as e:
         fail("Reminder email", str(e))
+
+
+if __name__ == "__main__":
+    print(f"\n{BOLD}SmartestGuide – E2E Test Runner{RESET}")
+    print(f"URL: {BLUE}{BASE}{RESET}\n")
+
+    test_basic()
+    test_settings()
+    hotel_id, token = test_hotels()
+
+    if hotel_id:
+        test_portal(hotel_id, token)
+        test_guest(hotel_id)
+    else:
+        skip("Portal testy", "hotel se nepodařilo vytvořit")
+        skip("Guest testy", "hotel se nepodařilo vytvořit")
+
+    test_pricing()
+    test_invoices(hotel_id) if hotel_id else skip("Fakturační testy", "hotel chybí")
+    test_legal()
+    test_stripe(hotel_id) if hotel_id else skip("Stripe testy", "hotel chybí")
+    test_landing()
+    test_print_materials(hotel_id) if hotel_id else skip("QR hub testy", "hotel chybí")
+    test_admin()
+    test_widget(hotel_id) if hotel_id else skip("Widget test", "hotel chybí")
+    test_wifi(hotel_id, token) if hotel_id else skip("WiFi testy", "hotel chybí")
+    test_subscription(hotel_id) if hotel_id else skip("Subscription testy", "hotel chybí")
+    test_local_flyres(hotel_id) if hotel_id else skip("Lokální letáky", "hotel chybí")
+    test_reminder_email(hotel_id) if hotel_id else skip("Reminder email", "hotel chybí")
+
+    if hotel_id:
+        cleanup(hotel_id)
+
+    summary()
+    sys.exit(1 if failed else 0)
