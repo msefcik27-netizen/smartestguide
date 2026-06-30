@@ -1,14 +1,14 @@
+# SmartestGuide v0.4.4
 name: E2E Test po deployi
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:  # manuální spuštění
+  workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,28 +21,30 @@ jobs:
       - name: Instalace závislostí
         run: pip install requests
 
-      - name: Počkej na Railway deploy (max 3 min)
+      - name: Čekej až bude live TENTO commit (max 8 min)
         run: |
-          echo "Čekám až Railway nasadí novou verzi..."
-          STATUS="000"
-          for i in $(seq 1 36); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://smartestguide-production.up.railway.app/api/settings)
-            if [ "$STATUS" = "200" ]; then
-              echo "✅ Server odpovídá (pokus $i)"
-              sleep 5
-              break
+          EXPECTED_SHA="${{ github.sha }}"
+          echo "Čekám až produkce nasadí commit: $EXPECTED_SHA"
+          SUCCESS=false
+          for i in $(seq 1 96); do
+            HTTP=$(curl -s -o /tmp/ver.json -w "%{http_code}" \
+              https://smartestguide-production.up.railway.app/api/version 2>/dev/null || echo "000")
+            if [ "$HTTP" = "200" ]; then
+              DEPLOYED_SHA=$(python3 -c "import json;print(json.load(open('/tmp/ver.json')).get('commit',''))" 2>/dev/null || echo "")
+              DEPLOYED_VER=$(python3 -c "import json;print(json.load(open('/tmp/ver.json')).get('version',''))" 2>/dev/null || echo "")
+              if [ -n "$DEPLOYED_SHA" ] && { [ "$DEPLOYED_SHA" = "$EXPECTED_SHA" ] || [ "${EXPECTED_SHA#$DEPLOYED_SHA}" != "$EXPECTED_SHA" ]; }; then
+                echo "✅ Commit $DEPLOYED_SHA je live (verze $DEPLOYED_VER, pokus $i). Stabilizace 15s."
+                sleep 15
+                SUCCESS=true
+                break
+              fi
+              echo "⏳ $i/96 – live: '$DEPLOYED_SHA' (v$DEPLOYED_VER), čekám na '$EXPECTED_SHA'"
+            else
+              echo "⏳ $i/96 – HTTP $HTTP (deploy probíhá / restart)"
             fi
-            echo "⏳ Pokus $i/36 – status $STATUS, čekám 5s..."
             sleep 5
           done
-          if [ "$STATUS" != "200" ]; then
-            echo "❌ Server neodpovídá po 3 minutách"
-            exit 1
-          fi
+          [ "$SUCCESS" = "true" ] || { echo "❌ Timeout: commit $EXPECTED_SHA se nenasadil včas"; exit 1; }
 
       - name: Spusť E2E testy
         run: python test_flow.py
-
-      - name: Výsledek
-        if: failure()
-        run: echo "❌ Testy selhaly – zkontroluj výstup výše"
