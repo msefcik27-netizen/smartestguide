@@ -1116,6 +1116,11 @@ body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height
     <div class="hub-hotel">{hotel_name}</div>
     <div class="hub-title">{hub_title}</div>
     {f'<a href="{portal_url}" style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:rgba(255,107,0,.1);border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;color:#FF6B00;text-decoration:none;transition:opacity .15s" onmouseover="this.style.opacity=.8" onmouseout="this.style.opacity=1">⚙️ {portal_label}</a>' if portal_url else ''}
+    <div style="margin-top:16px;display:inline-flex;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:3px">
+      <button id="theme-dark" onclick="setFlyerTheme('dark')" style="border:none;background:#FF6B00;color:#0a0b0f;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">🌙 Tmavá</button>
+      <button id="theme-light" onclick="setFlyerTheme('light')" style="border:none;background:transparent;color:#cfcad0;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">📄 Print-friendly</button>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:#9ba0c0">Tmavá = ideální pro PDF · Print-friendly (světlá) šetří inkoust při tisku letáků na papír</div>
   </div>
 
   <div class="formats">
@@ -1241,7 +1246,18 @@ function openFormat(fmt){{
   }};
   var u = urls[fmt];
   if(!u){{ console.error('Neznámý formát:', fmt); return; }}
+  // Print-friendly téma platí jen pro letáky (A4/A5)
+  if(fmt.indexOf('flyer')===0 && window._flyerTheme==='light'){{
+    u += (u.indexOf('?')>=0?'&':'?') + 'theme=light';
+  }}
   window.open(u, '_blank');
+}}
+window._flyerTheme='dark';
+function setFlyerTheme(t){{
+  window._flyerTheme=t;
+  var d=document.getElementById('theme-dark'), l=document.getElementById('theme-light');
+  if(d){{ d.style.background = t==='dark'?'#FF6B00':'transparent'; d.style.color = t==='dark'?'#0a0b0f':'#cfcad0'; }}
+  if(l){{ l.style.background = t==='light'?'#FF6B00':'transparent'; l.style.color = t==='light'?'#0a0b0f':'#cfcad0'; }}
 }}
 </script>
 </body>
@@ -1323,7 +1339,7 @@ def get_flyer_lang_name(lang: str, in_lang: str = None) -> str:
     return names.get(lang, lang.upper())
 
 
-def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str = "a4") -> str:
+def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str = "a4", theme: str = "dark") -> str:
     is_a5 = size == "a5"
     page_size = "A5" if is_a5 else "A4"
     page_w = "148mm" if is_a5 else "210mm"
@@ -1331,6 +1347,22 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
     h1_size = "32px" if is_a5 else "48px"
     qr_size = "140px" if is_a5 else "200px"
     pad = "28px 28px" if is_a5 else "48px 44px"
+
+    # Barvy dle tématu — light = print-friendly (bílé pozadí, tmavý text, úspora inkoustu)
+    light = (theme == "light")
+    c_bg          = "#ffffff" if light else "#1a1a1a"
+    c_ink         = "#1a1a1a" if light else "#f0ece0"   # logo, nadpisy
+    c_sub         = "#444444" if light else "#cfcad0"   # subline
+    c_dim         = "#666666" if light else "#9ba0c0"   # název hotelu, drobné
+    c_feat        = "#222222" if light else "#e7e2d8"   # texty výhod
+    c_teal        = "#0a9d86" if light else "#00d4aa"   # tyrkysové akcenty
+    c_orange      = "#FF6B00"                             # brand oranžová (obě témata)
+    c_qrcard_bg   = "#ffffff" if light else "#0c0d12"
+    c_qrcard_bd   = "rgba(255,107,0,.55)" if light else "rgba(255,107,0,.4)"
+    c_qr_fill     = "#1a1a1a" if light else "#FF6B00"   # tmavý QR na bílé = nejspolehlivější sken/tisk
+    c_badge_bg    = "#ffffff" if light else "#1a1a1a"
+    qr_glow       = "" if light else "box-shadow:0 0 30px rgba(255,107,0,.1)"
+    badge_glow    = "" if light else ""
     flags_html = """<span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="8" fill="#fff"/><rect y="8" width="24" height="8" fill="#D7141A"/><path d="M0 0 L12 8 L0 16 Z" fill="#11457E"/></svg></span>
 <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#012169"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#fff" stroke-width="3.2"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#C8102E" stroke-width="1.6"/><path d="M12 0 V16 M0 8 H24" stroke="#fff" stroke-width="5"/><path d="M12 0 V16 M0 8 H24" stroke="#C8102E" stroke-width="3"/></svg></span>
 <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#000"/><rect y="5.33" width="24" height="5.33" fill="#DD0000"/><rect y="10.66" width="24" height="5.34" fill="#FFCE00"/></svg></span>
@@ -1346,7 +1378,11 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
 <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#006C35"/><circle cx="8" cy="8" r="4" fill="#fff"/></svg></span>
 <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="5.33" fill="#fff"/><rect y="5.33" width="24" height="5.33" fill="#003DA5"/><rect y="10.66" width="24" height="5.34" fill="#CE1126"/></svg></span>"""
 
-    check = """<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>"""
+    # Pro světlé téma ztmav obrysy vlajek (na bílé jinak neviditelné)
+    if light:
+        flags_html = flags_html.replace("rgba(255,255,255,.14)", "rgba(0,0,0,.18)")
+
+    check = f"""<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{c_teal}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>"""
 
     if lang == "cs":
         headline = "Váš osobní<br>AI concierge"
@@ -1391,7 +1427,7 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
         scan_text = "Scan me"
         no_app = "No app needed"
 
-    feats_html = "".join('<div style="display:flex;gap:12px;align-items:center;font-size:16px;color:#e7e2d8">' + check + feat + '</div>' for feat in features)
+    feats_html = "".join('<div style="display:flex;gap:12px;align-items:center;font-size:16px;color:' + c_feat + '">' + check + feat + '</div>' for feat in features)
 
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -1401,32 +1437,32 @@ body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32
 .btn{{position:fixed;top:16px;right:16px;background:#FF6B00;color:#0a0b0f;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:14px;cursor:pointer}}
 @media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:{page_size};margin:0}}}}</style></head>
 <body><button class="btn" onclick="window.print()">🖨️ Tisknout / PDF</button>
-<div style="width:{page_w};min-height:{page_h};background:#1a1a1a;position:relative;overflow:hidden;padding:0">
-  <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#FF6B00)"></div>
+<div style="width:{page_w};min-height:{page_h};background:{c_bg};position:relative;overflow:hidden;padding:0">
+  <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,{c_teal},{c_teal} 60%,{c_orange})"></div>
   <div style="position:absolute;top:80px;left:50%;width:500px;height:500px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(255,107,0,.1),transparent 70%);pointer-events:none"></div>
   <div style="padding:{pad};display:flex;flex-direction:column;align-items:center;text-align:center;min-height:{page_h}">
-    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:#f0ece0;display:flex;align-items:center;gap:4px">SmartestGuide<span style="width:8px;height:8px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:2px;box-shadow:0 0 10px rgba(255,107,0,.9)"></span></div>
-    <div style="margin-top:6px;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00d4aa">AI Concierge for Hotels</div>
-    <div style="margin-top:8px;font-size:13px;color:#9ba0c0">{hotel_name}</div>
-    <h1 style="font-family:'Syne',sans-serif;font-weight:800;font-size:{h1_size};line-height:1.05;letter-spacing:-.02em;margin:36px 0 0;color:#FF6B00">{headline}</h1>
-    <p style="font-size:17px;line-height:1.6;color:#cfcad0;max-width:480px;margin:18px 0 0">{subline}</p>
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:{c_ink};display:flex;align-items:center;gap:4px">SmartestGuide<span style="width:8px;height:8px;border-radius:50%;background:{c_orange};display:inline-block;margin-left:2px"></span></div>
+    <div style="margin-top:6px;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">AI Concierge for Hotels</div>
+    <div style="margin-top:8px;font-size:13px;color:{c_dim}">{hotel_name}</div>
+    <h1 style="font-family:'Syne',sans-serif;font-weight:800;font-size:{h1_size};line-height:1.05;letter-spacing:-.02em;margin:36px 0 0;color:{c_orange}">{headline}</h1>
+    <p style="font-size:17px;line-height:1.6;color:{c_sub};max-width:480px;margin:18px 0 0">{subline}</p>
     <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:28px;max-width:500px">{flags_html}</div>
     <div style="margin-top:32px;display:flex;flex-direction:column;gap:12px;align-items:flex-start;text-align:left;width:100%;max-width:420px">{feats_html}</div>
-    <div style="margin-top:40px;position:relative;padding:18px;background:#0c0d12;border:1px solid rgba(255,107,0,.4);border-radius:16px;box-shadow:0 0 30px rgba(255,107,0,.1)">
+    <div style="margin-top:40px;position:relative;padding:18px;background:{c_qrcard_bg};border:1px solid {c_qrcard_bd};border-radius:16px;{qr_glow}">
       <div id="qr-flyer" style="width:{qr_size};height:{qr_size};display:flex;align-items:center;justify-content:center"></div>
-      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;background:#1a1a1a;border:2px solid #FF6B00;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:#FF6B00">SG</div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;background:{c_badge_bg};border:2px solid {c_orange};display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:{c_orange}">SG</div>
     </div>
-    <div style="margin-top:20px;font-family:'Syne',sans-serif;font-weight:700;font-size:20px;color:#f0ece0">{scan_text}</div>
-    <div style="margin-top:6px;font-size:14px;color:#9ba0c0">{no_app} · 14 languages · 24/7</div>
+    <div style="margin-top:20px;font-family:'Syne',sans-serif;font-weight:700;font-size:20px;color:{c_ink}">{scan_text}</div>
+    <div style="margin-top:6px;font-size:14px;color:{c_dim}">{no_app} · 14 languages · 24/7</div>
     <div style="flex:1;min-height:32px"></div>
-    <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,170,.4),transparent);margin-top:32px"></div>
-    <div style="margin-top:14px;font-size:13px;font-weight:600;color:#00d4aa">smartestguide.com</div>
+    <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,{c_teal},transparent);margin-top:32px;opacity:.5"></div>
+    <div style="margin-top:14px;font-size:13px;font-weight:600;color:{c_teal}">smartestguide.com</div>
   </div>
 </div>
 <script>
 (function(){{function draw(){{var h=document.getElementById('qr-flyer');if(!h)return;if(!window.qrcode){{setTimeout(draw,120);return;}}
 var qr=window.qrcode(0,'H');qr.addData('{guest_url.replace("'", "%27")}');qr.make();var n=qr.getModuleCount(),S=200,cell=S/n,r='';
-for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#FF6B00"/>';
+for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="{c_qr_fill}"/>';
 h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
 </script></body></html>"""
 
@@ -1481,20 +1517,23 @@ for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell
 h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
 </script></body></html>"""
 
+def _flyer_theme(theme: str) -> str:
+    return "light" if (theme or "").lower() in ("light", "print", "svetla", "světlá") else "dark"
+
 @app.get("/api/hotels/{hotel_id}/flyer-en")
-def flyer_en(hotel_id: str, request: Request):
+def flyer_en(hotel_id: str, request: Request, theme: str = "dark"):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "en"))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "en", theme=_flyer_theme(theme)))
 
 @app.get("/api/hotels/{hotel_id}/flyer-cz")
-def flyer_cz(hotel_id: str, request: Request):
+def flyer_cz(hotel_id: str, request: Request, theme: str = "dark"):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
     try:
-        html = _render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "cs")
+        html = _render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "cs", theme=_flyer_theme(theme))
         if not html:
             return HTMLResponse(content="<h1>Render vrátil prázdný string</h1>", status_code=500)
         return HTMLResponse(content=html)
@@ -1505,36 +1544,36 @@ def flyer_cz(hotel_id: str, request: Request):
         return HTMLResponse(content=f"<pre>CHYBA:\n{err}</pre>", status_code=500)
 
 @app.get("/api/hotels/{hotel_id}/flyer-local")
-def flyer_local(hotel_id: str, request: Request):
+def flyer_local(hotel_id: str, request: Request, theme: str = "dark"):
     """Leták v lokálním jazyce hotelu."""
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
     lang = get_hotel_local_lang(hotel)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", lang))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", lang, theme=_flyer_theme(theme)))
 
 @app.get("/api/hotels/{hotel_id}/flyer-a5-en")
-def flyer_a5_en(hotel_id: str, request: Request):
+def flyer_a5_en(hotel_id: str, request: Request, theme: str = "dark"):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "en", size="a5"))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "en", size="a5", theme=_flyer_theme(theme)))
 
 @app.get("/api/hotels/{hotel_id}/flyer-a5-cz")
-def flyer_a5_cz(hotel_id: str, request: Request):
+def flyer_a5_cz(hotel_id: str, request: Request, theme: str = "dark"):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "cs", size="a5"))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "cs", size="a5", theme=_flyer_theme(theme)))
 
 @app.get("/api/hotels/{hotel_id}/flyer-a5-local")
-def flyer_a5_local(hotel_id: str, request: Request):
+def flyer_a5_local(hotel_id: str, request: Request, theme: str = "dark"):
     """A5 leták v lokálním jazyce hotelu."""
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
     lang = get_hotel_local_lang(hotel)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", lang, size="a5"))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", lang, size="a5", theme=_flyer_theme(theme)))
 
 @app.get("/api/hotels/{hotel_id}/rollup")
 def rollup(hotel_id: str, request: Request):
