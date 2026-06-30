@@ -138,6 +138,8 @@ async def _check_and_send_reminders():
                 "email": "Email", "checkin_time": "Check-in čas",
                 "checkout_time": "Check-out čas", "breakfast_hours": "Hodiny snídaně",
                 "bed_count": "Počet lůžek", "star_rating": "Hvězdičky",
+                "description": "Popis hotelu", "wifi_name": "WiFi síť",
+                "wifi_password": "WiFi heslo", "pet_policy": "Pravidla pro mazlíčky",
             }
             missing_list = [missing_labels.get(f, f) for f in completeness.get("missing", [])]
             missing_html = "".join(f"<li>{m}</li>" for m in missing_list) if missing_list else ""
@@ -295,6 +297,10 @@ class HotelData(BaseModel):
     star_rating: Optional[int] = None
     country: Optional[str] = None
     continent: Optional[str] = None
+    pet_policy: Optional[str] = None     # pravidla pro mazlíčky (časté dotazy hostů)
+    ico: Optional[str] = None            # fakturační IČO hotelu (odběratel)
+    dic: Optional[str] = None            # DIČ / VAT ID hotelu
+    billing_name: Optional[str] = None   # právní/fakturační název (fallback name)
     extra_info: Optional[str] = None
     active_offer: Optional[str] = None
     hidden_gems: Optional[List[str]] = None
@@ -326,7 +332,8 @@ def get_settings():
         "api_key_preview": ("sk-ant-..." + s["anthropic_api_key"][-6:]) if s.get("anthropic_api_key") else None,
         "has_stripe_key": bool(s.get("stripe_secret_key")),
         "stripe_payment_link": s.get("stripe_payment_link", ""),
-        "stripe_key_preview": ("sk_test_..." + s["stripe_secret_key"][-6:]) if s.get("stripe_secret_key") else None,
+        "stripe_key_preview": ((s["stripe_secret_key"].split("_")[0] + "_" + s["stripe_secret_key"].split("_")[1] + "_..." + s["stripe_secret_key"][-6:]) if s.get("stripe_secret_key") and s["stripe_secret_key"].count("_") >= 2 else (s["stripe_secret_key"][:8] + "..." if s.get("stripe_secret_key") else None)),
+        "stripe_mode": ("live" if s.get("stripe_secret_key","").startswith("sk_live_") else "test" if s.get("stripe_secret_key","").startswith("sk_test_") else None),
         "pricing_base": s.get("pricing_base", 300),
         "pricing_threshold": s.get("pricing_threshold", 100),
         "pricing_per_bed": s.get("pricing_per_bed", 3),
@@ -418,8 +425,11 @@ HEADERS = {
     "Accept-Language": "cs,en;q=0.9",
 }
 SUBPAGE_HINTS = [
-    "/contact", "/kontakt", "/about", "/o-nas", "/restaurant", "/restaurace",
-    "/wellness", "/spa", "/services", "/sluzby", "/rooms", "/pokoje",
+    "/contact", "/kontakt", "/about", "/o-nas",
+    "/faq", "/informace", "/good-to-know", "/dobre-vedet",
+    "/house-rules", "/domaci-rad", "/wifi",
+    "/restaurant", "/restaurace", "/wellness", "/spa",
+    "/services", "/sluzby", "/rooms", "/pokoje",
     "/facilities", "/events", "/gallery",
 ]
 
@@ -478,11 +488,11 @@ async def scrape_hotel_data(url: str, api_key: str) -> dict:
                     return f"=== {hint.upper()} ===\n{t}"
             return None
 
-        results = await asyncio.gather(*[try_sub(h) for h in SUBPAGE_HINTS[:5]])
+        results = await asyncio.gather(*[try_sub(h) for h in SUBPAGE_HINTS[:8]])
         pages_text += [r for r in results if r]
 
-    # Celkový limit 8000 znaků – bezpečně pod limitem Claude API
-    combined = "\n\n".join(pages_text)[:8000]
+    # Celkový limit znaků – Haiku zvládne víc, lepší pokrytí praktických info (WiFi, FAQ, pravidla)
+    combined = "\n\n".join(pages_text)[:12000]
 
     # Systémový prompt zvlášť, user message jen s textem
     system_prompt = """Jsi expert na extrakci dat z hotelových webů.
@@ -511,6 +521,9 @@ Pokud informaci nenajdeš, použij null. Nikdy nevymýšlej data."""
   "restaurant_name": "nazev nebo null",
   "wellness_info": "info nebo null",
   "parking_info": "info nebo null",
+  "wifi_name": "nazev WiFi site / SSID pokud je uveden, jinak null",
+  "wifi_password": "heslo WiFi pouze pokud je verejne uvedeno na webu, jinak null",
+  "pet_policy": "pravidla pro mazlicky / domaci zvirata nebo null",
   "star_rating": číslo_nebo_null,
   "country": "ISO kod zeme napr CZ SK AT DE FR IT HR nebo null",
   "continent": "Europe/Asia/America/Africa/Oceania nebo null",
@@ -582,6 +595,47 @@ async def scrape_endpoint(req: ScrapeRequest):
     except Exception as e:
         raise HTTPException(500, str(e))
 
+_RESCRAPE_PROTECTED = {
+    "id", "created_at", "qr_code_id", "hotel_token", "registered_bed_count",
+    "subscription_active", "subscription_start", "subscription_period_end",
+    "stripe_customer_id", "stripe_subscription_id", "ico", "dic", "billing_name",
+}
+
+@app.post("/api/hotels/{hotel_id}/rescrape")
+async def rescrape_hotel(hotel_id: str):
+    """Znovu stáhne data z webu hotelu a doplní POUZE prázdná pole (nepřepisuje ruční úpravy)."""
+    settings = db_get_settings()
+    api_key = settings.get("anthropic_api_key", "")
+    if not api_key:
+        raise HTTPException(400, "Anthropic API klíč není nastaven.")
+    db = db_load()
+    hotel = db["hotels"].get(hotel_id)
+    if not hotel:
+        raise HTTPException(404, "Hotel nenalezen")
+    url = hotel.get("url") or hotel.get("source_url")
+    if not url:
+        raise HTTPException(400, "Hotel nemá uvedený web (URL)")
+    try:
+        scraped = await scrape_hotel_data(url, api_key)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    filled = []
+    for k, v in (scraped or {}).items():
+        if k in _RESCRAPE_PROTECTED:
+            continue
+        if v in (None, "", [], {}):
+            continue
+        if not hotel.get(k):  # doplň jen prázdné — ruční data zůstávají
+            hotel[k] = v
+            filled.append(k)
+    hotel["updated_at"] = datetime.utcnow().isoformat()
+    hotel["last_rescrape_at"] = datetime.utcnow().isoformat()
+    db["hotels"][hotel_id] = hotel
+    db_save(db)
+    return {"status": "ok", "filled_fields": filled, "filled_count": len(filled)}
+
 # ─────────────────────────────────────────────
 # Hotely – CRUD
 # ─────────────────────────────────────────────
@@ -633,6 +687,8 @@ def hotel_completeness(hotel_id: str):
         ("checkin_time", "Check-in čas"),
         ("checkout_time", "Check-out čas"),
         ("description", "Popis hotelu"),
+        ("wifi_name", "WiFi síť"),
+        ("wifi_password", "WiFi heslo"),
     ]
     # Bonusová pole (20% váha)
     bonus = [
@@ -644,6 +700,7 @@ def hotel_completeness(hotel_id: str):
         ("whatsapp_number", "WhatsApp"),
         ("nearby_places", "Místa v okolí"),
         ("amenities", "Vybavení"),
+        ("pet_policy", "Pravidla pro mazlíčky"),
     ]
 
     filled_req = sum(1 for k, _ in required if h.get(k))
@@ -1176,11 +1233,15 @@ function openFormat(fmt){{
     'qr-poster': '/api/hotels/{hotel_id}/qr-poster-print',
     'flyer-en':  '/api/hotels/{hotel_id}/flyer-en',
     'flyer-cz':  '/api/hotels/{hotel_id}/flyer-cz',
+    'flyer-local': '/api/hotels/{hotel_id}/flyer-local',
     'flyer-a5-en': '/api/hotels/{hotel_id}/flyer-a5-en',
     'flyer-a5-cz': '/api/hotels/{hotel_id}/flyer-a5-cz',
+    'flyer-a5-local': '/api/hotels/{hotel_id}/flyer-a5-local',
     'rollup':    '/api/hotels/{hotel_id}/rollup'
   }};
-  window.open(urls[fmt], '_blank');
+  var u = urls[fmt];
+  if(!u){{ console.error('Neznámý formát:', fmt); return; }}
+  window.open(u, '_blank');
 }}
 </script>
 </body>
@@ -1204,7 +1265,7 @@ def _render_qr_poster(hotel_name: str, guest_url: str) -> str:
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<style>*{{box-sizing:border-box}}body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
+<style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
 .btn{{position:fixed;top:16px;right:16px;background:#FF6B00;color:#0a0b0f;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:14px;cursor:pointer}}
 @media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{margin:0}}}}</style></head>
 <body><button class="btn" onclick="window.print()">🖨️ Tisknout / PDF</button>
@@ -1335,7 +1396,7 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<style>*{{box-sizing:border-box}}
+<style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
 .btn{{position:fixed;top:16px;right:16px;background:#FF6B00;color:#0a0b0f;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:14px;cursor:pointer}}
 @media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:{page_size};margin:0}}}}</style></head>
@@ -1388,7 +1449,7 @@ def _render_rollup(hotel_name: str, guest_url: str) -> str:
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<style>*{{box-sizing:border-box}}
+<style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
 .btn{{position:fixed;top:16px;right:16px;background:#FF6B00;color:#0a0b0f;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:14px;cursor:pointer}}
 @media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:85mm 200mm;margin:0}}}}</style></head>
@@ -1491,7 +1552,7 @@ def rollup(hotel_id: str, request: Request):
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>
-  *{{box-sizing:border-box}}
+  *{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
   body{{margin:0;background:#1b1c22;font-family:'Inter',sans-serif;display:flex;justify-content:center;align-items:flex-start;padding:32px;min-height:100vh}}
   @media print{{body{{background:#fff;padding:0;display:block}} @page{{margin:0}}}}
   .print-btn{{position:fixed;top:20px;right:20px;background:#FF6B00;color:#0a0b0f;border:none;border-radius:10px;padding:12px 22px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;z-index:100;box-shadow:0 4px 16px rgba(255,107,0,.4)}}
@@ -1576,6 +1637,10 @@ class RegistrationRequest(BaseModel):
     contact_email: str
     contact_phone: Optional[str] = None
     bed_count: Optional[int] = None
+    country: Optional[str] = None        # země hotelu (pro DPH/jazyk)
+    ico: Optional[str] = None            # fakturační IČO (odběratel)
+    dic: Optional[str] = None            # DIČ / VAT ID
+    billing_name: Optional[str] = None   # právní/fakturační název
 
 @app.post("/api/register")
 async def register_hotel(req: RegistrationRequest, request: Request):
@@ -1638,6 +1703,10 @@ async def register_hotel(req: RegistrationRequest, request: Request):
         "bed_count": beds,
         "registered_bed_count": beds,
         "contact_name": req.contact_name,
+        "country": (req.country or "").upper().strip(),
+        "ico": (req.ico or "").strip(),
+        "dic": (req.dic or "").strip(),
+        "billing_name": (req.billing_name or "").strip(),
     }
     db["hotels"][hid] = hotel
     db_save(db)
@@ -2128,6 +2197,14 @@ async def stripe_webhook(request: Request):
                         new_end = now + timedelta(days=30)
                     db["hotels"][hotel_id]["subscription_period_end"] = new_end.isoformat()
 
+                    # Auto-faktura za tuto reálnou platbu (po triálu i při obnově).
+                    # Idempotentní: duplicitní Stripe eventy odchytí kontrola last_processed_invoice výše.
+                    try:
+                        inv = _create_invoice_record(db, hotel_id, db["hotels"][hotel_id])
+                        logging.info("Auto-faktura %s vytvořena pro hotel %s", inv.get("invoice_number"), hotel_id)
+                    except Exception as e:
+                        logging.warning("Auto-faktura selhala pro hotel %s: %s", hotel_id, e)
+
                 db_save(db)
 
                 # Spusť automatický scraping webu hotelu na pozadí
@@ -2258,6 +2335,37 @@ def portal_analytics(token: str):
     analytics = db.get("analytics", {}).get(h["id"], {"total": 0, "topics": {}})
     return {"status": "ok", "analytics": analytics}
 
+# Fráze naznačující, že Alexovi chyběla informace (heuristika napříč jazyky)
+_LOW_INFO_MARKERS = [
+    "i don't have", "i do not have", "i'm not sure", "i am not sure", "no information",
+    "not sure", "nemám", "nemam", "bohužel nevím", "bohuzel nevim", "nevím", "nemáme tu informaci",
+    "kontaktujte recepci", "contact the reception", "ask the reception", "ask at reception",
+    "žádné informace", "zadne informace", "leider", "désolé je n'ai pas", "no tengo esa información",
+]
+
+def _log_guest_question(hotel_id: str, message: str, language: str, reply: str):
+    """Zaloguje dotaz hosta do analytiky + drží posledních 50 reálných dotazů (pro doplnění mezer)."""
+    if not message:
+        return
+    db = db_load()
+    analytics = db.setdefault("analytics", {})
+    a = analytics.setdefault(hotel_id, {"total": 0, "topics": {}})
+    a["total"] = a.get("total", 0) + 1
+    a["last_chat"] = datetime.utcnow().isoformat()
+    low = (reply or "").lower()
+    flagged = any(m in low for m in _LOW_INFO_MARKERS)
+    rq = a.setdefault("recent_questions", [])
+    rq.insert(0, {
+        "q": (message or "")[:300],
+        "lang": language or "",
+        "flagged": flagged,
+        "at": datetime.utcnow().isoformat(),
+    })
+    del rq[50:]
+    if flagged:
+        a["flagged_count"] = a.get("flagged_count", 0) + 1
+    db_save(db)
+
 # ─────────────────────────────────────────────
 # Email reminder
 # ─────────────────────────────────────────────
@@ -2266,11 +2374,13 @@ def hotel_profile_completeness(hotel: dict) -> dict:
         "name", "address", "phone", "email",
         "checkin_time", "checkout_time", "breakfast_hours",
         "bed_count", "star_rating", "description",
+        "wifi_name", "wifi_password",
     ]
     bonus = [
         "wellness_info", "parking_info", "restaurant_name",
         "nearby_places", "fitness_info", "pool_info",
         "whatsapp_number", "whatsapp_wellness", "dinner_hours",
+        "pet_policy",
     ]
     filled_req = [f for f in required if hotel.get(f)]
     filled_bon = [f for f in bonus if hotel.get(f)]
@@ -2747,6 +2857,11 @@ Guest name: {req.guest_name or 'Guest'}"""
     if r.status_code != 200:
         raise HTTPException(500, f"AI chyba: {r.text[:200]}")
     reply = r.json()["content"][0]["text"]
+    # Zaloguj reálný dotaz hosta (analytika + detekce mezer v informacích)
+    try:
+        _log_guest_question(req.hotel_id, req.message, req.language, reply)
+    except Exception as e:
+        logging.warning("Log dotazu hosta selhal: %s", e)
     return {"status": "ok", "reply": reply}
 
 class TranslateMenuRequest(BaseModel):
@@ -3133,16 +3248,49 @@ class CompanySettingsRequest(BaseModel):
     company_bank: Optional[str] = None
     company_iban: Optional[str] = None
     cc_email: Optional[str] = None
+    company_vat_payer: Optional[bool] = None   # jsme plátci DPH?
+    company_vat_rate: Optional[float] = None   # základní sazba DPH (%), default 21
 
 @app.get("/api/settings/company")
 def get_company_settings():
     s = db_get_settings()
-    return {k: s.get(k, "") for k in ["company_name","company_ico","company_dic","company_email","company_phone","company_address","company_city","company_bank","company_iban","cc_email"]}
+    out = {k: s.get(k, "") for k in ["company_name","company_ico","company_dic","company_email","company_phone","company_address","company_city","company_bank","company_iban","cc_email"]}
+    out["company_vat_payer"] = bool(s.get("company_vat_payer", False))
+    out["company_vat_rate"] = float(s.get("company_vat_rate", 21))
+    return out
 
 @app.post("/api/settings/company")
 def save_company_settings(req: CompanySettingsRequest):
     db_save_settings(req.model_dump(exclude_none=True))
     return {"status": "ok"}
+
+@app.get("/api/ares/{ico}")
+async def ares_lookup(ico: str):
+    """Dohledá firmu dle IČO v českém registru ARES (oficiální, zdarma).
+    Vrací název, DIČ a adresu pro autofill fakturačních údajů."""
+    ico = "".join(ch for ch in (ico or "") if ch.isdigit())
+    if len(ico) != 8:
+        raise HTTPException(400, "IČO musí mít 8 číslic")
+    url = f"https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty/{ico}"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(url, headers={"accept": "application/json"})
+        if r.status_code == 404:
+            raise HTTPException(404, "Subjekt s tímto IČO nebyl v ARES nalezen")
+        if r.status_code != 200:
+            raise HTTPException(502, f"ARES nedostupný ({r.status_code})")
+        d = r.json()
+        sidlo = d.get("sidlo", {}) or {}
+        return {
+            "ico": d.get("ico", ico),
+            "name": d.get("obchodniJmeno", ""),
+            "dic": d.get("dic", ""),
+            "address": sidlo.get("textovaAdresa", ""),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502, f"Chyba ARES: {str(e)}")
 
 # ─────────────────────────────────────────────
 # Faktury
@@ -3154,15 +3302,36 @@ def list_invoices():
     invoices.sort(key=lambda x: x.get("created_at", ""), reverse=True)
     return {"status": "ok", "invoices": invoices}
 
-@app.post("/api/hotels/{hotel_id}/invoices/generate")
-def generate_invoice(hotel_id: str):
-    import calendar
-    db = db_load()
-    if hotel_id not in db["hotels"]:
-        raise HTTPException(404, "Hotel nenalezen")
-    hotel = db["hotels"][hotel_id]
-    if not hotel.get("subscription_active"):
-        raise HTTPException(400, "Hotel nemá aktivní předplatné")
+_EU_COUNTRIES = {"AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE",
+                 "IT","LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE"}
+
+def _compute_invoice_vat(price: float, hotel: dict, s: dict) -> dict:
+    """DPH rozpad dle plátcovství dodavatele a země odběratele. price = základ bez DPH."""
+    vat_payer = bool(s.get("company_vat_payer", False))
+    rate = float(s.get("company_vat_rate", 21))
+    country = (hotel.get("country") or "").upper().strip()
+    has_dic = bool((hotel.get("dic") or "").strip())
+    if not vat_payer:
+        return {"vat_rate": 0, "vat_amount": 0.0, "amount_total": round(price, 2),
+                "vat_note": "Nejsme plátci DPH."}
+    # Dodavatel je CZ plátce DPH
+    if country in ("", "CZ"):
+        vat = round(price * rate / 100, 2)
+        return {"vat_rate": rate, "vat_amount": vat, "amount_total": round(price + vat, 2), "vat_note": ""}
+    if country in _EU_COUNTRIES and has_dic:
+        return {"vat_rate": 0, "vat_amount": 0.0, "amount_total": round(price, 2),
+                "vat_note": "Přenesení daňové povinnosti / reverse charge — daň odvede zákazník."}
+    if country in _EU_COUNTRIES:
+        vat = round(price * rate / 100, 2)
+        return {"vat_rate": rate, "vat_amount": vat, "amount_total": round(price + vat, 2),
+                "vat_note": "EU odběratel bez DIČ — ověř režim DPH s účetní."}
+    return {"vat_rate": 0, "vat_amount": 0.0, "amount_total": round(price, 2),
+            "vat_note": "Mimo EU — bez DPH (vývoz služby)."}
+
+def _create_invoice_record(db: dict, hotel_id: str, hotel: dict) -> dict:
+    """Vytvoří fakturu pro hotel a vloží ji do db['invoices']. Volá db_save volající."""
+    import calendar, re as _re
+    from datetime import timedelta as _td
     beds = hotel.get("bed_count") or hotel.get("subscription_paid_beds") or 0
     s = db_get_settings()
     base = int(s.get("pricing_base", 200))
@@ -3178,16 +3347,46 @@ def generate_invoice(hotel_id: str):
     period_from = now.replace(day=1).date().isoformat()
     last_day = calendar.monthrange(now.year, now.month)[1]
     period_to = now.replace(day=last_day).date().isoformat()
+    vat = _compute_invoice_vat(price, hotel, s)
+    due_date = (now + _td(days=14)).date().isoformat()
+    variable_symbol = _re.sub(r"\D", "", invoice_number) or str(int(now.timestamp()))
     inv_id = str(uuid.uuid4())
     invoice = {
         "id": inv_id, "invoice_number": invoice_number, "hotel_id": hotel_id,
-        "hotel_name": hotel.get("name",""), "hotel_address": hotel.get("address",""),
-        "hotel_email": hotel.get("email",""), "beds": beds, "amount_eur": round(price, 2),
-        "amount_local": round(price, 2), "currency_code": "EUR", "currency_symbol": "€",
-        "period_from": period_from, "period_to": period_to, "status": "issued",
+        "hotel_name": hotel.get("name",""),
+        "hotel_billing_name": (hotel.get("billing_name") or "").strip(),
+        "hotel_address": hotel.get("address",""),
+        "hotel_email": (hotel.get("email") or ""),
+        "hotel_ico": (hotel.get("ico") or "").strip(),
+        "hotel_dic": (hotel.get("dic") or "").strip(),
+        "hotel_country": (hotel.get("country") or "").upper().strip(),
+        "beds": beds,
+        "amount_eur": round(price, 2),        # základ bez DPH (zpětná kompatibilita)
+        "amount_net": round(price, 2),
+        "vat_rate": vat["vat_rate"],
+        "vat_amount": vat["vat_amount"],
+        "amount_total": vat["amount_total"],
+        "amount_local": vat["amount_total"],  # částka k úhradě (vč. DPH)
+        "vat_note": vat["vat_note"],
+        "currency_code": "EUR", "currency_symbol": "€",
+        "period_from": period_from, "period_to": period_to,
+        "due_date": due_date, "variable_symbol": variable_symbol,
+        "status": "issued",
         "created_at": now.isoformat(), "updated_at": now.isoformat(),
     }
     db["invoices"][inv_id] = invoice
+    return invoice
+
+
+@app.post("/api/hotels/{hotel_id}/invoices/generate")
+def generate_invoice(hotel_id: str):
+    db = db_load()
+    if hotel_id not in db["hotels"]:
+        raise HTTPException(404, "Hotel nenalezen")
+    hotel = db["hotels"][hotel_id]
+    if not hotel.get("subscription_active"):
+        raise HTTPException(400, "Hotel nemá aktivní předplatné")
+    invoice = _create_invoice_record(db, hotel_id, hotel)
     db_save(db)
     return {"status": "ok", "invoice": invoice}
 
@@ -3234,19 +3433,45 @@ def download_invoice_pdf(invoice_id: str):
         c.drawRightString(W - 20*mm, H - 26*mm, inv.get("invoice_number",""))
         y = H - 65*mm
         c.setFillColor(colors.HexColor("#333333"))
-        for label, value in [
-            ("Hotel:", inv.get("hotel_name","")),
+        net = inv.get("amount_net", inv.get("amount_eur", 0))
+        vat_rate = inv.get("vat_rate", 0)
+        vat_amount = inv.get("vat_amount", 0)
+        total = inv.get("amount_total", inv.get("amount_local", net))
+        rows = [
+            ("Dodavatel:", s.get("company_name", "SmartestGuide")),
+            ("  ICO / DIC:", f"{s.get('company_ico','')}  {s.get('company_dic','')}".strip()),
+            ("Odberatel:", inv.get("hotel_billing_name") or inv.get("hotel_name", "")),
+        ]
+        if inv.get("hotel_ico"):
+            rows.append(("  ICO:", inv.get("hotel_ico", "")))
+        if inv.get("hotel_dic"):
+            rows.append(("  DIC:", inv.get("hotel_dic", "")))
+        if inv.get("hotel_country"):
+            rows.append(("  Zeme:", inv.get("hotel_country", "")))
+        rows += [
             ("Datum:", (inv.get("created_at") or "")[:10]),
-            ("Období:", f"{inv.get('period_from','')} – {inv.get('period_to','')}"),
-            ("Lůžka:", str(inv.get("beds",""))),
-            ("Částka:", f"{inv.get('amount_eur',0)} EUR"),
+            ("Splatnost:", inv.get("due_date", "")),
+            ("VS:", inv.get("variable_symbol", "")),
+            ("Obdobi:", f"{inv.get('period_from','')} - {inv.get('period_to','')}"),
+            ("Luzka:", str(inv.get("beds", ""))),
+            ("Zaklad:", f"{net} EUR"),
+        ]
+        if vat_rate:
+            rows.append((f"DPH {vat_rate}%:", f"{vat_amount} EUR"))
+        rows += [
+            ("Celkem k uhrade:", f"{total} EUR"),
             ("Stav:", (inv.get("status") or "").upper()),
-        ]:
+        ]
+        for label, value in rows:
             c.setFont("Helvetica-Bold", 11)
             c.drawString(20*mm, y, label)
             c.setFont("Helvetica", 11)
             c.drawString(70*mm, y, value)
             y -= 8*mm
+        if inv.get("vat_note"):
+            c.setFont("Helvetica-Oblique", 9)
+            c.setFillColor(colors.HexColor("#666666"))
+            c.drawString(20*mm, y - 2*mm, inv.get("vat_note", ""))
         c.save()
         pdf_bytes = buf.getvalue()
     except ImportError:
