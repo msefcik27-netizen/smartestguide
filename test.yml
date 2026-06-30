@@ -21,40 +21,42 @@ jobs:
       - name: Instalace závislostí
         run: pip install requests
 
-      - name: Restart Railway service přes API
+      - name: Restart Railway service přes API (volitelný "kopanec")
         run: |
           RESPONSE=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
             -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d '{"query":"mutation { serviceInstanceRedeploy(environmentId: \"${{ secrets.RAILWAY_ENV_ID }}\", serviceId: \"${{ secrets.RAILWAY_SERVICE_ID }}\") }"}')
           echo "Railway API response: $RESPONSE"
-          echo "Čekám 20s na zahájení restartu..."
-          sleep 20
 
-      - name: Čekej na novou verzi (max 6 min)
+      - name: Čekej až bude live SPRÁVNÝ COMMIT (max 8 min)
         run: |
-          EXPECTED=$(grep 'APP_VERSION' app.py | head -1 | grep -oP '"\K[^"]+')
-          echo "Čekám na verzi: $EXPECTED"
+          EXPECTED_SHA="${{ github.sha }}"
+          EXPECTED_VER=$(grep 'APP_VERSION' app.py | head -1 | grep -oP '"\K[^"]+')
+          echo "Čekám na commit: $EXPECTED_SHA (app.py verze $EXPECTED_VER)"
           SUCCESS=false
-          for i in $(seq 1 72); do
-            HTTP=$(curl -s -o /tmp/ver.json -w "%{http_code}" https://smartestguide-production.up.railway.app/api/version 2>/dev/null || echo "000")
+          for i in $(seq 1 96); do
+            HTTP=$(curl -s -o /tmp/ver.json -w "%{http_code}" \
+              https://smartestguide-production.up.railway.app/api/version 2>/dev/null || echo "000")
             if [ "$HTTP" = "200" ]; then
-              DEPLOYED=$(python3 -c "import json; print(json.load(open('/tmp/ver.json')).get('version',''))" 2>/dev/null || echo "")
-              if [ "$DEPLOYED" = "$EXPECTED" ]; then
-                echo "✅ Verze $DEPLOYED je live (pokus $i)"
-                echo "Čekám dalších 20s na stabilizaci..."
+              DEPLOYED_SHA=$(python3 -c "import json;print(json.load(open('/tmp/ver.json')).get('commit',''))" 2>/dev/null || echo "")
+              DEPLOYED_VER=$(python3 -c "import json;print(json.load(open('/tmp/ver.json')).get('version',''))" 2>/dev/null || echo "")
+              # Shoda commitu — funguje i pro zkrácený short-SHA fallback (DEPLOYED je prefix EXPECTED)
+              if [ -n "$DEPLOYED_SHA" ] && { [ "$DEPLOYED_SHA" = "$EXPECTED_SHA" ] || [ "${EXPECTED_SHA#$DEPLOYED_SHA}" != "$EXPECTED_SHA" ]; }; then
+                echo "✅ Commit $DEPLOYED_SHA je live (verze $DEPLOYED_VER, pokus $i)"
+                echo "Čekám 20s na stabilizaci..."
                 sleep 20
                 SUCCESS=true
                 break
               fi
-              echo "⏳ Pokus $i/72 – live: '$DEPLOYED', čekám na: '$EXPECTED'"
+              echo "⏳ Pokus $i/96 – live commit: '$DEPLOYED_SHA' (v$DEPLOYED_VER), čekám na: '$EXPECTED_SHA'"
             else
-              echo "⏳ Pokus $i/72 – HTTP $HTTP (server se restartuje...)"
+              echo "⏳ Pokus $i/96 – HTTP $HTTP (server se restartuje...)"
             fi
             sleep 5
           done
           if [ "$SUCCESS" = "false" ]; then
-            echo "❌ Timeout po 6 minutách"
+            echo "❌ Timeout – nový commit se na produkci nenasadil včas. Test NEspouštím proti staré verzi."
             exit 1
           fi
 

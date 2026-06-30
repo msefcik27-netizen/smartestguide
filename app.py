@@ -204,7 +204,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.4.3"
+APP_VERSION = "0.4.4"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -936,8 +936,8 @@ def generate_qr_poster(hotel_id: str, request: Request):
     hotel_name = hotel.get("name", "Hotel")
     hotel_token = hotel.get("hotel_token", "")
     portal_url = f"{base}/hotel?token={hotel_token}" if hotel_token else ""
-    portal_label = "Přejít do portálu hotelu" if hotel.get("country","").upper() in ("CZ","SK") else "Go to hotel portal"
-    country = hotel.get("country", "").upper()
+    portal_label = "Přejít do portálu hotelu" if (hotel.get("country") or "").upper() in ("CZ","SK") else "Go to hotel portal"
+    country = (hotel.get("country") or "").upper()
     is_cs = country in ("CZ", "SK")
     primary_lang = "cz" if is_cs else "en"
     btn_print = "🖨️ Otevřít a tisknout" if is_cs else "🖨️ Open and print"
@@ -1248,7 +1248,7 @@ COUNTRY_LANG_MAP = {
 
 def get_hotel_local_lang(hotel: dict) -> str:
     """Vrátí kód lokálního jazyka hotelu dle země. Fallback: en."""
-    country = hotel.get("country", "").upper().strip()
+    country = (hotel.get("country") or "").upper().strip()
     return COUNTRY_LANG_MAP.get(country, "en")
 
 def get_flyer_lang_name(lang: str, in_lang: str = None) -> str:
@@ -1595,8 +1595,8 @@ async def register_hotel(req: RegistrationRequest, request: Request):
     # Ochrana proti duplicitní registraci — zkontroluj email
     email_lower = req.contact_email.lower().strip()
     existing = [(hid, h) for hid, h in db["hotels"].items()
-                if h.get("email","").lower().strip() == email_lower
-                or h.get("registration_email","").lower().strip() == email_lower]
+                if (h.get("email") or "").lower().strip() == email_lower
+                or (h.get("registration_email") or "").lower().strip() == email_lower]
 
     for hid_ex, h_ex in existing:
         if h_ex.get("subscription_active"):
@@ -1649,7 +1649,7 @@ async def register_hotel(req: RegistrationRequest, request: Request):
             contact_email_lower = req.contact_email.lower().strip()
             db_check = db_load()
             trial_already_used = any(
-                h.get("registration_email","").lower().strip() == contact_email_lower and
+                (h.get("registration_email") or "").lower().strip() == contact_email_lower and
                 h.get("trial_used", False)
                 for h in db_check["hotels"].values()
             )
@@ -1782,7 +1782,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
     # Zjisti jazyk emailu dle zeme hotelu
     db = db_load()
     hotel = db.get("hotels", {}).get(hotel_id, {})
-    country = hotel.get("country", "").upper()
+    country = (hotel.get("country") or "").upper()
     base_url = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app")
     widget_code = f'<script src="{base_url}/widget.js?hotel_id={hotel_id}"></script>'
     local_lang = COUNTRY_LANG_MAP.get(country, "en")
@@ -3235,11 +3235,11 @@ def download_invoice_pdf(invoice_id: str):
         c.setFillColor(colors.HexColor("#333333"))
         for label, value in [
             ("Hotel:", inv.get("hotel_name","")),
-            ("Datum:", inv.get("created_at","")[:10]),
+            ("Datum:", (inv.get("created_at") or "")[:10]),
             ("Období:", f"{inv.get('period_from','')} – {inv.get('period_to','')}"),
             ("Lůžka:", str(inv.get("beds",""))),
             ("Částka:", f"{inv.get('amount_eur',0)} EUR"),
-            ("Stav:", inv.get("status","").upper()),
+            ("Stav:", (inv.get("status") or "").upper()),
         ]:
             c.setFont("Helvetica-Bold", 11)
             c.drawString(20*mm, y, label)
@@ -3252,6 +3252,6 @@ def download_invoice_pdf(invoice_id: str):
         raise HTTPException(500, "reportlab není nainstalován")
     except Exception as e:
         raise HTTPException(500, f"Chyba PDF: {str(e)}")
-    safe_num = inv.get("invoice_number", invoice_id).replace("/", "-")
+    safe_num = (inv.get("invoice_number") or invoice_id).replace("/", "-")
     return StreamingResponse(BytesIO(pdf_bytes), media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="faktura-{safe_num}.pdf"'})
