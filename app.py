@@ -3493,7 +3493,6 @@ class PartnerRequest(BaseModel):
     email: Optional[str] = None
     referral_code: str
     ico: Optional[str] = None
-    commission_override: Optional[float] = None    # CZK, přepíše globální částku
     active: Optional[bool] = True
     note: Optional[str] = None
 
@@ -3537,7 +3536,6 @@ def create_partner(req: PartnerRequest):
     partner = {
         "id": pid, "name": req.name, "email": (req.email or "").strip(),
         "referral_code": ref, "ico": (req.ico or "").strip(),
-        "commission_override": req.commission_override,
         "active": True if req.active is None else bool(req.active),
         "note": req.note or "", "created_at": datetime.utcnow().isoformat(),
     }
@@ -3560,7 +3558,7 @@ def update_partner(partner_id: str, req: PartnerRequest):
     p = partners[partner_id]
     p.update({
         "name": req.name, "email": (req.email or "").strip(), "referral_code": ref,
-        "ico": (req.ico or "").strip(), "commission_override": req.commission_override,
+        "ico": (req.ico or "").strip(),
         "active": True if req.active is None else bool(req.active), "note": req.note or "",
     })
     db_save(db)
@@ -3588,9 +3586,7 @@ def _create_commission_if_eligible(db: dict, hotel_id: str):
     comms = db.setdefault("commissions", {})
     if any(c.get("hotel_id") == hotel_id for c in comms.values()):
         return  # jedna provize na hotel (jednorázový model)
-    partner = db.get("partners", {}).get(pid)
-    override = partner.get("commission_override") if partner else None
-    amount = float(override) if override not in (None, "") else float(s.get("commission_amount", 1500))
+    amount = float(s.get("commission_amount", 1500))
     cid = str(uuid.uuid4())
     comms[cid] = {
         "id": cid, "partner_id": pid, "hotel_id": hotel_id,
@@ -3681,12 +3677,8 @@ th{background:#faf8f4}
 </ol>
 <p class="tip">💡 Tlačítko „Kopírovat link" u partnera v adminu zkopíruje přesně tento odkaz — partner ho jen pošle hotelu.</p>
 
-<h2><span class="n">4</span>Kolik partner dostane — částka a „override"</h2>
-<table>
-<tr><th>Pojem</th><th>Význam</th></tr>
-<tr><td><strong>Globální částka</strong><br>(Nastavení provize)</td><td>Fixní částka v CZK, kterou dostane partner za každý přivedený hotel. Platí pro <strong>všechny</strong> partnery.</td></tr>
-<tr><td><strong>Override</strong><br>(u konkrétního partnera)</td><td><strong>Individuální částka, která přepíše globální</strong> — jen pro tohoto jednoho partnera. Např. klíčovému partnerovi dáš 2500 Kč místo globálních 1500 Kč. Necháš-li prázdné, použije se globální částka.</td></tr>
-</table>
+<h2><span class="n">4</span>Kolik partner dostane</h2>
+<p>V <strong>Nastavení provize</strong> zadáš jednu fixní částku v CZK, kterou dostane partner za každý přivedený hotel. Platí <strong>stejně pro všechny</strong> partnery.</p>
 
 <h2><span class="n">5</span>Kdy provize vznikne</h2>
 <p>Provize se vytvoří <strong>až po první SKUTEČNÉ platbě hotelu</strong> — tedy po skončení 14denního triálu, když hotel opravdu zaplatí. Za hotel, který jen prošel triálem a nezaplatil, provize <strong>nevzniká</strong>. Na jeden hotel připadá <strong>jedna</strong> provize.</p>

@@ -503,10 +503,9 @@
           <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Referral kód *</div><input type="text" id="pn-ref" style="width:130px" placeholder="JAN2026"></div>
           <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">E-mail</div><input type="text" id="pn-email" style="min-width:170px" placeholder="jan@example.com"></div>
           <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">IČO</div><input type="text" id="pn-ico" style="width:110px" placeholder="12345678"></div>
-          <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px" title="Individuální provize jen pro tohoto partnera — přepíše globální částku z Nastavení. Necháš-li prázdné, použije se globální.">Override (CZK) <span style="cursor:help">ⓘ</span></div><input type="number" id="pn-override" style="width:120px" placeholder="dle globálu" title="Individuální částka pro tohoto partnera (přepíše globální). Prázdné = globální."></div>
           <button class="btn btn-primary" onclick="addPartner()">+ Přidat partnera</button>
         </div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:12px">💡 <strong>Override</strong> = individuální provize pro konkrétního partnera, která přepíše globální částku. Klikni na řádek partnera pro rozbalení jeho provizí. <a href="/api/docs/commissions" target="_blank" rel="noopener" style="color:var(--accent)">Jak celé provize fungují →</a></div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px">💡 Klikni na řádek partnera pro rozbalení jeho provizí. <a href="/api/docs/commissions" target="_blank" rel="noopener" style="color:var(--accent)">Jak celé provize fungují →</a></div>
         <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Klikni na partnera pro rozbalení jeho provizí.</div>
         <div class="table-wrap">
           <table><thead><tr><th>Partner</th><th>Referral link</th><th>Hotely</th><th>Provize</th><th>Dluží se</th><th>Akce</th></tr></thead>
@@ -1456,7 +1455,7 @@ function renderPartners(){
     const pc=_commissions.filter(c=>c.partner_id===p.id);
     const commRows = pc.length ? pc.map(commissionRow).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:12px;font-size:12px">Zatím žádné provize (vzniknou po první platbě přivedeného hotelu).</td></tr>';
     return `<tr style="cursor:pointer" onclick="togglePartner('${p.id}')">
-    <td><span id="pchev-${p.id}" style="display:inline-block;transition:transform .15s;color:var(--muted)">▸</span> <strong>${esc(p.name)}</strong>${p.active?'':' <span style="color:var(--danger);font-size:11px">(neaktivní)</span>'}<div style="font-size:11px;color:var(--muted)">${esc(p.email||'')}${p.ico?' · IČO '+esc(p.ico):''}${p.commission_override?' · override '+p.commission_override+' Kč':''}</div></td>
+    <td><span id="pchev-${p.id}" style="display:inline-block;transition:transform .15s;color:var(--muted)">▸</span> <strong>${esc(p.name)}</strong>${p.active?'':' <span style="color:var(--danger);font-size:11px">(neaktivní)</span>'}<div style="font-size:11px;color:var(--muted)">${esc(p.email||'')}${p.ico?' · IČO '+esc(p.ico):''}</div></td>
     <td style="font-size:11px" onclick="event.stopPropagation()"><code>${esc(p.referral_code)}</code><br><button class="btn btn-secondary" style="padding:3px 8px;font-size:10px;margin-top:4px" onclick="navigator.clipboard.writeText('${link}').then(()=>toast('Link zkopírován'))">📋 Kopírovat link</button></td>
     <td>${st.hotels||0}</td>
     <td style="font-size:11px">⏳${st.pending||0} ✅${st.approved||0} 💸${st.paid||0}</td>
@@ -1476,11 +1475,10 @@ async function addPartner(){
   const ref=document.getElementById('pn-ref').value.trim();
   if(!name||!ref){toast('Jméno a referral kód jsou povinné','err');return;}
   const body={name,referral_code:ref,email:document.getElementById('pn-email').value.trim()||null,
-    ico:document.getElementById('pn-ico').value.trim()||null,
-    commission_override:parseFloat(document.getElementById('pn-override').value)||null};
+    ico:document.getElementById('pn-ico').value.trim()||null};
   try{ const r=await fetch(API+'/api/partners',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const d=await r.json(); if(!r.ok)throw new Error(d.detail||('HTTP '+r.status));
-    toast('✅ Partner přidán'); ['pn-name','pn-ref','pn-email','pn-ico','pn-override'].forEach(i=>document.getElementById(i).value='');
+    toast('✅ Partner přidán'); ['pn-name','pn-ref','pn-email','pn-ico'].forEach(i=>document.getElementById(i).value='');
     await loadPartners(); renderPartners(); }catch(e){toast('Chyba: '+e.message,'err');}
 }
 async function deletePartner(id,name){

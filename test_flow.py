@@ -1150,7 +1150,7 @@ def test_commissions():
     pid = None
     try:
         r = requests.post(f"{BASE}/api/partners",
-                          json={"name": "E2E Partner", "referral_code": ref, "email": "e2e@test.com", "commission_override": 2000}, timeout=10)
+                          json={"name": "E2E Partner", "referral_code": ref, "email": "e2e@test.com"}, timeout=10)
         d = r.json()
         if r.status_code == 200 and d.get("partner", {}).get("id"):
             pid = d["partner"]["id"]
