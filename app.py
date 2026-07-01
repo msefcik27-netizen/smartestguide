@@ -929,8 +929,17 @@ def delete_hotel(hotel_id: str):
     if hotel_id not in db["hotels"]:
         raise HTTPException(404, "Hotel nenalezen")
     del db["hotels"][hotel_id]
+    # Odstraň i navázané faktury a provize, ať nezůstávají osiřelé v DB
+    inv_removed = 0
+    if isinstance(db.get("invoices"), dict):
+        for iid in [k for k, v in db["invoices"].items() if v.get("hotel_id") == hotel_id]:
+            del db["invoices"][iid]; inv_removed += 1
+    com_removed = 0
+    if isinstance(db.get("commissions"), dict):
+        for cid in [k for k, v in db["commissions"].items() if v.get("hotel_id") == hotel_id]:
+            del db["commissions"][cid]; com_removed += 1
     db_save(db)
-    return {"status": "ok"}
+    return {"status": "ok", "invoices_removed": inv_removed, "commissions_removed": com_removed}
 
 # ─────────────────────────────────────────────
 # Helper – detekce base URL (lokál i Railway)
@@ -1132,12 +1141,12 @@ body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height
     <div class="hub-hotel">{hotel_name}</div>
     <div class="hub-title">{hub_title}</div>
     {f'<a href="{portal_url}" style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:rgba(255,107,0,.1);border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;color:#FF6B00;text-decoration:none;transition:opacity .15s" onmouseover="this.style.opacity=.8" onmouseout="this.style.opacity=1">⚙️ {portal_label}</a>' if portal_url else ''}
-    <div style="margin-top:16px;font-size:12px;color:#e8e8f0;font-weight:700;margin-bottom:7px">🎨 Vyberte vzhled letáku:</div>
-    <div style="display:inline-flex;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);border-radius:10px;padding:4px;gap:4px">
+    <div style="margin-top:16px;font-size:12px;color:#1a1a1a;font-weight:700;margin-bottom:7px">🎨 Vyberte vzhled letáku:</div>
+    <div style="display:inline-flex;background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.15);border-radius:10px;padding:4px;gap:4px">
       <button id="theme-dark" onclick="setFlyerTheme('dark')" style="border:1px solid transparent;background:#FF6B00;color:#0a0b0f;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">🌙 Tmavá</button>
-      <button id="theme-light" onclick="setFlyerTheme('light')" style="border:1px solid rgba(255,107,0,.55);background:transparent;color:#ffffff;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">📄 Print-friendly</button>
+      <button id="theme-light" onclick="setFlyerTheme('light')" style="border:1px solid rgba(255,107,0,.55);background:transparent;color:#1a1a1a;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">📄 Print-friendly</button>
     </div>
-    <div style="margin-top:8px;font-size:11px;color:#b8bcd8">🌙 Tmavá = ideální pro PDF &nbsp;·&nbsp; 📄 <b style="color:#ff8a3d">Print-friendly</b> (světlá) šetří inkoust při tisku na papír</div>
+    <div style="margin-top:8px;font-size:11px;color:#333333">🌙 Tmavá = ideální pro PDF &nbsp;·&nbsp; 📄 <b style="color:#d95700">Print-friendly</b> (světlá) šetří inkoust při tisku na papír</div>
   </div>
 
   <div class="formats">
@@ -1273,8 +1282,8 @@ window._flyerTheme='dark';
 function setFlyerTheme(t){{
   window._flyerTheme=t;
   var d=document.getElementById('theme-dark'), l=document.getElementById('theme-light');
-  if(d){{ d.style.background = t==='dark'?'#FF6B00':'transparent'; d.style.color = t==='dark'?'#0a0b0f':'#ffffff'; d.style.borderColor = t==='dark'?'transparent':'rgba(255,107,0,.55)'; }}
-  if(l){{ l.style.background = t==='light'?'#FF6B00':'transparent'; l.style.color = t==='light'?'#0a0b0f':'#ffffff'; l.style.borderColor = t==='light'?'transparent':'rgba(255,107,0,.55)'; }}
+  if(d){{ d.style.background = t==='dark'?'#FF6B00':'transparent'; d.style.color = t==='dark'?'#0a0b0f':'#1a1a1a'; d.style.borderColor = t==='dark'?'transparent':'rgba(255,107,0,.55)'; }}
+  if(l){{ l.style.background = t==='light'?'#FF6B00':'transparent'; l.style.color = t==='light'?'#0a0b0f':'#1a1a1a'; l.style.borderColor = t==='light'?'transparent':'rgba(255,107,0,.55)'; }}
 }}
 </script>
 </body>
@@ -1930,6 +1939,144 @@ def success_page(hotel_id: str = "", request: Request = None):
 </body></html>"""
 
 
+def _build_invoice_pdf_bytes(inv: dict, s: dict) -> bytes:
+    """Vygeneruje PDF faktury jako bytes — sdílené endpointem i e-mailem."""
+    from io import BytesIO
+    from reportlab.pdfgen import canvas as rl_canvas
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    W, H = A4
+    buf = BytesIO()
+    c = rl_canvas.Canvas(buf, pagesize=A4)
+    PURPLE = colors.HexColor("#6c63ff")
+    c.setFillColor(PURPLE)
+    c.rect(0, H - 50*mm, W, 50*mm, fill=1, stroke=0)
+    c.setFillColor(colors.white)
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(20*mm, H - 18*mm, "SMARTEST GUIDE")
+    c.setFont("Helvetica-Bold", 24)
+    c.drawRightString(W - 20*mm, H - 18*mm, "FAKTURA")
+    c.setFont("Helvetica", 11)
+    c.drawRightString(W - 20*mm, H - 26*mm, inv.get("invoice_number", ""))
+    y = H - 65*mm
+    c.setFillColor(colors.HexColor("#333333"))
+    net = inv.get("amount_net", inv.get("amount_eur", 0))
+    vat_rate = inv.get("vat_rate", 0)
+    vat_amount = inv.get("vat_amount", 0)
+    total = inv.get("amount_total", inv.get("amount_local", net))
+    rows = [
+        ("Dodavatel:", s.get("company_name", "SMARTEST GUIDE")),
+        ("  ICO / DIC:", f"{s.get('company_ico','')}  {s.get('company_dic','')}".strip()),
+        ("Odberatel:", inv.get("hotel_billing_name") or inv.get("hotel_name", "")),
+    ]
+    if inv.get("hotel_ico"):
+        rows.append(("  ICO:", inv.get("hotel_ico", "")))
+    if inv.get("hotel_dic"):
+        rows.append(("  DIC:", inv.get("hotel_dic", "")))
+    if inv.get("hotel_country"):
+        rows.append(("  Zeme:", inv.get("hotel_country", "")))
+    rows += [
+        ("Datum:", (inv.get("created_at") or "")[:10]),
+        ("Splatnost:", inv.get("due_date", "")),
+        ("VS:", inv.get("variable_symbol", "")),
+        ("Obdobi:", f"{inv.get('period_from','')} - {inv.get('period_to','')}"),
+        ("Luzka:", str(inv.get("beds", ""))),
+        ("Zaklad:", f"{net} EUR"),
+    ]
+    if vat_rate:
+        rows.append((f"DPH {vat_rate}%:", f"{vat_amount} EUR"))
+    rows += [
+        ("Celkem k uhrade:", f"{total} EUR"),
+        ("Stav:", (inv.get("status") or "").upper()),
+    ]
+    for label, value in rows:
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(20*mm, y, label)
+        c.setFont("Helvetica", 11)
+        c.drawString(70*mm, y, value)
+        y -= 8*mm
+    if inv.get("vat_note"):
+        c.setFont("Helvetica-Oblique", 9)
+        c.setFillColor(colors.HexColor("#666666"))
+        c.drawString(20*mm, y - 2*mm, inv.get("vat_note", ""))
+    c.save()
+    return buf.getvalue()
+
+
+async def send_invoice_email(hotel: dict, inv: dict, portal_url: str = ""):
+    """Po zaplaceni posle hotelu fakturu (PDF v priloze) pres Brevo."""
+    brevo_key = os.getenv("BREVO_API_KEY", "")
+    hotel_email = (hotel.get("email") or "").strip()
+    if not brevo_key or not hotel_email:
+        logging.warning("Faktura e-mail preskocen (chybi BREVO_API_KEY nebo e-mail hotelu)")
+        return
+    s = db_get_settings()
+    is_cs = (hotel.get("country") or "").upper() in ("CZ", "SK")
+    hotel_name = hotel.get("name", "Hotel")
+    num = inv.get("invoice_number", "")
+    total = inv.get("amount_total", inv.get("amount_local", inv.get("amount_eur", 0)))
+    portal_btn = (f'<div style="text-align:center;margin:24px 0"><a href="{portal_url}" '
+                  f'style="display:inline-block;background:#FF6B00;color:#0a0b0f;text-decoration:none;'
+                  f'padding:12px 28px;border-radius:8px;font-weight:700">'
+                  f'{"Otevřít hotelový portál →" if is_cs else "Open hotel portal →"}</a></div>') if portal_url else ""
+    header = ('<div style="background:#1a1a1a;padding:28px;text-align:center;border-radius:12px 12px 0 0;'
+              'border-bottom:3px solid #FF6B00"><h1 style="color:#fff;margin:0;font-size:24px;letter-spacing:.5px">'
+              'SMARTEST GUIDE</h1></div>')
+    if is_cs:
+        subject = f"Faktura {num} — SMARTEST GUIDE"
+        body = (f'<h2 style="color:#1a1a2e;margin-bottom:8px">Děkujeme za platbu</h2>'
+                f'<p style="color:#555;line-height:1.7">Vaše platba za předplatné proběhla úspěšně. '
+                f'V příloze najdete fakturu <strong>{num}</strong> na částku <strong>{total} EUR</strong>.</p>'
+                f'<p style="color:#555;line-height:1.7">Všechny faktury najdete také v hotelovém portálu '
+                f'v sekci <strong>Faktury</strong>, kde je můžete kdykoli stáhnout.</p>{portal_btn}'
+                f'<p style="color:#888;font-size:12px;text-align:center;margin-top:20px">Dotazy? '
+                f'<a href="mailto:admin@smartestguide.com" style="color:#FF6B00">admin@smartestguide.com</a></p>')
+        text_body = f"Dekujeme za platbu. Faktura {num} na {total} EUR je v priloze. Portal: {portal_url}"
+    else:
+        subject = f"Invoice {num} — SMARTEST GUIDE"
+        body = (f'<h2 style="color:#1a1a2e;margin-bottom:8px">Thank you for your payment</h2>'
+                f'<p style="color:#555;line-height:1.7">Your subscription payment was successful. '
+                f'Please find invoice <strong>{num}</strong> for <strong>{total} EUR</strong> attached.</p>'
+                f'<p style="color:#555;line-height:1.7">You can also find all invoices in your hotel portal '
+                f'under <strong>Invoices</strong>, ready to download anytime.</p>{portal_btn}'
+                f'<p style="color:#888;font-size:12px;text-align:center;margin-top:20px">Questions? '
+                f'<a href="mailto:admin@smartestguide.com" style="color:#FF6B00">admin@smartestguide.com</a></p>')
+        text_body = f"Thank you for your payment. Invoice {num} for {total} EUR is attached. Portal: {portal_url}"
+    html_body = (f'<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a2e">{header}'
+                 f'<div style="background:#f8f9ff;padding:32px;border-radius:0 0 12px 12px">{body}</div></div>')
+    attachments = []
+    try:
+        pdf_bytes = _build_invoice_pdf_bytes(inv, s)
+        pdf_b64 = base64.b64encode(pdf_bytes).decode()
+        safe_num = (num or inv.get("id", "faktura")).replace("/", "-")
+        attachments.append({"name": f"faktura-{safe_num}.pdf", "content": pdf_b64})
+    except Exception as e:
+        logging.error(f"Nepodarilo se vygenerovat PDF faktury pro e-mail: {e}")
+    cc_email = s.get("cc_email", "")
+    cc_emails = [{"email": cc_email}] if cc_email else []
+    payload = {
+        "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
+        "to": [{"email": hotel_email, "name": hotel_name}],
+        "cc": cc_emails,
+        "subject": subject,
+        "htmlContent": html_body,
+        "textContent": text_body,
+        "attachment": attachments,
+    }
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            r = await client.post("https://api.brevo.com/v3/smtp/email", json=payload,
+                headers={"api-key": brevo_key, "Content-Type": "application/json"}, timeout=30)
+            if r.status_code in (200, 201):
+                logging.info(f"Faktura e-mail OK -> {hotel_email}, {num}")
+            else:
+                logging.error(f"Brevo faktura CHYBA {r.status_code}: {r.text[:300]}")
+    except Exception as e:
+        logging.error(f"Chyba pri odesilani faktury e-mailem: {e}")
+
+
 async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str, hotel_email: str):
     """Posle onboarding email hotelu po uspesne platbe pres Brevo API.
     Jazyk emailu se urcuje dle zeme hotelu (CZ/SK = cestina, ostatni = anglictina).
@@ -2300,6 +2447,14 @@ async def stripe_webhook(request: Request):
                     try:
                         inv = _create_invoice_record(db, hotel_id, db["hotels"][hotel_id])
                         logging.info("Auto-faktura %s vytvořena pro hotel %s", inv.get("invoice_number"), hotel_id)
+                        # Pošli fakturu hotelu e-mailem (PDF v příloze)
+                        _h = db["hotels"][hotel_id]
+                        if not _h.get("hotel_token"):
+                            import uuid as _uuid
+                            _h["hotel_token"] = str(_uuid.uuid4()).replace("-", "")
+                        _base = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app")
+                        _purl = f"{_base}/hotel?token={_h['hotel_token']}"
+                        asyncio.create_task(send_invoice_email(_h, inv, _purl))
                     except Exception as e:
                         logging.warning("Auto-faktura selhala pro hotel %s: %s", hotel_id, e)
 
@@ -3736,6 +3891,28 @@ def list_invoices():
     invoices.sort(key=lambda x: x.get("created_at", ""), reverse=True)
     return {"status": "ok", "invoices": invoices}
 
+def _is_test_invoice_record(inv: dict, hotels: dict) -> bool:
+    """Faktura z E2E testů (název hotelu 'E2E …' / 'NullCountry') nebo osiřelá (hotel už neexistuje)."""
+    name = (inv.get("hotel_name") or "").strip().upper()
+    if name.startswith("E2E") or "NULLCOUNTRY" in name:
+        return True
+    hid = inv.get("hotel_id")
+    if hid and hid not in hotels:  # osiřelá faktura po smazaném hotelu
+        return True
+    return False
+
+@app.post("/api/invoices/cleanup-test")
+def cleanup_test_invoices():
+    """Jednorázový úklid — smaže faktury testovacích a smazaných hotelů. Spouští uživatel z administrace."""
+    db = db_load()
+    invoices = db.get("invoices", {})
+    hotels = db.get("hotels", {})
+    to_del = [iid for iid, inv in invoices.items() if _is_test_invoice_record(inv, hotels)]
+    for iid in to_del:
+        del invoices[iid]
+    db_save(db)
+    return {"status": "ok", "removed": len(to_del), "remaining": len(invoices)}
+
 _EU_COUNTRIES = {"AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE",
                  "IT","LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE"}
 
@@ -3860,7 +4037,7 @@ def download_invoice_pdf(invoice_id: str):
         c.rect(0, H - 50*mm, W, 50*mm, fill=1, stroke=0)
         c.setFillColor(colors.white)
         c.setFont("Helvetica-Bold", 20)
-        c.drawString(20*mm, H - 18*mm, "SmartestGuide")
+        c.drawString(20*mm, H - 18*mm, "SMARTEST GUIDE")
         c.setFont("Helvetica-Bold", 24)
         c.drawRightString(W - 20*mm, H - 18*mm, "FAKTURA")
         c.setFont("Helvetica", 11)
