@@ -322,6 +322,71 @@ async def _no_cache_html(request, call_next):
         response.headers["Expires"] = "0"
     return response
 
+# ── Zabezpečení administrace ─────────────────────────────────
+# Admin UI (shell) je veřejný, ale admin DATA/API jsou za heslem (cookie).
+# Veřejné zůstává: guest, portál (token), registrace, webhook, QR/letáky, faktura PDF (token).
+_ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "").strip()
+_ADMIN_SALT = "sg-admin-v1"
+_ADMIN_TOKEN = hashlib.sha256((_ADMIN_PASSWORD + _ADMIN_SALT).encode()).hexdigest() if _ADMIN_PASSWORD else ""
+if not _ADMIN_PASSWORD:
+    logging.warning("⚠️  ADMIN_PASSWORD není nastaveno — ADMINISTRACE NENÍ ZABEZPEČENA! Nastav env ADMIN_PASSWORD.")
+
+def _is_public_api(path: str) -> bool:
+    if path in ("/api/version", "/api/pricing"):
+        return True
+    for p in ("/api/guest/", "/api/hotel-portal/", "/api/app-icon/", "/api/docs/",
+              "/api/ares/", "/api/stripe/", "/api/register", "/api/admin/"):
+        if path.startswith(p):
+            return True
+    if path.startswith("/api/hotels/"):
+        for s in ("/qr", "/qr-poster", "/qr-poster-print", "/manifest.webmanifest",
+                  "/rollup", "/flyer", "/flyer-en", "/flyer-cz", "/flyer-local",
+                  "/flyer-a5-en", "/flyer-a5-cz", "/flyer-a5-local"):
+            if path.endswith(s):
+                return True
+    if path.startswith("/api/invoices/") and path.endswith("/pdf"):
+        return True  # faktura PDF si hlídá token/admin sama v endpointu
+    return False
+
+@app.middleware("http")
+async def _admin_gate(request, call_next):
+    if _ADMIN_TOKEN and request.method != "OPTIONS":
+        p = request.url.path
+        if p.startswith("/api/") and not _is_public_api(p):
+            if request.cookies.get("sg_admin", "") != _ADMIN_TOKEN:
+                from fastapi.responses import JSONResponse
+                return JSONResponse({"detail": "Neautorizováno — přihlaste se do administrace."}, status_code=401)
+    return await call_next(request)
+
+@app.post("/api/admin/login")
+async def admin_login(request: Request):
+    from fastapi.responses import JSONResponse
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    pw = (body.get("password") or "").strip()
+    if not _ADMIN_PASSWORD:
+        return JSONResponse({"ok": True, "unprotected": True})
+    if pw and hashlib.sha256((pw + _ADMIN_SALT).encode()).hexdigest() == _ADMIN_TOKEN:
+        resp = JSONResponse({"ok": True})
+        resp.set_cookie("sg_admin", _ADMIN_TOKEN, httponly=True, secure=True,
+                        samesite="lax", max_age=60 * 60 * 24 * 30)
+        return resp
+    return JSONResponse({"detail": "Špatné heslo"}, status_code=401)
+
+@app.post("/api/admin/logout")
+async def admin_logout():
+    from fastapi.responses import JSONResponse
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie("sg_admin")
+    return resp
+
+@app.get("/api/admin/status")
+async def admin_status(request: Request):
+    return {"protected": bool(_ADMIN_TOKEN),
+            "authed": (not _ADMIN_TOKEN) or request.cookies.get("sg_admin", "") == _ADMIN_TOKEN}
+
 # ─────────────────────────────────────────────
 # Lokální JSON databáze
 # ─────────────────────────────────────────────
@@ -4243,18 +4308,20 @@ def update_invoice_status(invoice_id: str, status: str):
     return {"status": "ok", "invoice": db["invoices"][invoice_id]}
 
 @app.get("/api/invoices/{invoice_id}/pdf")
-def download_invoice_pdf(invoice_id: str, token: str = ""):
+def download_invoice_pdf(invoice_id: str, request: Request, token: str = ""):
     from io import BytesIO
     from fastapi.responses import StreamingResponse
     db = db_load()
     if "invoices" not in db or invoice_id not in db["invoices"]:
         raise HTTPException(404, "Faktura nenalezena")
     inv = db["invoices"][invoice_id]
-    # Když stahuje hotel z portálu (token), ověř, že faktura patří jemu
+    # Přístup: buď hotel z portálu (platný token na svou fakturu), nebo přihlášený admin
     if token:
         h = find_hotel_by_token(token)
         if not h or inv.get("hotel_id") != h.get("id"):
             raise HTTPException(403, "Neplatny token pro tuto fakturu")
+    elif _ADMIN_TOKEN and request.cookies.get("sg_admin", "") != _ADMIN_TOKEN:
+        raise HTTPException(403, "Neautorizováno")
     s = db_get_settings()
     try:
         pdf_bytes = _build_invoice_pdf_bytes(inv, s)
