@@ -497,7 +497,7 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
         <p id="contact-p">We're a small team and we respond to every message personally. Usually within a few hours during business days.</p>
         <div class="contact-item"><div class="c-icon">✉️</div><div class="c-text"><a href="mailto:hello@smartestguide.com">hello@smartestguide.com</a></div></div>
         <div class="contact-item"><div class="c-icon">💬</div><div class="c-text">WhatsApp: <a href="#">+420 XXX XXX XXX</a></div></div>
-        <div class="contact-item"><div class="c-icon">📍</div><div class="c-text">Prague, Czech Republic</div></div>
+        <div class="contact-item"><div class="c-icon">📍</div><div class="c-text" id="contact-loc">Prague, Czech Republic</div></div>
       </div>
       <div>
         <form class="contact-form" onsubmit="submitContact(event)">
@@ -719,7 +719,7 @@ const TRANSLATIONS={
     about_p3:"You also \"train\" Alex to become truly SMARTEST. You set it up in a single day, and you decide how great it becomes — it's in your hands, so make the most of it. We're a team from Prague that built a system to save you time and give your guests a better stay.",
     satis_title:"Guest satisfaction drivers",
     m1:"Fast answers",m2:"Language match",m3:"24/7 availability",m4:"No-app experience",m5:"Setup time",
-    c_name:"Your name",c_email:"Email",c_msg:"Message",c_send:"Send message →",
+    c_name:"Your name",c_email:"Email",c_msg:"Message",c_send:"Send message →",c_location:"Prague, Czech Republic",
     c_ph_name:"John Smith",c_ph_email:"john@hotel.com",c_ph_msg:"Tell us about your hotel or ask a question…",
     price_incl_title:"Everything included",
     pf1:"AI concierge in 16 languages",pf2:"Voice control",pf3:"Live weather & local tips",pf4:"QR poster & flyers (print-ready PDF)",pf5:"Hotel management portal",pf6:"Monthly invoice PDF",
@@ -777,7 +777,7 @@ const TRANSLATIONS={
     about_p3:"Alexe si navíc „vychováte“ a uděláte z ní opravdu SMARTEST. Zaškolíte ji během jednoho dne a vy sami ovlivňujete, jak skvělá bude — máte to ve svých rukou, využijte to. Jsme tým z Prahy, který pro vás vytvořil systém, který vám ušetří čas a vašim hostům zpříjemní pobyt.",
     satis_title:"Co zvyšuje spokojenost hostů",
     m1:"Rychlé odpovědi",m2:"Shoda jazyka",m3:"Dostupnost 24/7",m4:"Bez aplikace",m5:"Doba nasazení",
-    c_name:"Vaše jméno",c_email:"E-mail",c_msg:"Zpráva",c_send:"Odeslat zprávu →",
+    c_name:"Vaše jméno",c_email:"E-mail",c_msg:"Zpráva",c_send:"Odeslat zprávu →",c_location:"Praha, Česká republika",
     c_ph_name:"Jan Novák",c_ph_email:"jan@hotel.cz",c_ph_msg:"Napište nám o svém hotelu nebo se zeptejte…",
     price_incl_title:"Vše v ceně",
     pf1:"AI concierge v 16 jazycích",pf2:"Hlasové ovládání",pf3:"Počasí naživo a místní tipy",pf4:"QR plakát a letáky (PDF k tisku)",pf5:"Portál pro správu hotelu",pf6:"Měsíční faktura (PDF)",
@@ -1027,7 +1027,7 @@ function setLang(lang){
   setText('about-p1',FT('about_p1'));setText('about-p2',FT('about_p2'));setText('about-p3',FT('about_p3'));
   setText('satis-title',FT('satis_title'));
   for(let i=1;i<=4;i++){setText('m'+i,FT('m'+i));}
-  setText('c-l-name',FT('c_name'));setText('c-l-email',FT('c_email'));setText('c-l-msg',FT('c_msg'));setText('c-send',FT('c_send'));
+  setText('c-l-name',FT('c_name'));setText('c-l-email',FT('c_email'));setText('c-l-msg',FT('c_msg'));setText('c-send',FT('c_send'));setText('contact-loc',FT('c_location'));
   const setPh=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null)el.placeholder=v;};
   setPh('c-in-name',FT('c_ph_name'));setPh('c-in-email',FT('c_ph_email'));setPh('c-in-msg',FT('c_ph_msg'));
   // Ceníková kalkulačka + „vše v ceně"
