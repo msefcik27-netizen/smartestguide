@@ -207,21 +207,7 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app):
-    # Firemní údaje dodavatele NA TVRDO — na Railway se data.json při deployi resetuje,
-    # takže je při startu vždy vynutíme (bez diakritiky, faktura běží na Helvetice).
-    # Bank/IBAN se doplní později. DIČ prázdné — nejsme plátci DPH.
-    try:
-        db_save_settings({
-            "company_name": "SmartestGuide.com s.r.o.",
-            "company_address": "Korunni 2569/108",
-            "company_city": "Prague",
-            "company_ico": "23112905",
-            "company_dic": "",
-            "company_email": "admin@smartestguide.com",
-            "company_vat_payer": False,
-        })
-    except Exception as e:
-        logging.warning("Seed firemnich udaju selhal: %s", e)
+    # Firemní údaje dodavatele jsou na tvrdo v db_get_settings (přebijí data.json).
     task = asyncio.create_task(_reminder_background_loop())
     yield
     task.cancel()
@@ -273,8 +259,21 @@ def db_save(data: dict):
     with open(DB_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+# Firemní údaje dodavatele NA TVRDO — přebijí cokoli v data.json (reset při deployi
+# na Railway). Bez diakritiky (faktura běží na Helvetice). Bank/IBAN se doplní později.
+_COMPANY_HARDCODED = {
+    "company_name": "SmartestGuide.com s.r.o.",
+    "company_address": "Korunni 2569/108",
+    "company_city": "Prague",
+    "company_ico": "23112905",
+    "company_dic": "",
+    "company_email": "admin@smartestguide.com",
+    "company_vat_payer": False,
+}
+
 def db_get_settings() -> dict:
-    return db_load().get("settings", {})
+    # Firemní údaje se vždy vynutí na tvrdo přes to, co je uložené.
+    return {**db_load().get("settings", {}), **_COMPANY_HARDCODED}
 
 def db_save_settings(s: dict):
     data = db_load()
