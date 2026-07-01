@@ -331,6 +331,33 @@ _ADMIN_TOKEN = hashlib.sha256((_ADMIN_PASSWORD + _ADMIN_SALT).encode()).hexdiges
 if not _ADMIN_PASSWORD:
     logging.warning("⚠️  ADMIN_PASSWORD není nastaveno — ADMINISTRACE NENÍ ZABEZPEČENA! Nastav env ADMIN_PASSWORD.")
 
+# ── Rate limiting (in-memory) proti abuse a nákladům na Anthropic API ──
+_RL_WINDOW = 60          # okno v sekundách
+_RL_MAX_PER_MIN = 15     # max zpráv/min na IP (host)
+_rl_hits = {}
+
+def _client_ip(request) -> str:
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+def _rate_limit_ok(key: str, max_hits: int = _RL_MAX_PER_MIN, window: int = _RL_WINDOW) -> bool:
+    now = _time.time()
+    lst = _rl_hits.get(key)
+    if lst is None:
+        if len(_rl_hits) > 20000:   # hrubá pojistka proti růstu paměti
+            _rl_hits.clear()
+        lst = []
+        _rl_hits[key] = lst
+    cutoff = now - window
+    while lst and lst[0] < cutoff:
+        lst.pop(0)
+    if len(lst) >= max_hits:
+        return False
+    lst.append(now)
+    return True
+
 def _is_public_api(path: str) -> bool:
     if path in ("/api/version", "/api/pricing"):
         return True
@@ -3369,8 +3396,11 @@ class GuestChatRequest(BaseModel):
     auto_lang: Optional[bool] = True
 
 @app.post("/api/guest/chat")
-async def guest_chat(req: GuestChatRequest):
+async def guest_chat(req: GuestChatRequest, request: Request):
     """AI chat pro hosta – používá Anthropic API."""
+    # Rate limit na IP — brání spamu chatu a nekontrolovaným nákladům na API
+    if not _rate_limit_ok("chat:" + _client_ip(request)):
+        raise HTTPException(429, "Příliš mnoho dotazů. Zkuste to prosím za chvíli.")
     settings = db_get_settings()
     api_key = settings.get("anthropic_api_key", "")
     if not api_key:
@@ -3507,8 +3537,10 @@ class TranslateMenuRequest(BaseModel):
     guest_name: Optional[str] = None
 
 @app.post("/api/guest/translate-menu")
-async def translate_menu(req: TranslateMenuRequest):
+async def translate_menu(req: TranslateMenuRequest, request: Request):
     """Přeloží foto menu pomocí Claude Vision."""
+    if not _rate_limit_ok("menu:" + _client_ip(request), max_hits=8):
+        raise HTTPException(429, "Příliš mnoho požadavků. Zkuste to prosím za chvíli.")
     settings = db_get_settings()
     api_key = settings.get("anthropic_api_key", "")
     if not api_key:
