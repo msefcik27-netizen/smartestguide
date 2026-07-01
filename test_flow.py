@@ -219,9 +219,9 @@ def test_hotels():
             lambda r: r.status_code == 200 and r.json().get("hotel", {}).get("active_offer") == "Dnes sleva 20% na wellness do 20:00"
         ),
         (
-            lambda: requests.post(f"{BASE}/api/hotels/{hotel_id}/send-reminder", timeout=15),
-            "Reminder email odeslán (Brevo)",
-            lambda r: r.status_code == 200 and r.json().get("status") == "ok" and "note" not in r.json()
+            lambda: requests.post(f"{BASE}/api/hotels/{hotel_id}/send-reminder?dry_run=1", timeout=15),
+            "Reminder endpoint OK (dry-run, bez odeslání)",
+            lambda r: r.status_code == 200 and r.json().get("status") == "ok" and r.json().get("dry_run") is True
         ),
     ]:
         try:
@@ -1094,13 +1094,10 @@ def test_local_flyres(hotel_id):
 def test_reminder_email(hotel_id):
     section("18. Reminder email")
     try:
-        r = requests.post(f"{BASE}/api/hotels/{hotel_id}/send-reminder", timeout=15)
+        r = requests.post(f"{BASE}/api/hotels/{hotel_id}/send-reminder?dry_run=1", timeout=15)
         d = r.json()
-        if r.status_code == 200 and d.get("status") == "ok":
-            if "note" in d:
-                fail("Reminder email — stále placeholder", f"note: {d['note']}")
-            else:
-                ok("Reminder email odeslán (Brevo)", f"na: {d.get('email_to','?')}")
+        if r.status_code == 200 and d.get("status") == "ok" and d.get("dry_run") is True:
+            ok("Reminder endpoint OK (dry-run, bez odeslání)", f"na: {d.get('email_to','?')}")
         else:
             fail("Reminder email", f"status {r.status_code}, {str(d)[:80]}")
     except Exception as e:

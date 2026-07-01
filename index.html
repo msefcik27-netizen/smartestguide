@@ -1585,15 +1585,27 @@ function renderBillingTable(invs){
     tb.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">${msg}</td></tr>`;
     return;
   }
-  const statusLabel={issued:'⏳ Vystavena',paid:'✅ Zaplacena',cancelled:'✕ Stornována'};
-  const statusClass={issued:'badge-orange',paid:'badge-green',cancelled:'badge-gray'};
+  const statusLabel={issued:'⏳ Vystavena',paid:'✅ Zaplacena',cancelled:'✕ Stornována',trial:'🎁 Trial'};
+  const statusClass={issued:'badge-orange',paid:'badge-green',cancelled:'badge-gray',trial:'badge-gray'};
+  // Živý odpočet dní do první platby (počítá se při každém zobrazení)
+  const daysLeft=(d)=>{ if(!d) return null; const ms=new Date(d+'T00:00:00')-new Date(); return Math.ceil(ms/86400000); };
+  const trialText=(inv)=>{ const n=daysLeft(inv.payment_due);
+    const t = n==null?'čeká na platbu' : n>1?`platba za ${n} dní` : n===1?'platba zítra' : n===0?'platba dnes' : 'čeká na platbu';
+    const dt = inv.payment_due?(' · '+inv.payment_due.split('-').reverse().join('.')):'';
+    return t+dt; };
+  const statusCell=(inv)=> inv.status==='trial'
+    ? `<span class="badge badge-gray">🎁 Trial</span><span style="display:block;font-size:11px;color:var(--warn);margin-top:2px">${trialText(inv)}</span>`
+    : `<span class="badge ${statusClass[inv.status]||'badge-gray'}">${statusLabel[inv.status]||inv.status}</span>`;
+  const amountCell=(inv)=> inv.status==='trial'
+    ? `<strong>0 €</strong><span style="font-size:11px;color:var(--muted);display:block">pak ${inv.future_amount_total||inv.future_amount_net||''} €</span>`
+    : `<strong>${inv.amount_local} ${inv.currency_symbol||''}</strong>${inv.currency_code!=='EUR'?`<span style="font-size:11px;color:var(--muted);display:block">${inv.amount_eur} EUR</span>`:''}`;
   tb.innerHTML=invs.map(inv=>`<tr>
     <td style="font-family:monospace;font-size:12px">${esc(inv.invoice_number)}</td>
     <td><strong>${esc(inv.hotel_name||'–')}</strong></td>
     <td style="font-size:12px;color:var(--muted)">${inv.period_from?inv.period_from.slice(0,7):'–'}</td>
-    <td><strong>${inv.amount_local} ${inv.currency_symbol||''}</strong>${inv.currency_code!=='EUR'?`<span style="font-size:11px;color:var(--muted);display:block">${inv.amount_eur} EUR</span>`:''}</td>
+    <td>${amountCell(inv)}</td>
     <td style="font-size:12px">${inv.currency_code||'EUR'}</td>
-    <td><span class="badge ${statusClass[inv.status]||'badge-gray'}">${statusLabel[inv.status]||inv.status}</span></td>
+    <td>${statusCell(inv)}</td>
     <td style="display:flex;gap:6px">
       <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px" onclick="downloadInvoicePdf('${inv.id}')">PDF</button>
       ${inv.status==='issued'?`<button class="btn btn-success" style="padding:5px 10px;font-size:11px" onclick="markPaid('${inv.id}')">✓ Zaplaceno</button>`:''}

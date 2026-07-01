@@ -91,6 +91,10 @@ async def _check_and_send_reminders():
             if not h.get("subscription_active"):
                 continue
 
+            # Přeskoč testovací (E2E) hotely — ať CI/testy nespamují reminder e-maily
+            if (h.get("name") or "").strip().upper().startswith("E2E"):
+                continue
+
             # Completeness skóre
             completeness = hotel_profile_completeness(h)
             score = completeness.get("score", 100)
@@ -881,8 +885,9 @@ def hotel_portal_invoices(token: str):
     if not h:
         raise HTTPException(403, "Neplatny token")
     db = db_load()
+    # Portál hotelu ukazuje jen reálné faktury — trial (nulový) záznam je jen pro admin
     invoices = [inv for inv in db.get("invoices", {}).values()
-                if inv.get("hotel_id") == h["id"]]
+                if inv.get("hotel_id") == h["id"] and inv.get("status") != "trial"]
     invoices.sort(key=lambda x: x.get("created_at", ""), reverse=True)
     return {"status": "ok", "invoices": invoices}
 
@@ -2429,6 +2434,13 @@ async def stripe_webhook(request: Request):
                         db["hotels"][hotel_id]["trial_used"] = True
                         db["hotels"][hotel_id]["trial_start"] = now.isoformat()
                         db["hotels"][hotel_id]["subscription_period_end"] = (now + timedelta(days=44)).isoformat()
+                        # Viditelný trial záznam v přehledu: €0, čeká se na první platbu (14. den)
+                        try:
+                            _first_pay = (now + timedelta(days=14)).date().isoformat()
+                            _create_invoice_record(db, hotel_id, db["hotels"][hotel_id], trial=True, payment_due=_first_pay)
+                            logging.info("Trial záznam vytvořen pro hotel %s (první platba %s)", hotel_id, _first_pay)
+                        except Exception as e:
+                            logging.warning("Trial záznam selhal pro hotel %s: %s", hotel_id, e)
                     else:
                         # Bez trialu — rovnou 30 dní
                         db["hotels"][hotel_id]["subscription_period_end"] = (now + timedelta(days=30)).isoformat()
@@ -2450,27 +2462,32 @@ async def stripe_webhook(request: Request):
                         new_end = now + timedelta(days=30)
                     db["hotels"][hotel_id]["subscription_period_end"] = new_end.isoformat()
 
-                    # Auto-faktura za tuto reálnou platbu (po triálu i při obnově).
-                    # Idempotentní: duplicitní Stripe eventy odchytí kontrola last_processed_invoice výše.
-                    try:
-                        inv = _create_invoice_record(db, hotel_id, db["hotels"][hotel_id])
-                        logging.info("Auto-faktura %s vytvořena pro hotel %s", inv.get("invoice_number"), hotel_id)
-                        # Pošli fakturu hotelu e-mailem (PDF v příloze)
-                        _h = db["hotels"][hotel_id]
-                        if not _h.get("hotel_token"):
-                            import uuid as _uuid
-                            _h["hotel_token"] = str(_uuid.uuid4()).replace("-", "")
-                        _base = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app")
-                        _purl = f"{_base}/hotel?token={_h['hotel_token']}"
-                        asyncio.create_task(send_invoice_email(_h, inv, _purl))
-                    except Exception as e:
-                        logging.warning("Auto-faktura selhala pro hotel %s: %s", hotel_id, e)
+                    # Faktura JEN když Stripe reálně strhl peníze (amount_paid > 0).
+                    # Nulové trialové faktury (amount_paid=0) přeskoč — trial má vlastní
+                    # záznam z checkoutu. Idempotenci hlídá last_processed_invoice výše.
+                    amount_paid_cents = obj.get("amount_paid", 0) or 0
+                    if amount_paid_cents > 0:
+                        try:
+                            inv = _create_invoice_record(db, hotel_id, db["hotels"][hotel_id], status="paid")
+                            logging.info("Auto-faktura %s (PAID) vytvořena pro hotel %s", inv.get("invoice_number"), hotel_id)
+                            # Pošli fakturu hotelu e-mailem (PDF v příloze)
+                            _h = db["hotels"][hotel_id]
+                            if not _h.get("hotel_token"):
+                                import uuid as _uuid
+                                _h["hotel_token"] = str(_uuid.uuid4()).replace("-", "")
+                            _base = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app")
+                            _purl = f"{_base}/hotel?token={_h['hotel_token']}"
+                            asyncio.create_task(send_invoice_email(_h, inv, _purl))
+                        except Exception as e:
+                            logging.warning("Auto-faktura selhala pro hotel %s: %s", hotel_id, e)
 
-                    # Provize partnerovi za první reálnou platbu (idempotentní)
-                    try:
-                        _create_commission_if_eligible(db, hotel_id)
-                    except Exception as e:
-                        logging.warning("Vytvoření provize selhalo pro hotel %s: %s", hotel_id, e)
+                        # Provize partnerovi až za PRVNÍ reálnou platbu (idempotentní)
+                        try:
+                            _create_commission_if_eligible(db, hotel_id)
+                        except Exception as e:
+                            logging.warning("Vytvoření provize selhalo pro hotel %s: %s", hotel_id, e)
+                    else:
+                        logging.info("invoice.payment_succeeded amount_paid=0 (trial) pro hotel %s — fakturu ani provizi negeneruji", hotel_id)
 
                 db_save(db)
 
@@ -2673,7 +2690,7 @@ def get_completeness(hotel_id: str):
     return {"status": "ok", **hotel_profile_completeness(h)}
 
 @app.post("/api/hotels/{hotel_id}/send-reminder")
-def send_reminder(hotel_id: str, request: Request):
+def send_reminder(hotel_id: str, request: Request, dry_run: bool = False):
     db = db_load()
     h = db["hotels"].get(hotel_id)
     if not hotel_id or not h:
@@ -2691,6 +2708,12 @@ def send_reminder(hotel_id: str, request: Request):
     missing_list = [missing_labels.get(f, f) for f in completeness["missing"]]
     score = completeness["score"]
     missing_html = "".join(f"<li>{m}</li>" for m in missing_list) if missing_list else "<li>Profil je kompletní!</li>"
+
+    # Dry-run nebo testovací (E2E) hotel → NEODESÍLEJ reálný e-mail.
+    # E2E test tak jen ověří, že endpoint funguje, a nespamuje inbox.
+    if dry_run or (hotel_name or "").strip().upper().startswith("E2E"):
+        return {"status": "ok", "dry_run": True, "email_to": hotel_email, "score": score,
+                "note": "dry_run — e-mail neodeslán"}
 
     brevo_key = os.getenv("BREVO_API_KEY", "")
     if brevo_key and hotel_email:
@@ -3928,8 +3951,9 @@ def _compute_invoice_vat(price: float, hotel: dict, s: dict) -> dict:
     return {"vat_rate": 0, "vat_amount": 0.0, "amount_total": round(price, 2),
             "vat_note": "Mimo EU — bez DPH (vývoz služby)."}
 
-def _create_invoice_record(db: dict, hotel_id: str, hotel: dict) -> dict:
-    """Vytvoří fakturu pro hotel a vloží ji do db['invoices']. Volá db_save volající."""
+def _create_invoice_record(db: dict, hotel_id: str, hotel: dict, status: str = "issued", trial: bool = False, payment_due: str = None) -> dict:
+    """Vytvoří fakturu / trial záznam pro hotel a vloží do db['invoices']. Volá db_save volající.
+    trial=True → nulový záznam (status 'trial') s budoucí částkou a datem první platby."""
     import calendar, re as _re
     from datetime import timedelta as _td
     beds = hotel.get("bed_count") or hotel.get("subscription_paid_beds") or 0
@@ -3951,6 +3975,10 @@ def _create_invoice_record(db: dict, hotel_id: str, hotel: dict) -> dict:
     due_date = (now + _td(days=14)).date().isoformat()
     variable_symbol = _re.sub(r"\D", "", invoice_number) or str(int(now.timestamp()))
     inv_id = str(uuid.uuid4())
+    if trial:
+        net = 0.0; v_amount = 0.0; total = 0.0; inv_status = "trial"
+    else:
+        net = round(price, 2); v_amount = vat["vat_amount"]; total = vat["amount_total"]; inv_status = status
     invoice = {
         "id": inv_id, "invoice_number": invoice_number, "hotel_id": hotel_id,
         "hotel_name": hotel.get("name",""),
@@ -3961,19 +3989,24 @@ def _create_invoice_record(db: dict, hotel_id: str, hotel: dict) -> dict:
         "hotel_dic": (hotel.get("dic") or "").strip(),
         "hotel_country": (hotel.get("country") or "").upper().strip(),
         "beds": beds,
-        "amount_eur": round(price, 2),        # základ bez DPH (zpětná kompatibilita)
-        "amount_net": round(price, 2),
+        "amount_eur": net,        # základ bez DPH (zpětná kompatibilita)
+        "amount_net": net,
         "vat_rate": vat["vat_rate"],
-        "vat_amount": vat["vat_amount"],
-        "amount_total": vat["amount_total"],
-        "amount_local": vat["amount_total"],  # částka k úhradě (vč. DPH)
-        "vat_note": vat["vat_note"],
+        "vat_amount": v_amount,
+        "amount_total": total,
+        "amount_local": total,  # částka k úhradě (vč. DPH)
+        "vat_note": (f"Trial (14 dní zdarma) — první platba {payment_due or due_date}. Zatím neúčtováno." if trial else vat["vat_note"]),
         "currency_code": "EUR", "currency_symbol": "€",
         "period_from": period_from, "period_to": period_to,
         "due_date": due_date, "variable_symbol": variable_symbol,
-        "status": "issued",
+        "status": inv_status,
         "created_at": now.isoformat(), "updated_at": now.isoformat(),
     }
+    if trial:
+        invoice["is_trial"] = True
+        invoice["future_amount_net"] = round(price, 2)
+        invoice["future_amount_total"] = vat["amount_total"]
+        invoice["payment_due"] = payment_due or due_date
     db["invoices"][inv_id] = invoice
     return invoice
 
