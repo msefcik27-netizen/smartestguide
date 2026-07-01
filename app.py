@@ -929,17 +929,10 @@ def delete_hotel(hotel_id: str):
     if hotel_id not in db["hotels"]:
         raise HTTPException(404, "Hotel nenalezen")
     del db["hotels"][hotel_id]
-    # Odstraň i navázané faktury a provize, ať nezůstávají osiřelé v DB
-    inv_removed = 0
-    if isinstance(db.get("invoices"), dict):
-        for iid in [k for k, v in db["invoices"].items() if v.get("hotel_id") == hotel_id]:
-            del db["invoices"][iid]; inv_removed += 1
-    com_removed = 0
-    if isinstance(db.get("commissions"), dict):
-        for cid in [k for k, v in db["commissions"].items() if v.get("hotel_id") == hotel_id]:
-            del db["commissions"][cid]; com_removed += 1
+    # POZOR: faktury (účetní doklady) ani provize NEMAŽEME — v produkci se nic nemaže.
+    # Faktury smazaných/testovacích hotelů se pouze skrývají ve výpisu (nedestruktivně).
     db_save(db)
-    return {"status": "ok", "invoices_removed": inv_removed, "commissions_removed": com_removed}
+    return {"status": "ok"}
 
 # ─────────────────────────────────────────────
 # Helper – detekce base URL (lokál i Railway)
@@ -3891,27 +3884,8 @@ def list_invoices():
     invoices.sort(key=lambda x: x.get("created_at", ""), reverse=True)
     return {"status": "ok", "invoices": invoices}
 
-def _is_test_invoice_record(inv: dict, hotels: dict) -> bool:
-    """Faktura z E2E testů (název hotelu 'E2E …' / 'NullCountry') nebo osiřelá (hotel už neexistuje)."""
-    name = (inv.get("hotel_name") or "").strip().upper()
-    if name.startswith("E2E") or "NULLCOUNTRY" in name:
-        return True
-    hid = inv.get("hotel_id")
-    if hid and hid not in hotels:  # osiřelá faktura po smazaném hotelu
-        return True
-    return False
-
-@app.post("/api/invoices/cleanup-test")
-def cleanup_test_invoices():
-    """Jednorázový úklid — smaže faktury testovacích a smazaných hotelů. Spouští uživatel z administrace."""
-    db = db_load()
-    invoices = db.get("invoices", {})
-    hotels = db.get("hotels", {})
-    to_del = [iid for iid, inv in invoices.items() if _is_test_invoice_record(inv, hotels)]
-    for iid in to_del:
-        del invoices[iid]
-    db_save(db)
-    return {"status": "ok", "removed": len(to_del), "remaining": len(invoices)}
+# Pozn.: v produkci faktury NEMAŽEME (účetní doklady). Testovací faktury
+# se pouze skrývají ve výpisu na frontendu (nedestruktivně).
 
 _EU_COUNTRIES = {"AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE",
                  "IT","LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE"}
@@ -4016,75 +3990,21 @@ def update_invoice_status(invoice_id: str, status: str):
     return {"status": "ok", "invoice": db["invoices"][invoice_id]}
 
 @app.get("/api/invoices/{invoice_id}/pdf")
-def download_invoice_pdf(invoice_id: str):
+def download_invoice_pdf(invoice_id: str, token: str = ""):
     from io import BytesIO
     from fastapi.responses import StreamingResponse
     db = db_load()
     if "invoices" not in db or invoice_id not in db["invoices"]:
         raise HTTPException(404, "Faktura nenalezena")
     inv = db["invoices"][invoice_id]
+    # Když stahuje hotel z portálu (token), ověř, že faktura patří jemu
+    if token:
+        h = find_hotel_by_token(token)
+        if not h or inv.get("hotel_id") != h.get("id"):
+            raise HTTPException(403, "Neplatny token pro tuto fakturu")
     s = db_get_settings()
     try:
-        from reportlab.pdfgen import canvas as rl_canvas
-        from reportlab.lib.pagesizes import A4
-        from reportlab.lib import colors
-        from reportlab.lib.units import mm
-        W, H = A4
-        buf = BytesIO()
-        c = rl_canvas.Canvas(buf, pagesize=A4)
-        PURPLE = colors.HexColor("#6c63ff")
-        c.setFillColor(PURPLE)
-        c.rect(0, H - 50*mm, W, 50*mm, fill=1, stroke=0)
-        c.setFillColor(colors.white)
-        c.setFont("Helvetica-Bold", 20)
-        c.drawString(20*mm, H - 18*mm, "SMARTEST GUIDE")
-        c.setFont("Helvetica-Bold", 24)
-        c.drawRightString(W - 20*mm, H - 18*mm, "FAKTURA")
-        c.setFont("Helvetica", 11)
-        c.drawRightString(W - 20*mm, H - 26*mm, inv.get("invoice_number",""))
-        y = H - 65*mm
-        c.setFillColor(colors.HexColor("#333333"))
-        net = inv.get("amount_net", inv.get("amount_eur", 0))
-        vat_rate = inv.get("vat_rate", 0)
-        vat_amount = inv.get("vat_amount", 0)
-        total = inv.get("amount_total", inv.get("amount_local", net))
-        rows = [
-            ("Dodavatel:", s.get("company_name", "SmartestGuide")),
-            ("  ICO / DIC:", f"{s.get('company_ico','')}  {s.get('company_dic','')}".strip()),
-            ("Odberatel:", inv.get("hotel_billing_name") or inv.get("hotel_name", "")),
-        ]
-        if inv.get("hotel_ico"):
-            rows.append(("  ICO:", inv.get("hotel_ico", "")))
-        if inv.get("hotel_dic"):
-            rows.append(("  DIC:", inv.get("hotel_dic", "")))
-        if inv.get("hotel_country"):
-            rows.append(("  Zeme:", inv.get("hotel_country", "")))
-        rows += [
-            ("Datum:", (inv.get("created_at") or "")[:10]),
-            ("Splatnost:", inv.get("due_date", "")),
-            ("VS:", inv.get("variable_symbol", "")),
-            ("Obdobi:", f"{inv.get('period_from','')} - {inv.get('period_to','')}"),
-            ("Luzka:", str(inv.get("beds", ""))),
-            ("Zaklad:", f"{net} EUR"),
-        ]
-        if vat_rate:
-            rows.append((f"DPH {vat_rate}%:", f"{vat_amount} EUR"))
-        rows += [
-            ("Celkem k uhrade:", f"{total} EUR"),
-            ("Stav:", (inv.get("status") or "").upper()),
-        ]
-        for label, value in rows:
-            c.setFont("Helvetica-Bold", 11)
-            c.drawString(20*mm, y, label)
-            c.setFont("Helvetica", 11)
-            c.drawString(70*mm, y, value)
-            y -= 8*mm
-        if inv.get("vat_note"):
-            c.setFont("Helvetica-Oblique", 9)
-            c.setFillColor(colors.HexColor("#666666"))
-            c.drawString(20*mm, y - 2*mm, inv.get("vat_note", ""))
-        c.save()
-        pdf_bytes = buf.getvalue()
+        pdf_bytes = _build_invoice_pdf_bytes(inv, s)
     except ImportError:
         raise HTTPException(500, "reportlab není nainstalován")
     except Exception as e:

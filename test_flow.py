@@ -587,6 +587,49 @@ def test_invoices(hotel_id):
     except Exception as e:
         fail("GET /api/invoices/{id}/pdf", str(e))
 
+    # Faktura viditelná na portálu hotelu + stažení PDF přes token (a odmítnutí cizího)
+    token = None
+    try:
+        r = requests.get(f"{BASE}/api/hotels/{hotel_id}/portal-link", timeout=10)
+        purl = r.json().get("portal_url", "")
+        if "token=" in purl:
+            token = purl.split("token=", 1)[1]
+    except Exception:
+        pass
+
+    if not token:
+        skip("Portál — faktura viditelná", "nezískán token")
+        skip("Portál — stažení PDF přes token", "nezískán token")
+        skip("Portál — cizí token odmítnut", "nezískán token")
+    else:
+        try:
+            r = requests.get(f"{BASE}/api/hotel-portal/invoices?token={token}", timeout=10)
+            ids = [i.get("id") for i in r.json().get("invoices", [])]
+            if r.status_code == 200 and inv_id in ids:
+                ok("Portál — faktura viditelná", f"{len(ids)} faktur hotelu")
+            else:
+                fail("Portál — faktura viditelná", f"status {r.status_code}, v seznamu: {inv_id in ids}")
+        except Exception as e:
+            fail("Portál — faktura viditelná", str(e))
+
+        try:
+            r = requests.get(f"{BASE}/api/invoices/{inv_id}/pdf?token={token}", timeout=30)
+            if r.status_code == 200 and "pdf" in r.headers.get("content-type", ""):
+                ok("Portál — stažení PDF přes token", f"{len(r.content)} bytes")
+            else:
+                fail("Portál — stažení PDF přes token", f"status {r.status_code}")
+        except Exception as e:
+            fail("Portál — stažení PDF přes token", str(e))
+
+        try:
+            r = requests.get(f"{BASE}/api/invoices/{inv_id}/pdf?token=NEPLATNY_TOKEN_XYZ", timeout=15)
+            if r.status_code == 403:
+                ok("Portál — cizí token odmítnut", "403")
+            else:
+                fail("Portál — cizí token odmítnut", f"očekáváno 403, dostal {r.status_code}")
+        except Exception as e:
+            fail("Portál — cizí token odmítnut", str(e))
+
 # ─────────────────────────────────────────────
 # 8. Legal stránky
 # ─────────────────────────────────────────────

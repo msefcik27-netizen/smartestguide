@@ -518,6 +518,10 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
 </footer>
 
 <script>
+// POZOR: musí být úplně nahoře — kalkulačka volá updCalcFormula() při inicializaci,
+// a ta sahá na currentLang. Když je let deklarace níž, spadne to na Temporal Dead Zone
+// a shodí celý skript (žádné překlady, mrtvý přepínač jazyků).
+let currentLang='en';
 function toggleMenu(){
   document.getElementById('nav-links').classList.toggle('open');
   document.getElementById('nav-cta').classList.toggle('open');
@@ -920,7 +924,7 @@ const TRANSLATIONS={
   }
 };
 
-let currentLang='en';
+// currentLang je deklarováno na začátku skriptu (viz nahoře) — TDZ fix
 
 // Načti aktuální ceny z API a aktualizuj pricing sekci
 async function loadLandingPricing(){

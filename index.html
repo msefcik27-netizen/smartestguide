@@ -439,10 +439,7 @@
     <div class="page" id="page-billing">
       <div class="topbar">
         <div class="page-title">Faktury <small>přehled plateb</small></div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-secondary" onclick="cleanupTestInvoices()" title="Trvale smaže faktury testovacích (E2E) a smazaných hotelů z databáze">🧹 Vyčistit testovací</button>
-          <button class="btn btn-primary" onclick="generateAllInvoices()">+ Generovat faktury</button>
-        </div>
+        <button class="btn btn-primary" onclick="generateAllInvoices()">+ Generovat faktury</button>
       </div>
 
       <!-- Statistiky -->
@@ -1602,17 +1599,6 @@ function renderBillingTable(invs){
       ${inv.status==='issued'?`<button class="btn btn-success" style="padding:5px 10px;font-size:11px" onclick="markPaid('${inv.id}')">✓ Zaplaceno</button>`:''}
     </td>
   </tr>`).join('');
-}
-
-async function cleanupTestInvoices(){
-  if(!confirm('Trvale smazat faktury testovacích (E2E) a smazaných hotelů z databáze? Tuto akci nelze vrátit.'))return;
-  addLog('info','Uklízím testovací faktury','billing');
-  try{
-    const r=await fetch(`${API}/api/invoices/cleanup-test`,{method:'POST'});
-    const d=await r.json();
-    if(r.ok){ toast(`Smazáno ${d.removed} testovacích faktur`); addLog('ok',`Úklid: smazáno ${d.removed}, zbývá ${d.remaining}`,'billing'); loadBilling(); }
-    else toast('Úklid selhal','err');
-  }catch(e){toast('Chyba: '+e.message,'err');}
 }
 
 async function generateAllInvoices(){
