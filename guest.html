@@ -272,7 +272,7 @@
       <span class="ob-feat">🎤 Hlas</span>
       <span class="ob-feat">🌤 Počasí</span>
       <span class="ob-feat">🗺 Okolí</span>
-      <span class="ob-feat">🌍 14 jazyků</span>
+      <span class="ob-feat">🌍 16 jazyků</span>
     </div>
   </div>
 
@@ -335,6 +335,14 @@
 const API = '';
 const hotelId = location.pathname.split('/').pop();
 
+// PWA: nastav per-hotel manifest + ikonu, aby instalace na plochu otevřela Alexe TOHOTO hotelu
+try{
+  const _ml=document.querySelector('link[rel="manifest"]');
+  if(_ml) _ml.href='/api/hotels/'+hotelId+'/manifest.webmanifest';
+  const _ai=document.createElement('link'); _ai.rel='apple-touch-icon'; _ai.href='/api/app-icon/192';
+  document.head.appendChild(_ai);
+}catch(e){}
+
 // Obnov jméno a jazyk z předchozí návštěvy
 const _savedName = localStorage.getItem('sg_guest_name_'+hotelId);
 const _savedLang = localStorage.getItem('sg_lang_'+hotelId);
@@ -343,6 +351,8 @@ let guestLang = _savedLang || 'cs';
 let hotelData = null;
 // guestName a guestLang definovány výše u hotelId
 let history = [];
+try{ const _h=JSON.parse(localStorage.getItem('sg_history_'+hotelId)||'[]'); if(Array.isArray(_h)) history=_h.slice(-40); }catch(e){}
+function saveHistory(){ try{ localStorage.setItem('sg_history_'+hotelId, JSON.stringify(history.slice(-40))); }catch(e){} }
 let isTyping = false;
 let recognition = null;
 let isListening = false;
@@ -361,9 +371,13 @@ const LANGS = [
   {code:'ru', flag:'🇷🇺', name:'Русский'},
   {code:'uk', flag:'🇺🇦', name:'Українська'},
   {code:'zh', flag:'🇨🇳', name:'中文'},
+  {code:'nl', flag:'🇳🇱', name:'Nederlands'},
+  {code:'pt', flag:'🇵🇹', name:'Português'},
+  {code:'ja', flag:'🇯🇵', name:'日本語'},
+  {code:'ko', flag:'🇰🇷', name:'한국어'},
 ];
 const LANG_FLAGS = Object.fromEntries(LANGS.map(l=>[l.code,l.flag+' '+l.code.toUpperCase()]));
-const LANG_SR = {cs:'cs-CZ',sk:'sk-SK',en:'en-US',de:'de-DE',fr:'fr-FR',it:'it-IT',es:'es-ES',pl:'pl-PL',hu:'hu-HU',ru:'ru-RU',uk:'uk-UA',zh:'zh-CN'};
+const LANG_SR = {cs:'cs-CZ',sk:'sk-SK',en:'en-US',de:'de-DE',fr:'fr-FR',it:'it-IT',es:'es-ES',pl:'pl-PL',hu:'hu-HU',ru:'ru-RU',uk:'uk-UA',zh:'zh-CN',nl:'nl-NL',pt:'pt-PT',ja:'ja-JP',ko:'ko-KR'};
 
 function renderLangGrid(){
   const grid=document.getElementById('lang-grid');
@@ -415,6 +429,10 @@ async function loadHotel(){
       };
     }
   }
+      // Obnov předchozí konverzaci — kontext se neztrácí
+      if(history.length){
+        history.forEach(m => { if(m.role==='user') addUser(m.content); else if(m.role==='assistant') addBot(m.content); });
+      }
   const greetFn=GREETINGS[guestLang]||GREETINGS['en'];
       const welcomeBack = {
         cs: `Vítej zpět, ${guestName}! 👋 Jak ti mohu pomoci?`,
@@ -426,6 +444,7 @@ async function loadHotel(){
         it: `Ben tornato, ${guestName}! 👋 Come posso aiutarti?`,
       };
       addBot(welcomeBack[guestLang] || welcomeBack['en']);
+      showInstallTip();
       setQuickReplies();
       return;
     }
@@ -487,6 +506,23 @@ const QUICK={
   sk:['⏰ Check-in/out','🍳 Raňajky','🅿️ Parkovanie','💆 Wellness','📍 Okolie','☎️ Kontakt','🌤 Počasie'],
 };
 
+const INSTALL_TIP = {
+  cs:'📲 Tip: Uložte si mě na plochu telefonu (nabídka prohlížeče → „Přidat na plochu"), ať jsem po ruce i bez QR kódu.',
+  en:'📲 Tip: Add me to your home screen (browser menu → "Add to Home Screen") so I\'m always one tap away — even without the QR code.',
+  de:'📲 Tipp: Fügen Sie mich zum Startbildschirm hinzu (Browser-Menü → „Zum Startbildschirm"), damit ich immer griffbereit bin — auch ohne QR-Code.',
+  fr:'📲 Astuce : Ajoutez-moi à votre écran d\'accueil (menu du navigateur → « Ajouter à l\'écran d\'accueil ») pour m\'avoir toujours sous la main, même sans QR code.',
+  es:'📲 Consejo: Añádeme a tu pantalla de inicio (menú del navegador → "Añadir a pantalla de inicio") para tenerme siempre a mano, incluso sin el código QR.',
+  it:'📲 Suggerimento: aggiungimi alla schermata Home (menu del browser → "Aggiungi a Home") per avermi sempre a portata, anche senza QR.',
+  pl:'📲 Wskazówka: dodaj mnie do ekranu głównego (menu przeglądarki → „Dodaj do ekranu głównego"), aby mieć mnie zawsze pod ręką, nawet bez kodu QR.',
+  sk:'📲 Tip: pridajte si ma na plochu (menu prehliadača → „Pridať na plochu"), nech som poruke aj bez QR kódu.',
+};
+function isPwaInstalled(){
+  try{ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true; }catch(e){ return false; }
+}
+function showInstallTip(){
+  if(!isPwaInstalled()) addBot(INSTALL_TIP[guestLang] || INSTALL_TIP['en']);
+}
+
 function startChat(){
   if(!hotelData)return;
   guestName=document.getElementById('ob-name').value.trim()||'host';
@@ -518,6 +554,7 @@ function startChat(){
   }
   const greetFn=GREETINGS[guestLang]||GREETINGS['en'];
   addBot(greetFn(guestName, hotelData.name||'hotel'));
+  showInstallTip();
   setQuickReplies();
   document.getElementById('msg-input').focus();
 }
@@ -646,6 +683,7 @@ async function sendMsg(){
 
   addUser(text);
   history.push({role:'user',content:text});
+  saveHistory();
   document.getElementById('quick-replies').style.display='none';
   showTyping();
 
@@ -662,6 +700,7 @@ async function sendMsg(){
     const d=await r.json();
     addBot(d.reply);
     history.push({role:'assistant',content:d.reply});
+    saveHistory();
   }catch(e){
     hideTyping();
     // Pokud je chyba sítě - zobraz offline odpověď
@@ -961,6 +1000,7 @@ async function translateMenu(e){
     addBot(d.reply);
     history.push({role:'user', content:'[Menu photo]'});
     history.push({role:'assistant', content: d.reply});
+    saveHistory();
   }catch(err){
     hideTyping();
     addBot(PHOTO_ERROR[guestLang]||'Sorry, I could not translate the menu. Please try again.');
@@ -995,8 +1035,8 @@ if('serviceWorker' in navigator){
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   deferredPrompt = e;
-  // Zobraz banner jen pokud ho host ještě neodmítl
-  if(!localStorage.getItem('sg_pwa_dismissed')){
+  // Zobraz banner při každém spuštění, pokud není nainstalováno a není odloženo
+  if(pwaShouldRemind()){
     setTimeout(() => {
       document.getElementById('pwa-banner').classList.add('show');
     }, 3000); // Zobraz po 3 sekundách
@@ -1017,13 +1057,17 @@ if(_pwaInstallBtn) _pwaInstallBtn.addEventListener('click', async () => {
 
 function dismissPwaBanner(){
   document.getElementById('pwa-banner').classList.remove('show');
-  localStorage.setItem('sg_pwa_dismissed', '1');
+  // Snooze: připomeň znovu za 3 dny (ne trvalé odmítnutí — kontrola je při každém spuštění)
+  localStorage.setItem('sg_pwa_snooze', String(Date.now() + 3*24*3600*1000));
+}
+function pwaShouldRemind(){
+  return !isPwaInstalled() && Date.now() > (parseInt(localStorage.getItem('sg_pwa_snooze')||'0', 10));
 }
 
 // iOS Safari - manuální instrukce (iOS nepodporuje beforeinstallprompt)
 const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
 const isInStandalone = window.matchMedia('(display-mode: standalone)').matches;
-if(isIos && !isInStandalone && !localStorage.getItem('sg_pwa_dismissed')){
+if(isIos && pwaShouldRemind()){
   setTimeout(() => {
     const banner = document.getElementById('pwa-banner');
     banner.querySelector('.pwa-banner-text strong').textContent = '📱 Přidat na plochu (iOS)';

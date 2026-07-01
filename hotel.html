@@ -521,6 +521,22 @@ function renderPortal() {
       </div>
     `, [])}
 
+    ${renderSection('🧪', 'Vyzkoušet Alexe', 'Otevřete chat přesně tak, jak ho uvidí váš host', `
+      <div style="margin-bottom:16px;font-size:14px;color:var(--muted);line-height:1.7">
+        Klikněte a vyzkoušejte si Alexe jako host — zeptejte se na WiFi, snídani, parkování nebo tipy na okolí. Uvidíte přesně to, co uvidí vaši hosté po naskenování QR kódu.
+        <br><br>💡 Čím víc údajů máte vyplněno výše, tím lépe Alex odpovídá — po každé úpravě si výsledek hned otestujte.
+      </div>
+      <a href="/guest/${h.id}" target="_blank" rel="noopener" style="display:inline-block;background:var(--accent);color:#ffffff;text-decoration:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700">🧪 Otevřít Alexe (jako host)</a>
+    `, [])}
+
+    ${renderSection('🖨️', 'Tiskové materiály', 'QR plakát a letáky pro hosty — kdykoli ke stažení a tisku', `
+      <div style="margin-bottom:16px;font-size:14px;color:var(--muted);line-height:1.7">
+        Stejné materiály, které jste dostali v uvítacím e-mailu — QR plakát pro hosty i letáky (A4/A5). Otevřete je kdykoli znovu, vytiskněte nebo uložte jako PDF.
+        <br><br>🔒 QR kód je <strong style="color:var(--text)">jedinečný pro váš hotel a neměnný</strong> — jednou vytištěný plakát platí napořád, nikdy se nemění.
+      </div>
+      <a href="/api/hotels/${h.id}/qr-poster" target="_blank" rel="noopener" style="display:inline-block;background:var(--accent);color:#ffffff;text-decoration:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700">🖨️ Otevřít tiskové materiály</a>
+    `, [])}
+
     ${renderSection('⭐', 'Aktivní nabídka pro hosty', 'Alex ji zmíní hostům když se ptají na relevantní téma', `
       <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">
         💡 <strong style="color:var(--text)">Jak to funguje:</strong> Zadejte aktuální akci nebo slevu. Když se host zeptá na téma které s nabídkou souvisí (wellness, restaurace, aktivity…), Alex ji přirozeně zmíní. Zadejte vždy jen jednu — aktuálně platnou nabídku.
@@ -1225,6 +1241,21 @@ async function loadAnalytics(){
 
     const lastChat = a.last_chat ? new Date(a.last_chat).toLocaleDateString('cs-CZ') : '–';
 
+    // #5 — reálné dotazy hostů + zvýraznění mezer (kde Alexovi nejspíš chyběla informace)
+    const escQ = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const rq = (a.recent_questions || []).slice(0, 15);
+    const flaggedCount = a.flagged_count || 0;
+    const qHtml = rq.map(item => {
+      const when = item.at ? new Date(item.at).toLocaleString('cs-CZ') : '';
+      const flag = item.flagged
+        ? `<span style="display:inline-block;font-size:10px;font-weight:700;color:#ff4f6a;background:rgba(255,79,106,.12);border:1px solid rgba(255,79,106,.3);border-radius:6px;padding:1px 6px;margin-left:6px">⚠️ možná chyběla info</span>`
+        : '';
+      return `<div style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:${item.flagged?'rgba(255,79,106,.05)':'var(--card)'}">
+        <div style="font-size:13px;color:var(--text);line-height:1.5">${escQ(item.q)}${flag}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${(item.lang||'').toUpperCase()}${when?' · '+when:''}</div>
+      </div>`;
+    }).join('');
+
     const el = document.getElementById('analytics-section');
     if(!el) return;
     const noDataHtml = a.total === 0 ? `
@@ -1250,6 +1281,10 @@ async function loadAnalytics(){
           </div>
         </div>
         ${topics.length ? `<div style="font-size:12px;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">Nejčastější témata</div>${topicHtml}` : ''}
+        ${rq.length ? `
+          <div style="font-size:12px;color:var(--muted);margin:22px 0 10px;text-transform:uppercase;letter-spacing:.5px">Na co se hosté ptají${flaggedCount?` · <span style="color:#ff4f6a">${flaggedCount}× možná chyběla informace</span>`:''}</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">💡 U dotazů označených <strong style="color:#ff4f6a">„možná chyběla info"</strong> Alex nejspíš neměl odpověď — doplňte chybějící údaj v sekcích výše, ať příště odpoví správně.</div>
+          ${qHtml}` : ''}
         ` : noDataHtml}
       </div>`;
   }catch(e){}

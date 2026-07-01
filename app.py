@@ -207,7 +207,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.4.4"
+APP_VERSION = "0.5.0"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -1130,7 +1130,7 @@ body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height
       <div class="fmt-preview" onclick="openFormat('rollup')">
         <div style="width:65px;height:156px;background:#1a1a1a;border:1px solid rgba(255,107,0,.3);border-radius:6px;padding:8px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:7px;color:#FF6B00;line-height:1.2">Your<br>personal<br>AI<br>concierge</div>
-          <div style="font-size:7px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 14 LANG</div>
+          <div style="font-size:7px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 16 LANG</div>
           <div id="qr-rollup" style="width:44px;height:44px"></div>
           <div style="font-size:6px;color:#00d4aa">smartestguide.com</div>
         </div>
@@ -1146,7 +1146,7 @@ body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height
       <div class="fmt-preview" onclick="openFormat('{flyer_primary_url}')">
         <div style="width:110px;min-height:155px;background:#1a1a1a;border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#FF6B00;line-height:1.2">{'Váš osobní<br>AI concierge' if is_cs else 'Your personal<br>AI concierge'}</div>
-          <div style="font-size:8px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 14 LANGUAGES</div>
+          <div style="font-size:8px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 16 LANGUAGES</div>
           <div id="qr-a4-primary" style="width:70px;height:70px"></div>
           <div style="font-size:7px;color:#00d4aa">smartestguide.com</div>
         </div>
@@ -1161,7 +1161,7 @@ body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height
       <div class="fmt-preview" onclick="openFormat('{flyer_secondary_url}')">
         <div style="width:110px;min-height:155px;background:#1a1a1a;border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#FF6B00;line-height:1.2">{'Your personal<br>AI concierge' if is_cs else 'Váš osobní<br>AI concierge'}</div>
-          <div style="font-size:8px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 14 LANGUAGES</div>
+          <div style="font-size:8px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 16 LANGUAGES</div>
           <div id="qr-a4-secondary" style="width:70px;height:70px"></div>
           <div style="font-size:7px;color:#00d4aa">smartestguide.com</div>
         </div>
@@ -1189,7 +1189,7 @@ body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height
       <div class="fmt-preview" onclick="openFormat('flyer-a5-en')">
         <div style="width:130px;height:92px;background:#1a1a1a;border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#FF6B00;line-height:1.2">Your AI concierge</div>
-          <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 14 LANGUAGES</div>
+          <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 16 LANGUAGES</div>
           <div id="qr-a5-primary" style="width:50px;height:50px"></div>
         </div>
       </div>
@@ -1203,7 +1203,7 @@ body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height
       <div class="fmt-preview" onclick="openFormat('flyer-a5-local')">
         <div style="width:130px;height:92px;background:#1a1a1a;border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#FF6B00;line-height:1.2">AI concierge</div>
-          <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 14 LANGUAGES</div>
+          <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 16 LANGUAGES</div>
           <div id="qr-a5-secondary" style="width:50px;height:50px"></div>
         </div>
       </div>
@@ -1297,7 +1297,7 @@ def _render_qr_poster(hotel_name: str, guest_url: str) -> str:
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:50%;background:#1a1a1a;border:3px solid #FF6B00;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:30px;color:#FF6B00;box-shadow:0 0 22px rgba(255,107,0,.5)">SG</div>
     </div>
     <div style="margin-top:30px;font-family:'Syne',sans-serif;font-weight:700;font-size:24px;color:#f0ece0;text-align:center">Scan for your personal AI concierge</div>
-    <div style="margin-top:10px;font-size:15px;color:#9ba0c0">14 languages · No app needed · 24/7</div>
+    <div style="margin-top:10px;font-size:15px;color:#9ba0c0">16 languages · No app needed · 24/7</div>
     <div style="flex:1"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,170,.5),transparent)"></div>
     <div style="margin-top:18px;font-size:14px;font-weight:600;color:#00d4aa">smartestguide.com</div>
@@ -1339,6 +1339,41 @@ def get_flyer_lang_name(lang: str, in_lang: str = None) -> str:
     return names.get(lang, lang.upper())
 
 
+# 16 reálných vlajek odpovídajících jazykům Alexe (každá právě jednou, žádné duplicity)
+# Pořadí = pořadí jazyků v guest appce.
+_FLAGS_16 = [
+    ("cs", '<rect width="24" height="8" fill="#fff"/><rect y="8" width="24" height="8" fill="#D7141A"/><path d="M0 0 L12 8 L0 16 Z" fill="#11457E"/>'),
+    ("sk", '<rect width="24" height="5.33" fill="#fff"/><rect y="5.33" width="24" height="5.33" fill="#0B4EA2"/><rect y="10.66" width="24" height="5.34" fill="#EE1C25"/>'),
+    ("en", '<rect width="24" height="16" fill="#012169"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#fff" stroke-width="3.2"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#C8102E" stroke-width="1.6"/><path d="M12 0 V16 M0 8 H24" stroke="#fff" stroke-width="5"/><path d="M12 0 V16 M0 8 H24" stroke="#C8102E" stroke-width="3"/>'),
+    ("de", '<rect width="24" height="5.33" fill="#000"/><rect y="5.33" width="24" height="5.33" fill="#DD0000"/><rect y="10.66" width="24" height="5.34" fill="#FFCE00"/>'),
+    ("fr", '<rect width="8" height="16" fill="#002395"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#ED2939"/>'),
+    ("it", '<rect width="8" height="16" fill="#009246"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#CE2B37"/>'),
+    ("es", '<rect width="24" height="16" fill="#C60B1E"/><rect y="4" width="24" height="8" fill="#FFC400"/>'),
+    ("pl", '<rect width="24" height="8" fill="#fff"/><rect y="8" width="24" height="8" fill="#DC143C"/>'),
+    ("hu", '<rect width="24" height="5.33" fill="#CD2A3E"/><rect y="5.33" width="24" height="5.33" fill="#fff"/><rect y="10.66" width="24" height="5.34" fill="#436F4D"/>'),
+    ("ru", '<rect width="24" height="5.33" fill="#fff"/><rect y="5.33" width="24" height="5.33" fill="#0039A6"/><rect y="10.66" width="24" height="5.34" fill="#D52B1E"/>'),
+    ("uk", '<rect width="24" height="8" fill="#0057B7"/><rect y="8" width="24" height="8" fill="#FFD700"/>'),
+    ("zh", '<rect width="24" height="16" fill="#DE2910"/><polygon points="5,2.6 5.9,5.2 8.6,5.2 6.4,6.9 7.3,9.6 5,7.9 2.7,9.6 3.6,6.9 1.4,5.2 4.1,5.2" fill="#FFDE00"/>'),
+    ("nl", '<rect width="24" height="5.33" fill="#AE1C28"/><rect y="5.33" width="24" height="5.33" fill="#fff"/><rect y="10.66" width="24" height="5.34" fill="#21468B"/>'),
+    ("pt", '<rect width="24" height="16" fill="#FF0000"/><rect width="9.6" height="16" fill="#006600"/><circle cx="9.6" cy="8" r="2.3" fill="#FFD700"/>'),
+    ("ja", '<rect width="24" height="16" fill="#fff"/><circle cx="12" cy="8" r="4.8" fill="#BC002D"/>'),
+    ("ko", '<rect width="24" height="16" fill="#fff"/><path d="M8.4 8 a3.6 3.6 0 0 1 7.2 0 z" fill="#CD2E3A"/><path d="M8.4 8 a3.6 3.6 0 0 0 7.2 0 z" fill="#0047A0"/>'),
+]
+
+def _flags_row(w: int = 30, h: int = 21, shadow: bool = True, light: bool = False) -> str:
+    """Vrátí HTML řadu 16 reálných vlajek (bez duplicit). light=True ztmaví obrysy pro tisk na bílé."""
+    outline = "rgba(0,0,0,.18)" if light else "rgba(255,255,255,.14)"
+    sh = ";box-shadow:0 2px 5px rgba(0,0,0,.5)" if shadow else ""
+    out = []
+    for _code, inner in _FLAGS_16:
+        out.append(
+            f'<span style="width:{w}px;height:{h}px;border-radius:3px;overflow:hidden;'
+            f'outline:1px solid {outline};outline-offset:-1px;display:inline-block{sh}">'
+            f'<svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none">{inner}</svg></span>'
+        )
+    return "".join(out)
+
+
 def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str = "a4", theme: str = "dark") -> str:
     is_a5 = size == "a5"
     page_size = "A5" if is_a5 else "A4"
@@ -1378,9 +1413,8 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
 <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#006C35"/><circle cx="8" cy="8" r="4" fill="#fff"/></svg></span>
 <span style="width:30px;height:21px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.5)"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="5.33" fill="#fff"/><rect y="5.33" width="24" height="5.33" fill="#003DA5"/><rect y="10.66" width="24" height="5.34" fill="#CE1126"/></svg></span>"""
 
-    # Pro světlé téma ztmav obrysy vlajek (na bílé jinak neviditelné)
-    if light:
-        flags_html = flags_html.replace("rgba(255,255,255,.14)", "rgba(0,0,0,.18)")
+    # 16 reálných vlajek (bez duplicit, přesně dle jazyků Alexe), obrysy dle tématu
+    flags_html = _flags_row(30, 21, shadow=True, light=light)
 
     check = f"""<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{c_teal}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>"""
 
@@ -1453,7 +1487,7 @@ body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;background:{c_badge_bg};border:2px solid {c_orange};display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:{c_orange}">SG</div>
     </div>
     <div style="margin-top:20px;font-family:'Syne',sans-serif;font-weight:700;font-size:20px;color:{c_ink}">{scan_text}</div>
-    <div style="margin-top:6px;font-size:14px;color:{c_dim}">{no_app} · 14 languages · 24/7</div>
+    <div style="margin-top:6px;font-size:14px;color:{c_dim}">{no_app} · 16 languages · 24/7</div>
     <div style="flex:1;min-height:32px"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,{c_teal},transparent);margin-top:32px;opacity:.5"></div>
     <div style="margin-top:14px;font-size:13px;font-weight:600;color:{c_teal}">smartestguide.com</div>
@@ -1481,6 +1515,8 @@ def _render_rollup(hotel_name: str, guest_url: str) -> str:
 <span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#fff"/><circle cx="12" cy="8" r="5" fill="#BC002D"/></svg></span>
 <span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#006C35"/><circle cx="8" cy="8" r="4" fill="#fff"/></svg></span>
 <span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="5.33" fill="#fff"/><rect y="5.33" width="24" height="5.33" fill="#003DA5"/><rect y="10.66" width="24" height="5.34" fill="#CE1126"/></svg></span>"""
+    # 16 reálných vlajek (bez duplicit, dle jazyků Alexe)
+    flags_html = _flags_row(28, 20, shadow=False)
 
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -1505,7 +1541,7 @@ body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:42px;height:42px;border-radius:50%;background:#1a1a1a;border:2px solid #FF6B00;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:#FF6B00">SG</div>
     </div>
     <div style="margin-top:18px;font-family:'Syne',sans-serif;font-weight:700;font-size:18px;color:#f0ece0">Scan me</div>
-    <div style="margin-top:5px;font-size:13px;color:#9ba0c0">14 languages · No app needed · 24/7</div>
+    <div style="margin-top:5px;font-size:13px;color:#9ba0c0">16 languages · No app needed · 24/7</div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,170,.4),transparent);margin-top:32px"></div>
     <div style="margin-top:12px;font-size:12px;font-weight:600;color:#00d4aa">smartestguide.com</div>
   </div>
@@ -1613,7 +1649,7 @@ def rollup(hotel_id: str, request: Request):
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:50%;background:#1a1a1a;border:3px solid #FF6B00;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:30px;color:#FF6B00;box-shadow:0 0 22px rgba(255,107,0,.5)">SG</div>
     </div>
     <div style="margin-top:30px;font-family:'Syne',sans-serif;font-weight:700;font-size:24px;color:#f0ece0;text-align:center">Scan for your personal AI concierge</div>
-    <div style="margin-top:10px;font-size:15px;color:#9ba0c0;letter-spacing:.02em">14 languages · No app needed · 24/7</div>
+    <div style="margin-top:10px;font-size:15px;color:#9ba0c0;letter-spacing:.02em">16 languages · No app needed · 24/7</div>
     <div style="flex:1"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,170,.5),transparent)"></div>
     <div style="margin-top:18px;font-size:14px;font-weight:600;color:#00d4aa;letter-spacing:.04em">smartestguide.com</div>
@@ -1914,7 +1950,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
             "subject": f"Willkommen bei SMARTEST GUIDE - {hotel_name} ist bereit!",
             "greeting": f"Willkommen, {hotel_name}!",
             "subtitle": "KI-Concierge für Ihr Hotel",
-            "intro": f"Ihr Hotel wurde erfolgreich registriert und die Zahlung bestätigt. Alex ist bereit, Ihren Gästen in 14 Sprachen rund um die Uhr zu antworten.",
+            "intro": f"Ihr Hotel wurde erfolgreich registriert und die Zahlung bestätigt. Alex ist bereit, Ihren Gästen in 16 Sprachen rund um die Uhr zu antworten.",
             "portal_btn_text": "Hotel-Portal öffnen",
             "steps_title": "Was zuerst tun:",
             "steps": ["Im Portal anmelden und Hotelinformationen überprüfen","Hotelnavigation hinzufügen (Wellness, Parkplatz, Restaurant, Bar)","Lokale Tipps für Gäste hinzufügen","QR-Poster herunterladen und an der Rezeption platzieren"],
@@ -1926,7 +1962,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
             "subject": f"Bienvenue sur SMARTEST GUIDE - {hotel_name} est prêt!",
             "greeting": f"Bienvenue, {hotel_name}!",
             "subtitle": "Concierge IA pour votre hôtel",
-            "intro": f"Votre hôtel a été enregistré avec succès et le paiement confirmé. Alex est prêt à répondre à vos clients en 14 langues, 24h/24.",
+            "intro": f"Votre hôtel a été enregistré avec succès et le paiement confirmé. Alex est prêt à répondre à vos clients en 16 langues, 24h/24.",
             "portal_btn_text": "Ouvrir le portail hôtel",
             "steps_title": "Que faire en premier:",
             "steps": ["Se connecter au portail et vérifier les informations","Ajouter la navigation de l'hôtel (bien-être, parking, restaurant)","Ajouter des conseils locaux pour les clients","Télécharger l'affiche QR et la placer à la réception"],
@@ -1938,7 +1974,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
             "subject": f"Benvenuto su SMARTEST GUIDE - {hotel_name} è pronto!",
             "greeting": f"Benvenuto, {hotel_name}!",
             "subtitle": "Concierge IA per il vostro hotel",
-            "intro": f"Il vostro hotel è stato registrato con successo e il pagamento confermato. Alex è pronto a rispondere ai vostri ospiti in 14 lingue, 24/7.",
+            "intro": f"Il vostro hotel è stato registrato con successo e il pagamento confermato. Alex è pronto a rispondere ai vostri ospiti in 16 lingue, 24/7.",
             "portal_btn_text": "Apri portale hotel",
             "steps_title": "Cosa fare prima:",
             "steps": ["Accedere al portale e verificare le informazioni","Aggiungere la navigazione dell'hotel (wellness, parcheggio, ristorante)","Aggiungere consigli locali per gli ospiti","Scaricare il poster QR e posizionarlo alla reception"],
@@ -1950,7 +1986,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
             "subject": f"Bienvenido a SMARTEST GUIDE - {hotel_name} está listo!",
             "greeting": f"Bienvenido, {hotel_name}!",
             "subtitle": "Concierge IA para su hotel",
-            "intro": f"Su hotel ha sido registrado con éxito y el pago confirmado. Alex está listo para responder a sus huéspedes en 14 idiomas, 24/7.",
+            "intro": f"Su hotel ha sido registrado con éxito y el pago confirmado. Alex está listo para responder a sus huéspedes en 16 idiomas, 24/7.",
             "portal_btn_text": "Abrir portal del hotel",
             "steps_title": "Qué hacer primero:",
             "steps": ["Iniciar sesión en el portal y revisar la información","Añadir navegación del hotel (spa, aparcamiento, restaurante)","Añadir consejos locales para los huéspedes","Descargar el cartel QR y colocarlo en recepción"],
@@ -1988,7 +2024,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
         subject = f"Welcome to SMARTEST GUIDE - {hotel_name} is ready!"
         greeting = f"Welcome, {hotel_name}!"
         subtitle = "AI Concierge for your hotel"
-        intro = f"Your hotel has been successfully registered and payment confirmed. Alex is ready to answer your guests in 14 languages, 24/7."
+        intro = f"Your hotel has been successfully registered and payment confirmed. Alex is ready to answer your guests in 16 languages, 24/7."
         portal_btn_text = "Open hotel portal"
         steps_title = "What to do first:"
         steps = [
@@ -2603,7 +2639,7 @@ def generate_flyer_pdf(hotel: dict, base_url: str) -> bytes:
         T2("Doporučení míst v okolí",          "Recommendations nearby"),
         T2("Aktuální počasí",                  "Current weather"),
         T2("Kontakt na recepci",               "Contact reception"),
-        T2("14 jazyků komunikace",             "14 languages available"),
+        T2("16 jazyků komunikace",             "16 languages available"),
     ]
 
     buf = BytesIO()
@@ -2771,9 +2807,64 @@ def serve_guest(hotel_id: str):
 
 @app.get("/sw.js")
 def serve_sw():
-    """Prázdný Service Worker – zabraňuje 404 chybě."""
+    """Minimální service worker s fetch handlerem — splňuje kritérium instalace PWA."""
     from fastapi.responses import Response
-    return Response(content="// SmartestGuide SW", media_type="application/javascript")
+    sw = (
+        "self.addEventListener('install', e => self.skipWaiting());\n"
+        "self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));\n"
+        "self.addEventListener('fetch', e => {});\n"
+    )
+    return Response(content=sw, media_type="application/javascript")
+
+@app.get("/api/app-icon/{size}")
+def app_icon(size: int):
+    """Generuje brandovanou ikonu aplikace (SG) pro PWA / přidání na plochu."""
+    from PIL import Image, ImageDraw, ImageFont
+    from io import BytesIO
+    from fastapi.responses import Response
+    size = max(48, min(int(size), 512))
+    img = Image.new("RGB", (size, size), (26, 26, 26))  # #1a1a1a
+    draw = ImageDraw.Draw(img)
+    # jemný oranžový rám
+    draw.rounded_rectangle([2, 2, size - 3, size - 3], radius=int(size * 0.18),
+                           outline=(255, 107, 0), width=max(2, size // 40))
+    try:
+        font = ImageFont.truetype(os.path.join(os.path.dirname(__file__), "LiberationSans-Bold.ttf"), int(size * 0.44))
+    except Exception:
+        font = ImageFont.load_default()
+    text = "SG"
+    bbox = draw.textbbox((0, 0), text, font=font)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    draw.text(((size - tw) / 2 - bbox[0], (size - th) / 2 - bbox[1]), text, fill=(255, 107, 0), font=font)
+    buf = BytesIO()
+    img.save(buf, "PNG")
+    return Response(content=buf.getvalue(), media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+@app.get("/api/hotels/{hotel_id}/manifest.webmanifest")
+def hotel_manifest(hotel_id: str, request: Request):
+    """Per-hotel PWA manifest — instalovaná ikona otevře přímo Alexe tohoto hotelu."""
+    from fastapi.responses import JSONResponse
+    db = db_load()
+    hotel = db["hotels"].get(hotel_id) or {}
+    name = hotel.get("name") or "SmartestGuide"
+    base = get_base_url(request)
+    manifest = {
+        "name": f"{name} — Concierge",
+        "short_name": (name[:12] if name else "Concierge"),
+        "description": "Váš osobní AI concierge — kdykoli po ruce",
+        "start_url": f"/guest/{hotel_id}",
+        "scope": f"/guest/{hotel_id}",
+        "display": "standalone",
+        "background_color": "#1a1a1a",
+        "theme_color": "#1a1a1a",
+        "orientation": "portrait",
+        "icons": [
+            {"src": f"{base}/api/app-icon/192", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+            {"src": f"{base}/api/app-icon/512", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+        ],
+    }
+    return JSONResponse(manifest, media_type="application/manifest+json")
 
 # ─────────────────────────────────────────────
 # Guest API
@@ -2828,6 +2919,8 @@ async def guest_chat(req: GuestChatRequest):
 LANGUAGE RULE: Detect the language of the guest's message and always respond in that same language.
 If you cannot detect the language, use {lang_name} ({req.language}) as default.
 Never mix languages in a single response.
+
+INPUT TOLERANCE (IMPORTANT): Guests often use voice dictation or type quickly, so words may be misspelled or phonetically garbled — possibly transcribed in the wrong language. If a word looks like a garbled, misheard or misspelled version of a common hotel topic, infer the most likely intended meaning and answer helpfully instead of saying you don't understand. For example: "Spicycarte"/"Spajzekarte" → German "Speisekarte" (menu / jídelní lístek); "checkout"/"chekaut" → check-out; "wai-fai"/"vайфай" → WiFi; "brekfast"/"frpštyk" → breakfast. Only ask the guest to rephrase if you genuinely cannot guess the intent. Never reply that you don't know a word like "Spicycarte" — recognise it as a misheard "Speisekarte" and give the menu info.
 
 FORMATTING RULES:
 - When sharing a URL or link, always write the full URL as plain text starting with https:// on its own line. Never use markdown like [text](url). Example: https://www.hotel.cz/menu
