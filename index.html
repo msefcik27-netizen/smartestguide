@@ -380,21 +380,21 @@
         <div class="form-group" style="margin-bottom:10px">
           <label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Stripe Secret Key</label>
           <div style="font-size:11px;color:var(--accent);margin-bottom:4px;margin-top:3px">
-            📍 Najdeš na: <a href="https://dashboard.stripe.com/test/apikeys" target="_blank" style="color:var(--accent)">dashboard.stripe.com/test/apikeys</a> → Reveal test key
+            📍 Najdeš na: <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="color:var(--accent)">dashboard.stripe.com/apikeys</a> → Reveal live key (sk_live_…)
           </div>
-          <input type="password" id="stripe-key-input" placeholder="sk_test_..." style="margin-top:2px"/>
+          <input type="password" id="stripe-key-input" placeholder="sk_live_..." style="margin-top:2px"/>
         </div>
         <div class="form-group" style="margin-bottom:14px">
           <label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Payment Link URL</label>
           <div style="font-size:11px;color:var(--accent);margin-bottom:4px;margin-top:3px">
-            📍 Najdeš na: <a href="https://dashboard.stripe.com/test/payment-links" target="_blank" style="color:var(--accent)">dashboard.stripe.com/test/payment-links</a> → zkopíruj aktivní link
+            📍 Najdeš na: <a href="https://dashboard.stripe.com/payment-links" target="_blank" style="color:var(--accent)">dashboard.stripe.com/payment-links</a> → zkopíruj aktivní LIVE link
           </div>
-          <input type="text" id="stripe-link-input" placeholder="https://buy.stripe.com/test_..." style="margin-top:2px" value="https://buy.stripe.com/test_7sY6oA2sr7Zo3jq6zGa3u01"/>
+          <input type="text" id="stripe-link-input" placeholder="https://buy.stripe.com/..." style="margin-top:2px"/>
         </div>
         <div class="form-group" style="margin-bottom:14px">
           <label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Webhook Secret (volitelné)</label>
           <div style="font-size:11px;color:var(--accent);margin-bottom:4px;margin-top:3px">
-            📍 Najdeš na: <a href="https://dashboard.stripe.com/test/workbench/webhooks" target="_blank" style="color:var(--accent)">dashboard.stripe.com → Workbench → Webhooks</a> → empowering-finesse → Signing secret → 👁
+            📍 Najdeš na: <a href="https://dashboard.stripe.com/workbench/webhooks" target="_blank" style="color:var(--accent)">dashboard.stripe.com → Workbench → Webhooks</a> → tvůj LIVE endpoint → Signing secret → 👁 (whsec_…)
           </div>
           <input type="password" id="stripe-webhook-input" placeholder="whsec_..." style="margin-top:2px"/>
         </div>
@@ -669,7 +669,7 @@ async function loadKeyStatus(){
     document.getElementById('api-key-banner').className=has?'':'show';
     // Zobraz webhook URL
     const whEl = document.getElementById('webhook-url-display');
-    if(whEl) whEl.textContent = window.location.origin + '/api/stripe/webhook';
+    if(whEl) whEl.textContent = 'https://app.smartestguide.com/api/stripe/webhook';
     // Zvýrazni API key pole pokud chybí v DB
     highlightMissing('api-key-input', !has, 'API klíč není nastaven – scraping nebude fungovat');
     // Stripe status
@@ -681,9 +681,8 @@ async function loadKeyStatus(){
       document.getElementById('stripe-dot').className='key-dot '+(stripeOk?'ok':'missing');
       document.getElementById('stripe-status-text').textContent=stripeOk?`Stripe nastaven (${d.stripe_key_preview})`:'Stripe není nastaven';
       if(d.stripe_payment_link) document.getElementById('stripe-link-input').value=d.stripe_payment_link;
-      else if(!document.getElementById('stripe-link-input').value) document.getElementById('stripe-link-input').value='https://buy.stripe.com/test_7sY6oA2sr7Zo3jq6zGa3u01';
       // Červená jen pokud opravdu chybí v DB (ne jen prázdné input pole)
-      highlightMissing('stripe-key-input', stripeKeyMissing, 'Secret Key chybí – vlož sk_test_... nebo sk_live_...');
+      highlightMissing('stripe-key-input', stripeKeyMissing, 'Secret Key chybí – vlož sk_live_...');
       highlightMissing('stripe-link-input', stripeLinkMissing, 'Payment Link chybí – vlož URL z Stripe Dashboardu');
       // Pokud je klíč uložen v DB, zobraz placeholder místo prázdného pole
       if(d.has_stripe_key){
