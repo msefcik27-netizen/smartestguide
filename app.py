@@ -120,8 +120,12 @@ async def _backup_data():
 async def _email_backup(src) -> bool:
     """Pošle data.json jako přílohu na zálohovací e-mail (off-site kopie)."""
     brevo_key = os.getenv("BREVO_API_KEY", "")
-    to_email = os.getenv("BACKUP_EMAIL") or os.getenv("ADMIN_CC_EMAIL") or "martin.1303@seznam.cz"
-    if not brevo_key or not to_email:
+    # Zálohy chodí na obě adresy natvrdo (+ volitelně další přes BACKUP_EMAIL)
+    recips = ["martin.1303@seznam.cz", "msefcik27@gmail.com"]
+    extra = os.getenv("BACKUP_EMAIL", "").strip()
+    if extra and extra not in recips:
+        recips.append(extra)
+    if not brevo_key:
         return False
     try:
         with open(src, "rb") as f:
@@ -129,7 +133,7 @@ async def _email_backup(src) -> bool:
         stamp = datetime.utcnow().strftime("%Y-%m-%d")
         payload = {
             "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
-            "to": [{"email": to_email}],
+            "to": [{"email": e} for e in recips],
             "subject": f"SMARTEST GUIDE — záloha dat {stamp}",
             "htmlContent": f"<p>Týdenní off-site záloha databáze (data.json) k {stamp}. Soubor je v příloze — ulož si ho mimo Railway.</p>",
             "textContent": f"Zaloha dat {stamp} v priloze.",
@@ -140,7 +144,7 @@ async def _email_backup(src) -> bool:
             r = await client.post("https://api.brevo.com/v3/smtp/email", json=payload,
                 headers={"api-key": brevo_key, "Content-Type": "application/json"}, timeout=30)
             if r.status_code in (200, 201):
-                logging.info("Off-site záloha odeslána -> %s", to_email)
+                logging.info("Off-site záloha odeslána -> %s", ", ".join(recips))
                 return True
             logging.error("Brevo záloha CHYBA %s: %s", r.status_code, r.text[:200])
             return False
