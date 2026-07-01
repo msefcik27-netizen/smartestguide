@@ -262,11 +262,11 @@ def db_save(data: dict):
 # Firemní údaje dodavatele NA TVRDO — přebijí cokoli v data.json (reset při deployi
 # na Railway). Bez diakritiky (faktura běží na Helvetice). Bank/IBAN se doplní později.
 _COMPANY_HARDCODED = {
-    "company_name": "SmartestGuide.com s.r.o.",
+    "company_name": "Native Hotel Guide s.r.o.",   # registrovaný název dle ARES (IČO 23112905)
     "company_address": "Korunni 2569/108",
-    "company_city": "Prague",
+    "company_city": "101 00 Praha 10",
     "company_ico": "23112905",
-    "company_dic": "",
+    "company_dic": "",                              # neni platce DPH (potvrzeno v ARES)
     "company_email": "admin@smartestguide.com",
     "company_vat_payer": False,
 }
