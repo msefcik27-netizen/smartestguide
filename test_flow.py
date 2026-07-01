@@ -530,10 +530,11 @@ def test_invoices(hotel_id):
     try:
         r = requests.get(f"{BASE}/api/settings/company", timeout=10)
         d = r.json()
-        if r.status_code == 200 and d.get("company_name") == "Test s.r.o.":
-            ok("GET /api/settings/company", "data uložena správně")
+        # Firemní údaje jsou v produkci na tvrdo (přebíjí uložené) — ověř jen, že dorazí vyplněné
+        if r.status_code == 200 and d.get("company_name") and d.get("company_ico"):
+            ok("GET /api/settings/company", f"dodavatel: {d.get('company_name')}")
         else:
-            fail("GET /api/settings/company", f"status {r.status_code}")
+            fail("GET /api/settings/company", f"status {r.status_code}, name={d.get('company_name')!r}")
     except Exception as e:
         fail("GET /api/settings/company", str(e))
 
