@@ -1132,11 +1132,12 @@ body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height
     <div class="hub-hotel">{hotel_name}</div>
     <div class="hub-title">{hub_title}</div>
     {f'<a href="{portal_url}" style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:rgba(255,107,0,.1);border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;color:#FF6B00;text-decoration:none;transition:opacity .15s" onmouseover="this.style.opacity=.8" onmouseout="this.style.opacity=1">⚙️ {portal_label}</a>' if portal_url else ''}
-    <div style="margin-top:16px;display:inline-flex;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:3px">
-      <button id="theme-dark" onclick="setFlyerTheme('dark')" style="border:none;background:#FF6B00;color:#0a0b0f;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">🌙 Tmavá</button>
-      <button id="theme-light" onclick="setFlyerTheme('light')" style="border:none;background:transparent;color:#cfcad0;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">📄 Print-friendly</button>
+    <div style="margin-top:16px;font-size:12px;color:#e8e8f0;font-weight:700;margin-bottom:7px">🎨 Vyberte vzhled letáku:</div>
+    <div style="display:inline-flex;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);border-radius:10px;padding:4px;gap:4px">
+      <button id="theme-dark" onclick="setFlyerTheme('dark')" style="border:1px solid transparent;background:#FF6B00;color:#0a0b0f;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">🌙 Tmavá</button>
+      <button id="theme-light" onclick="setFlyerTheme('light')" style="border:1px solid rgba(255,107,0,.55);background:transparent;color:#ffffff;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">📄 Print-friendly</button>
     </div>
-    <div style="margin-top:8px;font-size:11px;color:#9ba0c0">Tmavá = ideální pro PDF · Print-friendly (světlá) šetří inkoust při tisku letáků na papír</div>
+    <div style="margin-top:8px;font-size:11px;color:#b8bcd8">🌙 Tmavá = ideální pro PDF &nbsp;·&nbsp; 📄 <b style="color:#ff8a3d">Print-friendly</b> (světlá) šetří inkoust při tisku na papír</div>
   </div>
 
   <div class="formats">
@@ -1272,8 +1273,8 @@ window._flyerTheme='dark';
 function setFlyerTheme(t){{
   window._flyerTheme=t;
   var d=document.getElementById('theme-dark'), l=document.getElementById('theme-light');
-  if(d){{ d.style.background = t==='dark'?'#FF6B00':'transparent'; d.style.color = t==='dark'?'#0a0b0f':'#cfcad0'; }}
-  if(l){{ l.style.background = t==='light'?'#FF6B00':'transparent'; l.style.color = t==='light'?'#0a0b0f':'#cfcad0'; }}
+  if(d){{ d.style.background = t==='dark'?'#FF6B00':'transparent'; d.style.color = t==='dark'?'#0a0b0f':'#ffffff'; d.style.borderColor = t==='dark'?'transparent':'rgba(255,107,0,.55)'; }}
+  if(l){{ l.style.background = t==='light'?'#FF6B00':'transparent'; l.style.color = t==='light'?'#0a0b0f':'#ffffff'; l.style.borderColor = t==='light'?'transparent':'rgba(255,107,0,.55)'; }}
 }}
 </script>
 </body>
@@ -1957,16 +1958,16 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
     # Texty emailu dle jazyka hotelu
     email_texts = {
         "cs": {
-            "subject": f"Vitejte v SMARTEST GUIDE - {hotel_name} je pripraven!",
-            "greeting": f"Vitejte, {hotel_name}!",
-            "subtitle": "AI Concierge pro vas hotel",
-            "intro": f"Vas hotel byl uspesne zaregistrovan a platba probehla. Alex je pripraven odpovidat hostum ve 16 jazycich 24 hodin denne.",
-            "portal_btn_text": "Otevrit hotelovy portal",
-            "steps_title": "Co delat jako prvni:",
-            "steps": ["Prihlaste se do portalu a zkontrolujte informace o hotelu","Doplnte orientaci v hotelu (wellness, parkoviste, restaurace, bar)","Pridejte lokalni tipy pro hosty","Stahnete QR plakat k tisku (odkaz nize) a umistete ho na recepci"],
-            "help_text": "Potrebujete pomoc?",
+            "subject": f"Vítejte ve SMARTEST GUIDE – {hotel_name} je připraven!",
+            "greeting": f"Vítejte, {hotel_name}!",
+            "subtitle": "AI concierge pro váš hotel",
+            "intro": f"Váš hotel byl úspěšně zaregistrován a platba proběhla. Alex je připraven odpovídat hostům ve 16 jazycích 24 hodin denně.",
+            "portal_btn_text": "Otevřít hotelový portál",
+            "steps_title": "Co dělat jako první:",
+            "steps": ["Přihlaste se do portálu a zkontrolujte informace o hotelu","Doplňte orientaci v hotelu (wellness, parkoviště, restaurace, bar)","Přidejte lokální tipy pro hosty","Stáhněte QR plakát k tisku (odkaz níže) a umístěte ho na recepci"],
+            "help_text": "Potřebujete pomoc?",
             "qr_label": "QR plakát pro hosty", "qr_desc": "Otevřete odkaz níže, vytiskněte plakát nebo uložte jako PDF.", "qr_btn_text": "Otevřít QR plakát k tisku", "qr_attach_note": "QR kód je také přiložen jako PNG.",
-            "it_title": "Jak pridat chat tlacitko na web hotelu", "it_intro": "Predejte instrukce vasemu IT oddeleni:", "it_step1": "Otevrete zdrojovy kod stranky.", "it_step2": "Vlozit kod tesne pred </body>:", "it_step3": "Po nasazeni se zobrazi plovouci chat tlacitko.", "it_note": "Funguje na vsech zarizeni.",
+            "it_title": "Jak přidat chat tlačítko na web hotelu", "it_intro": "Předejte instrukce vašemu IT oddělení:", "it_step1": "Otevřete zdrojový kód stránky.", "it_step2": "Vložte kód těsně před </body>:", "it_step3": "Po nasazení se zobrazí plovoucí chat tlačítko.", "it_note": "Funguje na všech zařízeních.",
         },
         "de": {
             "subject": f"Willkommen bei SMARTEST GUIDE - {hotel_name} ist bereit!",
@@ -2071,7 +2072,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
 
     html_body = f"""<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a2e">
       <div style="background:#1a1a1a;padding:32px;text-align:center;border-radius:12px 12px 0 0;border-bottom:3px solid #FF6B00">
-        <h1 style="color:#fff;margin:0;font-size:28px">SmartestGuide</h1>
+        <h1 style="color:#fff;margin:0;font-size:28px;letter-spacing:.5px">SMARTEST GUIDE</h1>
         <p style="color:rgba(255,255,255,.85);margin:8px 0 0">{subtitle}</p>
       </div>
       <div style="background:#f8f9ff;padding:32px;border-radius:0 0 12px 12px">
@@ -2118,7 +2119,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
         qr_bytes = _generate_qr_png_branded(guest_url, size=400)
         qr_b64 = base64.b64encode(qr_bytes).decode()
         attachments.append({
-            "name": f"SmartestGuide_QR_{hotel_name.replace(' ','_')}.png",
+            "name": f"SMARTEST_GUIDE_QR_{hotel_name.replace(' ','_')}.png",
             "content": qr_b64,
         })
         logging.info(f"QR kod PNG vygenerovan pro {hotel_name}, velikost: {len(qr_b64)} znaku")
@@ -2132,7 +2133,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
     if "martin.1303@seznam.cz" not in cc_email: cc_emails.append({"email": "martin.1303@seznam.cz"})
 
     payload = {
-        "sender": {"name": "SmartestGuide", "email": "admin@smartestguide.com"},
+        "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
         "to": [{"email": hotel_email, "name": hotel_name}],
         "cc": cc_emails,
         "subject": subject,
