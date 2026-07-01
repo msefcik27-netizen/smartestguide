@@ -16,20 +16,10 @@
   --surface:#ffffff;--surface2:#faf9f5;
   --font-head:'Syne',sans-serif;--font-body:'Inter',sans-serif;
 }
-html{color-scheme:light dark}
-/* Tmavý mód — portál se přizpůsobí systémovému nastavení */
-@media (prefers-color-scheme: dark){
-  :root{
-    --bg:#15161a;--bg2:#22232a;--bg3:#26272f;
-    --ink:#e8e6e1;--ink2:#c5c3bd;--border:#34353d;
-    --muted:#9b9ba6;--text:#e8e6e1;--dim:#9b9ba6;
-    --teal-light:rgba(0,212,170,.14);--gold-light:rgba(255,107,0,.14);
-    --surface:#1b1c22;--surface2:#26272f;--card:#1e1f26;--radius:12px;
-  }
-  input,textarea,select{background:var(--surface);color:var(--text)}
-}
-/* Zvýraznění otevřené sekce (funguje ve světlém i tmavém módu) */
-.section.section-open{background:rgba(128,128,128,.09);box-shadow:inset 3px 0 0 var(--accent);border-color:var(--accent)}
+/* Portál zůstává vždy světlý (nezávisle na systémovém tmavém režimu) */
+html{color-scheme:light}
+/* Zvýraznění vybrané (otevřené) sekce — jemné šedé pozadí + oranžový pruh vlevo */
+.section.section-open{background:rgba(120,120,120,.08);box-shadow:inset 3px 0 0 var(--accent);border-color:var(--accent)}
 .section-toggle-lbl{font-size:11px;color:var(--muted);margin:0 4px;white-space:nowrap;user-select:none}
 /* Sidebar strom — každá položka na 1 řádek */
 #portal-sidebar a{white-space:nowrap;overflow:hidden}
@@ -652,8 +642,9 @@ function updateSectionScore(id) {
   });
   if (total === 0) { el.innerHTML = ''; return; }
   const pct = Math.round(filled / total * 100);
-  const cls = pct >= 80 ? 'full' : pct > 0 ? 'partial' : 'empty';
-  const emoji = pct >= 80 ? '✓' : pct > 0 ? '◑' : '○';
+  // Barvy: 100 % zelená · 80–99 % oranžová · pod 80 % červená
+  const cls = pct >= 100 ? 'full' : pct >= 80 ? 'partial' : 'empty';
+  const emoji = pct >= 100 ? '✓' : pct >= 80 ? '◑' : '○';
   el.innerHTML = `<span class="score-badge ${cls}" title="Vyplněno ${filled} z ${total} polí">${emoji} ${pct}% <span style="opacity:.65;font-weight:500">(${filled}/${total})</span></span>`;
 }
 
@@ -757,7 +748,12 @@ function buildSidebarNav() {
     const a = document.createElement('a');
     const t = title.textContent.trim();
     a.title = t;
-    a.innerHTML = '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + t + '</span>' + (score ? '<span style="flex-shrink:0;font-size:11px;opacity:.75">' + score.textContent.trim() + '</span>' : '');
+    let scoreHtml = '';
+    if (score) {
+      const col = score.classList.contains('full') ? '#2ecc87' : score.classList.contains('partial') ? '#ffaa33' : '#ff4f6a';
+      scoreHtml = '<span style="flex-shrink:0;font-size:11px;font-weight:600;color:' + col + '">' + score.textContent.trim() + '</span>';
+    }
+    a.innerHTML = '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + t + '</span>' + scoreHtml;
     a.onclick = () => {
       sec.scrollIntoView({behavior: 'smooth', block: 'start'});
       // Otevři sekci pokud je zavřená
