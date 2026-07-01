@@ -16,6 +16,26 @@
   --surface:#ffffff;--surface2:#faf9f5;
   --font-head:'Syne',sans-serif;--font-body:'Inter',sans-serif;
 }
+html{color-scheme:light dark}
+/* Tmavý mód — portál se přizpůsobí systémovému nastavení */
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#15161a;--bg2:#22232a;--bg3:#26272f;
+    --ink:#e8e6e1;--ink2:#c5c3bd;--border:#34353d;
+    --muted:#9b9ba6;--text:#e8e6e1;--dim:#9b9ba6;
+    --teal-light:rgba(0,212,170,.14);--gold-light:rgba(255,107,0,.14);
+    --surface:#1b1c22;--surface2:#26272f;--card:#1e1f26;--radius:12px;
+  }
+  input,textarea,select{background:var(--surface);color:var(--text)}
+}
+/* Zvýraznění otevřené sekce (funguje ve světlém i tmavém módu) */
+.section.section-open{background:rgba(128,128,128,.09);box-shadow:inset 3px 0 0 var(--accent);border-color:var(--accent)}
+.section-toggle-lbl{font-size:11px;color:var(--muted);margin:0 4px;white-space:nowrap;user-select:none}
+/* Sidebar strom — každá položka na 1 řádek */
+#portal-sidebar a{white-space:nowrap;overflow:hidden}
+/* Restaurace ve dvou sloupcích (na mobilu 1) */
+#restaurants-list{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media(max-width:760px){#restaurants-list{grid-template-columns:1fr}}
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;line-height:1.6;min-height:100vh}
 
@@ -591,7 +611,7 @@ function renderSection(icon, title, desc, content, fields, defaultOpen) {
   const scorePlaceholder = fields && fields.length
     ? `<span class="section-score" id="score-${id}"><span class="score-badge empty">○ 0%</span></span>`
     : '';
-  return `<div class="section" id="${id}">
+  return `<div class="section ${isOpen ? 'section-open' : ''}" id="${id}">
     <div class="section-head ${isOpen}" onclick="toggleSection('${id}')">
       <div class="section-icon">${icon}</div>
       <div style="flex:1;min-width:0">
@@ -599,6 +619,7 @@ function renderSection(icon, title, desc, content, fields, defaultOpen) {
         <div class="section-desc">${desc}</div>
       </div>
       ${scorePlaceholder}
+      <span class="section-toggle-lbl">${isOpen ? 'Sbalit' : 'Rozbalit'}</span>
       <span class="section-chevron ${isOpen}">▼</span>
     </div>
     <div class="section-body ${isOpen}">${content}</div>
@@ -666,7 +687,7 @@ function restaurantCard(r, i){
   r = r || {};
   const menus = (r.menus && r.menus.length) ? r.menus : [{}];
   const inp = (cls,val,ph)=>`<input class="${cls}" value="${esc(val||'')}" oninput="markChanged()" placeholder="${ph}" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:10px 12px">`;
-  return `<div class="resto-card" style="border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;background:var(--card)">
+  return `<div class="resto-card" style="border:1px solid var(--border);border-radius:12px;padding:16px;background:var(--card)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <strong style="font-size:14px">🍽️ Restaurace ${i+1}</strong>
       <button type="button" onclick="removeRestaurant(${i})" class="btn btn-secondary" style="padding:4px 10px;font-size:11px;border-color:rgba(255,79,106,.3);color:var(--danger)">✕ Odebrat</button>
@@ -718,6 +739,11 @@ function buildSidebarNav() {
   topLink.textContent = '⬆ Nahoru';
   topLink.onclick = () => window.scrollTo({top: 0, behavior: 'smooth'});
   nav.appendChild(topLink);
+  // Rozbalit / sbalit vše
+  const ctl = document.createElement('div');
+  ctl.style.cssText = 'display:flex;gap:6px;padding:6px 12px';
+  ctl.innerHTML = '<a onclick="setAllSections(true)" title="Rozbalit všechny sekce" style="flex:1;justify-content:center;font-size:11px;padding:6px;border:1px solid var(--border);border-radius:6px">⊞ Rozbalit vše</a><a onclick="setAllSections(false)" title="Sbalit všechny sekce" style="flex:1;justify-content:center;font-size:11px;padding:6px;border:1px solid var(--border);border-radius:6px">⊟ Sbalit vše</a>';
+  nav.appendChild(ctl);
   // Přidej separátor
   const sep = document.createElement('div');
   sep.className = 'sidebar-section';
@@ -729,8 +755,9 @@ function buildSidebarNav() {
     const score = sec.querySelector('.score-badge');
     if (!title) return;
     const a = document.createElement('a');
-    const scoreText = score ? ' ' + score.textContent.trim() : '';
-    a.textContent = title.textContent.trim().substring(0, 22) + scoreText;
+    const t = title.textContent.trim();
+    a.title = t;
+    a.innerHTML = '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + t + '</span>' + (score ? '<span style="flex-shrink:0;font-size:11px;opacity:.75">' + score.textContent.trim() + '</span>' : '');
     a.onclick = () => {
       sec.scrollIntoView({behavior: 'smooth', block: 'start'});
       // Otevři sekci pokud je zavřená
@@ -766,6 +793,23 @@ function toggleSection(id) {
   body.classList.toggle('open', !isOpen);
   head.classList.toggle('open', !isOpen);
   chev.classList.toggle('open', !isOpen);
+  sec.classList.toggle('section-open', !isOpen);
+  const lbl = sec.querySelector('.section-toggle-lbl');
+  if (lbl) lbl.textContent = !isOpen ? 'Sbalit' : 'Rozbalit';
+}
+
+function setAllSections(open){
+  document.querySelectorAll('.section[id^="sec-"]').forEach(sec => {
+    const body = sec.querySelector('.section-body');
+    const head = sec.querySelector('.section-head');
+    const chev = sec.querySelector('.section-chevron');
+    const lbl = sec.querySelector('.section-toggle-lbl');
+    if (body) body.classList.toggle('open', open);
+    if (head) head.classList.toggle('open', open);
+    if (chev) chev.classList.toggle('open', open);
+    sec.classList.toggle('section-open', open);
+    if (lbl) lbl.textContent = open ? 'Sbalit' : 'Rozbalit';
+  });
 }
 
 // ── Vlastní navigační body ──────────────────

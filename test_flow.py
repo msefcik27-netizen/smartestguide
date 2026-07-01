@@ -1206,6 +1206,63 @@ def test_commissions():
             fail("Mazání partnera", str(e))
 
 
+# ─────────────────────────────────────────────
+# 22. Opakovatelné restaurace + ukládání polí portálu
+# ─────────────────────────────────────────────
+def test_restaurants(hotel_id, token):
+    section("22. Restaurace (opakovatelné) + ukládání polí portálu")
+    if not token:
+        skip("Restaurace testy", "token chybí")
+        return
+
+    payload = {
+        "restaurants": [
+            {"name": "E2E Restaurace", "type": "Česká", "hours": "11:00-22:00",
+             "directions": "Z recepce doprava, v přízemí",
+             "menus": [{"label": "Polední", "url": "https://example.com/lunch.pdf"},
+                       {"label": "Nápojový lístek", "url": "https://example.com/drinks"}]},
+            {"name": "E2E Bar & Grill", "menus": [{"label": "Vinný lístek", "url": "https://example.com/wine"}]},
+        ],
+        # Pole, která se DŘÍV neukládala (regrese pre-existing bugu)
+        "fitness_info": "Otevřeno 6-22 (E2E)",
+        "pool_info": "Krytý bazén (E2E)",
+        "minibar": "Ano, doplňován denně (E2E)",
+    }
+    hotel = {}
+    try:
+        r = requests.patch(f"{BASE}/api/hotel-portal/update?token={token}", json=payload, timeout=15)
+        if r.status_code != 200:
+            fail("Portal update (restaurace + pole)", f"status {r.status_code}")
+            return
+        ok("Portal update odeslán")
+        hotel = r.json().get("hotel", {})
+    except Exception as e:
+        fail("Portal update (restaurace)", str(e))
+        return
+
+    rest = hotel.get("restaurants") or []
+    if len(rest) == 2 and rest[0].get("name") == "E2E Restaurace" and len(rest[0].get("menus") or []) == 2:
+        ok("Restaurace uloženy", "2 restaurace, 2 jídelníčky u první")
+    else:
+        fail("Restaurace uloženy", f"vráceno: {str(rest)[:120]}")
+
+    ok("restaurant_name back-compat") if hotel.get("restaurant_name") == "E2E Restaurace" else fail("restaurant_name back-compat", str(hotel.get("restaurant_name")))
+    ok("menu_urls back-compat") if hotel.get("menu_urls") else fail("menu_urls back-compat", "prázdné")
+
+    # Regrese pre-existing bugu: pole se teď ukládají
+    ok("Oprava — fitness_info se ukládá") if hotel.get("fitness_info") else fail("fitness_info se NEuložil (bug)")
+    ok("Oprava — pool_info se ukládá") if hotel.get("pool_info") else fail("pool_info se NEuložil (bug)")
+    ok("Oprava — minibar se ukládá") if hotel.get("minibar") else fail("minibar se NEuložil (bug)")
+
+    # Přetrvání po opětovném načtení
+    try:
+        r = requests.get(f"{BASE}/api/hotel-portal/me?token={token}", timeout=10)
+        rest2 = r.json().get("hotel", {}).get("restaurants") or []
+        ok("Restaurace přetrvaly po /me", f"{len(rest2)} restaurací") if len(rest2) == 2 else fail("Restaurace /me", f"{len(rest2)}")
+    except Exception as e:
+        fail("Restaurace /me", str(e))
+
+
 if __name__ == "__main__":
     print(f"\n{BOLD}SmartestGuide – E2E Test Runner{RESET}")
     print(f"URL: {BLUE}{BASE}{RESET}\n")
@@ -1234,6 +1291,8 @@ if __name__ == "__main__":
     test_local_flyres(hotel_id) if hotel_id else skip("Lokální letáky", "hotel chybí")
     test_reminder_email(hotel_id) if hotel_id else skip("Reminder email", "hotel chybí")
     test_country_none_guard()
+    test_commissions()
+    test_restaurants(hotel_id, token) if hotel_id else skip("Restaurace testy", "hotel chybí")
 
     if hotel_id:
         cleanup(hotel_id)

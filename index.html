@@ -478,7 +478,9 @@
     <!-- PROVIZE -->
     <div class="page" id="page-commissions">
       <div class="topbar">
-        <div class="page-title">Provize <small>externisté / affiliate</small></div>
+        <div class="page-title">Provize <small>externisté / affiliate</small>
+          <a href="/api/docs/commissions" target="_blank" rel="noopener" style="margin-left:14px;font-size:13px;color:var(--accent);text-decoration:none;font-weight:600">📖 Jak provize fungují</a>
+        </div>
       </div>
 
       <!-- Nastavení provize -->
@@ -501,22 +503,14 @@
           <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Referral kód *</div><input type="text" id="pn-ref" style="width:130px" placeholder="JAN2026"></div>
           <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">E-mail</div><input type="text" id="pn-email" style="min-width:170px" placeholder="jan@example.com"></div>
           <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">IČO</div><input type="text" id="pn-ico" style="width:110px" placeholder="12345678"></div>
-          <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Override (CZK)</div><input type="number" id="pn-override" style="width:120px" placeholder="dle globálu"></div>
+          <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px" title="Individuální provize jen pro tohoto partnera — přepíše globální částku z Nastavení. Necháš-li prázdné, použije se globální.">Override (CZK) <span style="cursor:help">ⓘ</span></div><input type="number" id="pn-override" style="width:120px" placeholder="dle globálu" title="Individuální částka pro tohoto partnera (přepíše globální). Prázdné = globální."></div>
           <button class="btn btn-primary" onclick="addPartner()">+ Přidat partnera</button>
         </div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:12px" id="pn-ref-hint"></div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px">💡 <strong>Override</strong> = individuální provize pro konkrétního partnera, která přepíše globální částku. Klikni na řádek partnera pro rozbalení jeho provizí. <a href="/api/docs/commissions" target="_blank" rel="noopener" style="color:var(--accent)">Jak celé provize fungují →</a></div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Klikni na partnera pro rozbalení jeho provizí.</div>
         <div class="table-wrap">
           <table><thead><tr><th>Partner</th><th>Referral link</th><th>Hotely</th><th>Provize</th><th>Dluží se</th><th>Akce</th></tr></thead>
           <tbody id="partners-tbody"></tbody></table>
-        </div>
-      </div>
-
-      <!-- Ledger provizí -->
-      <div class="card">
-        <h3 style="margin:0 0 14px;font-size:15px">Provize (ledger)</h3>
-        <div class="table-wrap">
-          <table><thead><tr><th>Hotel</th><th>Partner</th><th>Částka</th><th>Stav</th><th>Vznik</th><th>Akce</th></tr></thead>
-          <tbody id="commissions-tbody"></tbody></table>
         </div>
       </div>
     </div>
@@ -1440,7 +1434,7 @@ async function loadCommissionsPage(){
     document.getElementById('com-amount').value=s.commission_amount||'';
     document.getElementById('com-hold').value=s.commission_hold_days||'';
   }catch(e){}
-  loadPartners(); loadCommissions();
+  await loadPartners(); await loadCommissions(); renderPartners();
 }
 async function saveCommissionSettings(){
   const body={commission_enabled:document.getElementById('com-enabled').checked,
@@ -1450,21 +1444,32 @@ async function saveCommissionSettings(){
     if(!r.ok)throw new Error('HTTP '+r.status); toast('✅ Nastavení provize uloženo'); }catch(e){toast('Chyba: '+e.message,'err');}
 }
 async function loadPartners(){
-  try{ const d=await (await fetch(API+'/api/partners')).json(); _partners=d.partners||[]; renderPartners(); }catch(e){}
+  try{ const d=await (await fetch(API+'/api/partners')).json(); _partners=d.partners||[]; }catch(e){}
 }
 function renderPartners(){
   const tb=document.getElementById('partners-tbody');
   if(!_partners.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Zatím žádní partneři.</td></tr>';return;}
   const base=location.origin;
-  tb.innerHTML=_partners.map(p=>{const st=p._stats||{};const link=base+'/landing?ref='+encodeURIComponent(p.referral_code);
-    return `<tr>
-    <td><strong>${esc(p.name)}</strong>${p.active?'':' <span style="color:var(--danger);font-size:11px">(neaktivní)</span>'}<div style="font-size:11px;color:var(--muted)">${esc(p.email||'')}${p.ico?' · IČO '+esc(p.ico):''}${p.commission_override?' · override '+p.commission_override+' Kč':''}</div></td>
-    <td style="font-size:11px"><code>${esc(p.referral_code)}</code><br><button class="btn btn-secondary" style="padding:3px 8px;font-size:10px;margin-top:4px" onclick="navigator.clipboard.writeText('${link}').then(()=>toast('Link zkopírován'))">📋 Kopírovat link</button></td>
+  tb.innerHTML=_partners.map(p=>{
+    const st=p._stats||{};
+    const link=base+'/landing?ref='+encodeURIComponent(p.referral_code);
+    const pc=_commissions.filter(c=>c.partner_id===p.id);
+    const commRows = pc.length ? pc.map(commissionRow).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:12px;font-size:12px">Zatím žádné provize (vzniknou po první platbě přivedeného hotelu).</td></tr>';
+    return `<tr style="cursor:pointer" onclick="togglePartner('${p.id}')">
+    <td><span id="pchev-${p.id}" style="display:inline-block;transition:transform .15s;color:var(--muted)">▸</span> <strong>${esc(p.name)}</strong>${p.active?'':' <span style="color:var(--danger);font-size:11px">(neaktivní)</span>'}<div style="font-size:11px;color:var(--muted)">${esc(p.email||'')}${p.ico?' · IČO '+esc(p.ico):''}${p.commission_override?' · override '+p.commission_override+' Kč':''}</div></td>
+    <td style="font-size:11px" onclick="event.stopPropagation()"><code>${esc(p.referral_code)}</code><br><button class="btn btn-secondary" style="padding:3px 8px;font-size:10px;margin-top:4px" onclick="navigator.clipboard.writeText('${link}').then(()=>toast('Link zkopírován'))">📋 Kopírovat link</button></td>
     <td>${st.hotels||0}</td>
     <td style="font-size:11px">⏳${st.pending||0} ✅${st.approved||0} 💸${st.paid||0}</td>
     <td><strong>${st.owed_czk||0} Kč</strong></td>
-    <td><button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="deletePartner('${p.id}','${esc(p.name)}')">✕</button></td>
-  </tr>`;}).join('');
+    <td onclick="event.stopPropagation()"><button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="deletePartner('${p.id}','${esc(p.name)}')">✕</button></td>
+  </tr>
+  <tr id="pcomm-${p.id}" style="display:none"><td colspan="6" style="padding:0;background:rgba(128,128,128,.1)">
+    <div style="padding:10px 16px 14px">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Provize partnera „${esc(p.name)}"</div>
+      <table style="width:100%;font-size:13px"><thead><tr><th style="text-align:left">Hotel</th><th style="text-align:left">Částka</th><th style="text-align:left">Stav</th><th style="text-align:left">Vznik</th><th style="text-align:left">Akce</th></tr></thead><tbody>${commRows}</tbody></table>
+    </div>
+  </td></tr>`;
+  }).join('');
 }
 async function addPartner(){
   const name=document.getElementById('pn-name').value.trim();
@@ -1476,32 +1481,37 @@ async function addPartner(){
   try{ const r=await fetch(API+'/api/partners',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const d=await r.json(); if(!r.ok)throw new Error(d.detail||('HTTP '+r.status));
     toast('✅ Partner přidán'); ['pn-name','pn-ref','pn-email','pn-ico','pn-override'].forEach(i=>document.getElementById(i).value='');
-    loadPartners(); }catch(e){toast('Chyba: '+e.message,'err');}
+    await loadPartners(); renderPartners(); }catch(e){toast('Chyba: '+e.message,'err');}
 }
 async function deletePartner(id,name){
   if(!confirm('Smazat partnera „'+name+'"?\n\nExistující provize zůstanou v ledgeru.'))return;
-  try{ await fetch(API+'/api/partners/'+id,{method:'DELETE'}); toast('Partner smazán'); loadPartners(); }catch(e){toast('Chyba: '+e.message,'err');}
+  try{ await fetch(API+'/api/partners/'+id,{method:'DELETE'}); toast('Partner smazán'); await loadPartners(); renderPartners(); }catch(e){toast('Chyba: '+e.message,'err');}
 }
 async function loadCommissions(){
-  try{ const d=await (await fetch(API+'/api/commissions')).json(); _commissions=d.commissions||[]; renderCommissions(); }catch(e){}
+  try{ const d=await (await fetch(API+'/api/commissions')).json(); _commissions=d.commissions||[]; }catch(e){}
 }
-function renderCommissions(){
-  const tb=document.getElementById('commissions-tbody');
-  if(!_commissions.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Zatím žádné provize. Vzniknou po první platbě hotelu získaného partnerem.</td></tr>';return;}
+function commissionRow(c){
   const lbl={pending:'⏳ Čeká (zádrž)',approved:'✅ Schváleno',paid:'💸 Vyplaceno',canceled:'✕ Zrušeno'};
-  tb.innerHTML=_commissions.map(c=>`<tr>
+  return `<tr>
     <td>${esc(c.hotel_name||c.hotel_id)}</td>
-    <td>${esc(c.partner_name||'?')}</td>
     <td><strong>${c.amount} ${c.currency||'CZK'}</strong></td>
     <td>${lbl[c.status]||c.status}${c.payout_reference?'<div style="font-size:10px;color:var(--muted)">VS/faktura: '+esc(c.payout_reference)+'</div>':''}</td>
     <td style="font-size:11px;color:var(--muted)">${(c.created_at||'').slice(0,10)}</td>
-    <td>${c.status==='approved'?`<button class="btn btn-success" style="padding:4px 10px;font-size:11px" onclick="payCommission('${c.id}')">Vyplaceno</button>`:''}</td>
-  </tr>`).join('');
+    <td>${c.status==='approved'?`<button class="btn btn-success" style="padding:4px 10px;font-size:11px" onclick="event.stopPropagation();payCommission('${c.id}')">Vyplaceno</button>`:''}</td>
+  </tr>`;
+}
+function togglePartner(id){
+  const row=document.getElementById('pcomm-'+id);
+  const chev=document.getElementById('pchev-'+id);
+  if(!row)return;
+  const show=row.style.display==='none';
+  row.style.display=show?'table-row':'none';
+  if(chev)chev.style.transform=show?'rotate(90deg)':'';
 }
 async function payCommission(id){
   const ref=prompt('Číslo faktury / VS platby (nepovinné):')||'';
   try{ const r=await fetch(API+'/api/commissions/'+id+'/pay?reference='+encodeURIComponent(ref),{method:'POST'});
-    if(!r.ok)throw new Error('HTTP '+r.status); toast('✅ Provize označena jako vyplacená'); loadCommissions(); loadPartners(); }catch(e){toast('Chyba: '+e.message,'err');}
+    if(!r.ok)throw new Error('HTTP '+r.status); toast('✅ Provize označena jako vyplacená'); await loadCommissions(); await loadPartners(); renderPartners(); }catch(e){toast('Chyba: '+e.message,'err');}
 }
 
 // ══ FAKTURY ══════════════════════════════════

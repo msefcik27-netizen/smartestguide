@@ -207,7 +207,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.1"
+APP_VERSION = "0.5.2"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -3632,6 +3632,85 @@ def list_commissions():
     for c in comms:
         c["partner_name"] = partners.get(c.get("partner_id"), {}).get("name", "?")
     return {"status": "ok", "commissions": comms}
+
+@app.get("/api/docs/commissions", response_class=HTMLResponse)
+def docs_commissions():
+    """Byznys dokumentace systému provizí — otevře se z adminu."""
+    return """<!DOCTYPE html><html lang="cs"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Provize pro externisty — jak to funguje</title>
+<style>
+:root{color-scheme:light dark}
+body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:820px;margin:0 auto;padding:32px 20px 80px;line-height:1.7;color:#1a1a1a;background:#fff}
+@media(prefers-color-scheme:dark){body{background:#15161a;color:#e6e4df}code{background:#2a2b31!important;color:#ffd7b0!important}.box{background:#1e1f25!important;border-color:#33343c!important}h1,h2{color:#fff!important}th{background:#23242b!important}}
+h1{font-size:26px;border-bottom:3px solid #FF6B00;padding-bottom:10px}
+h2{font-size:19px;margin-top:34px;color:#111}
+h2 .n{display:inline-block;background:#FF6B00;color:#fff;width:26px;height:26px;line-height:26px;text-align:center;border-radius:50%;font-size:14px;margin-right:8px}
+code{background:#f2efe9;padding:2px 6px;border-radius:5px;font-size:14px}
+.box{background:#faf8f4;border:1px solid #e8e4dc;border-radius:10px;padding:14px 18px;margin:14px 0}
+.tip{border-left:4px solid #00b894;padding-left:14px;color:#0a7a63}
+table{border-collapse:collapse;width:100%;margin:12px 0}
+th,td{border:1px solid #e8e4dc;padding:8px 10px;text-align:left;font-size:14px}
+th{background:#faf8f4}
+.flow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0;font-size:14px;font-weight:600}
+.flow span{background:#f2efe9;padding:6px 12px;border-radius:20px}
+</style></head><body>
+<h1>🤝 Provize pro externisty — jak to funguje</h1>
+<p>Spolupracujeme s externisty (affiliate partnery), kteří přivádějí nové hotely. Když partner přivede hotel a ten <strong>skutečně zaplatí</strong>, náleží partnerovi provize. Tento systém všechno eviduje — kdo přivedl který hotel a co je/není vyplaceno. Peníze přes systém <strong>netečou</strong>, je to čistě evidence.</p>
+
+<h2><span class="n">1</span>Partner (externista)</h2>
+<p>Každého partnera založíš v adminu (sekce <em>Provize</em>). Potřebuješ: jméno, e-mail a <strong>IČO</strong> (partner ti bude fakturovat). Každý partner má svůj unikátní <strong>referral kód</strong>.</p>
+
+<h2><span class="n">2</span>Referral kód — jak vzniká a k čemu je</h2>
+<p>Referral kód je krátký unikátní identifikátor partnera, např. <code>JAN2026</code>. </p>
+<ul>
+<li><strong>Zadáváš ho ty</strong> při vytváření partnera (volíš něco zapamatovatelného — jméno + rok apod.).</li>
+<li>Systém ho automaticky <strong>normalizuje</strong> — velká písmena, jen znaky A–Z a 0–9 (mezery a diakritika se odstraní), takže <code>jan 2026</code> → <code>JAN2026</code>.</li>
+<li>Musí být <strong>unikátní</strong> — dva partneři nemůžou mít stejný kód (systém to hlídá).</li>
+<li>Slouží k rozpoznání, <strong>který partner hotel přivedl</strong>.</li>
+</ul>
+
+<h2><span class="n">3</span>Referral link — jak funguje</h2>
+<p>Z kódu se automaticky sestaví odkaz, který partner posílá hotelům:</p>
+<div class="box"><code>https://vase-domena.cz/landing?ref=JAN2026</code></div>
+<p>Co se stane, když hotel přijde přes tento odkaz:</p>
+<ol>
+<li>Kód <code>ref=JAN2026</code> se <strong>uloží</strong> hotelu do prohlížeče (přežije i to, když odejde a vrátí se na stránku).</li>
+<li>Když se hotel zaregistruje, kód se pošle na server a systém dohledá partnera → hotel dostane značku <strong>„získal partner Jan"</strong> (pole <code>acquired_by</code>).</li>
+<li>Hotel bez platného kódu je veden jako <strong>„automatický"</strong> — bez nároku na provizi.</li>
+</ol>
+<p class="tip">💡 Tlačítko „Kopírovat link" u partnera v adminu zkopíruje přesně tento odkaz — partner ho jen pošle hotelu.</p>
+
+<h2><span class="n">4</span>Kolik partner dostane — částka a „override"</h2>
+<table>
+<tr><th>Pojem</th><th>Význam</th></tr>
+<tr><td><strong>Globální částka</strong><br>(Nastavení provize)</td><td>Fixní částka v CZK, kterou dostane partner za každý přivedený hotel. Platí pro <strong>všechny</strong> partnery.</td></tr>
+<tr><td><strong>Override</strong><br>(u konkrétního partnera)</td><td><strong>Individuální částka, která přepíše globální</strong> — jen pro tohoto jednoho partnera. Např. klíčovému partnerovi dáš 2500 Kč místo globálních 1500 Kč. Necháš-li prázdné, použije se globální částka.</td></tr>
+</table>
+
+<h2><span class="n">5</span>Kdy provize vznikne</h2>
+<p>Provize se vytvoří <strong>až po první SKUTEČNÉ platbě hotelu</strong> — tedy po skončení 14denního triálu, když hotel opravdu zaplatí. Za hotel, který jen prošel triálem a nezaplatil, provize <strong>nevzniká</strong>. Na jeden hotel připadá <strong>jedna</strong> provize.</p>
+
+<h2><span class="n">6</span>Životní cyklus provize</h2>
+<div class="flow"><span>⏳ pending</span> → <span>✅ approved</span> → <span>💸 paid</span></div>
+<ul>
+<li><strong>pending (čeká)</strong> — hotel poprvé zaplatil, běží <strong>zádržná lhůta</strong> (nastavitelná, např. 30 dní) jako ochrana proti hotelům, co hned zruší.</li>
+<li><strong>approved (schváleno)</strong> — lhůta uplynula a hotel je stále aktivní → nárok potvrzen.</li>
+<li><strong>paid (vyplaceno)</strong> — označíš ručně po zaplacení (viz níže).</li>
+</ul>
+
+<h2><span class="n">7</span>Výplata partnerovi</h2>
+<ol>
+<li>Vyplácejí se jen provize ve stavu <strong>approved</strong>.</li>
+<li>Partner (OSVČ) ti vystaví <strong>fakturu</strong> na schválené provize.</li>
+<li>Zaplatíš mu <strong>bankovním převodem</strong>.</li>
+<li>V adminu klikneš u provize na <strong>„Vyplaceno"</strong> a zadáš číslo faktury / variabilní symbol.</li>
+</ol>
+<p class="tip">💡 <strong>Stripe se k výplatě nepoužívá</strong> — ten slouží k vybírání peněz od hotelů, ne k výplatě partnerům. Automatické výplaty (Stripe Connect) zvážíme až u více partnerů.</p>
+
+<h2><span class="n">8</span>Daně</h2>
+<p>Provize je zdanitelný příjem partnera; v ČR ji řeší vlastní fakturou (DPH/daňové dopady konzultuj s účetní). SmartestGuide pouze eviduje závazek a jeho úhradu.</p>
+</body></html>"""
 
 @app.post("/api/commissions/{commission_id}/pay")
 def pay_commission(commission_id: str, reference: str = ""):
