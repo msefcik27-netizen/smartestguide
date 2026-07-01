@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, List
-import os, json, uuid, httpx, asyncio, re, base64, hmac, hashlib, logging
+import os, json, uuid, httpx, asyncio, re, base64, hmac, hashlib, logging, threading
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
@@ -80,6 +80,16 @@ async def _backup_data():
     import shutil, glob
     try:
         src = DB_PATH
+        if _PG_ENABLED:
+            # V Postgres režimu napiš čerstvý snímek z DB, ať je co zálohovat/poslat e-mailem
+            try:
+                os.makedirs(os.path.dirname(os.path.abspath(src)) or ".", exist_ok=True)
+                with open(src, "w", encoding="utf-8") as f:
+                    json.dump(db_load(), f, ensure_ascii=False, indent=2)
+            except Exception:
+                src = "/tmp/sg-db-snapshot.json"
+                with open(src, "w", encoding="utf-8") as f:
+                    json.dump(db_load(), f, ensure_ascii=False, indent=2)
         if not os.path.exists(src):
             return
         bdir = os.path.join(os.path.dirname(os.path.abspath(src)), "backups")
@@ -421,13 +431,88 @@ async def admin_status(request: Request):
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.getenv("DATA_PATH", os.path.join(os.path.dirname(__file__), "data.json"))
 
+# ── Databáze ──────────────────────────────────
+# Pokud je nastaven DATABASE_URL (Railway/Supabase/Neon Postgres), používáme Postgres:
+#   celá DB je uložená jako jeden JSONB řádek (kv_store id=1). Zápisy jsou atomické
+#   v transakci → žádná korupce při souběhu (na rozdíl od jednosouborového JSON).
+#   Data se při prvním startu jednorázově zmigrují z data.json.
+# Bez DATABASE_URL běží fallback na soubor (dev / než se Postgres nasadí).
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+_PG_ENABLED = False
+_pg_write_lock = threading.Lock()
+
+def _pg_connect():
+    import psycopg2
+    return psycopg2.connect(DATABASE_URL, connect_timeout=10)
+
+def _pg_init():
+    """Ověří připojení, vytvoří tabulku, jednorázově zmigruje data.json do Postgres."""
+    global _PG_ENABLED
+    if not DATABASE_URL:
+        logging.info("Databaze: souborovy rezim (DATABASE_URL nenastaven)")
+        return
+    try:
+        conn = _pg_connect()
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute("CREATE TABLE IF NOT EXISTS kv_store ("
+                        "id INT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT now())")
+            cur.execute("SELECT 1 FROM kv_store WHERE id=1")
+            if cur.fetchone() is None:
+                seed = {"hotels": {}, "settings": {}}
+                try:
+                    if os.path.exists(DB_PATH):
+                        with open(DB_PATH, "r", encoding="utf-8") as f:
+                            seed = json.load(f)
+                        logging.info("Migrace: nacteno z data.json (hotels=%d)", len(seed.get("hotels", {})))
+                except Exception as e:
+                    logging.warning("Migrace: cteni data.json selhalo: %s", e)
+                from psycopg2.extras import Json
+                cur.execute("INSERT INTO kv_store (id, data) VALUES (1, %s) ON CONFLICT (id) DO NOTHING",
+                            (Json(seed),))
+                logging.info("Postgres kv_store inicializovan (seed hotels=%d)", len(seed.get("hotels", {})))
+        conn.close()
+        _PG_ENABLED = True
+        logging.info("Databaze: POSTGRES aktivni")
+    except Exception as e:
+        _PG_ENABLED = False
+        logging.error("Postgres init SELHAL -> fallback na soubor: %s", e)
+
 def db_load() -> dict:
+    if _PG_ENABLED:
+        try:
+            conn = _pg_connect()
+            with conn.cursor() as cur:
+                cur.execute("SELECT data FROM kv_store WHERE id=1")
+                row = cur.fetchone()
+            conn.close()
+            if row and row[0] is not None:
+                return row[0]  # psycopg2 vraci JSONB primo jako dict
+            return {"hotels": {}, "settings": {}}
+        except Exception as e:
+            logging.error("db_load Postgres chyba -> fallback soubor: %s", e)
     if os.path.exists(DB_PATH):
         with open(DB_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
     return {"hotels": {}, "settings": {}}
 
 def db_save(data: dict):
+    if _PG_ENABLED:
+        try:
+            from psycopg2.extras import Json
+            with _pg_write_lock:
+                conn = _pg_connect()
+                conn.autocommit = False
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO kv_store (id, data, updated_at) VALUES (1, %s, now()) "
+                        "ON CONFLICT (id) DO UPDATE SET data=EXCLUDED.data, updated_at=now()",
+                        (Json(data),))
+                conn.commit()
+                conn.close()
+            return
+        except Exception as e:
+            logging.error("db_save Postgres chyba -> fallback soubor: %s", e)
     with open(DB_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -451,6 +536,9 @@ def db_save_settings(s: dict):
     data = db_load()
     data["settings"] = {**data.get("settings", {}), **s}
     db_save(data)
+
+# Inicializuj databázi (Postgres pokud DATABASE_URL, jinak soubor) — MUSÍ být před db_load()
+_pg_init()
 
 # Načti nastavení z env proměnných při startu
 init_settings_from_env()

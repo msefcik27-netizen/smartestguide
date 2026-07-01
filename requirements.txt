@@ -6,4 +6,4 @@ qrcode[pil]
 python-dotenv
 pydantic
 reportlab
-Pillow
+psycopg2-binary

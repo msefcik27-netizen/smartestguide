@@ -263,6 +263,7 @@ async function loadHotel() {
     loadCompleteness();
     loadPaymentSection();
     loadInvoicesSection();
+    loadMonthlyReport();
     loadAnalytics();
     setTimeout(initEmbedCode, 100);
   } catch(e) {
@@ -576,6 +577,7 @@ function renderPortal() {
     `, [])}
 
   <div id="invoices-section" style="margin-top:0"></div>
+  <div id="monthly-report-section"></div>
   <div id="analytics-section"></div>
   `;
 
@@ -1323,6 +1325,72 @@ function generateInvoicePdf(inv){
 }
 
 // ── Analytics ────────────────────────────────
+async function loadMonthlyReport(){
+  try{
+    const r = await fetch(`${API}/api/hotel-portal/monthly-report?token=${token}`);
+    if(!r.ok) return;
+    const d = await r.json();
+    const el = document.getElementById('monthly-report-section');
+    if(!el) return;
+    const cs = (d.lang === 'cs');
+    const rep = d.report || {}, cur = d.current || {};
+    const L = cs ? {
+      title:'Měsíční přehled', desc:'Jak Alex sloužil vašim hostům',
+      conv:'konverzací s hosty', trendPrefix:'oproti minulému měsíci',
+      langs:'Nejčastější jazyky', saved:'Ušetřeno recepci', thisMonth:'Tento měsíc zatím',
+      flagged:'× Alex neměl dost informací — doplňte profil výše, ať hosté dostanou odpověď vždy.',
+      profile:'% vyplněný profil — doplnění zvýší kvalitu odpovědí.',
+      empty:'Za tento měsíc zatím žádná aktivita. Přehled se objeví po prvních dotazech hostů.'
+    } : {
+      title:'Monthly summary', desc:'How Alex served your guests',
+      conv:'guest conversations', trendPrefix:'vs. last month',
+      langs:'Top languages', saved:'Reception time saved', thisMonth:'This month so far',
+      flagged:'× Alex lacked enough info — complete your profile above so guests always get an answer.',
+      profile:'% profile complete — filling the gaps improves answers.',
+      empty:'No activity yet this month. The summary appears after your first guest questions.'
+    };
+    const hasData = (rep.count || 0) > 0;
+    const trendHtml = (rep.trend_pct !== null && rep.trend_pct !== undefined && rep.prev_count > 0)
+      ? `<div style="font-size:13px;font-weight:600;margin-top:4px;color:${rep.trend_pct>=0?'var(--success)':'var(--warn)'}">${rep.trend_pct>=0?'+':''}${rep.trend_pct}% ${L.trendPrefix}</div>` : '';
+    const langsHtml = (rep.top_langs && rep.top_langs.length)
+      ? rep.top_langs.map(x=>`${x.name} (${x.count})`).join(', ') : '–';
+    const flaggedHtml = (rep.flagged>0)
+      ? `<div style="margin-top:12px;padding:10px 12px;border:1px solid rgba(255,79,106,.3);background:rgba(255,79,106,.06);border-radius:8px;font-size:13px;color:var(--text)"><strong style="color:#ff4f6a">${rep.flagged}${L.flagged}</strong></div>` : '';
+    const profileHtml = (d.profile_score < 100)
+      ? `<div style="margin-top:8px;padding:10px 12px;border:1px solid var(--border);background:var(--card);border-radius:8px;font-size:13px;color:var(--muted)"><strong style="color:var(--text)">${d.profile_score}</strong>${L.profile}</div>` : '';
+
+    el.innerHTML = `
+      <div class="section">
+        <div class="section-head">
+          <div class="section-icon">📈</div>
+          <div><div class="section-title">${L.title} · ${rep.month_label||''}</div>
+          <div class="section-desc">${L.desc}</div></div>
+        </div>
+        ${hasData ? `
+        <div style="background:linear-gradient(135deg,#1a1a1a,#2a2a2a);color:#fff;border-radius:12px;padding:22px;text-align:center;margin-bottom:14px">
+          <div style="font-size:44px;font-weight:800;color:#ff8a3d;line-height:1">${rep.count}</div>
+          <div style="font-size:13px;opacity:.85;margin-top:2px">${L.conv}</div>
+          ${trendHtml}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px">
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${L.langs}</div>
+            <div style="font-size:14px;font-weight:600;color:var(--text)">${langsHtml}</div>
+          </div>
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px">
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${L.saved}</div>
+            <div style="font-size:14px;font-weight:600;color:var(--text)">${rep.saved_label||'–'}</div>
+          </div>
+        </div>
+        ${flaggedHtml}
+        ${profileHtml}
+        ${cur.count>0?`<div style="margin-top:12px;font-size:12px;color:var(--muted);text-align:center">${L.thisMonth}: <strong style="color:var(--text)">${cur.count}</strong> ${L.conv}</div>`:''}
+        ` : `
+        <div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">📈 ${L.empty}${cur.count>0?`<br><br>${L.thisMonth}: <strong style="color:var(--text)">${cur.count}</strong> ${L.conv}`:''}</div>`}
+      </div>`;
+  }catch(e){}
+}
+
 async function loadAnalytics(){
   try{
     const r = await fetch(`${API}/api/hotel-portal/analytics?token=${token}`);
