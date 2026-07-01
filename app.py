@@ -207,7 +207,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.2"
+APP_VERSION = "0.5.3"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -2964,6 +2964,8 @@ async def guest_chat(req: GuestChatRequest):
 LANGUAGE RULE: Detect the language of the guest's message and always respond in that same language.
 If you cannot detect the language, use {lang_name} ({req.language}) as default.
 Never mix languages in a single response.
+
+BRAND NAMES (IMPORTANT): "SMARTEST GUIDE" and "Alex" are a brand and product name. NEVER translate or localise them into any language — always keep them exactly as "SMARTEST GUIDE" and "Alex", regardless of the language you are speaking. Do not write "Nejchytřejší průvodce", "Le guide le plus intelligent", or any translated form.
 
 INPUT TOLERANCE (IMPORTANT): Guests often use voice dictation or type quickly, so words may be misspelled or phonetically garbled — possibly transcribed in the wrong language. If a word looks like a garbled, misheard or misspelled version of a common hotel topic, infer the most likely intended meaning and answer helpfully instead of saying you don't understand. For example: "Spicycarte"/"Spajzekarte" → German "Speisekarte" (menu / jídelní lístek); "checkout"/"chekaut" → check-out; "wai-fai"/"vайфай" → WiFi; "brekfast"/"frpštyk" → breakfast. Only ask the guest to rephrase if you genuinely cannot guess the intent. Never reply that you don't know a word like "Spicycarte" — recognise it as a misheard "Speisekarte" and give the menu info.
 

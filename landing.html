@@ -230,7 +230,7 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
     <a href="#how" class="btn-ghost" id="hero-btn2">See how it works</a>
   </div>
   <div style="margin:0 auto 48px;max-width:620px;text-align:center">
-    <div style="font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#5a5a6a;margin-bottom:14px">Fluent in 16 languages</div>
+    <div id="flags-title" style="font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#5a5a6a;margin-bottom:14px">Fluent in 16 languages</div>
     <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px 12px">
       <img src="https://flagcdn.com/w40/cz.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="CZ">
       <img src="https://flagcdn.com/w40/gb.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="EN">
@@ -256,11 +256,11 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       <span class="mock-bar-title">Alex — SmartestGuide · Hotel Zlatá hvězda</span>
     </div>
     <div class="mock-chat">
-      <div class="mock-msg bot"><div class="mock-av">🤖</div><div class="mock-bubble">Hi! I'm Alex, your personal concierge. How can I help you today? 👋</div></div>
-      <div class="mock-msg user"><div class="mock-av">JD</div><div class="mock-bubble">What time does breakfast start?</div></div>
-      <div class="mock-msg bot"><div class="mock-av">🤖</div><div class="mock-bubble">Breakfast is served from <strong>7:00 to 10:30 AM</strong> in the hotel restaurant on the ground floor. Enjoy! 🍳</div></div>
-      <div class="mock-msg user"><div class="mock-av">JD</div><div class="mock-bubble">Is there parking nearby?</div></div>
-      <div class="mock-msg bot"><div class="mock-av">🤖</div><div class="mock-bubble">Yes! The hotel has a <strong>private parking lot</strong> right behind the building — free for guests. 🅿️</div></div>
+      <div class="mock-msg bot"><div class="mock-av">🤖</div><div class="mock-bubble" id="chat-b1">Hi! I'm Alex, your personal concierge. How can I help you today? 👋</div></div>
+      <div class="mock-msg user"><div class="mock-av">JD</div><div class="mock-bubble" id="chat-u1">What time does breakfast start?</div></div>
+      <div class="mock-msg bot"><div class="mock-av">🤖</div><div class="mock-bubble" id="chat-b2">Breakfast is served from <strong>7:00 to 10:30 AM</strong> in the hotel restaurant on the ground floor. Enjoy! 🍳</div></div>
+      <div class="mock-msg user"><div class="mock-av">JD</div><div class="mock-bubble" id="chat-u2">Is there parking nearby?</div></div>
+      <div class="mock-msg bot"><div class="mock-av">🤖</div><div class="mock-bubble" id="chat-b3">Yes! The hotel has a <strong>private parking lot</strong> right behind the building — free for guests. 🅿️</div></div>
     </div>
   </div>
 </section>
@@ -296,12 +296,12 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       <p id="feat-p">Quick answers to their questions — anytime, clearly, in their language.</p>
     </div>
     <div class="features-grid">
-      <div class="feature"><div class="feat-icon">🌍</div><div class="feat-body"><h3>In your language</h3><p>Quick answers in 16 languages — Alex automatically detects the guest's language and responds naturally.</p></div></div>
-      <div class="feature"><div class="feat-icon teal">🎤</div><div class="feat-body"><h3>Voice control</h3><p>Guests can say their question out loud. Works on Android and Chrome — no typing required.</p></div></div>
-      <div class="feature"><div class="feat-icon">📱</div><div class="feat-body"><h3>No app installation needed</h3><p>Guests scan a QR code and the concierge opens instantly in their browser. No download, no account.</p></div></div>
-      <div class="feature"><div class="feat-icon teal">🌤</div><div class="feat-body"><h3>Live weather</h3><p>Instant local weather for your hotel's location — temperature, wind, humidity — in real time.</p></div></div>
-      <div class="feature"><div class="feat-icon">🗺</div><div class="feat-body"><h3>Local tips</h3><p>Alex knows the neighbourhood: restaurants, sights, activities — all curated by you in the portal.</p></div></div>
-      <div class="feature"><div class="feat-icon teal">✏️</div><div class="feat-body"><h3>Always learning</h3><p>SMARTEST GUIDE trains in one day — and you can keep teaching it new things it will remember.</p></div></div>
+      <div class="feature"><div class="feat-icon">🌍</div><div class="feat-body"><h3 id="feat1-h">In your language</h3><p id="feat1-p">Quick answers in 16 languages — Alex automatically detects the guest's language and responds naturally.</p></div></div>
+      <div class="feature"><div class="feat-icon teal">🎤</div><div class="feat-body"><h3 id="feat2-h">Voice control</h3><p id="feat2-p">Guests can say their question out loud. Works on Android and Chrome — no typing required.</p></div></div>
+      <div class="feature"><div class="feat-icon">📱</div><div class="feat-body"><h3 id="feat3-h">No app installation needed</h3><p id="feat3-p">Guests scan a QR code and the concierge opens instantly in their browser. No download, no account.</p></div></div>
+      <div class="feature"><div class="feat-icon teal">🌤</div><div class="feat-body"><h3 id="feat4-h">Live weather</h3><p id="feat4-p">Instant local weather for your hotel's location — temperature, wind, humidity — in real time.</p></div></div>
+      <div class="feature"><div class="feat-icon">🗺</div><div class="feat-body"><h3 id="feat5-h">Local tips</h3><p id="feat5-p">Alex knows the neighbourhood: restaurants, sights, activities — all curated by you in the portal.</p></div></div>
+      <div class="feature"><div class="feat-icon teal">✏️</div><div class="feat-body"><h3 id="feat6-h">Always learning</h3><p id="feat6-p">SMARTEST GUIDE trains in one day — and you can keep teaching it new things it will remember.</p></div></div>
     </div>
     <div class="lang-strip">
       <img src="https://flagcdn.com/w40/cz.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="CZ">
@@ -329,36 +329,29 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       <h2 id="pricing-h2">Simple, transparent <span class="grad-text">pricing</span></h2>
       <p id="pricing-p">No hidden fees, no long-term contracts. Cancel anytime.</p>
     </div>
-    <div class="pricing-grid">
-      <div class="price-card">
-        <div class="price-name">Basic</div>
-        <div class="price-amount" id="price-standard"><span class="pre">from</span><span class="currency">€</span><span class="num" id="price-base-val">199</span><span class="suffix">/month</span></div>
-        <div class="price-desc">1 to <span id="price-threshold-val">100</span> beds</div>
-        <ul class="price-features">
-          <li>AI concierge in 16 languages</li>
-          <li>Voice control</li>
-          <li>Live weather</li>
-          <li>QR poster (print-ready PDF)</li>
-          <li>Hotel management portal</li>
-          <li>Monthly invoice PDF</li>
+    <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:24px;max-width:860px;margin:0 auto;align-items:stretch">
+      <!-- Co je v ceně -->
+      <div style="background:#ffffff;border:1px solid var(--border);border-radius:20px;padding:32px 28px">
+        <div style="font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--accent);margin-bottom:16px" id="price-incl-title">Vše v ceně</div>
+        <ul class="price-features" style="text-align:left">
+          <li id="pf1">AI concierge v 16 jazycích</li>
+          <li id="pf2">Hlasové ovládání</li>
+          <li id="pf3">Počasí naživo &amp; místní tipy</li>
+          <li id="pf4">QR plakát a letáky (PDF k tisku)</li>
+          <li id="pf5">Portál pro správu hotelu</li>
+          <li id="pf6">Měsíční faktura (PDF)</li>
         </ul>
-        <a href="#register" class="btn-primary" style="display:block;text-align:center">Get started →</a>
-        <div class="price-note" style="color:var(--teal);font-weight:600">✓ 14-day free trial — no charge today</div>
       </div>
-      <div class="price-card featured">
-        <div class="price-name">Extended</div>
-        <div class="price-amount" id="price-growing"><span class="currency">€</span><span class="num" id="price-base-val2">199</span><span class="suffix"> + €<span id="price-per-val">3</span>/bed</span></div>
-        <div class="price-desc">Over 100 beds</div>
-        <ul class="price-features">
-          <li>Everything in Basic</li>
-          <li>€3 per bed over 100</li>
-          <li>Priority support</li>
-          <li>Early access to new features</li>
-          <li>Custom branding (coming soon)</li>
-          <li>Analytics (coming soon)</li>
-        </ul>
-        <a href="#register" class="btn-primary" style="display:block;text-align:center">Get started →</a>
-        <div class="price-note" style="color:var(--teal);font-weight:600">✓ 14-day free trial — no charge today</div>
+      <!-- Kalkulačka s posuvníkem -->
+      <div style="background:#ffffff;border:2px solid var(--gold);border-radius:20px;padding:32px 28px;text-align:center;box-shadow:0 12px 40px rgba(255,107,0,.10);display:flex;flex-direction:column">
+        <div style="font-size:13px;color:#4a4a4a;margin-bottom:6px" id="calc-label">Počet lůžek ve vašem hotelu</div>
+        <div style="font-size:22px;font-weight:800;color:#1a1a1a;margin-bottom:16px"><span id="calc-beds">50</span> <span id="calc-beds-unit">lůžek</span></div>
+        <input type="range" id="calc-slider" min="10" max="500" step="5" value="50" style="width:100%;accent-color:var(--accent);margin-bottom:20px;cursor:pointer">
+        <div style="font-size:44px;font-weight:800;color:var(--accent);line-height:1"><span id="calc-price">199</span> €<span style="font-size:16px;color:#4a4a4a;font-weight:600"> / <span id="calc-per-month">měsíc</span></span></div>
+        <div style="font-size:13px;color:#4a4a4a;margin-top:10px" id="calc-formula"></div>
+        <div style="flex:1"></div>
+        <a href="#register" class="btn-primary" style="display:inline-block;margin-top:20px;padding:13px 30px" id="calc-cta">Začít →</a>
+        <div style="color:var(--teal);font-weight:600;margin-top:12px;font-size:13px" id="calc-trial">✓ 14 dní zdarma — dnes bez platby</div>
       </div>
     </div>
   </div>
@@ -401,17 +394,16 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       <div class="about-text">
         <span class="eyebrow" id="about-eyebrow">About us</span>
         <h2 id="about-h2">Built for hoteliers,<br><span class="grad-text">by people who travel</span></h2>
-        <p>SMARTEST GUIDE was born from a simple frustration: why do guests still have to call reception to ask when breakfast ends, where the parking is, or what's worth seeing nearby?</p>
-        <p>We built a system that reads your website, learns your hotel, and becomes available to guests in seconds — via a QR code that works in any browser, in any language.</p>
-        <p>We're a small team based in the Czech Republic, focused on the European hospitality market.</p>
+        <p id="about-p1">SMARTEST GUIDE was born from a simple frustration: why do guests still have to call reception to ask when breakfast ends, where the parking is, or what's worth seeing nearby?</p>
+        <p id="about-p2">We built a system that reads your website, learns your hotel, and becomes available to guests in seconds — via a QR code that works in any browser, in any language.</p>
+        <p id="about-p3">We're a small team based in the Czech Republic, focused on the European hospitality market.</p>
       </div>
       <div class="about-visual">
-        <div style="font-size:13px;color:var(--muted);margin-bottom:16px;font-weight:600;text-transform:uppercase;letter-spacing:1px">Guest satisfaction drivers</div>
-        <div class="about-metric"><div class="metric-label">Fast answers</div><div class="metric-bar-wrap"><div class="metric-bar" style="width:94%"></div></div><div class="metric-val">94%</div></div>
-        <div class="about-metric"><div class="metric-label">Language match</div><div class="metric-bar-wrap"><div class="metric-bar" style="width:88%"></div></div><div class="metric-val">88%</div></div>
-        <div class="about-metric"><div class="metric-label">24/7 availability</div><div class="metric-bar-wrap"><div class="metric-bar" style="width:100%"></div></div><div class="metric-val">100%</div></div>
-        <div class="about-metric"><div class="metric-label">No-app experience</div><div class="metric-bar-wrap"><div class="metric-bar" style="width:100%"></div></div><div class="metric-val">100%</div></div>
-        <div class="about-metric"><div class="metric-label">Setup time</div><div class="metric-bar-wrap"><div class="metric-bar" style="width:80%"></div></div><div class="metric-val">&lt;10m</div></div>
+        <div id="satis-title" style="font-size:13px;color:var(--muted);margin-bottom:16px;font-weight:600;text-transform:uppercase;letter-spacing:1px">Guest satisfaction drivers</div>
+        <div class="about-metric"><div class="metric-label" id="m1">Fast answers</div><div class="metric-bar-wrap"><div class="metric-bar" style="width:94%"></div></div><div class="metric-val">94%</div></div>
+        <div class="about-metric"><div class="metric-label" id="m2">Language match</div><div class="metric-bar-wrap"><div class="metric-bar" style="width:88%"></div></div><div class="metric-val">88%</div></div>
+        <div class="about-metric"><div class="metric-label" id="m3">24/7 availability</div><div class="metric-bar-wrap"><div class="metric-bar" style="width:100%"></div></div><div class="metric-val">100%</div></div>
+        <div class="about-metric"><div class="metric-label" id="m4">No-app experience</div><div class="metric-bar-wrap"><div class="metric-bar" style="width:100%"></div></div><div class="metric-val">100%</div></div>
       </div>
     </div>
   </div>
@@ -500,10 +492,10 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       </div>
       <div>
         <form class="contact-form" onsubmit="submitContact(event)">
-          <div class="form-group"><label>Your name</label><input type="text" placeholder="John Smith" required/></div>
-          <div class="form-group"><label>Email</label><input type="email" placeholder="john@hotel.com" required/></div>
-          <div class="form-group"><label>Message</label><textarea rows="5" placeholder="Tell us about your hotel or ask a question…" style="resize:vertical" required></textarea></div>
-          <button type="submit" class="btn-primary" style="width:100%;padding:14px;font-size:15px">Send message →</button>
+          <div class="form-group"><label id="c-l-name">Your name</label><input type="text" id="c-in-name" placeholder="John Smith" required/></div>
+          <div class="form-group"><label id="c-l-email">Email</label><input type="email" id="c-in-email" placeholder="john@hotel.com" required/></div>
+          <div class="form-group"><label id="c-l-msg">Message</label><textarea id="c-in-msg" rows="5" placeholder="Tell us about your hotel or ask a question…" style="resize:vertical" required></textarea></div>
+          <button type="submit" class="btn-primary" id="c-send" style="width:100%;padding:14px;font-size:15px">Send message →</button>
         </form>
       </div>
     </div>
@@ -529,11 +521,28 @@ function toggleMenu(){
 
 function calcSgPrice(beds){
   if(!beds||beds<1) return 0;
-  const base = window._sgPricingBase || 200;
+  const base = window._sgPricingBase || 199;
   const threshold = window._sgPricingThreshold || 100;
   const perBed = window._sgPricingPerBed || 3;
   return beds<=threshold ? base : base+(beds-threshold)*perBed;
 }
+
+// ── Ceníková kalkulačka (posuvník) ──
+function updCalcFormula(){
+  const fEl=document.getElementById('calc-formula'); if(!fEl) return;
+  const base=window._sgPricingBase||199, threshold=window._sgPricingThreshold||100, perBed=window._sgPricingPerBed||3;
+  fEl.textContent=(typeof currentLang!=='undefined'&&currentLang==='cs')
+    ? base+' € / měsíc do '+threshold+' lůžek · +'+perBed+' € za každé lůžko navíc'
+    : '€'+base+'/month up to '+threshold+' beds · +€'+perBed+' per extra bed';
+}
+function updCalc(){
+  const s=document.getElementById('calc-slider'); if(!s) return;
+  const beds=parseInt(s.value)||0;
+  const bEl=document.getElementById('calc-beds'); if(bEl) bEl.textContent=beds;
+  const pEl=document.getElementById('calc-price'); if(pEl) pEl.textContent=calcSgPrice(beds);
+  updCalcFormula();
+}
+(function(){ const s=document.getElementById('calc-slider'); if(s){ s.addEventListener('input',updCalc); updCalc(); } })();
 
 document.getElementById('reg-beds').addEventListener('input',function(){
   const beds=parseInt(this.value)||0;
@@ -669,6 +678,28 @@ const TRANSLATIONS={
     f_price_sub:"Monthly subscription",f_price_intro:"Introductory price — locked in for first 3 months",
     f_price_trial:"14-day free trial — your card won't be charged until day 15",
     f_gdpr:'I agree to the <a href="/privacy" target="_blank" style="color:var(--teal)">Privacy Policy</a> and <a href="/terms" target="_blank" style="color:var(--teal)">Terms of Service</a>. I understand my hotel data will be processed to provide the SMARTEST GUIDE service.',
+    flags_title:"Fluent in 16 languages",
+    chat_b1:"Hi! I'm Alex, your personal concierge. How can I help you today? 👋",
+    chat_u1:"What time does breakfast start?",
+    chat_b2:"Breakfast is served from <strong>7:00 to 10:30 AM</strong> in the hotel restaurant on the ground floor. Enjoy! 🍳",
+    chat_u2:"Is there parking nearby?",
+    chat_b3:"Yes! The hotel has a <strong>private parking lot</strong> right behind the building — free for guests. 🅿️",
+    feat1_h:"In your language",feat1_p:"Quick answers in 16 languages — Alex automatically detects the guest's language and responds naturally.",
+    feat2_h:"Voice control",feat2_p:"Guests can say their question out loud. Works on Android and Chrome — no typing required.",
+    feat3_h:"No app installation needed",feat3_p:"Guests scan a QR code and the concierge opens instantly in their browser. No download, no account.",
+    feat4_h:"Live weather",feat4_p:"Instant local weather for your hotel's location — temperature, wind, humidity — in real time.",
+    feat5_h:"Local tips",feat5_p:"Alex knows the neighbourhood: restaurants, sights, activities — all curated by you in the portal.",
+    feat6_h:"Always learning",feat6_p:"SMARTEST GUIDE trains in one day — and you can keep teaching it new things it will remember.",
+    about_p1:"SMARTEST GUIDE started from a simple need: guests keep asking the same things — when breakfast ends, where the parking is, what's worth seeing nearby. We wanted to make life easier for them and for you.",
+    about_p2:"We built a system that lightens your workload and gives guests a better experience. Alex is available to guests in seconds — via a QR code, in any browser and any language. It can serve 200 guests at once, in real time, in their own language.",
+    about_p3:"You also \"train\" Alex to become truly SMARTEST. You set it up in a single day, and you decide how great it becomes — it's in your hands, so make the most of it. We're a team based in Prague.",
+    satis_title:"Guest satisfaction drivers",
+    m1:"Fast answers",m2:"Language match",m3:"24/7 availability",m4:"No-app experience",m5:"Setup time",
+    c_name:"Your name",c_email:"Email",c_msg:"Message",c_send:"Send message →",
+    c_ph_name:"John Smith",c_ph_email:"john@hotel.com",c_ph_msg:"Tell us about your hotel or ask a question…",
+    price_incl_title:"Everything included",
+    pf1:"AI concierge in 16 languages",pf2:"Voice control",pf3:"Live weather & local tips",pf4:"QR poster & flyers (print-ready PDF)",pf5:"Hotel management portal",pf6:"Monthly invoice PDF",
+    calc_label:"Number of beds in your hotel",calc_beds_unit:"beds",calc_per_month:"month",calc_cta:"Get started →",calc_trial:"✓ 14-day free trial — no charge today",
   },
   cs:{
     nav_how:"Jak to funguje",nav_features:"Funkce",nav_pricing:"Ceník",nav_about:"O nás",nav_contact:"Kontakt",nav_cta:"Začít →",
@@ -705,6 +736,28 @@ const TRANSLATIONS={
     f_price_sub:"Měsíční předplatné",f_price_intro:"Zaváděcí cena — fixní první 3 měsíce",
     f_price_trial:"14 dní zdarma — karta se nestrhne dříve než 15. den",
     f_gdpr:'Souhlasím se <a href="/privacy" target="_blank" style="color:var(--teal)">zásadami ochrany osobních údajů</a> a <a href="/terms" target="_blank" style="color:var(--teal)">obchodními podmínkami</a>. Beru na vědomí, že údaje mého hotelu budou zpracovány pro poskytování služby SMARTEST GUIDE.',
+    flags_title:"Plynule v 16 jazycích",
+    chat_b1:"Ahoj! Jsem Alex, váš osobní concierge. Jak vám dnes mohu pomoci? 👋",
+    chat_u1:"V kolik začíná snídaně?",
+    chat_b2:"Snídaně se podává od <strong>7:00 do 10:30</strong> v hotelové restauraci v přízemí. Dobrou chuť! 🍳",
+    chat_u2:"Je poblíž parkování?",
+    chat_b3:"Ano! Hotel má <strong>vlastní parkoviště</strong> hned za budovou — pro hosty zdarma. 🅿️",
+    feat1_h:"Ve vašem jazyce",feat1_p:"Rychlé odpovědi v 16 jazycích — Alex sám rozpozná jazyk hosta a odpoví přirozeně.",
+    feat2_h:"Hlasové ovládání",feat2_p:"Host může otázku vyslovit nahlas. Funguje na Androidu i v Chrome — bez psaní.",
+    feat3_h:"Bez instalace aplikace",feat3_p:"Host naskenuje QR kód a concierge se hned otevře v prohlížeči. Žádné stahování, žádný účet.",
+    feat4_h:"Počasí naživo",feat4_p:"Okamžité místní počasí pro lokalitu hotelu — teplota, vítr, vlhkost — v reálném čase.",
+    feat5_h:"Místní tipy",feat5_p:"Alex zná okolí: restaurace, památky, aktivity — vše zadáváte vy v portálu.",
+    feat6_h:"Neustále se učí",feat6_p:"SMARTEST GUIDE zaškolíte za jeden den — a můžete ho dál učit nové věci, které si pamatuje.",
+    about_p1:"SMARTEST GUIDE vznikl z jednoduché potřeby: hosté se pořád ptají na to samé — kdy končí snídaně, kde je parkoviště nebo co v okolí stojí za vidění. Chtěli jsme život usnadnit jim i vám.",
+    about_p2:"Vytvořili jsme systém, který vám ulehčí práci a hostům přinese lepší zážitky. Alex je hostům k dispozici během pár vteřin — přes QR kód, v jakémkoli prohlížeči a jazyce. Obslouží třeba 200 hostů najednou, v reálném čase a v jejich jazyce.",
+    about_p3:"Alexe si navíc „vychováte“ a uděláte z ní opravdu SMARTEST. Zaškolíte ji během jednoho dne a vy sami ovlivňujete, jak skvělá bude — máte to ve svých rukou, využijte to. Jsme tým z Prahy.",
+    satis_title:"Co zvyšuje spokojenost hostů",
+    m1:"Rychlé odpovědi",m2:"Shoda jazyka",m3:"Dostupnost 24/7",m4:"Bez aplikace",m5:"Doba nasazení",
+    c_name:"Vaše jméno",c_email:"E-mail",c_msg:"Zpráva",c_send:"Odeslat zprávu →",
+    c_ph_name:"Jan Novák",c_ph_email:"jan@hotel.cz",c_ph_msg:"Napište nám o svém hotelu nebo se zeptejte…",
+    price_incl_title:"Vše v ceně",
+    pf1:"AI concierge v 16 jazycích",pf2:"Hlasové ovládání",pf3:"Počasí naživo a místní tipy",pf4:"QR plakát a letáky (PDF k tisku)",pf5:"Portál pro správu hotelu",pf6:"Měsíční faktura (PDF)",
+    calc_label:"Počet lůžek ve vašem hotelu",calc_beds_unit:"lůžek",calc_per_month:"měsíc",calc_cta:"Začít →",calc_trial:"✓ 14 dní zdarma — dnes bez platby",
   },
   de:{
     nav_how:"So funktioniert's",nav_features:"Funktionen",nav_pricing:"Preise",nav_about:"Über uns",nav_contact:"Kontakt",nav_cta:"Jetzt starten →",
@@ -861,7 +914,7 @@ async function loadLandingPricing(){
     const r = await fetch(API + '/api/settings');
     if(!r.ok) return;
     const d = await r.json();
-    const base      = d.pricing_base      || 200;
+    const base      = d.pricing_base      || 199;
     const threshold = d.pricing_threshold || 100;
     const perBed    = d.pricing_per_bed   || 3;
     const perDay    = Math.round(base / 30);
@@ -878,6 +931,8 @@ async function loadLandingPricing(){
     // Aktualizuj i kalkulátor v registračním formuláři
     const bedsEl = document.getElementById('reg-beds');
     if(bedsEl && bedsEl.value) bedsEl.dispatchEvent(new Event('input'));
+    // Aktualizuj ceníkovou kalkulačku (posuvník)
+    if(typeof updCalc === 'function') updCalc();
   } catch(e) { /* fallback na výchozí hodnoty v HTML */ }
 }
 document.addEventListener('DOMContentLoaded', ()=>{
@@ -941,6 +996,21 @@ function setLang(lang){
   setText('price-sub',FT('f_price_sub'));setText('price-intro',FT('f_price_intro'));setText('price-trial',FT('f_price_trial'));
   set('reg-gdpr-text',FT('f_gdpr'));
   const _ln=document.getElementById('reg-l-name'); if(_ln) _ln.textContent=FT('f_name');
+  // Hlavička vlajek, demo chat, karty funkcí, „o nás", metriky, kontaktní formulář
+  setText('flags-title',FT('flags_title'));
+  setText('chat-b1',FT('chat_b1'));setText('chat-u1',FT('chat_u1'));set('chat-b2',FT('chat_b2'));setText('chat-u2',FT('chat_u2'));set('chat-b3',FT('chat_b3'));
+  for(let i=1;i<=6;i++){setText('feat'+i+'-h',FT('feat'+i+'_h'));setText('feat'+i+'-p',FT('feat'+i+'_p'));}
+  setText('about-p1',FT('about_p1'));setText('about-p2',FT('about_p2'));setText('about-p3',FT('about_p3'));
+  setText('satis-title',FT('satis_title'));
+  for(let i=1;i<=4;i++){setText('m'+i,FT('m'+i));}
+  setText('c-l-name',FT('c_name'));setText('c-l-email',FT('c_email'));setText('c-l-msg',FT('c_msg'));setText('c-send',FT('c_send'));
+  const setPh=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null)el.placeholder=v;};
+  setPh('c-in-name',FT('c_ph_name'));setPh('c-in-email',FT('c_ph_email'));setPh('c-in-msg',FT('c_ph_msg'));
+  // Ceníková kalkulačka + „vše v ceně"
+  setText('price-incl-title',FT('price_incl_title'));
+  for(let i=1;i<=6;i++){setText('pf'+i,FT('pf'+i));}
+  setText('calc-label',FT('calc_label'));setText('calc-beds-unit',FT('calc_beds_unit'));setText('calc-per-month',FT('calc_per_month'));setText('calc-cta',FT('calc_cta'));setText('calc-trial',FT('calc_trial'));
+  if(typeof updCalcFormula==='function') updCalcFormula();
   setText('contact-eyebrow',T.contact_eyebrow);set('contact-h2',T.contact_h2);setText('contact-p',T.contact_p);
 }
 
