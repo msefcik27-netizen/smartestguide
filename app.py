@@ -20,6 +20,24 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ─────────────────────────────────────────────
+# Admin notifikace — jedna spolehlivá schránka pro interní kopie hotelových e-mailů.
+# Soukromé osobní adresy (seznam/gmail) se používají VÝHRADNĚ pro zálohy a NIKDY
+# nesmí vystupovat směrem k hotelu ani hostům.
+# ─────────────────────────────────────────────
+ADMIN_NOTIFY_EMAIL = os.getenv("ADMIN_NOTIFY_EMAIL", "admin@smartestguide.com").strip()
+
+def _admin_notify_bcc(exclude: str = "") -> list:
+    """BCC seznam pro interní admin kopie (neviditelné hotelu/hostům). Bez soukromých adres."""
+    ex = (exclude or "").strip().lower()
+    out, seen = [], set()
+    for e in (ADMIN_NOTIFY_EMAIL, os.getenv("ADMIN_CC_EMAIL", "").strip()):
+        e = (e or "").strip().lower()
+        if e and e != ex and e not in seen:
+            seen.add(e)
+            out.append({"email": e})
+    return out
+
+# ─────────────────────────────────────────────
 # Auto-načtení konfigurace z environment variables
 # ─────────────────────────────────────────────
 def init_settings_from_env():
@@ -258,13 +276,7 @@ async def _check_and_send_reminders():
               <p style="margin-top:32px;font-size:12px;color:#6b6f8e">SMARTEST GUIDE · support@smartestguide.com</p>
             </div>"""
 
-            bcc_list = [
-                {"email": "martin.1303@seznam.cz"},
-                {"email": "admin@smartestguide.com"},
-            ]
-            admin_cc = os.getenv("ADMIN_CC_EMAIL", "")
-            if admin_cc and admin_cc not in ["martin.1303@seznam.cz", "admin@smartestguide.com"]:
-                bcc_list.append({"email": admin_cc})
+            bcc_list = _admin_notify_bcc()
 
             payload = {
                 "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
@@ -2545,6 +2557,7 @@ async def send_invoice_email(hotel: dict, inv: dict, portal_url: str = ""):
         "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
         "to": [{"email": hotel_email, "name": hotel_name}],
         "cc": cc_emails,
+        "bcc": _admin_notify_bcc(exclude=cc_email),
         "subject": subject,
         "htmlContent": html_body,
         "textContent": text_body,
@@ -2761,14 +2774,13 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
 
     s = db_get_settings()
     cc_email = s.get("cc_email", "")
-    cc_emails = []
-    if cc_email: cc_emails.append({"email": cc_email})
-    if "martin.1303@seznam.cz" not in cc_email: cc_emails.append({"email": "martin.1303@seznam.cz"})
+    cc_emails = [{"email": cc_email}] if cc_email else []
 
     payload = {
         "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
         "to": [{"email": hotel_email, "name": hotel_name}],
         "cc": cc_emails,
+        "bcc": _admin_notify_bcc(exclude=cc_email),
         "subject": subject,
         "htmlContent": html_body,
         "textContent": text_body,
@@ -3444,13 +3456,10 @@ def send_reminder(hotel_id: str, request: Request, dry_run: bool = False):
         payload = {
             "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
             "to": [{"email": hotel_email, "name": hotel_name}],
-            "bcc": [{"email": "martin.1303@seznam.cz"}],
+            "bcc": _admin_notify_bcc(),
             "subject": subject,
             "htmlContent": html_body,
         }
-        admin_cc = os.getenv("ADMIN_CC_EMAIL", "")
-        if admin_cc:
-            payload["bcc"].append({"email": admin_cc})
         try:
             resp = _httpx.post(
                 "https://api.brevo.com/v3/smtp/email",
