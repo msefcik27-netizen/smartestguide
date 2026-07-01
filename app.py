@@ -1960,66 +1960,158 @@ def success_page(hotel_id: str = "", request: Request = None):
 
 
 def _build_invoice_pdf_bytes(inv: dict, s: dict) -> bytes:
-    """Vygeneruje PDF faktury jako bytes — sdílené endpointem i e-mailem."""
+    """Vygeneruje PDF faktury (standardní český daňový doklad, s diakritikou).
+    Sdílené endpointem i e-mailem."""
     from io import BytesIO
+    import os as _os
     from reportlab.pdfgen import canvas as rl_canvas
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
     from reportlab.lib.units import mm
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    # Fonty s diakritikou (Liberation Sans ze složky aplikace); fallback Helvetica
+    FN, FB = "Helvetica", "Helvetica-Bold"
+    try:
+        _b = _os.path.dirname(_os.path.abspath(__file__))
+        if "LibSans" not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(TTFont("LibSans", _os.path.join(_b, "LiberationSans-Regular.ttf")))
+            pdfmetrics.registerFont(TTFont("LibSans-Bold", _os.path.join(_b, "LiberationSans-Bold.ttf")))
+        FN, FB = "LibSans", "LibSans-Bold"
+    except Exception:
+        pass
+
     W, H = A4
     buf = BytesIO()
     c = rl_canvas.Canvas(buf, pagesize=A4)
-    PURPLE = colors.HexColor("#6c63ff")
-    c.setFillColor(PURPLE)
-    c.rect(0, H - 50*mm, W, 50*mm, fill=1, stroke=0)
-    c.setFillColor(colors.white)
-    c.setFont("Helvetica-Bold", 20)
-    c.drawString(20*mm, H - 18*mm, "SMARTEST GUIDE")
-    c.setFont("Helvetica-Bold", 24)
-    c.drawRightString(W - 20*mm, H - 18*mm, "FAKTURA")
-    c.setFont("Helvetica", 11)
-    c.drawRightString(W - 20*mm, H - 26*mm, inv.get("invoice_number", ""))
-    y = H - 65*mm
-    c.setFillColor(colors.HexColor("#333333"))
+    ORANGE = colors.HexColor("#FF6B00")
+    INK = colors.HexColor("#1a1a1a")
+    GREY = colors.HexColor("#666666")
+    LINE = colors.HexColor("#dddddd")
+    BOXBG = colors.HexColor("#f7f6f4")
+    ML, MR = 18*mm, W - 18*mm
+
+    cur = inv.get("currency_symbol", "€") or "€"
+    def money(v):
+        try:
+            n = f"{float(v):,.2f}".replace(",", " ").replace(".", ",")
+            return f"{n} {cur}"
+        except Exception:
+            return f"{v} {cur}"
+
     net = inv.get("amount_net", inv.get("amount_eur", 0))
     vat_rate = inv.get("vat_rate", 0)
     vat_amount = inv.get("vat_amount", 0)
     total = inv.get("amount_total", inv.get("amount_local", net))
-    rows = [
-        ("Dodavatel:", s.get("company_name", "SMARTEST GUIDE")),
-        ("  ICO / DIC:", f"{s.get('company_ico','')}  {s.get('company_dic','')}".strip()),
-        ("Odberatel:", inv.get("hotel_billing_name") or inv.get("hotel_name", "")),
+
+    # ── Hlavička ──
+    c.setFillColor(ORANGE); c.rect(0, H - 6*mm, W, 6*mm, fill=1, stroke=0)
+    c.setFillColor(INK); c.setFont(FB, 20); c.drawString(ML, H - 22*mm, "SMARTEST GUIDE")
+    c.setFillColor(GREY); c.setFont(FN, 9); c.drawString(ML, H - 27*mm, "AI concierge pro hotely")
+    c.setFillColor(INK); c.setFont(FB, 22); c.drawRightString(MR, H - 20*mm, "FAKTURA")
+    c.setFillColor(GREY); c.setFont(FN, 9); c.drawRightString(MR, H - 25*mm, "daňový doklad")
+    c.setFillColor(INK); c.setFont(FB, 12); c.drawRightString(MR, H - 32*mm, "č. " + inv.get("invoice_number", ""))
+
+    # ── Dodavatel / Odběratel ──
+    box_top = H - 42*mm; box_h = 40*mm; box_w = (MR - ML - 6*mm) / 2
+    def party(x, title, lines):
+        c.setFillColor(BOXBG); c.roundRect(x, box_top - box_h, box_w, box_h, 3, fill=1, stroke=0)
+        c.setFillColor(GREY); c.setFont(FB, 8); c.drawString(x + 5*mm, box_top - 7*mm, title.upper())
+        yy = box_top - 13*mm; c.setFillColor(INK)
+        for ln, bold in lines:
+            if not ln:
+                continue
+            c.setFont(FB if bold else FN, 10 if bold else 9)
+            c.drawString(x + 5*mm, yy, str(ln)[:48]); yy -= 5*mm
+
+    sup = [
+        (s.get("company_name", "SMARTEST GUIDE"), True),
+        (s.get("company_address", ""), False),
+        (s.get("company_city", ""), False),
+        ((f"IČO: {s.get('company_ico','')}" if s.get('company_ico') else ""), False),
+        ((f"DIČ: {s.get('company_dic','')}" if s.get('company_dic') else ""), False),
+        ((f"E-mail: {s.get('company_email','')}" if s.get('company_email') else ""), False),
     ]
-    if inv.get("hotel_ico"):
-        rows.append(("  ICO:", inv.get("hotel_ico", "")))
-    if inv.get("hotel_dic"):
-        rows.append(("  DIC:", inv.get("hotel_dic", "")))
-    if inv.get("hotel_country"):
-        rows.append(("  Zeme:", inv.get("hotel_country", "")))
-    rows += [
-        ("Datum:", (inv.get("created_at") or "")[:10]),
-        ("Splatnost:", inv.get("due_date", "")),
-        ("VS:", inv.get("variable_symbol", "")),
-        ("Obdobi:", f"{inv.get('period_from','')} - {inv.get('period_to','')}"),
-        ("Luzka:", str(inv.get("beds", ""))),
-        ("Zaklad:", f"{net} EUR"),
+    cust = [
+        (inv.get("hotel_billing_name") or inv.get("hotel_name", ""), True),
+        (inv.get("hotel_address", ""), False),
+        ((f"IČO: {inv.get('hotel_ico','')}" if inv.get('hotel_ico') else ""), False),
+        ((f"DIČ: {inv.get('hotel_dic','')}" if inv.get('hotel_dic') else ""), False),
+        ((f"Země: {inv.get('hotel_country','')}" if inv.get('hotel_country') else ""), False),
     ]
+    party(ML, "Dodavatel", sup)
+    party(ML + box_w + 6*mm, "Odběratel", cust)
+
+    # ── Meta řádek ──
+    my = box_top - box_h - 10*mm
+    meta = [
+        ("Datum vystavení", (inv.get("created_at") or "")[:10]),
+        ("Datum splatnosti", inv.get("due_date", "")),
+        ("Forma úhrady", "Převodem"),
+        ("Variabilní symbol", inv.get("variable_symbol", "")),
+    ]
+    step = (MR - ML) / len(meta)
+    for i, (k, v) in enumerate(meta):
+        x = ML + i * step
+        c.setFillColor(GREY); c.setFont(FN, 8); c.drawString(x, my, k)
+        c.setFillColor(INK); c.setFont(FB, 10); c.drawString(x, my - 5*mm, str(v))
+
+    # ── Položková tabulka ──
+    ty = my - 14*mm
+    c.setFillColor(INK); c.rect(ML, ty - 7*mm, MR - ML, 7*mm, fill=1, stroke=0)
+    c.setFillColor(colors.white); c.setFont(FB, 8)
+    c.drawString(ML + 3*mm, ty - 5*mm, "POPIS")
+    c.drawRightString(MR - 62*mm, ty - 5*mm, "MNOŽSTVÍ")
+    c.drawRightString(MR - 33*mm, ty - 5*mm, "CENA BEZ DPH")
+    c.drawRightString(MR - 3*mm, ty - 5*mm, "CELKEM")
+    ry = ty - 15*mm
+    c.setFillColor(INK); c.setFont(FN, 10)
+    c.drawString(ML + 3*mm, ry, "Předplatné SMARTEST GUIDE")
+    c.setFillColor(GREY); c.setFont(FN, 8)
+    c.drawString(ML + 3*mm, ry - 4.5*mm, f"Období {inv.get('period_from','')} – {inv.get('period_to','')} · {inv.get('beds','')} lůžek")
+    c.setFillColor(INK); c.setFont(FN, 10)
+    c.drawRightString(MR - 62*mm, ry, "1")
+    c.drawRightString(MR - 33*mm, ry, money(net))
+    c.drawRightString(MR - 3*mm, ry, money(net))
+    c.setStrokeColor(LINE); c.setLineWidth(0.5); c.line(ML, ry - 8*mm, MR, ry - 8*mm)
+
+    # ── Rekapitulace ──
+    sy = ry - 16*mm; lx = ML + 105*mm
+    def sumline(label, val, bold=False, big=False):
+        nonlocal sy
+        c.setFillColor(INK if bold else GREY); c.setFont(FB if bold else FN, 12 if big else 10)
+        c.drawString(lx, sy, label)
+        c.setFillColor(INK); c.setFont(FB if bold else FN, 13 if big else 10)
+        c.drawRightString(MR, sy, val); sy -= 7*mm
+    sumline("Základ (bez DPH)", money(net))
     if vat_rate:
-        rows.append((f"DPH {vat_rate}%:", f"{vat_amount} EUR"))
-    rows += [
-        ("Celkem k uhrade:", f"{total} EUR"),
-        ("Stav:", (inv.get("status") or "").upper()),
-    ]
-    for label, value in rows:
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(20*mm, y, label)
-        c.setFont("Helvetica", 11)
-        c.drawString(70*mm, y, value)
-        y -= 8*mm
+        sumline(f"DPH {vat_rate} %", money(vat_amount))
+    c.setStrokeColor(LINE); c.line(lx, sy + 3*mm, MR, sy + 3*mm); sy -= 1*mm
+    sumline("Celkem k úhradě", money(total), bold=True, big=True)
+
+    # ── Platební údaje ──
+    py = sy - 8*mm
+    if s.get("company_bank") or s.get("company_iban"):
+        c.setFillColor(GREY); c.setFont(FB, 8); c.drawString(ML, py, "PLATEBNÍ ÚDAJE")
+        c.setFillColor(INK); c.setFont(FN, 9); py -= 5*mm
+        if s.get("company_bank"):
+            c.drawString(ML, py, f"Účet: {s.get('company_bank')}"); py -= 4.5*mm
+        if s.get("company_iban"):
+            c.drawString(ML, py, f"IBAN: {s.get('company_iban')}"); py -= 4.5*mm
+        c.drawString(ML, py, f"Variabilní symbol: {inv.get('variable_symbol','')}"); py -= 4.5*mm
+
+    # ── DPH poznámka ──
     if inv.get("vat_note"):
-        c.setFont("Helvetica-Oblique", 9)
-        c.setFillColor(colors.HexColor("#666666"))
-        c.drawString(20*mm, y - 2*mm, inv.get("vat_note", ""))
+        c.setFillColor(GREY); c.setFont(FN, 8)
+        c.drawString(ML, py - 3*mm, str(inv.get("vat_note", ""))[:110])
+
+    # ── Patička ──
+    c.setStrokeColor(LINE); c.line(ML, 18*mm, MR, 18*mm)
+    c.setFillColor(GREY); c.setFont(FN, 8)
+    c.drawString(ML, 13*mm, "Vystaveno přes SMARTEST GUIDE — AI concierge pro hotely")
+    c.drawRightString(MR, 13*mm, s.get("company_email", "admin@smartestguide.com"))
+
     c.save()
     return buf.getvalue()
 

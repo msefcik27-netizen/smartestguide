@@ -246,6 +246,8 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       <img src="https://flagcdn.com/w40/cn.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="ZH">
       <img src="https://flagcdn.com/w40/jp.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="JP">
       <img src="https://flagcdn.com/w40/sa.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="AR">
+      <img src="https://flagcdn.com/w40/nl.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="NL">
+      <img src="https://flagcdn.com/w40/pt.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="PT">
     </div>
   </div>
   <div class="hero-mockup">
@@ -318,6 +320,8 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       <img src="https://flagcdn.com/w40/cn.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="ZH">
       <img src="https://flagcdn.com/w40/jp.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="JP">
       <img src="https://flagcdn.com/w40/sa.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="AR">
+      <img src="https://flagcdn.com/w40/nl.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="NL">
+      <img src="https://flagcdn.com/w40/pt.png" width="32" height="22" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="PT">
     </div>
   </div>
 </section>
@@ -346,7 +350,7 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       <div style="background:#ffffff;border:2px solid var(--gold);border-radius:20px;padding:32px 28px;text-align:center;box-shadow:0 12px 40px rgba(255,107,0,.10);display:flex;flex-direction:column">
         <div style="font-size:13px;color:#4a4a4a;margin-bottom:6px" id="calc-label">Počet lůžek ve vašem hotelu</div>
         <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:6px">
-          <input type="number" id="calc-beds-input" min="1" max="2000" value="50" inputmode="numeric" title="Klikněte a zadejte počet lůžek" style="width:96px;font-size:22px;font-weight:800;color:#1a1a1a;text-align:center;border:1.5px solid rgba(255,107,0,.45);border-radius:10px;padding:6px 10px;background:rgba(255,107,0,.06);cursor:text">
+          <input type="number" id="calc-beds-input" min="1" max="3000" value="50" inputmode="numeric" title="Klikněte a zadejte počet lůžek" style="width:96px;font-size:22px;font-weight:800;color:#1a1a1a;text-align:center;border:1.5px solid rgba(255,107,0,.45);border-radius:10px;padding:6px 10px;background:rgba(255,107,0,.06);cursor:text">
           <span id="calc-beds-unit" style="font-size:22px;font-weight:800;color:#1a1a1a">lůžek</span>
         </div>
         <div id="calc-beds-hint" style="font-size:11px;color:var(--accent);font-weight:600;margin-bottom:14px">↑ Klikněte a napište přesný počet lůžek</div>
@@ -356,6 +360,7 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
         <div style="flex:1"></div>
         <a href="#register" class="btn-primary" style="display:inline-block;margin-top:20px;padding:13px 30px" id="calc-cta">Začít →</a>
         <div style="color:var(--teal);font-weight:600;margin-top:12px;font-size:13px" id="calc-trial">✓ 14 dní zdarma — dnes bez platby</div>
+        <div style="color:#4a4a4a;font-size:11px;margin-top:8px" id="calc-vat">✓ Cena je konečná — nejsme plátci DPH.</div>
       </div>
     </div>
   </div>
@@ -544,7 +549,7 @@ function updCalcFormula(){
     : '€'+base+'/month up to '+threshold+' beds · +€'+perBed+' per extra bed';
 }
 function sgSetBeds(beds){
-  beds=parseInt(beds)||0; if(beds<1) beds=1; if(beds>2000) beds=2000;
+  beds=parseInt(beds)||0; if(beds<1) beds=1; if(beds>3000) beds=3000;
   const s=document.getElementById('calc-slider');
   const inp=document.getElementById('calc-beds-input');
   if(s){ const mn=parseInt(s.min)||1, mx=parseInt(s.max)||500; s.value=Math.min(Math.max(beds,mn),mx); }
@@ -666,7 +671,7 @@ const TRANSLATIONS={
     nav_how:"How it works",nav_features:"Features",nav_pricing:"Pricing",nav_about:"About",nav_contact:"Contact",nav_cta:"Get started →",
     hero_badge:"AI-Powered Hotel Concierge",
     hero_h1:"Your guests deserve<br><span class=\"grad-text\">instant answers</span>",
-    hero_p:"SMARTEST GUIDE answers your guests' questions 24/7 — in 16 languages, from a QR code at reception. No app installation required, no extra staff.",
+    hero_p:"Your guests ask the same things every day. SMARTEST GUIDE answers for you — fast, convenient and anytime, in 16 languages, 24/7, from a QR code at reception. No app, no extra staff, no missed questions.",
     hero_btn1:"14-day free trial →",hero_btn2:"See how it works",
     stat1_label:"Languages supported",stat2_label:"Always available",stat3_label:"Average response time",stat4_label:"Apps to install",
     how_eyebrow:"Process",how_h2:"How long does it take to <span class=\"grad-text\">train your staff?</span>",how_p:"We automatically fill in the initial data about your hotel. You review the data, add any missing details, print the QR poster or roll-up banner and place it at reception — done. You can also print a smaller version for guest rooms.",
@@ -718,13 +723,13 @@ const TRANSLATIONS={
     c_ph_name:"John Smith",c_ph_email:"john@hotel.com",c_ph_msg:"Tell us about your hotel or ask a question…",
     price_incl_title:"Everything included",
     pf1:"AI concierge in 16 languages",pf2:"Voice control",pf3:"Live weather & local tips",pf4:"QR poster & flyers (print-ready PDF)",pf5:"Hotel management portal",pf6:"Monthly invoice PDF",
-    calc_label:"Number of beds in your hotel",calc_beds_unit:"beds",calc_per_month:"month",calc_cta:"Get started →",calc_trial:"✓ 14-day free trial — no charge today",calc_beds_hint:"↑ Click and type the exact number of beds",
+    calc_label:"Number of beds in your hotel",calc_beds_unit:"beds",calc_per_month:"month",calc_cta:"Get started →",calc_trial:"✓ 14-day free trial — no charge today",calc_beds_hint:"↑ Click and type the exact number of beds",calc_vat:"✓ Final price — VAT not applicable.",
   },
   cs:{
     nav_how:"Jak to funguje",nav_features:"Funkce",nav_pricing:"Ceník",nav_about:"O nás",nav_contact:"Kontakt",nav_cta:"Začít →",
     hero_badge:"AI concierge pro hotely",
     hero_h1:"Přestaňte odpovídat<br>na stejné otázky.<br><span class=\"grad-text\">Nechte to na Alexovi.</span>",
-    hero_p:"Vaši hosté se každý den ptají na stejných 10 věcí. SMARTEST GUIDE na ně odpoví za vás — ve 16 jazycích, 24/7, z QR kódu u recepce. Bez aplikace, bez extra personálu, bez zmeškaných otázek.",
+    hero_p:"Vaši hosté se každý den ptají na to samé. SMARTEST GUIDE jim odpoví za vás — rychle, pohodlně a kdykoliv, ve 16 jazycích, 24/7, z QR kódu u recepce. Bez aplikace, bez extra personálu, bez zmeškaných otázek.",
     hero_btn1:"14 dní zdarma →",hero_btn2:"Jak to funguje",
     stat1_label:"Podporovaných jazyků",stat2_label:"Vždy dostupný",stat3_label:"Průměrná doba odpovědi",stat4_label:"Instalace aplikací",
     how_eyebrow:"Postup",how_h2:"Jak dlouho trvá <span class=\"grad-text\">zaškolení personálu?</span>",how_p:"SMARTEST GUIDE vyškolíte během jednoho dne — a neustále ho můžete učit novým věcem, které si pamatuje.",
@@ -776,7 +781,7 @@ const TRANSLATIONS={
     c_ph_name:"Jan Novák",c_ph_email:"jan@hotel.cz",c_ph_msg:"Napište nám o svém hotelu nebo se zeptejte…",
     price_incl_title:"Vše v ceně",
     pf1:"AI concierge v 16 jazycích",pf2:"Hlasové ovládání",pf3:"Počasí naživo a místní tipy",pf4:"QR plakát a letáky (PDF k tisku)",pf5:"Portál pro správu hotelu",pf6:"Měsíční faktura (PDF)",
-    calc_label:"Počet lůžek ve vašem hotelu",calc_beds_unit:"lůžek",calc_per_month:"měsíc",calc_cta:"Začít →",calc_trial:"✓ 14 dní zdarma — dnes bez platby",calc_beds_hint:"↑ Klikněte a napište přesný počet lůžek",
+    calc_label:"Počet lůžek ve vašem hotelu",calc_beds_unit:"lůžek",calc_per_month:"měsíc",calc_cta:"Začít →",calc_trial:"✓ 14 dní zdarma — dnes bez platby",calc_beds_hint:"↑ Klikněte a napište přesný počet lůžek",calc_vat:"✓ Cena je konečná — nejsme plátci DPH.",
   },
   de:{
     nav_how:"So funktioniert's",nav_features:"Funktionen",nav_pricing:"Preise",nav_about:"Über uns",nav_contact:"Kontakt",nav_cta:"Jetzt starten →",
@@ -1028,7 +1033,7 @@ function setLang(lang){
   // Ceníková kalkulačka + „vše v ceně"
   setText('price-incl-title',FT('price_incl_title'));
   for(let i=1;i<=6;i++){setText('pf'+i,FT('pf'+i));}
-  setText('calc-label',FT('calc_label'));setText('calc-beds-unit',FT('calc_beds_unit'));setText('calc-per-month',FT('calc_per_month'));setText('calc-cta',FT('calc_cta'));setText('calc-trial',FT('calc_trial'));setText('calc-beds-hint',FT('calc_beds_hint'));
+  setText('calc-label',FT('calc_label'));setText('calc-beds-unit',FT('calc_beds_unit'));setText('calc-per-month',FT('calc_per_month'));setText('calc-cta',FT('calc_cta'));setText('calc-trial',FT('calc_trial'));setText('calc-beds-hint',FT('calc_beds_hint'));setText('calc-vat',FT('calc_vat'));
   if(typeof updCalcFormula==='function') updCalcFormula();
   setText('contact-eyebrow',T.contact_eyebrow);set('contact-h2',T.contact_h2);setText('contact-p',T.contact_p);
 }
