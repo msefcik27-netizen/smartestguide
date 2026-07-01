@@ -96,6 +96,9 @@ section{padding:100px 5vw}
 .section-header{text-align:center;margin-bottom:64px}
 .section-header h2{font-size:clamp(28px,4vw,44px);font-weight:800;margin-bottom:14px}
 .section-header p{font-size:17px;color:var(--dim);max-width:560px;margin:0 auto;line-height:1.7}
+/* Registrační sekce má tmavé pozadí — nadpis/popis musí být světlé */
+#register .section-header h2{color:#f5f3ee}
+#register .section-header p{color:#c8ccd8}
 #how{background:#faf9f5}
 .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px}
 .step{background:var(--ink);border:1px solid var(--border);border-radius:16px;padding:28px 24px;position:relative;overflow:hidden;transition:border-color .2s}
