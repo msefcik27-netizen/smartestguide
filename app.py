@@ -40,12 +40,13 @@ def init_settings_from_env():
 # Aplikace
 # ─────────────────────────────────────────────
 async def _reminder_background_loop():
-    """Kontroluje každých 6 hodin hotely — posílá reminder emaily a deaktivuje expirované."""
+    """Každých 6 h: reminder e-maily, deaktivace expirací a záloha dat."""
     await asyncio.sleep(60)
     while True:
         try:
             await _check_and_send_reminders()
             await _deactivate_expired_subscriptions()
+            await _backup_data()
         except Exception as e:
             logging.error("Background loop error: %s", e)
         await asyncio.sleep(6 * 60 * 60)
@@ -72,6 +73,80 @@ async def _deactivate_expired_subscriptions():
             logging.info("Auto-deactivated hotel %s (period ended %s)", hotel_id, period_end_str)
     if changed:
         db_save(db)
+
+async def _backup_data():
+    """Denní rotovaná záloha data.json (na volume) + týdenní off-site kopie e-mailem."""
+    import shutil, glob
+    try:
+        src = DB_PATH
+        if not os.path.exists(src):
+            return
+        bdir = os.path.join(os.path.dirname(os.path.abspath(src)), "backups")
+        os.makedirs(bdir, exist_ok=True)
+        # Denní kopie (jedna za den)
+        today = datetime.utcnow().strftime("%Y%m%d")
+        daily = os.path.join(bdir, f"data-{today}.json")
+        if not os.path.exists(daily):
+            shutil.copy2(src, daily)
+            logging.info("Denní záloha vytvořena: %s", daily)
+        # Rotace — nech posledních 30 dní
+        for old in sorted(glob.glob(os.path.join(bdir, "data-*.json")))[:-30]:
+            try:
+                os.remove(old)
+            except Exception:
+                pass
+        # Týdenní off-site záloha e-mailem (přežije i ztrátu volume)
+        marker = os.path.join(bdir, ".last_email")
+        last = ""
+        if os.path.exists(marker):
+            try:
+                last = open(marker).read().strip()
+            except Exception:
+                last = ""
+        now = datetime.utcnow()
+        try:
+            last_dt = datetime.fromisoformat(last) if last else None
+        except Exception:
+            last_dt = None
+        if last_dt is None or (now - last_dt).days >= 7:
+            if await _email_backup(src):
+                try:
+                    open(marker, "w").write(now.isoformat())
+                except Exception:
+                    pass
+    except Exception as e:
+        logging.warning("Záloha selhala: %s", e)
+
+async def _email_backup(src) -> bool:
+    """Pošle data.json jako přílohu na zálohovací e-mail (off-site kopie)."""
+    brevo_key = os.getenv("BREVO_API_KEY", "")
+    to_email = os.getenv("BACKUP_EMAIL") or os.getenv("ADMIN_CC_EMAIL") or "martin.1303@seznam.cz"
+    if not brevo_key or not to_email:
+        return False
+    try:
+        with open(src, "rb") as f:
+            content_b64 = base64.b64encode(f.read()).decode()
+        stamp = datetime.utcnow().strftime("%Y-%m-%d")
+        payload = {
+            "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
+            "to": [{"email": to_email}],
+            "subject": f"SMARTEST GUIDE — záloha dat {stamp}",
+            "htmlContent": f"<p>Týdenní off-site záloha databáze (data.json) k {stamp}. Soubor je v příloze — ulož si ho mimo Railway.</p>",
+            "textContent": f"Zaloha dat {stamp} v priloze.",
+            "attachment": [{"name": f"data-backup-{stamp}.json", "content": content_b64}],
+        }
+        import httpx
+        async with httpx.AsyncClient() as client:
+            r = await client.post("https://api.brevo.com/v3/smtp/email", json=payload,
+                headers={"api-key": brevo_key, "Content-Type": "application/json"}, timeout=30)
+            if r.status_code in (200, 201):
+                logging.info("Off-site záloha odeslána -> %s", to_email)
+                return True
+            logging.error("Brevo záloha CHYBA %s: %s", r.status_code, r.text[:200])
+            return False
+    except Exception as e:
+        logging.warning("E-mail zálohy selhal: %s", e)
+        return False
 
 async def _check_and_send_reminders():
     """Zkontroluje všechny hotely a pošle reminder pokud splňují podmínky."""
