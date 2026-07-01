@@ -345,10 +345,14 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       <!-- Kalkulačka s posuvníkem -->
       <div style="background:#ffffff;border:2px solid var(--gold);border-radius:20px;padding:32px 28px;text-align:center;box-shadow:0 12px 40px rgba(255,107,0,.10);display:flex;flex-direction:column">
         <div style="font-size:13px;color:#4a4a4a;margin-bottom:6px" id="calc-label">Počet lůžek ve vašem hotelu</div>
-        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px">
-          <input type="number" id="calc-beds-input" min="1" max="2000" value="50" inputmode="numeric" style="width:96px;font-size:22px;font-weight:800;color:#1a1a1a;text-align:center;border:1px solid var(--border);border-radius:10px;padding:6px 8px;background:#fff">
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:6px">
+          <span style="position:relative;display:inline-flex;align-items:center">
+            <input type="number" id="calc-beds-input" min="1" max="2000" value="50" inputmode="numeric" title="Klikněte a zadejte počet lůžek" style="width:104px;font-size:22px;font-weight:800;color:#1a1a1a;text-align:center;border:2px solid var(--accent);border-radius:10px;padding:6px 24px 6px 8px;background:#fff;cursor:text;box-shadow:0 0 0 3px rgba(255,107,0,.12)">
+            <span aria-hidden="true" style="position:absolute;right:7px;font-size:13px;pointer-events:none;opacity:.75">✏️</span>
+          </span>
           <span id="calc-beds-unit" style="font-size:22px;font-weight:800;color:#1a1a1a">lůžek</span>
         </div>
+        <div id="calc-beds-hint" style="font-size:11px;color:var(--accent);font-weight:600;margin-bottom:14px">↑ Klikněte a napište přesný počet lůžek</div>
         <input type="range" id="calc-slider" min="10" max="500" step="5" value="50" style="width:100%;accent-color:var(--accent);margin-bottom:20px;cursor:pointer">
         <div style="font-size:44px;font-weight:800;color:var(--accent);line-height:1"><span id="calc-price">199</span> €<span style="font-size:16px;color:#4a4a4a;font-weight:600"> / <span id="calc-per-month">měsíc</span></span></div>
         <div style="font-size:13px;color:#4a4a4a;margin-top:10px" id="calc-formula"></div>
@@ -685,8 +689,8 @@ const TRANSLATIONS={
     reg_name_hint:"⚠️ This name will appear on all print materials and QR posters — enter it exactly as you want it printed.",
     f_name:"Hotel name *",f_url:"Hotel website *",f_email:"Contact email *",f_phone:"Phone number",f_beds:"Number of beds *",
     f_country:"Country *",f_country_opt:"Select country",
-    f_ico:'IČO <small style="color:var(--muted)">(for invoicing)</small>',
-    f_dic:'DIČ / VAT ID <small style="color:var(--muted)">(optional)</small>',
+    f_ico:'Company ID <small style="color:var(--muted)">(for invoicing)</small>',
+    f_dic:'VAT ID <small style="color:var(--muted)">(optional)</small>',
     f_source:"How did you hear about us?",f_source_opt:"Select...",
     f_src_google:"Google search",f_src_social:"Social media",f_src_rec:"Recommendation",f_src_fair:"Trade fair / event",f_src_other:"Other",
     f_price_sub:"Monthly subscription",f_price_intro:"Introductory price — locked in for first 3 months",
@@ -713,7 +717,7 @@ const TRANSLATIONS={
     c_ph_name:"John Smith",c_ph_email:"john@hotel.com",c_ph_msg:"Tell us about your hotel or ask a question…",
     price_incl_title:"Everything included",
     pf1:"AI concierge in 16 languages",pf2:"Voice control",pf3:"Live weather & local tips",pf4:"QR poster & flyers (print-ready PDF)",pf5:"Hotel management portal",pf6:"Monthly invoice PDF",
-    calc_label:"Number of beds in your hotel",calc_beds_unit:"beds",calc_per_month:"month",calc_cta:"Get started →",calc_trial:"✓ 14-day free trial — no charge today",
+    calc_label:"Number of beds in your hotel",calc_beds_unit:"beds",calc_per_month:"month",calc_cta:"Get started →",calc_trial:"✓ 14-day free trial — no charge today",calc_beds_hint:"↑ Click and type the exact number of beds",
   },
   cs:{
     nav_how:"Jak to funguje",nav_features:"Funkce",nav_pricing:"Ceník",nav_about:"O nás",nav_contact:"Kontakt",nav_cta:"Začít →",
@@ -771,7 +775,7 @@ const TRANSLATIONS={
     c_ph_name:"Jan Novák",c_ph_email:"jan@hotel.cz",c_ph_msg:"Napište nám o svém hotelu nebo se zeptejte…",
     price_incl_title:"Vše v ceně",
     pf1:"AI concierge v 16 jazycích",pf2:"Hlasové ovládání",pf3:"Počasí naživo a místní tipy",pf4:"QR plakát a letáky (PDF k tisku)",pf5:"Portál pro správu hotelu",pf6:"Měsíční faktura (PDF)",
-    calc_label:"Počet lůžek ve vašem hotelu",calc_beds_unit:"lůžek",calc_per_month:"měsíc",calc_cta:"Začít →",calc_trial:"✓ 14 dní zdarma — dnes bez platby",
+    calc_label:"Počet lůžek ve vašem hotelu",calc_beds_unit:"lůžek",calc_per_month:"měsíc",calc_cta:"Začít →",calc_trial:"✓ 14 dní zdarma — dnes bez platby",calc_beds_hint:"↑ Klikněte a napište přesný počet lůžek",
   },
   de:{
     nav_how:"So funktioniert's",nav_features:"Funktionen",nav_pricing:"Preise",nav_about:"Über uns",nav_contact:"Kontakt",nav_cta:"Jetzt starten →",
@@ -801,8 +805,8 @@ const TRANSLATIONS={
     reg_name_hint:"⚠️ Dieser Name erscheint auf allen Druckmaterialien und QR-Postern — geben Sie ihn genau so ein, wie er gedruckt werden soll.",
     f_name:"Hotelname *",f_url:"Hotel-Website *",f_email:"Kontakt-E-Mail *",f_phone:"Telefonnummer",f_beds:"Anzahl der Betten *",
     f_country:"Land *",f_country_opt:"Land auswählen",
-    f_ico:'IČO <small style="color:var(--muted)">(für Rechnung)</small>',
-    f_dic:'DIČ / USt-IdNr. <small style="color:var(--muted)">(optional)</small>',
+    f_ico:'Firmen-ID <small style="color:var(--muted)">(für Rechnung)</small>',
+    f_dic:'USt-IdNr. <small style="color:var(--muted)">(optional)</small>',
     f_source:"Wie haben Sie von uns erfahren?",f_source_opt:"Auswählen...",
     f_src_google:"Google-Suche",f_src_social:"Soziale Medien",f_src_rec:"Empfehlung",f_src_fair:"Messe / Veranstaltung",f_src_other:"Sonstiges",
     f_price_sub:"Monatliches Abonnement",f_price_intro:"Einführungspreis — für die ersten 3 Monate garantiert",
@@ -837,8 +841,8 @@ const TRANSLATIONS={
     reg_name_hint:"⚠️ Este nombre aparecerá en todos los materiales impresos y carteles QR — introdúzcalo exactamente como quiere que se imprima.",
     f_name:"Nombre del hotel *",f_url:"Sitio web del hotel *",f_email:"Correo de contacto *",f_phone:"Número de teléfono",f_beds:"Número de camas *",
     f_country:"País *",f_country_opt:"Seleccione país",
-    f_ico:'IČO <small style="color:var(--muted)">(para facturación)</small>',
-    f_dic:'DIČ / NIF-IVA <small style="color:var(--muted)">(opcional)</small>',
+    f_ico:'ID de empresa <small style="color:var(--muted)">(para facturación)</small>',
+    f_dic:'NIF-IVA <small style="color:var(--muted)">(opcional)</small>',
     f_source:"¿Cómo nos conoció?",f_source_opt:"Seleccione...",
     f_src_google:"Búsqueda en Google",f_src_social:"Redes sociales",f_src_rec:"Recomendación",f_src_fair:"Feria / evento",f_src_other:"Otro",
     f_price_sub:"Suscripción mensual",f_price_intro:"Precio de lanzamiento — fijo durante los primeros 3 meses",
@@ -873,8 +877,8 @@ const TRANSLATIONS={
     reg_name_hint:"⚠️ 此名称将出现在所有印刷材料和二维码海报上 — 请按照您希望打印的样子准确输入。",
     f_name:"酒店名称 *",f_url:"酒店网站 *",f_email:"联系邮箱 *",f_phone:"电话号码",f_beds:"床位数量 *",
     f_country:"国家 *",f_country_opt:"选择国家",
-    f_ico:'IČO <small style="color:var(--muted)">(用于开票)</small>',
-    f_dic:'DIČ / 税号 <small style="color:var(--muted)">(选填)</small>',
+    f_ico:'公司识别号 <small style="color:var(--muted)">(用于开票)</small>',
+    f_dic:'税号 <small style="color:var(--muted)">(选填)</small>',
     f_source:"您是如何了解到我们的？",f_source_opt:"请选择...",
     f_src_google:"谷歌搜索",f_src_social:"社交媒体",f_src_rec:"推荐",f_src_fair:"展会 / 活动",f_src_other:"其他",
     f_price_sub:"每月订阅",f_price_intro:"推广价 — 前 3 个月锁定",
@@ -909,8 +913,8 @@ const TRANSLATIONS={
     reg_name_hint:"⚠️ この名前はすべての印刷物とQRポスターに表示されます — 印刷したいとおりに正確に入力してください。",
     f_name:"ホテル名 *",f_url:"ホテルのウェブサイト *",f_email:"連絡先メール *",f_phone:"電話番号",f_beds:"ベッド数 *",
     f_country:"国 *",f_country_opt:"国を選択",
-    f_ico:'IČO <small style="color:var(--muted)">(請求用)</small>',
-    f_dic:'DIČ / VAT番号 <small style="color:var(--muted)">(任意)</small>',
+    f_ico:'会社ID <small style="color:var(--muted)">(請求用)</small>',
+    f_dic:'VAT番号 <small style="color:var(--muted)">(任意)</small>',
     f_source:"当サービスをどこで知りましたか？",f_source_opt:"選択してください...",
     f_src_google:"Google検索",f_src_social:"ソーシャルメディア",f_src_rec:"紹介",f_src_fair:"展示会・イベント",f_src_other:"その他",
     f_price_sub:"月額サブスクリプション",f_price_intro:"導入価格 — 最初の3か月間固定",
@@ -1023,7 +1027,7 @@ function setLang(lang){
   // Ceníková kalkulačka + „vše v ceně"
   setText('price-incl-title',FT('price_incl_title'));
   for(let i=1;i<=6;i++){setText('pf'+i,FT('pf'+i));}
-  setText('calc-label',FT('calc_label'));setText('calc-beds-unit',FT('calc_beds_unit'));setText('calc-per-month',FT('calc_per_month'));setText('calc-cta',FT('calc_cta'));setText('calc-trial',FT('calc_trial'));
+  setText('calc-label',FT('calc_label'));setText('calc-beds-unit',FT('calc_beds_unit'));setText('calc-per-month',FT('calc_per_month'));setText('calc-cta',FT('calc_cta'));setText('calc-trial',FT('calc_trial'));setText('calc-beds-hint',FT('calc_beds_hint'));
   if(typeof updCalcFormula==='function') updCalcFormula();
   setText('contact-eyebrow',T.contact_eyebrow);set('contact-h2',T.contact_h2);setText('contact-p',T.contact_p);
 }
