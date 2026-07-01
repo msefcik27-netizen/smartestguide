@@ -446,38 +446,50 @@ def _pg_connect():
     import psycopg2
     return psycopg2.connect(DATABASE_URL, connect_timeout=10)
 
+def _pg_init_once():
+    """Jeden pokus: připojení, tabulka, jednorázová migrace z data.json. Vyhodí výjimku při chybě."""
+    global _PG_ENABLED
+    conn = _pg_connect()
+    conn.autocommit = True
+    with conn.cursor() as cur:
+        cur.execute("CREATE TABLE IF NOT EXISTS kv_store ("
+                    "id INT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT now())")
+        cur.execute("SELECT 1 FROM kv_store WHERE id=1")
+        if cur.fetchone() is None:
+            seed = {"hotels": {}, "settings": {}}
+            try:
+                if os.path.exists(DB_PATH):
+                    with open(DB_PATH, "r", encoding="utf-8") as f:
+                        seed = json.load(f)
+                    logging.warning("Migrace: nacteno z data.json (hotels=%d)", len(seed.get("hotels", {})))
+            except Exception as e:
+                logging.warning("Migrace: cteni data.json selhalo: %s", e)
+            from psycopg2.extras import Json
+            cur.execute("INSERT INTO kv_store (id, data) VALUES (1, %s) ON CONFLICT (id) DO NOTHING",
+                        (Json(seed),))
+            logging.warning("Postgres kv_store inicializovan (seed hotels=%d)", len(seed.get("hotels", {})))
+    conn.close()
+    _PG_ENABLED = True
+
 def _pg_init():
-    """Ověří připojení, vytvoří tabulku, jednorázově zmigruje data.json do Postgres."""
+    """Inicializuje Postgres s několika pokusy — privátní síť Railway může při startu chvíli chybět."""
     global _PG_ENABLED
     if not DATABASE_URL:
         logging.warning("Databaze: SOUBOROVY REZIM (DATABASE_URL nenastaven)")
         return
-    try:
-        conn = _pg_connect()
-        conn.autocommit = True
-        with conn.cursor() as cur:
-            cur.execute("CREATE TABLE IF NOT EXISTS kv_store ("
-                        "id INT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT now())")
-            cur.execute("SELECT 1 FROM kv_store WHERE id=1")
-            if cur.fetchone() is None:
-                seed = {"hotels": {}, "settings": {}}
-                try:
-                    if os.path.exists(DB_PATH):
-                        with open(DB_PATH, "r", encoding="utf-8") as f:
-                            seed = json.load(f)
-                        logging.info("Migrace: nacteno z data.json (hotels=%d)", len(seed.get("hotels", {})))
-                except Exception as e:
-                    logging.warning("Migrace: cteni data.json selhalo: %s", e)
-                from psycopg2.extras import Json
-                cur.execute("INSERT INTO kv_store (id, data) VALUES (1, %s) ON CONFLICT (id) DO NOTHING",
-                            (Json(seed),))
-                logging.info("Postgres kv_store inicializovan (seed hotels=%d)", len(seed.get("hotels", {})))
-        conn.close()
-        _PG_ENABLED = True
-        logging.warning("Databaze: POSTGRES AKTIVNI")
-    except Exception as e:
-        _PG_ENABLED = False
-        logging.error("Postgres init SELHAL -> fallback na soubor: %s", e)
+    import time as _t
+    attempts = 8
+    for i in range(1, attempts + 1):
+        try:
+            _pg_init_once()
+            logging.warning("Databaze: POSTGRES AKTIVNI (pokus %d)", i)
+            return
+        except Exception as e:
+            logging.warning("Postgres pripojeni pokus %d/%d selhalo: %s", i, attempts, e)
+            if i < attempts:
+                _t.sleep(3)
+    _PG_ENABLED = False
+    logging.error("Postgres init SELHAL po %d pokusech -> fallback na soubor", attempts)
 
 def db_load() -> dict:
     if _PG_ENABLED:
