@@ -218,6 +218,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Cache-busting: HTML stránky (landing, admin, portál, guest) se nesmí kešovat,
+# jinak prohlížeč po deployi servíruje starý JS (nutil by k Ctrl+Shift+R).
+# JS bug z 0.5.4 se kvůli cache jevil „nasazený, ale pořád rozbitý".
+@app.middleware("http")
+async def _no_cache_html(request, call_next):
+    response = await call_next(request)
+    ctype = response.headers.get("content-type", "")
+    if ctype.startswith("text/html"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 # ─────────────────────────────────────────────
 # Lokální JSON databáze
 # ─────────────────────────────────────────────
