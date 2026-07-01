@@ -861,9 +861,9 @@ function renderHotelsTable(){
     }
     return`<tr style="border-bottom:1px solid var(--border)">
     <!-- NÁZEV + ZEMĚ + HVĚZDY -->
-    <td style="padding:10px 8px;min-width:220px">
-      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px">${esc(trunc(h.name||'Bez názvu',30))}</div>
-      <a href="${esc(h.url||h.source_url||'')}" target="_blank" style="color:var(--accent);text-decoration:none;font-size:10px;display:block;margin-bottom:4px">${esc(trunc(h.url||h.source_url||'',34))}</a>
+    <td style="padding:10px 8px;min-width:280px;max-width:360px">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px;word-break:break-word">${esc(h.name||'Bez názvu')}</div>
+      <a href="${esc(h.url||h.source_url||'')}" target="_blank" style="color:var(--accent);text-decoration:none;font-size:10px;display:block;margin-bottom:4px;word-break:break-all;line-height:1.35">${esc(h.url||h.source_url||'')}</a>
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <span style="font-size:11px">${starsHtml(h.star_rating)}</span>
         <span style="font-size:10px;color:var(--muted)">${countryHtml(h)}</span>
@@ -1518,12 +1518,18 @@ async function payCommission(id){
 
 // ══ FAKTURY ══════════════════════════════════
 let _allInvoices=[];
+// Rozpozná faktury testovacích hotelů z E2E testů (názvy "E2E …")
+function isTestInvoice(inv){
+  const n=(inv.hotel_name||'').trim().toUpperCase();
+  return n.startsWith('E2E') || n.includes('NULLCOUNTRY');
+}
 async function loadBilling(){
   addLog('info','Načítám faktury','billing');
   try{
     const r=await fetch(API+'/api/invoices');
     const d=await r.json();
-    const invs=d.invoices||[];
+    // Skryj faktury testovacích hotelů (E2E) — zobrazujeme jen reálné hotely
+    const invs=(d.invoices||[]).filter(i=>!isTestInvoice(i));
     _allInvoices=invs;
     const total=invs.length;
     const paid=invs.filter(i=>i.status==='paid').length;
