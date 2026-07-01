@@ -832,7 +832,7 @@ async function fetchWeather(){
     for(const q of queries){
       const addr=encodeURIComponent(q);
       const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${addr}&format=json&limit=1`,
-        {headers:{'User-Agent':'SmartestGuide/1.0 contact@smartestguide.com'}});
+        {headers:{'User-Agent':'SmartestGuide/1.0 support@smartestguide.com'}});
       gd=await geo.json();
       if(gd.length) break;
     }

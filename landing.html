@@ -649,8 +649,8 @@ async function submitForm(){
     // Duplicitní platba (409)
     if(e.message && (e.message.includes('aktivní předplatné') || e.message.includes('already has'))){
       const errText = currentLang==='cs'
-        ? '⚠️ Tento e-mail již má aktivní předplatné. Přihlaste se do portálu nebo kontaktujte podporu: <a href="mailto:info@smartestguide.com" style="color:#ff4f6a">info@smartestguide.com</a>'
-        : '⚠️ This email already has an active subscription. Please log into your hotel portal or contact support: <a href="mailto:info@smartestguide.com" style="color:#ff4f6a">info@smartestguide.com</a>';
+        ? '⚠️ Tento e-mail již má aktivní předplatné. Přihlaste se do portálu nebo kontaktujte podporu: <a href="mailto:support@smartestguide.com" style="color:#ff4f6a">support@smartestguide.com</a>'
+        : '⚠️ This email already has an active subscription. Please log into your hotel portal or contact support: <a href="mailto:support@smartestguide.com" style="color:#ff4f6a">support@smartestguide.com</a>';
       if(msg){ msg.style.display='block'; msg.innerHTML=errText; }
       else { alert(currentLang==='cs'?'Tento e-mail již má aktivní předplatné.':'This email already has an active subscription.'); }
     } else {
