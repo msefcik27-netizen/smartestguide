@@ -757,17 +757,50 @@ function offlineReply(text){
   if(!hotelData)return 'Omlouvám se, momentálně jsem offline.';
   const t=text.toLowerCase();
   const h=hotelData;
-  if(t.includes('check-in')||t.includes('příjezd'))
-    return h.checkin_time?`Check-in je od **${h.checkin_time}**. Check-out do ${h.checkout_time||'–'}.`:'Informace o check-in nejsou k dispozici.';
-  if(t.includes('snídaně')||t.includes('breakfast'))
-    return h.breakfast_hours?`Snídaně se podává **${h.breakfast_hours}**.`:'Informace o snídani nejsou k dispozici.';
-  if(t.includes('parkování')||t.includes('parking'))
-    return h.parking_info||'Informace o parkování nejsou k dispozici.';
+  if(t.includes('check-in')||t.includes('checkin')||t.includes('příjezd'))
+    return h.checkin_time?`Check-in je od **${h.checkin_time}**.${h.checkout_time?` Check-out do ${h.checkout_time}.`:''}`:'Informace o check-inu zatím nejsou vyplněné — zeptejte se prosím na recepci.';
+  if(t.includes('check-out')||t.includes('checkout')||t.includes('odjezd'))
+    return h.checkout_time?`Check-out je do **${h.checkout_time}**.`:'Informace o check-outu zatím nejsou vyplněné — zeptejte se prosím na recepci.';
+  if(t.includes('snídaně')||t.includes('snidane')||t.includes('breakfast'))
+    return h.breakfast_hours?`Snídaně se podává **${h.breakfast_hours}**.`:'Informace o snídani zatím nejsou vyplněné — zeptejte se prosím na recepci.';
+  if(t.includes('lůžk')||t.includes('lůžek')||t.includes('luzek')||t.includes('postel')||t.includes('kapacit')||t.includes('bed'))
+    return h.bed_count?`Hotel má **${h.bed_count}** lůžek.`:'Počet lůžek zatím není vyplněný — zeptejte se prosím na recepci.';
+  if(t.includes('wifi')||t.includes('wi-fi')||t.includes('internet')||t.includes('heslo'))
+    return h.wifi_name?`WiFi síť: **${h.wifi_name}**${h.wifi_password?`, heslo: **${h.wifi_password}**`:''}.`:'Údaje k WiFi zatím nejsou vyplněné — zeptejte se prosím na recepci.';
+  if(t.includes('parkování')||t.includes('parkovani')||t.includes('parking'))
+    return h.parking_info||'Informace o parkování zatím nejsou vyplněné — zeptejte se prosím na recepci.';
   if(t.includes('wellness')||t.includes('spa'))
-    return h.wellness_info||'Informace o wellness nejsou k dispozici.';
-  if(t.includes('telefon')||t.includes('kontakt'))
-    return h.phone?`Recepce: **${h.phone}**${h.whatsapp_number?'\nWhatsApp: '+h.whatsapp_number:''}`:'Kontakt není k dispozici.';
-  return `Momentálně jsem offline. Základní informace:\n\n⏰ Check-in: ${h.checkin_time||'–'}\n🍳 Snídaně: ${h.breakfast_hours||'–'}\n📞 Telefon: ${h.phone||'–'}`;
+    return h.wellness_info||'Informace o wellness zatím nejsou vyplněné — zeptejte se prosím na recepci.';
+  if(t.includes('bazén')||t.includes('bazen')||t.includes('pool')||t.includes('plav'))
+    return h.pool_info||'Informace o bazénu zatím nejsou vyplněné — zeptejte se prosím na recepci.';
+  if(t.includes('fitness')||t.includes('posilov')||t.includes('gym'))
+    return h.fitness_info||'Informace o fitness zatím nejsou vyplněné — zeptejte se prosím na recepci.';
+  if(t.includes('minibar'))
+    return h.minibar||'Informace o minibaru zatím nejsou vyplněné — zeptejte se prosím na recepci.';
+  if(t.includes('bar')&&!t.includes('minibar'))
+    return h.bar||'Informace o baru zatím nejsou vyplněné — zeptejte se prosím na recepci.';
+  if(t.includes('mazlíč')||t.includes('mazlic')||t.includes('pejsk')||t.includes('kočk')||t.includes('pet')||t.includes('dog'))
+    return h.pet_policy||'Pravidla pro domácí mazlíčky zatím nejsou vyplněná — zeptejte se prosím na recepci.';
+  if(t.includes('restaurac')||t.includes('restaurant')||t.includes('jídel')||t.includes('menu')||t.includes('oběd')||t.includes('večeř')||t.includes('lunch')||t.includes('dinner'))
+    return h.restaurant_name?`Restaurace: **${h.restaurant_name}**.${h.dinner_hours?` Večeře: ${h.dinner_hours}.`:''}${h.lunch_hours?` Oběd: ${h.lunch_hours}.`:''}`:'Informace o restauraci zatím nejsou vyplněné — zeptejte se prosím na recepci.';
+  if(t.includes('adres')||t.includes('address'))
+    return h.address?`Adresa: **${h.address}**.`:'Adresa zatím není vyplněná — zeptejte se prosím na recepci.';
+  if(t.includes('telefon')||t.includes('kontakt')||t.includes('phone'))
+    return h.phone?`Recepce: **${h.phone}**${h.whatsapp_number?'\nWhatsApp: '+h.whatsapp_number:''}`:'Kontakt zatím není vyplněný.';
+  // Obecný fallback: ukaž JEN vyplněná pole (žádné prázdné pomlčky)
+  const lines=[];
+  if(h.checkin_time) lines.push(`⏰ Check-in: ${h.checkin_time}`);
+  if(h.checkout_time) lines.push(`🚪 Check-out: ${h.checkout_time}`);
+  if(h.breakfast_hours) lines.push(`🍳 Snídaně: ${h.breakfast_hours}`);
+  if(h.bed_count) lines.push(`🛏️ Počet lůžek: ${h.bed_count}`);
+  if(h.wifi_name) lines.push(`📶 WiFi: ${h.wifi_name}${h.wifi_password?` (heslo: ${h.wifi_password})`:''}`);
+  if(h.parking_info) lines.push(`🅿️ Parkování: ${h.parking_info}`);
+  if(h.restaurant_name) lines.push(`🍽️ Restaurace: ${h.restaurant_name}`);
+  if(h.address) lines.push(`📍 Adresa: ${h.address}`);
+  if(h.phone) lines.push(`📞 Telefon: ${h.phone}`);
+  if(!lines.length)
+    return 'Momentálně jsem offline a k tomuto hotelu zatím nemám uložené základní informace. Zkuste to prosím znovu, až budete online, nebo se obraťte na recepci.';
+  return 'Momentálně jsem offline. Základní informace:\n\n'+lines.join('\n');
 }
 
 // ══ POČASÍ ═══════════════════════════════════

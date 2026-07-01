@@ -81,6 +81,13 @@ async def _check_and_send_reminders():
     if not brevo_key:
         return
 
+    # POJISTKA: hromadné AUTOMATICKÉ rozesílání připomínek je VYPNUTÉ, dokud ho admin
+    # výslovně nezapne (Nastavení → auto_reminders_enabled=true). Bez toho jdou
+    # připomínky jen ručně z administrace = pod kontrolou / se souhlasem admina.
+    if not db_get_settings().get("auto_reminders_enabled", False):
+        logging.info("Auto-reminders vypnuté (auto_reminders_enabled=false) — přeskočeno.")
+        return
+
     db = db_load()
     now = datetime.utcnow()
     sent_count = 0
@@ -3176,6 +3183,13 @@ Hotel information:
 - Parking: {h.get('parking_info', 'N/A')}
 - WiFi: {h.get('wifi_name', 'N/A')}{(' / Heslo: ' + h.get('wifi_password','')) if h.get('wifi_password') else ''}
 - Wellness: {h.get('wellness_info', 'N/A')}
+- Počet lůžek / kapacita: {h.get('bed_count', 'N/A')}
+- Hvězdičky: {h.get('star_rating', 'N/A')}
+- Domácí mazlíčci (pet policy): {h.get('pet_policy', 'N/A')}
+- Bazén: {h.get('pool_info', 'N/A')}
+- Fitness: {h.get('fitness_info', 'N/A')}
+- Minibar: {h.get('minibar', 'N/A')}
+- Bar: {h.get('bar', 'N/A')}
 - WhatsApp Recepce: {h.get('whatsapp_number', 'N/A')}
 
 ORIENTACE V HOTELU (krok za krokem):
