@@ -1081,6 +1081,7 @@ window.addEventListener('beforeinstallprompt', e => {
   // Zobraz banner při každém spuštění, pokud není nainstalováno a není odloženo
   if(pwaShouldRemind()){
     setTimeout(() => {
+      localizePwaBanner(false);
       document.getElementById('pwa-banner').classList.add('show');
     }, 3000); // Zobraz po 3 sekundách
   }
@@ -1088,7 +1089,13 @@ window.addEventListener('beforeinstallprompt', e => {
 
 const _pwaInstallBtn = document.getElementById('pwa-install-btn');
 if(_pwaInstallBtn) _pwaInstallBtn.addEventListener('click', async () => {
-  if(!deferredPrompt) return;
+  if(!deferredPrompt){
+    // Nativní instalační prompt není k dispozici (iOS vždy; Android když prohlížeč
+    // ještě nevyhodnotil kritéria). NESMÍME tiše nic neudělat — ukážeme návod.
+    showManualInstallHelp();
+    document.getElementById('pwa-banner').classList.remove('show');
+    return;
+  }
   deferredPrompt.prompt();
   const result = await deferredPrompt.userChoice;
   deferredPrompt = null;
@@ -1097,6 +1104,59 @@ if(_pwaInstallBtn) _pwaInstallBtn.addEventListener('click', async () => {
     localStorage.setItem('sg_pwa_installed', '1');
   }
 });
+
+const MANUAL_INSTALL_IOS = {
+  cs:'📲 Přidání na plochu (iPhone / iPad, Safari): klepněte dole na ikonu Sdílet ⬆️ a vyberte „Přidat na plochu".',
+  en:'📲 Add to Home Screen (iPhone / iPad, Safari): tap the Share icon ⬆️ at the bottom, then choose "Add to Home Screen".',
+  de:'📲 Zum Startbildschirm (iPhone / iPad, Safari): Tippen Sie unten auf das Teilen-Symbol ⬆️ und wählen Sie „Zum Startbildschirm".',
+  fr:'📲 Ajouter à l\'écran d\'accueil (iPhone / iPad, Safari) : touchez l\'icône Partager ⬆️ en bas, puis « Ajouter à l\'écran d\'accueil ».',
+  es:'📲 Añadir a pantalla de inicio (iPhone / iPad, Safari): toca el icono Compartir ⬆️ abajo y elige "Añadir a pantalla de inicio".',
+  it:'📲 Aggiungi a Home (iPhone / iPad, Safari): tocca l\'icona Condividi ⬆️ in basso e scegli "Aggiungi a Home".',
+  pl:'📲 Dodaj do ekranu głównego (iPhone / iPad, Safari): dotknij ikony Udostępnij ⬆️ na dole i wybierz „Dodaj do ekranu głównego".',
+  sk:'📲 Pridať na plochu (iPhone / iPad, Safari): klepnite dole na ikonu Zdieľať ⬆️ a vyberte „Pridať na plochu".',
+};
+const MANUAL_INSTALL_ANDROID = {
+  cs:'📲 Přidání na plochu (Android, Chrome): klepněte vpravo nahoře na menu ⋮ a vyberte „Přidat na plochu" / „Nainstalovat aplikaci".',
+  en:'📲 Add to Home Screen (Android, Chrome): tap the menu ⋮ at the top right, then choose "Add to Home screen" / "Install app".',
+  de:'📲 Zum Startbildschirm (Android, Chrome): Tippen Sie oben rechts auf das Menü ⋮ und wählen Sie „Zum Startbildschirm" / „App installieren".',
+  fr:'📲 Ajouter à l\'écran d\'accueil (Android, Chrome) : touchez le menu ⋮ en haut à droite, puis « Ajouter à l\'écran d\'accueil » / « Installer l\'application ».',
+  es:'📲 Añadir a pantalla de inicio (Android, Chrome): toca el menú ⋮ arriba a la derecha y elige "Añadir a pantalla de inicio" / "Instalar aplicación".',
+  it:'📲 Aggiungi a Home (Android, Chrome): tocca il menu ⋮ in alto a destra e scegli "Aggiungi a Home" / "Installa app".',
+  pl:'📲 Dodaj do ekranu głównego (Android, Chrome): dotknij menu ⋮ w prawym górnym rogu i wybierz „Dodaj do ekranu głównego" / „Zainstaluj aplikację".',
+  sk:'📲 Pridať na plochu (Android, Chrome): klepnite vpravo hore na menu ⋮ a vyberte „Pridať na plochu" / „Inštalovať aplikáciu".',
+};
+function showManualInstallHelp(){
+  const ua = navigator.userAgent || '';
+  const isIOS = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const map = isIOS ? MANUAL_INSTALL_IOS : MANUAL_INSTALL_ANDROID;
+  const msg = map[guestLang] || map['en'];
+  try { addBot(msg); } catch(e){ try{ alert(msg); }catch(_){} }
+}
+
+// Texty instalačního banneru podle jazyka hosta
+const PWA_BANNER = {
+  cs:{title:'📱 Přidat na plochu', sub:'Otevírejte concierge přímo z ikony', btn:'Přidat', iosTitle:'📱 Přidat na plochu (iOS)', iosSub:'Klepněte na Sdílet → Přidat na plochu'},
+  en:{title:'📱 Add to Home Screen', sub:'Open the concierge right from your icon', btn:'Add', iosTitle:'📱 Add to Home Screen (iOS)', iosSub:'Tap Share → Add to Home Screen'},
+  de:{title:'📱 Zum Startbildschirm', sub:'Öffnen Sie den Concierge direkt vom Symbol', btn:'Hinzufügen', iosTitle:'📱 Zum Startbildschirm (iOS)', iosSub:'Tippen Sie auf Teilen → Zum Startbildschirm'},
+  fr:{title:'📱 Ajouter à l\'écran d\'accueil', sub:'Ouvrez le concierge depuis votre icône', btn:'Ajouter', iosTitle:'📱 Ajouter à l\'écran d\'accueil (iOS)', iosSub:'Touchez Partager → Ajouter à l\'écran d\'accueil'},
+  es:{title:'📱 Añadir a pantalla de inicio', sub:'Abre el conserje desde tu icono', btn:'Añadir', iosTitle:'📱 Añadir a pantalla de inicio (iOS)', iosSub:'Toca Compartir → Añadir a pantalla de inicio'},
+  it:{title:'📱 Aggiungi a Home', sub:'Apri il concierge direttamente dall\'icona', btn:'Aggiungi', iosTitle:'📱 Aggiungi a Home (iOS)', iosSub:'Tocca Condividi → Aggiungi a Home'},
+  pl:{title:'📱 Dodaj do ekranu głównego', sub:'Otwieraj konsjerża prosto z ikony', btn:'Dodaj', iosTitle:'📱 Dodaj do ekranu głównego (iOS)', iosSub:'Dotknij Udostępnij → Dodaj do ekranu głównego'},
+  sk:{title:'📱 Pridať na plochu', sub:'Otvárajte concierge priamo z ikony', btn:'Pridať', iosTitle:'📱 Pridať na plochu (iOS)', iosSub:'Klepnite na Zdieľať → Pridať na plochu'},
+};
+function localizePwaBanner(ios){
+  const t = PWA_BANNER[guestLang] || PWA_BANNER['en'];
+  const btn = document.getElementById('pwa-install-btn');
+  const box = document.querySelector('#pwa-banner .pwa-banner-text');
+  if(btn) btn.textContent = t.btn;
+  if(box){
+    if(ios){
+      box.innerHTML = '<strong>'+t.iosTitle+'</strong><br><span style="font-size:11px;opacity:.8">'+t.iosSub+'</span>';
+    } else {
+      box.innerHTML = '<strong>'+t.title+'</strong> '+t.sub;
+    }
+  }
+}
 
 function dismissPwaBanner(){
   document.getElementById('pwa-banner').classList.remove('show');
@@ -1113,8 +1173,7 @@ const isInStandalone = window.matchMedia('(display-mode: standalone)').matches;
 if(isIos && pwaShouldRemind()){
   setTimeout(() => {
     const banner = document.getElementById('pwa-banner');
-    banner.querySelector('.pwa-banner-text strong').textContent = '📱 Přidat na plochu (iOS)';
-    banner.querySelector('.pwa-banner-text').innerHTML += '<br><span style="font-size:11px;opacity:.8">Klepněte na Sdílet → Přidat na plochu</span>';
+    localizePwaBanner(true);
     banner.querySelector('#pwa-install-btn').style.display = 'none';
     banner.classList.add('show');
   }, 3000);
