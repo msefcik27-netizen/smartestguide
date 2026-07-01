@@ -13,6 +13,8 @@
   --teal:#00d4aa;--teal-light:rgba(0,212,170,.08);
   --accent:#FF6B00;--accent2:#00d4aa;
   --gold:#FF6B00;--gold-light:rgba(255,107,0,.08);
+  --success:#16a34a;--warn:#f59e0b;--danger:#dc2626;
+  --card:#ffffff;--radius:14px;
   --surface:#ffffff;--surface2:#faf9f5;
   --font-head:'Syne',sans-serif;--font-body:'Inter',sans-serif;
 }
@@ -32,6 +34,8 @@
     .nav-badge{position:absolute;right:14px;top:50%;transform:translateY(-50%);background:var(--danger);color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 6px;min-width:18px;text-align:center;display:none}
     .sidebar-footer{margin-top:auto;padding:16px 24px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)}
     .main{margin-left:240px;flex:1;padding:32px 40px;max-width:1200px}
+    /* Přehled hotelů na celou šířku obrazovky */
+    .main:has(#page-hotels.active){max-width:none}
 
     /* API key warning banner */
     #api-key-banner{background:rgba(255,170,51,.1);border:1px solid rgba(255,170,51,.4);border-radius:10px;padding:12px 18px;margin-bottom:20px;display:none;align-items:center;gap:12px;font-size:13px}
@@ -882,17 +886,17 @@ function renderHotelsTable(){
       ${trialHtml}
       <div style="margin-top:4px;font-size:10px;color:${h.origin==='automatic'?'var(--accent2)':'var(--muted)'}">${h.origin==='automatic'?'🤖 Auto':'✋ Ruční'}</div>
     </td>
-    <!-- AKCE — 3×3 grid -->
-    <td style="padding:8px;min-width:260px">
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px">
+    <!-- AKCE — 4×2 grid -->
+    <td style="padding:8px;min-width:440px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px">
         <button class="btn btn-primary" style="padding:5px 2px;font-size:10px;background:rgba(255,107,0,.2);color:var(--accent);border:1px solid rgba(255,107,0,.4)" onclick="openEdit('${h.id}')">⚙️ Admin edit</button>
         <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px" data-id="${h.id}" data-name="${esc(h.name||'')}" onclick="showQrPopup(this.dataset.id,this.dataset.name)">📱 QR kód</button>
         <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px" onclick="openPanel('${h.id}')">ℹ Detail</button>
         <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(0,212,170,.4);color:var(--accent2)" data-id="${h.id}" data-name="${esc(h.name||'')}" onclick="showPortalLink(this.dataset.id,this.dataset.name)">🔗 Hotel portál</button>
         <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(46,204,135,.4);color:var(--success)" data-id="${h.id}" data-name="${esc(h.name||'')}" onclick="downloadFlyer(this.dataset.id,this.dataset.name)">📄 Leták</button>
         <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(255,170,51,.4);color:var(--warn)" data-id="${h.id}" data-name="${esc(h.name||'')}" onclick="sendReminder(this.dataset.id,this.dataset.name)">📧 Reminder</button>
-        <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(108,99,255,.45);color:#6c63ff;grid-column:span 3" data-id="${h.id}" data-name="${esc(h.name||'')}" onclick="rescrapeHotel(this.dataset.id,this.dataset.name)">🔄 Doplnit z webu</button>
-        <button class="btn btn-danger" style="padding:5px 2px;font-size:10px;grid-column:span 3" onclick="deleteHotel('${h.id}')">✕ Smazat hotel</button>
+        <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(108,99,255,.45);color:#6c63ff" data-id="${h.id}" data-name="${esc(h.name||'')}" onclick="rescrapeHotel(this.dataset.id,this.dataset.name)">🔄 Doplnit z webu</button>
+        <button class="btn btn-danger" style="padding:5px 2px;font-size:10px" onclick="deleteHotel('${h.id}')">✕ Smazat hotel</button>
       </div>
     </td></tr>`;
   }).join('');

@@ -345,7 +345,10 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       <!-- Kalkulačka s posuvníkem -->
       <div style="background:#ffffff;border:2px solid var(--gold);border-radius:20px;padding:32px 28px;text-align:center;box-shadow:0 12px 40px rgba(255,107,0,.10);display:flex;flex-direction:column">
         <div style="font-size:13px;color:#4a4a4a;margin-bottom:6px" id="calc-label">Počet lůžek ve vašem hotelu</div>
-        <div style="font-size:22px;font-weight:800;color:#1a1a1a;margin-bottom:16px"><span id="calc-beds">50</span> <span id="calc-beds-unit">lůžek</span></div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px">
+          <input type="number" id="calc-beds-input" min="1" max="2000" value="50" inputmode="numeric" style="width:96px;font-size:22px;font-weight:800;color:#1a1a1a;text-align:center;border:1px solid var(--border);border-radius:10px;padding:6px 8px;background:#fff">
+          <span id="calc-beds-unit" style="font-size:22px;font-weight:800;color:#1a1a1a">lůžek</span>
+        </div>
         <input type="range" id="calc-slider" min="10" max="500" step="5" value="50" style="width:100%;accent-color:var(--accent);margin-bottom:20px;cursor:pointer">
         <div style="font-size:44px;font-weight:800;color:var(--accent);line-height:1"><span id="calc-price">199</span> €<span style="font-size:16px;color:#4a4a4a;font-weight:600"> / <span id="calc-per-month">měsíc</span></span></div>
         <div style="font-size:13px;color:#4a4a4a;margin-top:10px" id="calc-formula"></div>
@@ -535,14 +538,25 @@ function updCalcFormula(){
     ? base+' € / měsíc do '+threshold+' lůžek · +'+perBed+' € za každé lůžko navíc'
     : '€'+base+'/month up to '+threshold+' beds · +€'+perBed+' per extra bed';
 }
-function updCalc(){
-  const s=document.getElementById('calc-slider'); if(!s) return;
-  const beds=parseInt(s.value)||0;
+function sgSetBeds(beds){
+  beds=parseInt(beds)||0; if(beds<1) beds=1; if(beds>2000) beds=2000;
+  const s=document.getElementById('calc-slider');
+  const inp=document.getElementById('calc-beds-input');
+  if(s){ const mn=parseInt(s.min)||1, mx=parseInt(s.max)||500; s.value=Math.min(Math.max(beds,mn),mx); }
+  if(inp && document.activeElement!==inp) inp.value=beds;
   const bEl=document.getElementById('calc-beds'); if(bEl) bEl.textContent=beds;
   const pEl=document.getElementById('calc-price'); if(pEl) pEl.textContent=calcSgPrice(beds);
   updCalcFormula();
 }
-(function(){ const s=document.getElementById('calc-slider'); if(s){ s.addEventListener('input',updCalc); updCalc(); } })();
+function updCalc(){ const s=document.getElementById('calc-slider'); if(s) sgSetBeds(s.value); }
+function updCalcFromInput(){ const inp=document.getElementById('calc-beds-input'); if(inp) sgSetBeds(inp.value); }
+(function(){
+  const s=document.getElementById('calc-slider');
+  const inp=document.getElementById('calc-beds-input');
+  if(s) s.addEventListener('input',updCalc);
+  if(inp){ inp.addEventListener('input',updCalcFromInput); inp.addEventListener('change',updCalcFromInput); }
+  sgSetBeds(50);
+})();
 
 document.getElementById('reg-beds').addEventListener('input',function(){
   const beds=parseInt(this.value)||0;
@@ -979,7 +993,7 @@ function setLang(lang){
   setText('feat-eyebrow',T.feat_eyebrow);set('feat-h2',T.feat_h2);setText('feat-p',T.feat_p);
   setText('pricing-eyebrow',T.pricing_eyebrow);set('pricing-h2',T.pricing_h2);setText('pricing-p',T.pricing_p);
   const perDay = document.getElementById('price-per-day')?.textContent || '7';
-  set('pricing-compare', T.pricing_compare.replace('PERDAY', perDay));
+  if(T.pricing_compare) set('pricing-compare', T.pricing_compare.replace('PERDAY', perDay));
   setText('reviews-eyebrow',T.reviews_eyebrow);set('reviews-h2',T.reviews_h2);
   set('stat-card1',T.stat_card1);set('stat-card2',T.stat_card2);set('stat-card3',T.stat_card3);set('stat-card4',T.stat_card4);
   setText('about-eyebrow',T.about_eyebrow);set('about-h2',T.about_h2);
