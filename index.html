@@ -279,7 +279,7 @@
         </div>
       </div>
       <div class="card">
-        <div class="table-wrap"><table><thead><tr><th>Název / URL</th><th>Země / Světadíl</th><th>Lůžka / Cena</th><th>Stav</th><th>Předplatné</th><th>Akce</th></tr></thead><tbody id="hotels-tbody"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Název / URL</th><th>Lůžka / Cena</th><th>Stav / předplatné</th><th>Akce</th></tr></thead><tbody id="hotels-tbody"></tbody></table></div>
       </div>
     </div>
 
@@ -843,10 +843,10 @@ function resetHotelFilter(){
 function renderHotelsTable(){
   const tb=document.getElementById('hotels-tbody');
   const cnt=document.getElementById('hotel-count');
-  if(!all_hotels.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Žádné hotely. <a href="#" onclick="showPage(\'scrape\')" style="color:var(--accent)">Přidej první →</a></td></tr>';if(cnt)cnt.textContent='';return;}
+  if(!all_hotels.length){tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px">Žádné hotely. <a href="#" onclick="showPage(\'scrape\')" style="color:var(--accent)">Přidej první →</a></td></tr>';if(cnt)cnt.textContent='';return;}
   const rows=getFilteredHotels();
   if(cnt)cnt.textContent=`Zobrazeno ${rows.length} z ${all_hotels.length}`;
-  if(!rows.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Žádný hotel neodpovídá filtru.</td></tr>';return;}
+  if(!rows.length){tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px">Žádný hotel neodpovídá filtru.</td></tr>';return;}
   tb.innerHTML=rows.map(h=>{
     // Trial badge
     let trialHtml='';
@@ -1737,8 +1737,10 @@ async function loadCompleteness(hotelId){
     window._compScores[hotelId] = score;
     const el = document.getElementById('comp-'+hotelId);
     if(el){
-      const color = score >= 80 ? 'var(--success)' : score >= 50 ? 'var(--warn)' : 'var(--danger)';
+      // Barvy dle stejné logiky jako v portálu: 100 % zelená · 80–99 % oranžová · pod 80 % červená
+      const color = score >= 100 ? 'var(--success)' : score >= 80 ? 'var(--warn)' : 'var(--danger)';
       el.style.color = color;
+      el.style.fontWeight = '600';
       el.textContent = '📋 ' + score + '% profilu';
     }
     // Když je aktivní filtr/řazení dle vyplněnosti, přerenderuj (debounced)
