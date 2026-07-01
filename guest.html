@@ -696,19 +696,21 @@ async function sendMsg(){
       body:JSON.stringify({hotel_id:hotelId,message:text,language:guestLang,guest_name:guestName,history:history.slice(-10),auto_lang:true})
     });
     hideTyping();
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const d=await r.json();
-    addBot(d.reply);
-    history.push({role:'assistant',content:d.reply});
-    saveHistory();
+    if(r.ok){
+      const d=await r.json();
+      addBot(d.reply);
+      history.push({role:'assistant',content:d.reply});
+      saveHistory();
+    } else {
+      // Server je dostupný, ale vrátil chybu (např. 500) → NENÍ to offline
+      console.error('guest/chat HTTP '+r.status);
+      addBot(offlineReply(text,'error'));
+    }
   }catch(e){
     hideTyping();
-    // Pokud je chyba sítě - zobraz offline odpověď
-    if(e.message && (e.message.includes('fetch') || e.message.includes('network') || e.message.includes('Failed'))){
-      addBot(offlineReply(text));
-    } else {
-      addBot(offlineReply(text));
-    }
+    // Vůbec se nepodařilo spojit se serverem → skutečný offline
+    console.warn('guest/chat network error', e && (e.message||e));
+    addBot(offlineReply(text,'offline'));
   }finally{
     isTyping=false;
     document.getElementById('send-btn').disabled=false;
@@ -753,8 +755,11 @@ function openWhatsAppMenu(){
   setTimeout(() => document.addEventListener('click', function h(e){ if(!popup.contains(e.target)){popup.remove();document.removeEventListener('click',h);} }), 100);
 }
 
-function offlineReply(text){
-  if(!hotelData)return 'Omlouvám se, momentálně jsem offline.';
+function offlineReply(text, mode){
+  const isErr = mode==='error';  // 'error' = server odpověděl chybou; jinak skutečný offline
+  if(!hotelData)return isErr
+    ? 'Omlouvám se, teď mám dočasný problém s odpovědí. Zkuste to prosím za chvíli znovu.'
+    : 'Omlouvám se, momentálně jsem offline.';
   const t=text.toLowerCase();
   const h=hotelData;
   if(t.includes('check-in')||t.includes('checkin')||t.includes('příjezd'))
@@ -799,8 +804,13 @@ function offlineReply(text){
   if(h.address) lines.push(`📍 Adresa: ${h.address}`);
   if(h.phone) lines.push(`📞 Telefon: ${h.phone}`);
   if(!lines.length)
-    return 'Momentálně jsem offline a k tomuto hotelu zatím nemám uložené základní informace. Zkuste to prosím znovu, až budete online, nebo se obraťte na recepci.';
-  return 'Momentálně jsem offline. Základní informace:\n\n'+lines.join('\n');
+    return isErr
+      ? 'Omlouvám se, teď mám dočasný problém s odpovědí. Zkuste to prosím za chvíli znovu, nebo se obraťte na recepci.'
+      : 'Momentálně jsem offline a k tomuto hotelu zatím nemám uložené základní informace. Zkuste to prosím znovu, až budete online, nebo se obraťte na recepci.';
+  const prefix = isErr
+    ? 'Omlouvám se, teď mám dočasný problém s odpovědí — zkuste to prosím za chvíli. Zatím tyto základní informace:'
+    : 'Momentálně jsem offline. Základní informace:';
+  return prefix+'\n\n'+lines.join('\n');
 }
 
 // ══ POČASÍ ═══════════════════════════════════
