@@ -260,6 +260,7 @@ async function loadHotel() {
     hotelData = d.hotel;
     await loadPricing();
     renderPortal();
+    renderOnboarding();
     loadCompleteness();
     loadPaymentSection();
     loadInvoicesSection();
@@ -371,6 +372,8 @@ function renderPortal() {
       Tyto informace bude avatar sdělovat vašim hostům. Čím více vyplníte, tím lépe
       bude avatar sloužit. Po každé úpravě klikněte na <strong>Uložit změny</strong>.
     </div>
+
+    <div id="onboarding-wizard"></div>
 
     <div id="payment-section"></div>
 
@@ -1325,6 +1328,75 @@ function generateInvoicePdf(inv){
 }
 
 // ── Analytics ────────────────────────────────
+// ── Průvodce spuštěním (guided onboarding) ─────
+const OB_FIELDS = [
+  {k:'wifi_name',       label:'WiFi síť (název)',    ph:'např. Hotel_Guest'},
+  {k:'wifi_password',   label:'WiFi heslo',          ph:'např. vitejte2024'},
+  {k:'checkin_time',    label:'Check-in od',         ph:'např. 14:00'},
+  {k:'checkout_time',   label:'Check-out do',        ph:'např. 11:00'},
+  {k:'breakfast_hours', label:'Snídaně (čas)',       ph:'např. 7:00–10:00'},
+  {k:'parking_info',    label:'Parkování',           ph:'např. Zdarma před hotelem'},
+  {k:'address',         label:'Adresa hotelu',       ph:'ulice, město'},
+  {k:'phone',           label:'Telefon na recepci',  ph:'+420…'},
+];
+function renderOnboarding(){
+  const el=document.getElementById('onboarding-wizard');
+  if(!el||!hotelData) return;
+  const h=hotelData;
+  const done=OB_FIELDS.filter(f=>String(h[f.k]||'').trim());
+  const pct=Math.round(done.length/OB_FIELDS.length*100);
+  if(pct>=100 || localStorage.getItem('sg_ob_hide_'+h.id)==='1'){ el.innerHTML=''; return; }
+  const rowsHtml=OB_FIELDS.map(f=>{
+    const val=String(h[f.k]||'').trim();
+    if(val){
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 2px;border-top:1px solid #eee">
+        <span style="color:#16a34a;font-size:15px">✅</span>
+        <span style="flex:1;font-size:13px;color:#888">${f.label}</span>
+        <span style="font-size:12px;color:#1a1a1a;font-weight:600;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(val)}</span>
+      </div>`;
+    }
+    return `<div style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-top:1px solid #eee;flex-wrap:wrap">
+      <span style="font-size:15px">⬜</span>
+      <span style="flex:1;min-width:120px;font-size:13px;color:#1a1a1a;font-weight:600">${f.label}</span>
+      <input id="ob-${f.k}" placeholder="${f.ph}" onkeydown="if(event.key==='Enter')saveOb('${f.k}')" style="flex:2;min-width:150px;padding:7px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;font-size:13px"/>
+      <button onclick="saveOb('${f.k}')" style="padding:7px 15px;border:none;border-radius:8px;background:#ff6b00;color:#fff;font-weight:600;font-size:12px;cursor:pointer">Uložit</button>
+    </div>`;
+  }).join('');
+  el.innerHTML=`
+    <div style="background:linear-gradient(135deg,#1a1a1a,#2a2a2a);color:#fff;border-radius:14px;padding:20px 22px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:16px;font-weight:800">🚀 Průvodce spuštěním</div>
+          <div style="font-size:12px;opacity:.85;margin-top:2px;max-width:520px">Vyplňte, na co se hosté ptají nejčastěji — Alex pak odpoví správně od první chvíle. Stačí pár vteřin na pole.</div>
+        </div>
+        <button onclick="dismissOnboarding()" style="background:transparent;border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer">Skrýt</button>
+      </div>
+      <div style="margin-top:14px;background:rgba(255,255,255,.15);border-radius:8px;height:10px;overflow:hidden">
+        <div style="height:10px;width:${pct}%;background:#ff8a3d;transition:width .3s"></div>
+      </div>
+      <div style="font-size:12px;margin-top:6px">Alex je připraven na <strong style="color:#ff8a3d">${pct}%</strong> — vyplněno ${done.length}/${OB_FIELDS.length}</div>
+      <div style="background:#fff;color:#1a1a1a;border-radius:10px;padding:4px 16px 12px;margin-top:14px">${rowsHtml}</div>
+    </div>`;
+}
+async function saveOb(k){
+  const inp=document.getElementById('ob-'+k); if(!inp) return;
+  const v=inp.value.trim();
+  if(!v){ toast('Vyplňte hodnotu','warn'); inp.focus(); return; }
+  try{
+    const r=await fetch(`${API}/api/hotel-portal/update?token=${token}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[k]:v})});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json(); hotelData=d.hotel;
+    const mainInp=document.getElementById('f-'+k); if(mainInp) mainInp.value=v; // synchronizace s velkým formulářem
+    toast('Uloženo ✅');
+    renderOnboarding();
+    if(typeof loadCompleteness==='function') loadCompleteness();
+  }catch(e){ toast('Chyba při ukládání','error'); }
+}
+function dismissOnboarding(){
+  if(hotelData) localStorage.setItem('sg_ob_hide_'+hotelData.id,'1');
+  renderOnboarding();
+}
+
 async function loadMonthlyReport(){
   try{
     const r = await fetch(`${API}/api/hotel-portal/monthly-report?token=${token}`);
