@@ -371,7 +371,7 @@ def _rate_limit_ok(key: str, max_hits: int = _RL_MAX_PER_MIN, window: int = _RL_
     return True
 
 def _is_public_api(path: str) -> bool:
-    if path in ("/api/version", "/api/pricing"):
+    if path in ("/api/version", "/api/pricing", "/api/pricing-config"):
         return True
     for p in ("/api/guest/", "/api/hotel-portal/", "/api/app-icon/", "/api/docs/",
               "/api/ares/", "/api/stripe/", "/api/register", "/api/admin/"):
@@ -2093,6 +2093,16 @@ def rollup(hotel_id: str, request: Request):
 # ─────────────────────────────────────────────
 # Ceník
 # ─────────────────────────────────────────────
+@app.get("/api/pricing-config")
+def pricing_config():
+    """Veřejná ceníková konfigurace pro landing kalkulačku (bez citlivých údajů)."""
+    s = db_get_settings()
+    return {
+        "pricing_base": s.get("pricing_base", 199),
+        "pricing_threshold": s.get("pricing_threshold", 100),
+        "pricing_per_bed": s.get("pricing_per_bed", 3),
+    }
+
 @app.get("/api/pricing")
 def pricing(beds: int):
     if beds <= 0:

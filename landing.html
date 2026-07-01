@@ -934,7 +934,7 @@ const TRANSLATIONS={
 async function loadLandingPricing(){
   try {
     const API = window.location.origin;
-    const r = await fetch(API + '/api/settings');
+    const r = await fetch(API + '/api/pricing-config');
     if(!r.ok) return;
     const d = await r.json();
     const base      = d.pricing_base      || 199;
