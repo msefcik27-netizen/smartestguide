@@ -921,6 +921,7 @@ function renderHotelsTable(){
     <!-- STAV + ORIGIN -->
     <td style="padding:10px 8px;min-width:110px">
       <span class="badge ${h.subscription_active?'badge-green':'badge-gray'}" style="cursor:pointer;font-size:10px;display:inline-block;margin-bottom:4px" onclick="toggleSubscription('${h.id}',${!h.subscription_active})" title="Klikni pro změnu">${h.subscription_active?'✓ Aktivní':'○ Neaktivní'}</span>
+      ${h.subscription_cancel_requested?'<span style="display:block;margin-top:2px;font-size:10px;color:var(--warn)">⏳ Zrušení naplánováno</span>':''}
       ${trialHtml}
       <div style="margin-top:4px;font-size:10px;color:${h.origin==='automatic'?'var(--accent2)':'var(--muted)'}">${h.origin==='automatic'?'🤖 Auto':'✋ Ruční'}</div>
     </td>

@@ -37,6 +37,15 @@ def _admin_notify_bcc(exclude: str = "") -> list:
             out.append({"email": e})
     return out
 
+# Reference na běžící background tasky — brání předčasnému GC. Bez toho se fire-and-forget
+# task (create_task bez uložené reference) může „ztratit" dřív, než doběhne → e-mail se tiše neodešle.
+_bg_tasks = set()
+def _spawn(coro):
+    t = asyncio.create_task(coro)
+    _bg_tasks.add(t)
+    t.add_done_callback(_bg_tasks.discard)
+    return t
+
 # ─────────────────────────────────────────────
 # Auto-načtení konfigurace z environment variables
 # ─────────────────────────────────────────────
@@ -3192,7 +3201,7 @@ async def stripe_webhook(request: Request):
                                 _h["hotel_token"] = str(_uuid.uuid4()).replace("-", "")
                             _base = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app")
                             _purl = f"{_base}/hotel?token={_h['hotel_token']}"
-                            asyncio.create_task(send_invoice_email(_h, inv, _purl))
+                            _spawn(send_invoice_email(_h, inv, _purl))
                         except Exception as e:
                             logging.warning("Auto-faktura selhala pro hotel %s: %s", hotel_id, e)
 
@@ -3209,7 +3218,7 @@ async def stripe_webhook(request: Request):
                 # Spusť automatický scraping webu hotelu na pozadí
                 hotel_url = db["hotels"][hotel_id].get("url") or db["hotels"][hotel_id].get("source_url")
                 if hotel_url and event_type == "checkout.session.completed":
-                    asyncio.create_task(auto_scrape_after_payment(hotel_id, hotel_url))
+                    _spawn(auto_scrape_after_payment(hotel_id, hotel_url))
                     # Posli onboarding email
                     hotel_email = db["hotels"][hotel_id].get("email", "")
                     hotel_name = db["hotels"][hotel_id].get("name", "Hotel")
@@ -3221,7 +3230,7 @@ async def stripe_webhook(request: Request):
                     token = db["hotels"][hotel_id]["hotel_token"]
                     base_url = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app")
                     portal_url = f"{base_url}/hotel?token={token}"
-                    asyncio.create_task(send_onboarding_email(hotel_id, portal_url, hotel_name, hotel_email))
+                    _spawn(send_onboarding_email(hotel_id, portal_url, hotel_name, hotel_email))
 
     # customer.subscription.deleted – zrušení předplatného
     elif event_type == "customer.subscription.deleted":

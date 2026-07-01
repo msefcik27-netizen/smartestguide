@@ -354,6 +354,11 @@ function renderPortal() {
   const subStatus = h.subscription_active
     ? '<span class="status-pill active">● Předplatné aktivní</span>'
     : '<span class="status-pill inactive">○ Předplatné neaktivní</span>';
+  const cancelAffordance = h.subscription_active
+    ? (h.subscription_cancel_requested
+        ? '<span style="font-size:11px;color:var(--warn)">⏳ Zrušení naplánováno ke konci období</span>'
+        : '<button onclick="cancelSubscription()" style="background:transparent;border:1px solid rgba(255,79,106,.35);color:var(--danger);border-radius:8px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:var(--font-body)">Zrušit předplatné</button>')
+    : '';
 
   document.getElementById('main-container').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px">
@@ -361,8 +366,9 @@ function renderPortal() {
         <div style="font-family:var(--font-head);font-size:22px;font-weight:700">${esc(h.name||'Bez názvu')}</div>
         <div style="font-size:12px;color:var(--muted);margin-top:4px">${esc(h.url||h.source_url||'')}</div>
       </div>
-      <div style="display:flex;align-items:center;gap:12px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         ${subStatus}
+        ${cancelAffordance}
         <span style="font-size:11px;color:var(--muted)">${lastEdit}</span>
       </div>
     </div>
@@ -1615,14 +1621,15 @@ function previewWidget(){
 
 // ── Zrušení předplatného ─────────────────────
 async function cancelSubscription(){
-  if(!confirm('Opravdu chcete zrušit předplatné?\n\nPřístup bude deaktivován. Můžete se znovu přihlásit kdykoliv.'))return;
+  if(!confirm('Zrušit předplatné?\n\nSMARTEST GUIDE poběží až do konce aktuálního zaplaceného období — poté se automaticky ukončí a další platba se NESTRHNE. Ve zkušební době vám nic naúčtováno nebude. Znovu se můžete přihlásit kdykoliv.'))return;
   try{
     const r=await fetch(`${API}/api/hotel-portal/cancel?token=${token}`,{method:'POST'});
     if(!r.ok)throw new Error('HTTP '+r.status);
     const d=await r.json();
-    hotelData=d.hotel;
-    toast('Předplatné zrušeno','warn');
-    loadPaymentSection();
+    if(d.hotel) hotelData=d.hotel;
+    toast(d.message||'Předplatné bude zrušeno na konci období','warn');
+    // Obnov celý portál, ať se status přepne na „zrušení naplánováno"
+    if(typeof loadHotel==='function'){ loadHotel(); } else { renderPortal(); loadPaymentSection(); }
   }catch(e){toast('Chyba: '+e.message,'err');}
 }
 
