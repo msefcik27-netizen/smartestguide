@@ -1716,6 +1716,7 @@ class RegistrationRequest(BaseModel):
     ico: Optional[str] = None            # fakturační IČO (odběratel)
     dic: Optional[str] = None            # DIČ / VAT ID
     billing_name: Optional[str] = None   # právní/fakturační název
+    ref: Optional[str] = None            # referral kód partnera (atribuce provize)
 
 @app.post("/api/register")
 async def register_hotel(req: RegistrationRequest, request: Request):
@@ -1783,6 +1784,11 @@ async def register_hotel(req: RegistrationRequest, request: Request):
         "dic": (req.dic or "").strip(),
         "billing_name": (req.billing_name or "").strip(),
     }
+    # Atribuce provize — pouze přes platný referral kód partnera
+    _ref_partner = _partner_by_ref(db, req.ref)
+    hotel["acquired_by"] = _ref_partner["id"] if _ref_partner else "auto"
+    hotel["referral_code"] = _norm_ref(req.ref) if _ref_partner else ""
+    hotel["acquired_at"] = now
     db["hotels"][hid] = hotel
     db_save(db)
 
@@ -1938,7 +1944,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
             "subject": f"Vitejte v SMARTEST GUIDE - {hotel_name} je pripraven!",
             "greeting": f"Vitejte, {hotel_name}!",
             "subtitle": "AI Concierge pro vas hotel",
-            "intro": f"Vas hotel byl uspesne zaregistrovan a platba probehla. Alex je pripraven odpovidat hostum ve 14 jazycich 24 hodin denne.",
+            "intro": f"Vas hotel byl uspesne zaregistrovan a platba probehla. Alex je pripraven odpovidat hostum ve 16 jazycich 24 hodin denne.",
             "portal_btn_text": "Otevrit hotelovy portal",
             "steps_title": "Co delat jako prvni:",
             "steps": ["Prihlaste se do portalu a zkontrolujte informace o hotelu","Doplnte orientaci v hotelu (wellness, parkoviste, restaurace, bar)","Pridejte lokalni tipy pro hosty","Stahnete QR plakat k tisku (odkaz nize) a umistete ho na recepci"],
@@ -2279,6 +2285,12 @@ async def stripe_webhook(request: Request):
                         logging.info("Auto-faktura %s vytvořena pro hotel %s", inv.get("invoice_number"), hotel_id)
                     except Exception as e:
                         logging.warning("Auto-faktura selhala pro hotel %s: %s", hotel_id, e)
+
+                    # Provize partnerovi za první reálnou platbu (idempotentní)
+                    try:
+                        _create_commission_if_eligible(db, hotel_id)
+                    except Exception as e:
+                        logging.warning("Vytvoření provize selhalo pro hotel %s: %s", hotel_id, e)
 
                 db_save(db)
 
@@ -3423,6 +3435,189 @@ async def ares_lookup(ico: str):
         raise
     except Exception as e:
         raise HTTPException(502, f"Chyba ARES: {str(e)}")
+
+# ─────────────────────────────────────────────
+# Provize (externisté / affiliate)
+# ─────────────────────────────────────────────
+def _norm_ref(code: str) -> str:
+    return re.sub(r'[^A-Za-z0-9]', '', (code or '')).upper()
+
+class CommissionSettingsRequest(BaseModel):
+    commission_enabled: Optional[bool] = None
+    commission_amount: Optional[float] = None      # CZK, fixní za získaný hotel
+    commission_hold_days: Optional[int] = None
+
+@app.get("/api/settings/commission")
+def get_commission_settings():
+    s = db_get_settings()
+    return {
+        "commission_enabled": bool(s.get("commission_enabled", False)),
+        "commission_amount": float(s.get("commission_amount", 1500)),
+        "commission_currency": "CZK",
+        "commission_hold_days": int(s.get("commission_hold_days", 30)),
+    }
+
+@app.post("/api/settings/commission")
+def save_commission_settings(req: CommissionSettingsRequest):
+    db_save_settings(req.model_dump(exclude_none=True))
+    return {"status": "ok"}
+
+class PartnerRequest(BaseModel):
+    name: str
+    email: Optional[str] = None
+    referral_code: str
+    ico: Optional[str] = None
+    commission_override: Optional[float] = None    # CZK, přepíše globální částku
+    active: Optional[bool] = True
+    note: Optional[str] = None
+
+def _partner_by_ref(db: dict, ref: str):
+    ref = _norm_ref(ref)
+    if not ref:
+        return None
+    for p in db.get("partners", {}).values():
+        if _norm_ref(p.get("referral_code", "")) == ref and p.get("active", True):
+            return p
+    return None
+
+@app.get("/api/partners")
+def list_partners():
+    db = db_load()
+    partners = list(db.get("partners", {}).values())
+    comms = db.get("commissions", {})
+    hotels = db.get("hotels", {})
+    for p in partners:
+        pc = [c for c in comms.values() if c.get("partner_id") == p["id"]]
+        p["_stats"] = {
+            "hotels": sum(1 for h in hotels.values() if h.get("acquired_by") == p["id"]),
+            "pending": sum(1 for c in pc if c.get("status") == "pending"),
+            "approved": sum(1 for c in pc if c.get("status") == "approved"),
+            "paid": sum(1 for c in pc if c.get("status") == "paid"),
+            "owed_czk": round(sum(c.get("amount", 0) for c in pc if c.get("status") == "approved"), 2),
+        }
+    return {"status": "ok", "partners": partners}
+
+@app.post("/api/partners")
+def create_partner(req: PartnerRequest):
+    db = db_load()
+    partners = db.setdefault("partners", {})
+    ref = _norm_ref(req.referral_code)
+    if not ref:
+        raise HTTPException(400, "Referral kód je povinný")
+    for p in partners.values():
+        if _norm_ref(p.get("referral_code", "")) == ref:
+            raise HTTPException(409, f"Referral kód {ref} už existuje")
+    pid = str(uuid.uuid4())
+    partner = {
+        "id": pid, "name": req.name, "email": (req.email or "").strip(),
+        "referral_code": ref, "ico": (req.ico or "").strip(),
+        "commission_override": req.commission_override,
+        "active": True if req.active is None else bool(req.active),
+        "note": req.note or "", "created_at": datetime.utcnow().isoformat(),
+    }
+    partners[pid] = partner
+    db_save(db)
+    return {"status": "ok", "partner": partner}
+
+@app.patch("/api/partners/{partner_id}")
+def update_partner(partner_id: str, req: PartnerRequest):
+    db = db_load()
+    partners = db.setdefault("partners", {})
+    if partner_id not in partners:
+        raise HTTPException(404, "Partner nenalezen")
+    ref = _norm_ref(req.referral_code)
+    if not ref:
+        raise HTTPException(400, "Referral kód je povinný")
+    for pid2, p in partners.items():
+        if pid2 != partner_id and _norm_ref(p.get("referral_code", "")) == ref:
+            raise HTTPException(409, f"Referral kód {ref} už existuje")
+    p = partners[partner_id]
+    p.update({
+        "name": req.name, "email": (req.email or "").strip(), "referral_code": ref,
+        "ico": (req.ico or "").strip(), "commission_override": req.commission_override,
+        "active": True if req.active is None else bool(req.active), "note": req.note or "",
+    })
+    db_save(db)
+    return {"status": "ok", "partner": p}
+
+@app.delete("/api/partners/{partner_id}")
+def delete_partner(partner_id: str):
+    db = db_load()
+    if partner_id in db.get("partners", {}):
+        db["partners"].pop(partner_id)
+        db_save(db)
+    return {"status": "ok"}
+
+def _create_commission_if_eligible(db: dict, hotel_id: str):
+    """Vytvoří provizi při první REÁLNÉ platbě, pokud hotel získal partner. Idempotentní."""
+    hotel = db.get("hotels", {}).get(hotel_id)
+    if not hotel:
+        return
+    pid = hotel.get("acquired_by")
+    if not pid or pid == "auto":
+        return
+    s = db.get("settings", {})
+    if not s.get("commission_enabled"):
+        return
+    comms = db.setdefault("commissions", {})
+    if any(c.get("hotel_id") == hotel_id for c in comms.values()):
+        return  # jedna provize na hotel (jednorázový model)
+    partner = db.get("partners", {}).get(pid)
+    override = partner.get("commission_override") if partner else None
+    amount = float(override) if override not in (None, "") else float(s.get("commission_amount", 1500))
+    cid = str(uuid.uuid4())
+    comms[cid] = {
+        "id": cid, "partner_id": pid, "hotel_id": hotel_id,
+        "hotel_name": hotel.get("name", ""), "amount": round(amount, 2), "currency": "CZK",
+        "status": "pending", "created_at": datetime.utcnow().isoformat(),
+        "approved_at": None, "paid_at": None, "payout_reference": "",
+    }
+    logging.info("Provize %s vytvořena pro hotel %s (partner %s, %s CZK)", cid, hotel_id, pid, amount)
+
+def _refresh_commission_statuses(db: dict) -> bool:
+    """Lazy schvalování: pending → approved po uplynutí hold_days, pokud hotel stále aktivní."""
+    from datetime import timedelta
+    s = db.get("settings", {})
+    hold = int(s.get("commission_hold_days", 30))
+    now = datetime.utcnow()
+    changed = False
+    for c in db.get("commissions", {}).values():
+        if c.get("status") != "pending":
+            continue
+        try:
+            created = datetime.fromisoformat(c.get("created_at", ""))
+        except Exception:
+            continue
+        if now >= created + timedelta(days=hold):
+            hotel = db.get("hotels", {}).get(c.get("hotel_id"), {})
+            if hotel.get("subscription_active"):
+                c["status"] = "approved"
+                c["approved_at"] = now.isoformat()
+                changed = True
+    return changed
+
+@app.get("/api/commissions")
+def list_commissions():
+    db = db_load()
+    if _refresh_commission_statuses(db):
+        db_save(db)
+    partners = db.get("partners", {})
+    comms = sorted(db.get("commissions", {}).values(), key=lambda c: c.get("created_at", ""), reverse=True)
+    for c in comms:
+        c["partner_name"] = partners.get(c.get("partner_id"), {}).get("name", "?")
+    return {"status": "ok", "commissions": comms}
+
+@app.post("/api/commissions/{commission_id}/pay")
+def pay_commission(commission_id: str, reference: str = ""):
+    db = db_load()
+    comms = db.get("commissions", {})
+    if commission_id not in comms:
+        raise HTTPException(404, "Provize nenalezena")
+    comms[commission_id]["status"] = "paid"
+    comms[commission_id]["paid_at"] = datetime.utcnow().isoformat()
+    comms[commission_id]["payout_reference"] = reference
+    db_save(db)
+    return {"status": "ok", "commission": comms[commission_id]}
 
 # ─────────────────────────────────────────────
 # Faktury

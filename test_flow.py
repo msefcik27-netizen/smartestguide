@@ -130,6 +130,29 @@ def test_settings():
             ok("GET /api/settings dostupný")
             ok("Anthropic API klíč nastaven") if d.get("has_api_key") else fail("Anthropic API klíč CHYBÍ")
             ok("Stripe klíč nastaven") if d.get("has_stripe_key") else fail("Stripe klíč CHYBÍ")
+
+            # OPRAVA: stripe_mode pole (live/test detekce) + dynamický preview
+            if d.get("has_stripe_key"):
+                mode = d.get("stripe_mode")
+                if mode in ("live", "test"):
+                    ok("Stripe mode detekován", mode)
+                else:
+                    fail("Stripe mode", f"očekáváno 'live'/'test', dostáno {mode!r}")
+                prev = d.get("stripe_key_preview") or ""
+                # preview nesmí natvrdo tvrdit sk_test_ když je klíč live
+                if mode == "live" and prev.startswith("sk_test_"):
+                    fail("Stripe preview nesedí s mode", f"mode=live ale preview='{prev}'")
+                elif mode == "live" and prev.startswith("sk_live_"):
+                    ok("Stripe preview odpovídá live klíči", prev)
+                elif mode == "test" and prev.startswith("sk_test_"):
+                    ok("Stripe preview odpovídá test klíči", prev)
+                elif prev:
+                    ok("Stripe preview přítomen", prev)
+                else:
+                    fail("Stripe preview chybí", "has_stripe_key=true ale preview je prázdný")
+            else:
+                skip("Stripe mode/preview", "Stripe klíč není nastaven")
+
             pb = d.get("pricing_base")
             if isinstance(pb, (int, float)) and pb > 0:
                 ok("pricing_base je číslo", f"{pb} EUR")
@@ -709,6 +732,12 @@ def test_landing():
 def test_print_materials(hotel_id):
     section("11. QR hub a tiskové materiály")
 
+    # Nastav zemi CZ → aktivuje lokální (CZ) větev letáků v hubu (has_local=True)
+    try:
+        requests.patch(f"{BASE}/api/hotels/{hotel_id}", json={"country": "CZ"}, timeout=10)
+    except:
+        pass
+
     # QR hub stránka
     try:
         r = get_retry(f"{BASE}/api/hotels/{hotel_id}/qr-poster", timeout=15)
@@ -722,6 +751,25 @@ def test_print_materials(hotel_id):
             ok("QR hub — všechny formáty přítomny (EN, CZ, rollup)")
         else:
             fail("QR hub — formáty", "chybí flyer-en/cz nebo rollup linky")
+
+        # REGRESE (prázdná stránka CZ A4/A5): KAŽDÉ openFormat('X') musí mít klíč v urls mapě.
+        # Když tlačítko volá formát, který v mapě není, window.open(undefined) → prázdná stránka.
+        fmt_calls = set(re.findall(r"openFormat\('([^']+)'\)", html))
+        if not fmt_calls:
+            fail("QR hub — openFormat tlačítka", "žádná nenalezena")
+        else:
+            missing = sorted(k for k in fmt_calls if f"'{k}':" not in html)
+            if missing:
+                fail("QR hub — formáty bez URL v mapě (PRÁZDNÁ STRÁNKA!)", ", ".join(missing))
+            else:
+                ok("QR hub — všechna tlačítka mají URL v urls mapě", f"{len(fmt_calls)} formátů")
+
+        # Explicitně lokální (CZ) klíče, které dřív v mapě chyběly
+        for key in ["flyer-local", "flyer-a5-local"]:
+            if f"'{key}':" in html:
+                ok(f"QR hub — '{key}' v urls mapě")
+            else:
+                fail(f"QR hub — '{key}' CHYBÍ v urls mapě", "CZ A4/A5 by byla prázdná stránka")
         if "f5a623" in html or "f0c060" in html or "FF6B00" in html:
             ok("QR hub — brand barva")
         else:
@@ -1016,6 +1064,148 @@ def test_reminder_email(hotel_id):
         fail("Reminder email", str(e))
 
 
+# ─────────────────────────────────────────────
+# 20. Regrese: country=None robustnost (0.4.4 fix)
+# ─────────────────────────────────────────────
+def test_country_none_guard():
+    section("20. Regrese — country=None robustnost")
+    nid = None
+    try:
+        r = requests.post(f"{BASE}/api/hotels", json={
+            "name": "E2E NullCountry Hotel",
+            "url": "https://example.com",
+            "bed_count": 20,
+            "email": "nullcountry@test.com",
+            "country": None,
+        }, timeout=10)
+        d = r.json()
+        nid = d.get("hotel", {}).get("id")
+        if not nid:
+            skip("country=None guard", f"hotel se nevytvořil: {str(d)[:80]}")
+            return
+    except Exception as e:
+        fail("country=None — vytvoření hotelu", str(e))
+        return
+
+    # Endpointy, které dřív padaly na .upper()/.lower() nad None
+    for endpoint, label in [
+        (f"/api/hotels/{nid}/qr-poster", "qr-poster (country=None)"),
+        (f"/api/hotels/{nid}/flyer-cz", "flyer-cz (country=None)"),
+        (f"/api/hotels/{nid}/flyer-local", "flyer-local (country=None)"),
+    ]:
+        try:
+            r = get_retry(f"{BASE}{endpoint}", timeout=15)
+            if r.status_code == 200:
+                ok(label)
+            else:
+                fail(label, f"status {r.status_code} (možná regrese country=None)")
+        except Exception as e:
+            fail(label, str(e))
+
+    # Faktura nad hotelem bez země/emailu → nesmí 500 (guard na created_at/email)
+    try:
+        requests.post(f"{BASE}/api/hotels/{nid}/subscription?active=true", timeout=10)
+        r = requests.post(f"{BASE}/api/hotels/{nid}/invoices/generate", timeout=10)
+        if r.status_code in (200, 400):
+            ok("Generování faktury (country=None) — bez 500")
+        else:
+            fail("Generování faktury (country=None)", f"status {r.status_code}")
+    except Exception as e:
+        fail("Generování faktury (country=None)", str(e))
+
+    # Úklid
+    try:
+        requests.delete(f"{BASE}/api/hotels/{nid}", timeout=10)
+        ok("country=None hotel smazán")
+    except Exception as e:
+        fail("Mazání country=None hotelu", str(e))
+
+
+# ─────────────────────────────────────────────
+# 21. Provize (externisté / affiliate)
+# ─────────────────────────────────────────────
+def test_commissions():
+    section("21. Provize (partneři + ledger)")
+    import time as _t
+    # Nastavení provize
+    try:
+        r = get_retry(f"{BASE}/api/settings/commission", timeout=10)
+        d = r.json()
+        if r.status_code == 200 and "commission_amount" in d and d.get("commission_currency") == "CZK":
+            ok("GET /api/settings/commission", f"{d.get('commission_amount')} CZK, hold {d.get('commission_hold_days')}d")
+        else:
+            fail("GET /api/settings/commission", f"status {r.status_code}")
+    except Exception as e:
+        fail("GET /api/settings/commission", str(e))
+
+    try:
+        r = requests.post(f"{BASE}/api/settings/commission",
+                          json={"commission_enabled": True, "commission_amount": 1500, "commission_hold_days": 30}, timeout=10)
+        ok("POST /api/settings/commission") if r.status_code == 200 else fail("POST /api/settings/commission", f"status {r.status_code}")
+    except Exception as e:
+        fail("POST /api/settings/commission", str(e))
+
+    # Partner CRUD
+    ref = f"E2E{int(_t.time())%100000}"
+    pid = None
+    try:
+        r = requests.post(f"{BASE}/api/partners",
+                          json={"name": "E2E Partner", "referral_code": ref, "email": "e2e@test.com", "commission_override": 2000}, timeout=10)
+        d = r.json()
+        if r.status_code == 200 and d.get("partner", {}).get("id"):
+            pid = d["partner"]["id"]
+            ok("Vytvoření partnera", f"ref {d['partner'].get('referral_code')}")
+        else:
+            fail("Vytvoření partnera", str(d)[:100])
+    except Exception as e:
+        fail("Vytvoření partnera", str(e))
+
+    # Duplicitní referral kód → 409
+    try:
+        r = requests.post(f"{BASE}/api/partners", json={"name": "Dup", "referral_code": ref}, timeout=10)
+        ok("Duplicitní referral odmítnut (409)") if r.status_code == 409 else fail("Duplicitní referral", f"status {r.status_code}")
+    except Exception as e:
+        fail("Duplicitní referral", str(e))
+
+    # Seznam partnerů obsahuje statistiky
+    try:
+        r = requests.get(f"{BASE}/api/partners", timeout=10)
+        d = r.json()
+        found = any(p.get("id") == pid for p in d.get("partners", []))
+        if r.status_code == 200 and found:
+            ok("GET /api/partners", f"{len(d['partners'])} partnerů")
+        else:
+            fail("GET /api/partners", f"status {r.status_code}, nalezen={found}")
+    except Exception as e:
+        fail("GET /api/partners", str(e))
+
+    # Ledger provizí dostupný
+    try:
+        r = requests.get(f"{BASE}/api/commissions", timeout=10)
+        d = r.json()
+        ok("GET /api/commissions", f"{len(d.get('commissions', []))} provizí") if r.status_code == 200 and isinstance(d.get("commissions"), list) else fail("GET /api/commissions", f"status {r.status_code}")
+    except Exception as e:
+        fail("GET /api/commissions", str(e))
+
+    # Admin má stránku Provize
+    try:
+        r = get_retry(f"{BASE}/", timeout=15)
+        if "page-commissions" in r.text and "loadCommissionsPage" in r.text:
+            ok("Admin — stránka Provize přítomna")
+        else:
+            fail("Admin — stránka Provize", "chybí v HTML")
+    except Exception as e:
+        fail("Admin — stránka Provize", str(e))
+
+    # Úklid partnera
+    if pid:
+        try:
+            requests.delete(f"{BASE}/api/partners/{pid}", timeout=10)
+            ok("E2E partner smazán")
+        except Exception as e:
+            fail("Mazání partnera", str(e))
+
+
 if __name__ == "__main__":
     print(f"\n{BOLD}SmartestGuide – E2E Test Runner{RESET}")
     print(f"URL: {BLUE}{BASE}{RESET}\n")
@@ -1043,6 +1233,7 @@ if __name__ == "__main__":
     test_subscription(hotel_id) if hotel_id else skip("Subscription testy", "hotel chybí")
     test_local_flyres(hotel_id) if hotel_id else skip("Lokální letáky", "hotel chybí")
     test_reminder_email(hotel_id) if hotel_id else skip("Reminder email", "hotel chybí")
+    test_country_none_guard()
 
     if hotel_id:
         cleanup(hotel_id)

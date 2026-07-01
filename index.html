@@ -176,6 +176,7 @@
     <div class="nav-item" onclick="showPage('pricing')"><span class="nav-icon">💶</span> Ceník</div>
     <div class="nav-item" onclick="showPage('settings')"><span class="nav-icon">⚙️</span> Nastavení<span class="nav-badge" id="settings-badge">!</span></div>
     <div class="nav-item" onclick="showPage('billing')"><span class="nav-icon">💰</span> Faktury</div>
+    <div class="nav-item" onclick="showPage('commissions')"><span class="nav-icon">🤝</span> Provize</div>
     <div class="nav-item" onclick="showPage('log');clearLogBadge()"><span class="nav-icon">📋</span> Log<span class="nav-badge" id="log-badge">0</span></div>
     <div class="sidebar-footer" id="sidebar-footer">
       <div>Backend: spuštěn</div>
@@ -252,7 +253,30 @@
     <div class="page" id="page-hotels">
       <div class="topbar">
         <div class="page-title">Hotely <small>správa profilů</small></div>
-        <button class="btn btn-primary" onclick="showPage('scrape')">+ Přidat hotel</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="bulkRemindIncomplete()" title="Pošle připomínku všem aktivním hotelům pod 80 % vyplněnosti">📧 Připomenout neúplným</button>
+          <button class="btn btn-primary" onclick="showPage('scrape')">+ Přidat hotel</button>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:16px;padding:16px">
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+          <input type="text" id="hotel-search" placeholder="🔍 Hledat hotel (název, web, e-mail, země)…" oninput="applyHotelFilter()" style="flex:1;min-width:240px">
+          <select id="hotel-status" onchange="applyHotelFilter()" style="min-width:150px">
+            <option value="">Všechny stavy</option>
+            <option value="active">✅ Aktivní</option>
+            <option value="trial">🎁 V trialu</option>
+            <option value="inactive">⏸ Neaktivní</option>
+            <option value="attention">⚠️ Vyžaduje pozornost (&lt;80 %)</option>
+          </select>
+          <select id="hotel-sort" onchange="applyHotelFilter()" style="min-width:160px">
+            <option value="">Řazení: výchozí</option>
+            <option value="name">Název A→Z</option>
+            <option value="beds">Nejvíce lůžek</option>
+            <option value="complete_asc">Nejméně vyplněné</option>
+          </select>
+          <button class="btn btn-secondary" onclick="resetHotelFilter()" style="padding:9px 14px">Zrušit</button>
+          <span id="hotel-count" style="font-size:12px;color:var(--muted);margin-left:auto"></span>
+        </div>
       </div>
       <div class="card">
         <div class="table-wrap"><table><thead><tr><th>Název / URL</th><th>Země / Světadíl</th><th>Lůžka / Cena</th><th>Stav</th><th>Předplatné</th><th>Akce</th></tr></thead><tbody id="hotels-tbody"></tbody></table></div>
@@ -421,6 +445,24 @@
         <div class="stat-card"><div class="stat-label">Čeká na platbu</div><div class="stat-value" style="color:var(--warn)" id="bill-pending">–</div></div>
       </div>
 
+      <!-- Hledání a filtry -->
+      <div class="card" style="margin-bottom:16px;padding:16px">
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+          <input type="text" id="bill-search" placeholder="🔍 Hledat číslo faktury nebo hotel…" oninput="applyBillingFilters()" style="flex:1;min-width:220px">
+          <select id="bill-status" onchange="applyBillingFilters()" style="min-width:150px">
+            <option value="">Všechny stavy</option>
+            <option value="issued">⏳ Vystavena</option>
+            <option value="paid">✅ Zaplacena</option>
+            <option value="cancelled">✕ Stornována</option>
+          </select>
+          <select id="bill-month" onchange="applyBillingFilters()" style="min-width:150px">
+            <option value="">Všechna období</option>
+          </select>
+          <button class="btn btn-secondary" onclick="resetBillingFilters()" style="padding:9px 14px">Zrušit</button>
+          <span id="bill-count" style="font-size:12px;color:var(--muted);margin-left:auto"></span>
+        </div>
+      </div>
+
       <div class="card">
         <div class="table-wrap">
           <table>
@@ -429,6 +471,52 @@
             </tr></thead>
             <tbody id="billing-tbody"></tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROVIZE -->
+    <div class="page" id="page-commissions">
+      <div class="topbar">
+        <div class="page-title">Provize <small>externisté / affiliate</small></div>
+      </div>
+
+      <!-- Nastavení provize -->
+      <div class="card" style="margin-bottom:20px">
+        <h3 style="margin:0 0 14px;font-size:15px">Nastavení provize</h3>
+        <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" id="com-enabled" style="width:16px;height:16px"> Provize zapnuté</label>
+          <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Částka za hotel (CZK)</div><input type="number" id="com-amount" style="width:140px" placeholder="1500"></div>
+          <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Zádržná lhůta (dny)</div><input type="number" id="com-hold" style="width:120px" placeholder="30"></div>
+          <button class="btn btn-primary" onclick="saveCommissionSettings()">💾 Uložit</button>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:10px">Provize vzniká až po první reálné platbě hotelu. Po zádržné lhůtě (a pokud je hotel stále aktivní) se schválí. Výplata je manuální — externista fakturuje, vy označíte „vyplaceno".</div>
+      </div>
+
+      <!-- Partneři -->
+      <div class="card" style="margin-bottom:20px">
+        <h3 style="margin:0 0 14px;font-size:15px">Partneři (externisté)</h3>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:16px">
+          <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Jméno *</div><input type="text" id="pn-name" style="min-width:150px" placeholder="Jan Externista"></div>
+          <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Referral kód *</div><input type="text" id="pn-ref" style="width:130px" placeholder="JAN2026"></div>
+          <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">E-mail</div><input type="text" id="pn-email" style="min-width:170px" placeholder="jan@example.com"></div>
+          <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">IČO</div><input type="text" id="pn-ico" style="width:110px" placeholder="12345678"></div>
+          <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Override (CZK)</div><input type="number" id="pn-override" style="width:120px" placeholder="dle globálu"></div>
+          <button class="btn btn-primary" onclick="addPartner()">+ Přidat partnera</button>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px" id="pn-ref-hint"></div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Partner</th><th>Referral link</th><th>Hotely</th><th>Provize</th><th>Dluží se</th><th>Akce</th></tr></thead>
+          <tbody id="partners-tbody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- Ledger provizí -->
+      <div class="card">
+        <h3 style="margin:0 0 14px;font-size:15px">Provize (ledger)</h3>
+        <div class="table-wrap">
+          <table><thead><tr><th>Hotel</th><th>Partner</th><th>Částka</th><th>Stav</th><th>Vznik</th><th>Akce</th></tr></thead>
+          <tbody id="commissions-tbody"></tbody></table>
         </div>
       </div>
     </div>
@@ -500,7 +588,7 @@ function exportLog(){
 }
 
 // ══ NAV ══════════════════════════════════════
-const PAGES=['dashboard','scrape','hotels','pricing','settings','billing','log'];
+const PAGES=['dashboard','scrape','hotels','pricing','settings','billing','commissions','log'];
 function showPage(name){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -512,6 +600,7 @@ function showPage(name){
   if(name==='dashboard'||name==='hotels')loadHotels();
   if(name==='settings'){loadKeyStatus();loadCompanySettings();}
   if(name==='billing')loadBilling();
+  if(name==='commissions')loadCommissionsPage();
   if(name==='pricing')loadPricingForm();
 }
 
@@ -731,10 +820,41 @@ function continentHtml(h){
   return'<span style="color:var(--accent2);font-size:12px">'+COUNTRY_MAP[code][1]+'</span>';
 }
 
+function hotelIsTrial(h){
+  if(!h.subscription_start) return false;
+  const diff=Math.ceil((new Date(h.subscription_start).getTime()+14*24*60*60*1000-Date.now())/(24*60*60*1000));
+  return diff>0 && diff<=14;
+}
+function getFilteredHotels(){
+  const q=((document.getElementById('hotel-search')||{}).value||'').trim().toLowerCase();
+  const st=(document.getElementById('hotel-status')||{}).value||'';
+  const sort=(document.getElementById('hotel-sort')||{}).value||'';
+  const sc=window._compScores||{};
+  const score=h=>(sc[h.id]!=null?sc[h.id]:100);
+  let rows=all_hotels.slice();
+  if(q)rows=rows.filter(h=>[h.name,h.url,h.source_url,h.email,h.country].some(v=>(v||'').toLowerCase().includes(q)));
+  if(st==='active')rows=rows.filter(h=>h.subscription_active);
+  else if(st==='inactive')rows=rows.filter(h=>!h.subscription_active);
+  else if(st==='trial')rows=rows.filter(h=>hotelIsTrial(h));
+  else if(st==='attention')rows=rows.filter(h=>score(h)<80);
+  if(sort==='name')rows.sort((a,b)=>(a.name||'').localeCompare(b.name||'','cs'));
+  else if(sort==='beds')rows.sort((a,b)=>(b.bed_count||0)-(a.bed_count||0));
+  else if(sort==='complete_asc')rows.sort((a,b)=>score(a)-score(b));
+  return rows;
+}
+function applyHotelFilter(){ renderHotelsTable(); }
+function resetHotelFilter(){
+  ['hotel-search','hotel-status','hotel-sort'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  renderHotelsTable();
+}
 function renderHotelsTable(){
   const tb=document.getElementById('hotels-tbody');
-  if(!all_hotels.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Žádné hotely. <a href="#" onclick="showPage(\'scrape\')" style="color:var(--accent)">Přidej první →</a></td></tr>';return;}
-  tb.innerHTML=all_hotels.map(h=>{
+  const cnt=document.getElementById('hotel-count');
+  if(!all_hotels.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Žádné hotely. <a href="#" onclick="showPage(\'scrape\')" style="color:var(--accent)">Přidej první →</a></td></tr>';if(cnt)cnt.textContent='';return;}
+  const rows=getFilteredHotels();
+  if(cnt)cnt.textContent=`Zobrazeno ${rows.length} z ${all_hotels.length}`;
+  if(!rows.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Žádný hotel neodpovídá filtru.</td></tr>';return;}
+  tb.innerHTML=rows.map(h=>{
     // Trial badge
     let trialHtml='';
     if(h.subscription_start){
@@ -778,6 +898,7 @@ function renderHotelsTable(){
         <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(0,212,170,.4);color:var(--accent2)" data-id="${h.id}" data-name="${esc(h.name||'')}" onclick="showPortalLink(this.dataset.id,this.dataset.name)">🔗 Hotel portál</button>
         <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(46,204,135,.4);color:var(--success)" data-id="${h.id}" data-name="${esc(h.name||'')}" onclick="downloadFlyer(this.dataset.id,this.dataset.name)">📄 Leták</button>
         <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(255,170,51,.4);color:var(--warn)" data-id="${h.id}" data-name="${esc(h.name||'')}" onclick="sendReminder(this.dataset.id,this.dataset.name)">📧 Reminder</button>
+        <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(108,99,255,.45);color:#6c63ff;grid-column:span 3" data-id="${h.id}" data-name="${esc(h.name||'')}" onclick="rescrapeHotel(this.dataset.id,this.dataset.name)">🔄 Doplnit z webu</button>
         <button class="btn btn-danger" style="padding:5px 2px;font-size:10px;grid-column:span 3" onclick="deleteHotel('${h.id}')">✕ Smazat hotel</button>
       </div>
     </td></tr>`;
@@ -974,19 +1095,9 @@ async function showQrPopup(id, name){
       <div style="font-size:11px;color:var(--muted);margin-bottom:14px;word-break:break-all;font-family:monospace" id="qr-url-label-${id}"></div>
       <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="downloadQr('${id}','${esc(name)}')">⬇ Stáhnout PNG</button>
-        <button class="btn btn-secondary" onclick="regenQr('${id}','${esc(name)}')">↺ Nový QR</button>
         <button class="btn btn-secondary" onclick="document.getElementById('qr-modal').remove()">Zavřít</button>
       </div>
     </div>`;
-}
-
-async function regenQr(id, name){
-  // Smaž cache a znovu načti
-  if(window._qrCache) delete window._qrCache[id];
-  document.getElementById('qr-modal')?.remove();
-  await showQrPopup(id, name);
-  addLog('info','QR regenerován: '+name,'qr');
-  toast('QR kód obnoven s aktuální IP');
 }
 
 async function downloadQr(id, name){
@@ -1320,28 +1431,140 @@ async function showPortalLink(id, name){
   }catch(e){toast('Chyba: '+e.message,'err');}
 }
 
+// ══ PROVIZE ══════════════════════════════════
+let _partners=[], _commissions=[];
+async function loadCommissionsPage(){
+  try{
+    const s=await (await fetch(API+'/api/settings/commission')).json();
+    document.getElementById('com-enabled').checked=!!s.commission_enabled;
+    document.getElementById('com-amount').value=s.commission_amount||'';
+    document.getElementById('com-hold').value=s.commission_hold_days||'';
+  }catch(e){}
+  loadPartners(); loadCommissions();
+}
+async function saveCommissionSettings(){
+  const body={commission_enabled:document.getElementById('com-enabled').checked,
+    commission_amount:parseFloat(document.getElementById('com-amount').value)||0,
+    commission_hold_days:parseInt(document.getElementById('com-hold').value)||0};
+  try{ const r=await fetch(API+'/api/settings/commission',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error('HTTP '+r.status); toast('✅ Nastavení provize uloženo'); }catch(e){toast('Chyba: '+e.message,'err');}
+}
+async function loadPartners(){
+  try{ const d=await (await fetch(API+'/api/partners')).json(); _partners=d.partners||[]; renderPartners(); }catch(e){}
+}
+function renderPartners(){
+  const tb=document.getElementById('partners-tbody');
+  if(!_partners.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Zatím žádní partneři.</td></tr>';return;}
+  const base=location.origin;
+  tb.innerHTML=_partners.map(p=>{const st=p._stats||{};const link=base+'/landing?ref='+encodeURIComponent(p.referral_code);
+    return `<tr>
+    <td><strong>${esc(p.name)}</strong>${p.active?'':' <span style="color:var(--danger);font-size:11px">(neaktivní)</span>'}<div style="font-size:11px;color:var(--muted)">${esc(p.email||'')}${p.ico?' · IČO '+esc(p.ico):''}${p.commission_override?' · override '+p.commission_override+' Kč':''}</div></td>
+    <td style="font-size:11px"><code>${esc(p.referral_code)}</code><br><button class="btn btn-secondary" style="padding:3px 8px;font-size:10px;margin-top:4px" onclick="navigator.clipboard.writeText('${link}').then(()=>toast('Link zkopírován'))">📋 Kopírovat link</button></td>
+    <td>${st.hotels||0}</td>
+    <td style="font-size:11px">⏳${st.pending||0} ✅${st.approved||0} 💸${st.paid||0}</td>
+    <td><strong>${st.owed_czk||0} Kč</strong></td>
+    <td><button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="deletePartner('${p.id}','${esc(p.name)}')">✕</button></td>
+  </tr>`;}).join('');
+}
+async function addPartner(){
+  const name=document.getElementById('pn-name').value.trim();
+  const ref=document.getElementById('pn-ref').value.trim();
+  if(!name||!ref){toast('Jméno a referral kód jsou povinné','err');return;}
+  const body={name,referral_code:ref,email:document.getElementById('pn-email').value.trim()||null,
+    ico:document.getElementById('pn-ico').value.trim()||null,
+    commission_override:parseFloat(document.getElementById('pn-override').value)||null};
+  try{ const r=await fetch(API+'/api/partners',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json(); if(!r.ok)throw new Error(d.detail||('HTTP '+r.status));
+    toast('✅ Partner přidán'); ['pn-name','pn-ref','pn-email','pn-ico','pn-override'].forEach(i=>document.getElementById(i).value='');
+    loadPartners(); }catch(e){toast('Chyba: '+e.message,'err');}
+}
+async function deletePartner(id,name){
+  if(!confirm('Smazat partnera „'+name+'"?\n\nExistující provize zůstanou v ledgeru.'))return;
+  try{ await fetch(API+'/api/partners/'+id,{method:'DELETE'}); toast('Partner smazán'); loadPartners(); }catch(e){toast('Chyba: '+e.message,'err');}
+}
+async function loadCommissions(){
+  try{ const d=await (await fetch(API+'/api/commissions')).json(); _commissions=d.commissions||[]; renderCommissions(); }catch(e){}
+}
+function renderCommissions(){
+  const tb=document.getElementById('commissions-tbody');
+  if(!_commissions.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Zatím žádné provize. Vzniknou po první platbě hotelu získaného partnerem.</td></tr>';return;}
+  const lbl={pending:'⏳ Čeká (zádrž)',approved:'✅ Schváleno',paid:'💸 Vyplaceno',canceled:'✕ Zrušeno'};
+  tb.innerHTML=_commissions.map(c=>`<tr>
+    <td>${esc(c.hotel_name||c.hotel_id)}</td>
+    <td>${esc(c.partner_name||'?')}</td>
+    <td><strong>${c.amount} ${c.currency||'CZK'}</strong></td>
+    <td>${lbl[c.status]||c.status}${c.payout_reference?'<div style="font-size:10px;color:var(--muted)">VS/faktura: '+esc(c.payout_reference)+'</div>':''}</td>
+    <td style="font-size:11px;color:var(--muted)">${(c.created_at||'').slice(0,10)}</td>
+    <td>${c.status==='approved'?`<button class="btn btn-success" style="padding:4px 10px;font-size:11px" onclick="payCommission('${c.id}')">Vyplaceno</button>`:''}</td>
+  </tr>`).join('');
+}
+async function payCommission(id){
+  const ref=prompt('Číslo faktury / VS platby (nepovinné):')||'';
+  try{ const r=await fetch(API+'/api/commissions/'+id+'/pay?reference='+encodeURIComponent(ref),{method:'POST'});
+    if(!r.ok)throw new Error('HTTP '+r.status); toast('✅ Provize označena jako vyplacená'); loadCommissions(); loadPartners(); }catch(e){toast('Chyba: '+e.message,'err');}
+}
+
 // ══ FAKTURY ══════════════════════════════════
+let _allInvoices=[];
 async function loadBilling(){
   addLog('info','Načítám faktury','billing');
   try{
     const r=await fetch(API+'/api/invoices');
     const d=await r.json();
     const invs=d.invoices||[];
+    _allInvoices=invs;
     const total=invs.length;
     const paid=invs.filter(i=>i.status==='paid').length;
     const pending=invs.filter(i=>i.status==='issued').length;
     document.getElementById('bill-total').textContent=total;
     document.getElementById('bill-paid').textContent=paid;
     document.getElementById('bill-pending').textContent=pending;
-    renderBillingTable(invs);
+    populateBillingMonths(invs);
+    applyBillingFilters();
     addLog('ok',`Načteno ${total} faktur`,'billing');
   }catch(e){addLog('error','Chyba faktur: '+e.message,'billing');}
+}
+
+function invMonth(inv){
+  // období faktury → YYYY-MM (z period_from, fallback created_at)
+  const src=inv.period_from||inv.created_at||'';
+  return src?src.slice(0,7):'';
+}
+
+function populateBillingMonths(invs){
+  const sel=document.getElementById('bill-month');
+  if(!sel)return;
+  const cur=sel.value;
+  const months=[...new Set(invs.map(invMonth).filter(Boolean))].sort().reverse();
+  sel.innerHTML='<option value="">Všechna období</option>'+months.map(m=>`<option value="${m}">${m}</option>`).join('');
+  if(months.includes(cur))sel.value=cur;
+}
+
+function applyBillingFilters(){
+  const q=(document.getElementById('bill-search').value||'').trim().toLowerCase();
+  const st=document.getElementById('bill-status').value||'';
+  const mo=document.getElementById('bill-month').value||'';
+  let rows=_allInvoices;
+  if(q)rows=rows.filter(i=>(i.invoice_number||'').toLowerCase().includes(q)||(i.hotel_name||'').toLowerCase().includes(q));
+  if(st)rows=rows.filter(i=>i.status===st);
+  if(mo)rows=rows.filter(i=>invMonth(i)===mo);
+  const cnt=document.getElementById('bill-count');
+  if(cnt)cnt.textContent=`Zobrazeno ${rows.length} z ${_allInvoices.length}`;
+  renderBillingTable(rows);
+}
+
+function resetBillingFilters(){
+  document.getElementById('bill-search').value='';
+  document.getElementById('bill-status').value='';
+  document.getElementById('bill-month').value='';
+  applyBillingFilters();
 }
 
 function renderBillingTable(invs){
   const tb=document.getElementById('billing-tbody');
   if(!invs.length){
-    tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Žádné faktury. Klikni na + Generovat faktury.</td></tr>';
+    const msg=_allInvoices.length?'Žádná faktura neodpovídá filtru.':'Žádné faktury. Klikni na + Generovat faktury.';
+    tb.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">${msg}</td></tr>`;
     return;
   }
   const statusLabel={issued:'⏳ Vystavena',paid:'✅ Zaplacena',cancelled:'✕ Stornována'};
@@ -1437,8 +1660,8 @@ function generatePdf(inv, co={}){
   </div>
   <div class="section">
     <div class="section-title">Odběratel / Client</div>
-    <div style="font-weight:700;margin-bottom:4px">${inv.hotel_name||'–'}</div>
-    <div style="font-size:13px;color:#666;line-height:1.7">${inv.hotel_address||''}<br>${inv.hotel_email||''}</div>
+    <div style="font-weight:700;margin-bottom:4px">${inv.hotel_billing_name||inv.hotel_name||'–'}</div>
+    <div style="font-size:13px;color:#666;line-height:1.7">${inv.hotel_address?inv.hotel_address+'<br>':''}${inv.hotel_country?inv.hotel_country+'<br>':''}${inv.hotel_ico?'IČO / ID: '+inv.hotel_ico+'<br>':''}${inv.hotel_dic?'DIČ / VAT: '+inv.hotel_dic+'<br>':''}${inv.hotel_email||''}</div>
   </div>
 </div>
 
@@ -1447,13 +1670,17 @@ function generatePdf(inv, co={}){
   <div class="info-row"><span class="info-label">Číslo faktury<br><small style="font-weight:400;color:#aaa">Invoice number</small></span><span class="info-value">${inv.invoice_number}</span></div>
   <div class="info-row"><span class="info-label">Datum vystavení<br><small style="font-weight:400;color:#aaa">Issue date</small></span><span class="info-value">${inv.created_at?new Date(inv.created_at).toLocaleDateString('cs-CZ'):'–'}</span></div>
   <div class="info-row"><span class="info-label">Fakturační období<br><small style="font-weight:400;color:#aaa">Billing period</small></span><span class="info-value">${inv.period_from||'–'} – ${inv.period_to||'–'}</span></div>
+  <div class="info-row"><span class="info-label">Splatnost<br><small style="font-weight:400;color:#aaa">Due date</small></span><span class="info-value">${inv.due_date||'–'}</span></div>
+  <div class="info-row"><span class="info-label">Variabilní symbol<br><small style="font-weight:400;color:#aaa">Variable symbol</small></span><span class="info-value">${inv.variable_symbol||'–'}</span></div>
   <div class="info-row"><span class="info-label">Počet lůžek<br><small style="font-weight:400;color:#aaa">Number of beds</small></span><span class="info-value">${inv.beds||'–'}</span></div>
   ${inv.paid_at?`<div class="info-row"><span class="info-label">Datum úhrady<br><small style="font-weight:400;color:#aaa">Payment date</small></span><span class="info-value">${new Date(inv.paid_at).toLocaleDateString('cs-CZ')}</span></div>`:''}
 </div>
 
 <div class="section">
   <div class="section-title">Předmět fakturace / Description</div>
-  <div class="info-row"><span class="info-label">SmartestGuide – měsíční předplatné<br><small style="font-weight:400;color:#aaa">Monthly subscription</small></span><span class="info-value">${inv.amount_eur} EUR</span></div>
+  <div class="info-row"><span class="info-label">SmartestGuide – měsíční předplatné<br><small style="font-weight:400;color:#aaa">Monthly subscription</small></span><span class="info-value">${(inv.amount_net!=null?inv.amount_net:inv.amount_eur)} EUR</span></div>
+  ${inv.vat_rate?`<div class="info-row"><span class="info-label">DPH ${inv.vat_rate}%<br><small style="font-weight:400;color:#aaa">VAT</small></span><span class="info-value">${inv.vat_amount} EUR</span></div>`:''}
+  ${inv.vat_note?`<div class="info-row"><span class="info-label" style="font-style:italic;color:#999;font-size:12px">${inv.vat_note}</span><span class="info-value"></span></div>`:''}
 </div>
 
 <div class="amount-box">
@@ -1497,12 +1724,22 @@ async function loadCompleteness(hotelId){
   try{
     const r = await fetch(`${API}/api/hotels/${hotelId}/completeness`);
     const d = await r.json();
-    const el = document.getElementById('comp-'+hotelId);
-    if(!el) return;
     const score = d.score || 0;
-    const color = score >= 80 ? 'var(--success)' : score >= 50 ? 'var(--warn)' : 'var(--danger)';
-    el.style.color = color;
-    el.textContent = '📋 ' + score + '% profilu';
+    window._compScores = window._compScores || {};
+    window._compScores[hotelId] = score;
+    const el = document.getElementById('comp-'+hotelId);
+    if(el){
+      const color = score >= 80 ? 'var(--success)' : score >= 50 ? 'var(--warn)' : 'var(--danger)';
+      el.style.color = color;
+      el.textContent = '📋 ' + score + '% profilu';
+    }
+    // Když je aktivní filtr/řazení dle vyplněnosti, přerenderuj (debounced)
+    const st=(document.getElementById('hotel-status')||{}).value;
+    const sort=(document.getElementById('hotel-sort')||{}).value;
+    if(st==='attention'||sort==='complete_asc'){
+      clearTimeout(window._compRerender);
+      window._compRerender=setTimeout(()=>renderHotelsTable(),200);
+    }
   }catch(e){}
 }
 
@@ -1511,6 +1748,37 @@ function downloadFlyer(hotelId, hotelName){
   // Otevři QR hub stránku s výběrem všech formátů
   window.open(`${API}/api/hotels/${hotelId}/qr-poster`, '_blank');
   addLog('info', `Otevírám tiskové materiály pro: ${hotelName}`, 'hotels');
+}
+
+// ══ RE-SCRAPE — doplnit prázdná pole z webu hotelu ══
+async function rescrapeHotel(id, name){
+  if(!confirm(`Doplnit prázdná pole hotelu „${name}" z jeho webu?\n\nRuční úpravy zůstanou nedotčené — doplní se jen to, co chybí.`))return;
+  toast('🔄 Stahuji data z webu…');
+  addLog('info',`Re-scrape: ${name}`,'hotels');
+  try{
+    const r=await fetch(`${API}/api/hotels/${id}/rescrape`,{method:'POST'});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||('HTTP '+r.status));
+    const n=d.filled_count||0;
+    toast(n?`✅ Doplněno ${n} polí z webu`:'ℹ️ Web nepřinesl nová data (vše už vyplněno)');
+    addLog('ok',`Re-scrape ${name}: doplněno ${n} polí`,'hotels');
+    loadHotels();
+  }catch(e){toast('Chyba: '+e.message,'err');addLog('error','Re-scrape selhal: '+e.message,'hotels');}
+}
+
+// ══ HROMADNÝ REMINDER — neúplným aktivním hotelům ══
+async function bulkRemindIncomplete(){
+  const sc=window._compScores||{};
+  const targets=all_hotels.filter(h=>h.subscription_active && ((sc[h.id]!=null?sc[h.id]:100) < 80));
+  if(!targets.length){toast('Žádné aktivní hotely pod 80 % vyplněnosti (nebo se ještě načítá skóre).');return;}
+  if(!confirm(`Odeslat připomínku ${targets.length} aktivním hotelům pod 80 % vyplněnosti?`))return;
+  addLog('info',`Hromadný reminder: ${targets.length} hotelů`,'hotels');
+  let ok=0;
+  for(const h of targets){
+    try{const r=await fetch(`${API}/api/hotels/${h.id}/send-reminder`,{method:'POST'});if(r.ok)ok++;}catch(e){}
+  }
+  toast(`✅ Odesláno ${ok}/${targets.length} připomínek`);
+  addLog('ok',`Hromadný reminder hotovo: ${ok}/${targets.length}`,'hotels');
 }
 
 
