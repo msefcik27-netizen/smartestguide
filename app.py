@@ -2160,19 +2160,28 @@ async def register_hotel(req: RegistrationRequest, request: Request):
     # 1. Vytvoř hotel v DB
     db = db_load()
 
-    # Ochrana proti duplicitní registraci — zkontroluj email
+    # Ochrana proti duplicitní registraci — zkontroluj email.
+    # Archivované (deaktivované) hotely NEBLOKUJÍ — po zrušení se zákazník může vrátit.
     email_lower = req.contact_email.lower().strip()
     existing = [(hid, h) for hid, h in db["hotels"].items()
-                if (h.get("email") or "").lower().strip() == email_lower
-                or (h.get("registration_email") or "").lower().strip() == email_lower]
+                if not h.get("archived")
+                and ((h.get("email") or "").lower().strip() == email_lower
+                     or (h.get("registration_email") or "").lower().strip() == email_lower)]
 
     for hid_ex, h_ex in existing:
         if h_ex.get("subscription_active"):
             # Hotel s tímto emailem již má aktivní předplatné
             raise HTTPException(409, f"Hotel s emailem {req.contact_email} již má aktivní předplatné. Přihlaste se do portálu nebo kontaktujte podporu.")
-        if not h_ex.get("subscription_active") and h_ex.get("stripe_subscription_id"):
-            # Zaplatil ale subscription ještě nebyla aktivována (race condition) — počkej
-            raise HTTPException(409, f"Registrace s emailem {req.contact_email} již probíhá. Zkontrolujte svůj email.")
+        # "Registrace probíhá" blokuje jen při ČERSTVÉM rozdělaném platebním pokusu (skutečný
+        # race po platbě, < 1 h). Starou zrušenou/neaktivní registraci klidně povolíme znovu.
+        if h_ex.get("stripe_subscription_id"):
+            try:
+                created = datetime.fromisoformat(h_ex.get("created_at", ""))
+                recent = (datetime.utcnow() - created).total_seconds() < 3600
+            except Exception:
+                recent = False
+            if recent:
+                raise HTTPException(409, f"Registrace s emailem {req.contact_email} již probíhá. Zkontrolujte svůj email.")
 
     # Načti aktuální ceník z DB
     pricing_base = int(s.get("pricing_base", 199))
