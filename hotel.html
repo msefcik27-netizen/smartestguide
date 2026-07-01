@@ -147,7 +147,7 @@ html{color-scheme:light}
 <div style="display:flex;min-height:calc(100vh - 60px)">
 
 <!-- Sidebar navigace -->
-<div id="portal-sidebar" style="width:220px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:20px 0;position:sticky;top:60px;height:calc(100vh - 60px);overflow-y:auto">
+<div id="portal-sidebar" style="width:280px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:20px 0;position:sticky;top:60px;height:calc(100vh - 60px);overflow-y:auto">
   <div style="padding:0 16px;margin-bottom:8px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:600">Sekce</div>
   <div id="sidebar-nav"></div>
 </div>
@@ -155,6 +155,11 @@ html{color-scheme:light}
 <!-- Hlavní obsah -->
 <div style="flex:1;min-width:0;overflow-y:auto">
 <div class="container" id="completeness-banner" style="max-width:100%;margin:16px 0 0;padding:0 32px"></div>
+
+<div class="container" style="max-width:100%;padding:10px 32px 0;display:flex;justify-content:flex-end;gap:8px">
+  <button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="setAllSections(true)">⊞ Rozbalit vše</button>
+  <button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="setAllSections(false)">⊟ Sbalit vše</button>
+</div>
 
 <div class="container" id="main-container">
   <div class="page-msg"><div class="loader"></div><p style="margin-top:16px;color:var(--muted)">Načítám data hotelu…</p></div>
