@@ -801,6 +801,13 @@ def hotel_portal_update(token: str, data: dict = Body(default={})):
     db = db_load()
     # Přijmi libovolná pole hotelu (kromě chráněných) — ať se uloží vše z portálu
     update_data = {k: v for k, v in (data or {}).items() if k not in _PORTAL_PROTECTED}
+    # Zpětná kompatibilita: odvoď restaurant_name / nav_restaurant / menu_urls z restaurants[]
+    if "restaurants" in update_data:
+        rests = update_data.get("restaurants") or []
+        update_data["restaurant_name"] = ((rests[0].get("name") if rests else "") or None)
+        update_data["nav_restaurant"] = ((rests[0].get("directions") if rests else "") or None)
+        menus = [m.get("url") for r in rests for m in (r.get("menus") or []) if m.get("url")]
+        update_data["menu_urls"] = menus or None
     current = db["hotels"][h["id"]]
     # Při prvním nastavení lůžek u aktivního předplatného ulož jako zaplacená lůžka
     new_beds = update_data.get("bed_count")
