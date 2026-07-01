@@ -348,6 +348,8 @@ def get_settings():
         "stripe_payment_link": s.get("stripe_payment_link", ""),
         "stripe_key_preview": ((s["stripe_secret_key"].split("_")[0] + "_" + s["stripe_secret_key"].split("_")[1] + "_..." + s["stripe_secret_key"][-6:]) if s.get("stripe_secret_key") and s["stripe_secret_key"].count("_") >= 2 else (s["stripe_secret_key"][:8] + "..." if s.get("stripe_secret_key") else None)),
         "stripe_mode": ("live" if s.get("stripe_secret_key","").startswith("sk_live_") else "test" if s.get("stripe_secret_key","").startswith("sk_test_") else None),
+        "has_webhook_secret": bool(s.get("stripe_webhook_secret")),
+        "has_brevo": bool(os.getenv("BREVO_API_KEY")),
         "pricing_base": s.get("pricing_base", 300),
         "pricing_threshold": s.get("pricing_threshold", 100),
         "pricing_per_bed": s.get("pricing_per_bed", 3),
