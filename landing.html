@@ -333,7 +333,7 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       <h2 id="pricing-h2">Simple, transparent <span class="grad-text">pricing</span></h2>
       <p id="pricing-p">No hidden fees, no long-term contracts. Cancel anytime.</p>
     </div>
-    <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:24px;max-width:860px;margin:0 auto;align-items:stretch">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;max-width:860px;margin:0 auto;align-items:stretch">
       <!-- Co je v ceně -->
       <div style="background:#ffffff;border:1px solid var(--border);border-radius:20px;padding:32px 28px">
         <div style="font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--accent);margin-bottom:16px" id="price-incl-title">Vše v ceně</div>
@@ -354,7 +354,7 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
           <span id="calc-beds-unit" style="font-size:22px;font-weight:800;color:#1a1a1a">lůžek</span>
         </div>
         <div id="calc-beds-hint" style="font-size:11px;color:var(--accent);font-weight:600;margin-bottom:14px">↑ Klikněte a napište přesný počet lůžek</div>
-        <input type="range" id="calc-slider" min="10" max="500" step="5" value="50" style="width:100%;accent-color:var(--accent);margin-bottom:20px;cursor:pointer">
+        <input type="range" id="calc-slider" min="10" max="3000" step="10" value="50" style="width:100%;accent-color:var(--accent);margin-bottom:20px;cursor:pointer">
         <div style="font-size:44px;font-weight:800;color:var(--accent);line-height:1"><span id="calc-price">199</span> €<span style="font-size:16px;color:#4a4a4a;font-weight:600"> / <span id="calc-per-month">měsíc</span></span></div>
         <div style="font-size:13px;color:#4a4a4a;margin-top:10px" id="calc-formula"></div>
         <div style="flex:1"></div>
@@ -490,15 +490,7 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
 
 <section id="contact" style="background:#faf9f5">
   <div class="section-inner">
-    <div class="contact-grid">
-      <div class="contact-info">
-        <span class="eyebrow" id="contact-eyebrow">Contact</span>
-        <h2 id="contact-h2">Got a question?<br><span class="grad-text">Let's talk.</span></h2>
-        <p id="contact-p">We're a small team and we respond to every message personally. Usually within a few hours during business days.</p>
-        <div class="contact-item"><div class="c-icon">✉️</div><div class="c-text"><a href="mailto:hello@smartestguide.com">hello@smartestguide.com</a></div></div>
-        <div class="contact-item"><div class="c-icon">💬</div><div class="c-text">WhatsApp: <a href="#">+420 XXX XXX XXX</a></div></div>
-        <div class="contact-item"><div class="c-icon">📍</div><div class="c-text" id="contact-loc">Prague, Czech Republic</div></div>
-      </div>
+    <div style="max-width:560px;margin:0 auto">
       <div>
         <form class="contact-form" onsubmit="submitContact(event)">
           <div class="form-group"><label id="c-l-name">Your name</label><input type="text" id="c-in-name" placeholder="John Smith" required/></div>
