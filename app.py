@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, List
 import os, json, uuid, httpx, asyncio, re, base64, hmac, hashlib, logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from dotenv import load_dotenv
@@ -47,6 +47,7 @@ async def _reminder_background_loop():
             await _check_and_send_reminders()
             await _deactivate_expired_subscriptions()
             await _backup_data()
+            await _send_monthly_reports_if_due()
         except Exception as e:
             logging.error("Background loop error: %s", e)
         await asyncio.sleep(6 * 60 * 60)
@@ -1096,6 +1097,65 @@ def hotel_portal_analytics(token: str):
         "last_chat": None
     })
     return {"status": "ok", "analytics": analytics}
+
+@app.get("/api/hotel-portal/monthly-report")
+def hotel_portal_monthly_report(token: str, month: str = ""):
+    """Měsíční přehled pro hotelový portál (default: minulý měsíc + aktuální měsíc doposud)."""
+    h = find_hotel_by_token(token)
+    if not h:
+        raise HTTPException(403, "Neplatny token")
+    country = (h.get("country") or "").upper()
+    lang = "cs" if country in ("CZ", "SK") else "en"
+    lname = _LANG_NAMES.get(lang, _LANG_NAMES["en"])
+    db = db_load()
+    a = db.get("analytics", {}).get(h["id"], {}) or {}
+    monthly = a.get("monthly", {}) or {}
+
+    def summarize(mk: str) -> dict:
+        cur = monthly.get(mk, {"count": 0, "flagged": 0, "langs": {}})
+        prev = monthly.get(_month_key_shift(mk, -1), {"count": 0})
+        count = int(cur.get("count", 0))
+        prev_count = int(prev.get("count", 0))
+        pct = round((count - prev_count) / prev_count * 100) if prev_count > 0 else None
+        langs = cur.get("langs", {}) or {}
+        top = sorted(langs.items(), key=lambda kv: kv[1], reverse=True)[:3]
+        saved_min = count * 2
+        return {
+            "month_key": mk,
+            "month_label": _month_label(mk, lang),
+            "count": count,
+            "prev_count": prev_count,
+            "trend_pct": pct,
+            "flagged": int(cur.get("flagged", 0)),
+            "top_langs": [{"code": c, "name": lname.get(c, c), "count": n} for c, n in top],
+            "saved_minutes": saved_min,
+            "saved_label": (f"~{round(saved_min/60,1)} h" if saved_min >= 60 else f"~{saved_min} min"),
+        }
+
+    report_key = month or _prev_month_key()
+    current_key = datetime.utcnow().strftime("%Y-%m")
+    comp = hotel_profile_completeness(h)
+    return {
+        "status": "ok",
+        "lang": lang,
+        "profile_score": comp.get("score", 0) if isinstance(comp, dict) else 0,
+        "report": summarize(report_key),
+        "current": summarize(current_key),
+        "available_months": sorted(monthly.keys(), reverse=True),
+    }
+
+@app.get("/api/hotels/{hotel_id}/monthly-report/preview", response_class=HTMLResponse)
+def admin_monthly_report_preview(hotel_id: str, month: str = ""):
+    """Náhled měsíčního reportu (admin) — vrátí HTML e-mailu."""
+    rep = build_monthly_report(hotel_id, month or None)
+    if not rep:
+        raise HTTPException(404, "Hotel nenalezen")
+    return HTMLResponse(rep["html"])
+
+@app.post("/api/hotels/{hotel_id}/monthly-report/send")
+async def admin_monthly_report_send(hotel_id: str, month: str = "", dry_run: bool = False):
+    """Ruční odeslání měsíčního reportu hotelu (admin)."""
+    return await send_monthly_report(hotel_id, month_key=(month or None), dry_run=dry_run)
 
 @app.post("/api/hotels/{hotel_id}/generate-token")
 def generate_token(hotel_id: str, request: Request):
@@ -2608,6 +2668,227 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
     except Exception as e:
         logging.error(f"Chyba pri odesilani emailu: {e}")
 
+# ─────────────────────────────────────────────
+# Měsíční report hotelu (retence — ukázat hodnotu)
+# ─────────────────────────────────────────────
+_LANG_NAMES = {
+    "cs": {"en": "angličtina", "cs": "čeština", "de": "němčina", "sk": "slovenština",
+           "pl": "polština", "fr": "francouzština", "es": "španělština", "it": "italština",
+           "nl": "nizozemština", "pt": "portugalština", "ru": "ruština", "uk": "ukrajinština",
+           "zh": "čínština", "ja": "japonština", "ko": "korejština", "ar": "arabština"},
+    "en": {"en": "English", "cs": "Czech", "de": "German", "sk": "Slovak",
+           "pl": "Polish", "fr": "French", "es": "Spanish", "it": "Italian",
+           "nl": "Dutch", "pt": "Portuguese", "ru": "Russian", "uk": "Ukrainian",
+           "zh": "Chinese", "ja": "Japanese", "ko": "Korean", "ar": "Arabic"},
+}
+
+def _prev_month_key(ref: datetime = None) -> str:
+    """Klíč předchozího kalendářního měsíce, formát YYYY-MM."""
+    ref = ref or datetime.utcnow()
+    first = ref.replace(day=1)
+    prev = first - timedelta(days=1)
+    return prev.strftime("%Y-%m")
+
+def _month_key_shift(month_key: str, delta: int) -> str:
+    """Posune YYYY-MM o delta měsíců (např. -1)."""
+    y, m = int(month_key[:4]), int(month_key[5:7])
+    idx = (y * 12 + (m - 1)) + delta
+    return f"{idx // 12:04d}-{(idx % 12) + 1:02d}"
+
+def _month_label(month_key: str, lang: str) -> str:
+    y, m = int(month_key[:4]), int(month_key[5:7])
+    names_cs = ["", "leden", "únor", "březen", "duben", "květen", "červen", "červenec",
+                "srpen", "září", "říjen", "listopad", "prosinec"]
+    names_en = ["", "January", "February", "March", "April", "May", "June", "July",
+                "August", "September", "October", "November", "December"]
+    nm = names_cs if lang == "cs" else names_en
+    return f"{nm[m]} {y}"
+
+def build_monthly_report(hotel_id: str, month_key: str = None) -> dict:
+    """Sestaví měsíční report hotelu. Vrací dict (subject, html, text, lang, has_data) nebo None."""
+    db = db_load()
+    hotel = db.get("hotels", {}).get(hotel_id)
+    if not hotel:
+        return None
+    month_key = month_key or _prev_month_key()
+    a = db.get("analytics", {}).get(hotel_id, {}) or {}
+    monthly = a.get("monthly", {}) or {}
+    cur = monthly.get(month_key, {"count": 0, "flagged": 0, "langs": {}})
+    prev_key = _month_key_shift(month_key, -1)
+    prev = monthly.get(prev_key, {"count": 0})
+    count = int(cur.get("count", 0))
+    flagged = int(cur.get("flagged", 0))
+    prev_count = int(prev.get("count", 0))
+
+    country = (hotel.get("country") or "").upper()
+    lang = "cs" if country in ("CZ", "SK") else "en"
+    hotel_name = hotel.get("name") or "hotel"
+    base_url = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app").rstrip("/")
+    token = hotel.get("hotel_token", "")
+    portal_url = f"{base_url}/hotel?token={token}" if token else base_url
+
+    # Top 3 jazyky hostů
+    langs = cur.get("langs", {}) or {}
+    top_langs = sorted(langs.items(), key=lambda kv: kv[1], reverse=True)[:3]
+    lname = _LANG_NAMES.get(lang, _LANG_NAMES["en"])
+    top_langs_str = ", ".join(f"{lname.get(code, code)} ({n})" for code, n in top_langs) if top_langs else ("—")
+
+    # Trend vs. minulý měsíc
+    if prev_count > 0:
+        pct = round((count - prev_count) / prev_count * 100)
+        trend_cs = f"{'+' if pct >= 0 else ''}{pct} % oproti měsíci {_month_label(prev_key,'cs')}"
+        trend_en = f"{'+' if pct >= 0 else ''}{pct}% vs. {_month_label(prev_key,'en')}"
+    else:
+        trend_cs = trend_en = ""
+
+    comp = hotel_profile_completeness(hotel)
+    score = comp.get("score", 0) if isinstance(comp, dict) else 0
+
+    month_lbl = _month_label(month_key, lang)
+    # Odhad ušetřeného času recepce (~2 min / dotaz)
+    saved_min = count * 2
+    saved_h = round(saved_min / 60, 1)
+
+    if lang == "cs":
+        subject = f"Měsíční přehled – {hotel_name} · {month_lbl}"
+        trend_html = f'<p style="margin:2px 0 0;color:#16a34a;font-size:13px">{trend_cs}</p>' if trend_cs else ""
+        flagged_html = ""
+        if flagged > 0:
+            flagged_html = (f'<tr><td style="padding:10px 0;border-top:1px solid #eee">'
+                            f'<strong>{flagged}×</strong> Alex neměl dost informací k odpovědi. '
+                            f'Doplňte profil hotelu, ať hosté dostanou odpověď vždy.</td></tr>')
+        profile_html = ""
+        if score < 100:
+            profile_html = (f'<tr><td style="padding:10px 0;border-top:1px solid #eee">'
+                            f'Profil hotelu je vyplněn na <strong>{score} %</strong>. '
+                            f'Doplnění chybějících údajů zvýší kvalitu odpovědí.</td></tr>')
+        intro = "tady je váš měsíční přehled, jak Alex sloužil vašim hostům."
+        stat_label = "konverzací s hosty"
+        langs_label = "Nejčastější jazyky hostů"
+        saved_label = "Odhadem ušetřeno recepci"
+        saved_val = f"~{saved_h} h" if saved_h >= 1 else f"~{saved_min} min"
+        cta = "Otevřít hotelový portál"
+        outro = "Alex odpovídá 24/7 ve 16 jazycích – bez zatížení recepce."
+    else:
+        subject = f"Monthly summary – {hotel_name} · {month_lbl}"
+        trend_html = f'<p style="margin:2px 0 0;color:#16a34a;font-size:13px">{trend_en}</p>' if trend_en else ""
+        flagged_html = ""
+        if flagged > 0:
+            flagged_html = (f'<tr><td style="padding:10px 0;border-top:1px solid #eee">'
+                            f'<strong>{flagged}×</strong> Alex lacked enough info to answer. '
+                            f'Complete your hotel profile so guests always get an answer.</td></tr>')
+        profile_html = ""
+        if score < 100:
+            profile_html = (f'<tr><td style="padding:10px 0;border-top:1px solid #eee">'
+                            f'Your hotel profile is <strong>{score}%</strong> complete. '
+                            f'Filling the gaps improves answer quality.</td></tr>')
+        intro = "here is your monthly summary of how Alex served your guests."
+        stat_label = "guest conversations"
+        langs_label = "Top guest languages"
+        saved_label = "Estimated reception time saved"
+        saved_val = f"~{saved_h} h" if saved_h >= 1 else f"~{saved_min} min"
+        cta = "Open hotel portal"
+        outro = "Alex answers 24/7 in 16 languages — without burdening your reception."
+
+    html = f"""<!DOCTYPE html><html><body style="margin:0;background:#f5f5f5;font-family:Arial,Helvetica,sans-serif;color:#1a1a1a">
+<div style="max-width:560px;margin:0 auto;padding:24px">
+  <div style="background:#1a1a1a;color:#fff;border-radius:14px 14px 0 0;padding:22px 24px">
+    <div style="font-size:13px;letter-spacing:.5px;color:#ff8a3d">SMARTEST GUIDE</div>
+    <div style="font-size:20px;font-weight:bold;margin-top:4px">{subject}</div>
+  </div>
+  <div style="background:#fff;border-radius:0 0 14px 14px;padding:24px">
+    <p style="margin:0 0 16px">{hotel_name}, {intro}</p>
+    <div style="background:#fafafa;border:1px solid #eee;border-radius:12px;padding:18px;text-align:center">
+      <div style="font-size:40px;font-weight:bold;color:#ff6b00;line-height:1">{count}</div>
+      <div style="color:#666;font-size:14px;margin-top:4px">{stat_label}</div>
+      {trend_html}
+    </div>
+    <table style="width:100%;border-collapse:collapse;margin-top:14px;font-size:14px">
+      <tr><td style="padding:10px 0;border-top:1px solid #eee;color:#666">{langs_label}</td>
+          <td style="padding:10px 0;border-top:1px solid #eee;text-align:right"><strong>{top_langs_str}</strong></td></tr>
+      <tr><td style="padding:10px 0;border-top:1px solid #eee;color:#666">{saved_label}</td>
+          <td style="padding:10px 0;border-top:1px solid #eee;text-align:right"><strong>{saved_val}</strong></td></tr>
+      {flagged_html}
+      {profile_html}
+    </table>
+    <div style="text-align:center;margin:22px 0 6px">
+      <a href="{portal_url}" style="display:inline-block;background:#ff6b00;color:#fff;text-decoration:none;padding:12px 26px;border-radius:10px;font-weight:bold">{cta}</a>
+    </div>
+    <p style="margin:16px 0 0;color:#888;font-size:12px;text-align:center">{outro}</p>
+  </div>
+</div></body></html>"""
+
+    text = (f"{subject}\n\n{hotel_name}, {intro}\n\n"
+            f"{count} {stat_label}"
+            + (f" ({trend_cs if lang=='cs' else trend_en})" if (trend_cs if lang=='cs' else trend_en) else "")
+            + f"\n{langs_label}: {top_langs_str}\n{saved_label}: {saved_val}\n\n"
+            + (f"{flagged}x " + ("Alex nemel dost informaci.\n" if lang=='cs' else "Alex lacked info.\n") if flagged else "")
+            + f"{cta}: {portal_url}\n\n{outro}")
+
+    return {"subject": subject, "html": html, "text": text, "lang": lang,
+            "has_data": count > 0, "count": count, "month_key": month_key}
+
+async def send_monthly_report(hotel_id: str, month_key: str = None, dry_run: bool = False) -> dict:
+    """Odešle měsíční report hotelu přes Brevo. dry_run=True jen sestaví, neodesílá."""
+    rep = build_monthly_report(hotel_id, month_key)
+    if not rep:
+        return {"status": "error", "detail": "hotel nenalezen"}
+    db = db_load()
+    hotel = db.get("hotels", {}).get(hotel_id, {})
+    hotel_email = (hotel.get("email") or "").strip()
+    if not rep["has_data"]:
+        return {"status": "skipped", "detail": "žádná aktivita v daném měsíci", "month_key": rep["month_key"]}
+    if dry_run:
+        return {"status": "dry_run", "subject": rep["subject"], "count": rep["count"], "month_key": rep["month_key"]}
+    brevo_key = os.getenv("BREVO_API_KEY", "")
+    if not brevo_key or not hotel_email:
+        return {"status": "error", "detail": "chybí BREVO_API_KEY nebo e-mail hotelu"}
+    payload = {
+        "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
+        "to": [{"email": hotel_email, "name": hotel.get("name", "")}],
+        "subject": rep["subject"],
+        "htmlContent": rep["html"],
+        "textContent": rep["text"],
+    }
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            r = await client.post("https://api.brevo.com/v3/smtp/email", json=payload,
+                headers={"api-key": brevo_key, "Content-Type": "application/json"}, timeout=30)
+        if r.status_code in (200, 201):
+            # Zaznamenej, že report za tento měsíc byl odeslán (dedup)
+            db = db_load()
+            a = db.setdefault("analytics", {}).setdefault(hotel_id, {})
+            a["monthly_report_sent"] = rep["month_key"]
+            db_save(db)
+            logging.info("Měsíční report odeslán -> %s (%s)", hotel_email, rep["month_key"])
+            return {"status": "sent", "month_key": rep["month_key"], "count": rep["count"]}
+        logging.error("Brevo report CHYBA %s: %s", r.status_code, r.text[:200])
+        return {"status": "error", "detail": f"Brevo {r.status_code}"}
+    except Exception as e:
+        logging.error("Report e-mail výjimka: %s", e)
+        return {"status": "error", "detail": str(e)}
+
+async def _send_monthly_reports_if_due():
+    """Auto-odeslání měsíčních reportů (GATED settingem, default VYPNUTO).
+    Odešle report za předchozí měsíc každému aktivnímu hotelu max. 1×."""
+    if not db_get_settings().get("monthly_reports_enabled", False):
+        return
+    month_key = _prev_month_key()
+    db = db_load()
+    hotels = list(db.get("hotels", {}).items())
+    analytics = db.get("analytics", {})
+    for hotel_id, h in hotels:
+        if not h.get("subscription_active"):
+            continue
+        a = analytics.get(hotel_id, {}) or {}
+        if a.get("monthly_report_sent") == month_key:
+            continue  # už odesláno
+        try:
+            await send_monthly_report(hotel_id, month_key=month_key)
+        except Exception as e:
+            logging.error("Auto-report hotel %s chyba: %s", hotel_id, e)
+
 async def auto_scrape_after_payment(hotel_id: str, hotel_url: str):
     """Po úspěšné platbě automaticky naskenuje web hotelu a doplní data do DB."""
     try:
@@ -2925,7 +3206,8 @@ def _log_guest_question(hotel_id: str, message: str, language: str, reply: str):
     analytics = db.setdefault("analytics", {})
     a = analytics.setdefault(hotel_id, {"total": 0, "topics": {}})
     a["total"] = a.get("total", 0) + 1
-    a["last_chat"] = datetime.utcnow().isoformat()
+    now = datetime.utcnow()
+    a["last_chat"] = now.isoformat()
     low = (reply or "").lower()
     flagged = any(m in low for m in _LOW_INFO_MARKERS)
     rq = a.setdefault("recent_questions", [])
@@ -2933,11 +3215,24 @@ def _log_guest_question(hotel_id: str, message: str, language: str, reply: str):
         "q": (message or "")[:300],
         "lang": language or "",
         "flagged": flagged,
-        "at": datetime.utcnow().isoformat(),
+        "at": now.isoformat(),
     })
     del rq[50:]
     if flagged:
         a["flagged_count"] = a.get("flagged_count", 0) + 1
+    # Měsíční agregace (pro měsíční report hotelu) — count + jazyky + flagged
+    month_key = now.strftime("%Y-%m")
+    monthly = a.setdefault("monthly", {})
+    m = monthly.setdefault(month_key, {"count": 0, "flagged": 0, "langs": {}})
+    m["count"] = m.get("count", 0) + 1
+    if flagged:
+        m["flagged"] = m.get("flagged", 0) + 1
+    if language:
+        m.setdefault("langs", {})[language] = m["langs"].get(language, 0) + 1
+    # Nech jen posledních 18 měsíců, ať data.json nebobtná
+    if len(monthly) > 18:
+        for k in sorted(monthly.keys())[:-18]:
+            monthly.pop(k, None)
     db_save(db)
 
 # ─────────────────────────────────────────────
@@ -3448,6 +3743,8 @@ Never mix languages in a single response.
 BRAND NAMES (IMPORTANT): "SMARTEST GUIDE" and "Alex" are a brand and product name. NEVER translate or localise them into any language — always keep them exactly as "SMARTEST GUIDE" and "Alex", regardless of the language you are speaking. Do not write "Nejchytřejší průvodce", "Le guide le plus intelligent", or any translated form.
 
 INPUT TOLERANCE (IMPORTANT): Guests often use voice dictation or type quickly, so words may be misspelled or phonetically garbled — possibly transcribed in the wrong language. If a word looks like a garbled, misheard or misspelled version of a common hotel topic, infer the most likely intended meaning and answer helpfully instead of saying you don't understand. For example: "Spicycarte"/"Spajzekarte" → German "Speisekarte" (menu / jídelní lístek); "checkout"/"chekaut" → check-out; "wai-fai"/"vайфай" → WiFi; "brekfast"/"frpštyk" → breakfast. Only ask the guest to rephrase if you genuinely cannot guess the intent. Never reply that you don't know a word like "Spicycarte" — recognise it as a misheard "Speisekarte" and give the menu info.
+
+ACCURACY RULE (CRITICAL — never break this): Answer ONLY from the hotel information provided below. If a detail is missing, empty, marked "N/A" or "neuvedeno", do NOT guess or invent it. Instead say you don't have that specific information and offer to connect the guest with reception (use the reception phone or WhatsApp number if listed). Never make up prices, opening hours, room numbers, allergen or dietary details, policies, or availability. For safety-critical topics (allergens, medical, payments, prices) always recommend confirming directly with hotel staff. It is always better to admit you don't know than to state something that might be wrong.
 
 FORMATTING RULES:
 - When sharing a URL or link, always write the full URL as plain text starting with https:// on its own line. Never use markdown like [text](url). Example: https://www.hotel.cz/menu
