@@ -450,7 +450,7 @@ def _pg_init():
     """Ověří připojení, vytvoří tabulku, jednorázově zmigruje data.json do Postgres."""
     global _PG_ENABLED
     if not DATABASE_URL:
-        logging.info("Databaze: souborovy rezim (DATABASE_URL nenastaven)")
+        logging.warning("Databaze: SOUBOROVY REZIM (DATABASE_URL nenastaven)")
         return
     try:
         conn = _pg_connect()
@@ -474,7 +474,7 @@ def _pg_init():
                 logging.info("Postgres kv_store inicializovan (seed hotels=%d)", len(seed.get("hotels", {})))
         conn.close()
         _PG_ENABLED = True
-        logging.info("Databaze: POSTGRES aktivni")
+        logging.warning("Databaze: POSTGRES AKTIVNI")
     except Exception as e:
         _PG_ENABLED = False
         logging.error("Postgres init SELHAL -> fallback na soubor: %s", e)
@@ -622,7 +622,8 @@ def get_version():
             commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL).decode().strip()
         except Exception:
             commit = "unknown"
-    return {"version": APP_VERSION, "commit": commit, "started": APP_START_TIME}
+    return {"version": APP_VERSION, "commit": commit, "started": APP_START_TIME,
+            "db": "postgres" if _PG_ENABLED else "file"}
 
 @app.get("/api/settings")
 def get_settings():
