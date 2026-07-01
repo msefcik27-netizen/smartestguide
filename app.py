@@ -5,7 +5,7 @@ Spusť: python -m uvicorn app:app --reload
 Nebo použij SPUSTIT.bat
 """
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -207,7 +207,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.0"
+APP_VERSION = "0.5.1"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -304,6 +304,7 @@ class HotelData(BaseModel):
     extra_info: Optional[str] = None
     active_offer: Optional[str] = None
     hidden_gems: Optional[List[str]] = None
+    restaurants: Optional[List[dict]] = None   # opakovatelné restaurace s jídelníčky
     subscription_active: Optional[bool] = None
     stripe_customer_id: Optional[str] = None
     scraped_pages: Optional[List[str]] = None
@@ -785,13 +786,21 @@ class HotelPortalUpdate(BaseModel):
     menu_urls: Optional[List[str]] = None
     custom_fields: Optional[List[dict]] = None
 
+_PORTAL_PROTECTED = {
+    "id", "hotel_token", "created_at", "qr_code_id", "registered_bed_count",
+    "subscription_active", "subscription_start", "subscription_period_end",
+    "subscription_paid_beds", "stripe_customer_id", "stripe_subscription_id",
+    "acquired_by", "referral_code", "acquired_at", "trial_used", "trial_start",
+}
+
 @app.patch("/api/hotel-portal/update")
-def hotel_portal_update(token: str, data: HotelPortalUpdate):
+def hotel_portal_update(token: str, data: dict = Body(default={})):
     h = find_hotel_by_token(token)
     if not h:
         raise HTTPException(403, "Neplatny pristupovy token")
     db = db_load()
-    update_data = data.model_dump(exclude_none=True)
+    # Přijmi libovolná pole hotelu (kromě chráněných) — ať se uloží vše z portálu
+    update_data = {k: v for k, v in (data or {}).items() if k not in _PORTAL_PROTECTED}
     current = db["hotels"][h["id"]]
     # Při prvním nastavení lůžek u aktivního předplatného ulož jako zaplacená lůžka
     new_beds = update_data.get("bed_count")
@@ -2926,6 +2935,23 @@ async def guest_chat(req: GuestChatRequest):
     lang_name = LANG_NAMES.get(req.language, req.language)
 
     # Sestav systémový prompt z dat hotelu
+    # Restaurace (opakovatelné) — sestav přehled pro Alexe
+    _restos = h.get("restaurants") or []
+    _rlines = []
+    for _r in _restos:
+        if not (_r.get("name") or _r.get("menus")):
+            continue
+        _head = "- " + (_r.get("name") or "Restaurace")
+        if _r.get("type"): _head += f" ({_r['type']})"
+        if _r.get("hours"): _head += f", otevřeno {_r['hours']}"
+        _rlines.append(_head)
+        if _r.get("dietary"): _rlines.append(f"    Dietní možnosti: {_r['dietary']}")
+        if _r.get("directions"): _rlines.append(f"    Jak se tam dostat (krok za krokem): {_r['directions']}")
+        for _m in (_r.get("menus") or []):
+            if _m.get("url"):
+                _rlines.append(f"    {_m.get('label') or 'Jídelníček'}: {_m['url']}")
+    restaurants_block = ("RESTAURACE HOTELU (u konkrétní restaurace rovnou poraď, jak se k ní dostat; odkazy na jídelníčky sdílej jako plain URL, když se host ptá na jídlo/pití/menu):\n" + "\n".join(_rlines)) if _rlines else ""
+
     hotel_info = f"""You are Alex, a friendly AI concierge for {h.get('name', 'this hotel')}.
 
 LANGUAGE RULE: Detect the language of the guest's message and always respond in that same language.
@@ -2979,7 +3005,7 @@ Pokud host žádá cestu nebo navigaci, použij PŘESNÝ popis výše krok za kr
 INSTRUKCE K MÍSTŮM: Pokud host žádá tipy na okolí, doporučuj turistická místa přirozeně. Pokud se ptá na "místní tipy", "kam chodí místní", "co turisté neznají" nebo chce autentický zážitek — zdůrazni skrytá místa a uveď je jako insider tip: "tohle turisté obvykle neznají, ale místní to milují".
 - Description: {h.get('description', 'N/A')}
 - Extra info: {h.get('extra_info', 'N/A')}
-{("- Menu links (share these as plain URLs when guest asks about food, drinks or menu):\n" + "\n".join([f"  {u}" for u in h.get('menu_urls', []) if u])) if h.get('menu_urls') else ''}
+{restaurants_block}
 {chr(10).join([f"- {cf.get('label','Info')}: {cf.get('value','')}" for cf in h.get('custom_fields', []) if cf.get('value')]) if h.get('custom_fields') else ''}
 {"\n⭐ AKTIVNÍ NABÍDKA HOTELU: " + h.get('active_offer') + "\nTuto nabídku VŽDY zmíň pokud se host ptá na téma které s ní souvisí (wellness, restaurace, bar, aktivity, služby apod.). Zmiň ji přirozeně jako součást odpovědi — ne jako reklamu, ale jako přátelský tip." if h.get('active_offer') else ''}
 

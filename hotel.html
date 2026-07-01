@@ -385,28 +385,23 @@ function renderPortal() {
       </table>
     `, ['phone','email','address'])}
 
-    ${renderSection('🍽️', 'Restaurace', 'Název, stravování, menu', `
+    ${renderSection('🍽️', 'Restaurace', 'Restaurace hotelu, jídelníky a jak se k nim dostat', `
+      <div style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        💡 Přidejte <strong style="color:var(--text)">každou restauraci zvlášť</strong> — u každé rovnou napište, jak se k ní host dostane, a přidejte odkazy na jednotlivé jídelníky (snídaňové, polední, nápojový lístek…). Restaurací i jídelníků může být libovolný počet.
+      </div>
+      <div id="restaurants-list">${renderRestaurants(h.restaurants || legacyRestaurants(h))}</div>
+      <button type="button" onclick="addRestaurant()" class="btn btn-primary" style="margin-top:4px;font-size:13px;padding:9px 18px">+ Přidat restauraci</button>
+      <table class="edit-table" style="margin-top:18px">
+        ${row('Lobby / hotelový bar', 'bar_info', 'text', h.bar_info, 'např. Lobby bar, otevřeno 10:00–24:00')}
+      </table>
+    `, ['restaurants'])}
+
+    ${renderSection('📶', 'WiFi', 'Připojení k internetu pro hosty', `
       <table class="edit-table">
-        ${row('Název restaurace', 'restaurant_name', 'text', h.restaurant_name, '')}
-        ${row('Typ snídaně', 'breakfast_type', 'text', h.breakfast_type, 'např. Bufet, À la carte, Kontinentální')}
-        ${row('Bar / Lobby bar', 'bar_info', 'text', h.bar_info, 'např. Otevřeno 10:00–24:00')}
-        ${row('Vegetariánská / Vegan', 'dietary_options', 'text', h.dietary_options, 'dostupné možnosti')}
-        ${row('Mini bar na pokoji', 'minibar', 'text', h.minibar, 'např. Ano, doplňován denně')}
-        ${row('Parkování', 'parking_info', 'text', h.parking_info, 'např. Bezplatné parkování před hotelem')}
-        ${row('WiFi síť (název)', 'wifi_name', 'text', h.wifi_name, 'např. Hotel_SEN_Guest')}
+        ${row('WiFi síť (název)', 'wifi_name', 'text', h.wifi_name, 'např. Hotel_Guest')}
         ${row('WiFi heslo', 'wifi_password', 'text', h.wifi_password, 'např. welcome2024')}
       </table>
-      <div style="margin-top:16px;font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.6">
-        💡 <strong style="color:var(--text)">Menu:</strong> Vložte odkaz na jídelní lístek. Přidejte až 5 odkazů (snídaně, oběd, večeře, nápojový lístek…)
-      </div>
-      <div id="menu-urls-container">
-        ${(h.menu_urls||[]).concat(['','','']).slice(0,5).map((url,i)=>`
-          <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
-            <input type="url" id="menu-url-${i}" value="${esc(url)}" placeholder="https://www.restaurace.cz/menu" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:10px 14px;outline:none" oninput="markChanged()">
-            ${url?`<button onclick="clearMenuUrl(${i})" style="background:rgba(255,79,106,.1);border:1px solid rgba(255,79,106,.3);border-radius:6px;padding:8px 12px;color:var(--danger);cursor:pointer;font-size:12px">✕</button>`:''}
-          </div>`).join('')}
-      </div>
-    `, ['restaurant_name','breakfast_type','bar_info'])}
+    `, ['wifi_name','wifi_password'])}
 
     ${renderSection('🗺️', 'Orientace v hotelu', 'Navigace pro hosty — kde co najdou', `
       <div style="background:rgba(0,212,170,.06);border:1px solid rgba(0,212,170,.2);border-radius:10px;padding:16px;margin-bottom:16px;font-size:12px;color:var(--muted);line-height:1.7">
@@ -422,7 +417,7 @@ function renderPortal() {
         ${rowTextarea('Jak se dostat do wellness / spa', 'nav_wellness', h.nav_wellness, 'např. Wellness je vedle bazénu na patře -1. Vstupenky si kupte na recepci.')}
         ${rowTextarea('Jak se dostat do fitness', 'nav_fitness', h.nav_fitness, 'např. Fitness centrum je v 1. patře, dostanete se tam schodištěm u recepce. Otevřeno nonstop.')}
         <tr><td colspan="2" style="padding:12px 0 4px;font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px">🍽️ Stravování</td></tr>
-        ${rowTextarea('Jak se dostat do restaurace', 'nav_restaurant', h.nav_restaurant, 'např. Restaurace je v přízemí vpravo od recepce. Vstup je také z parkoviště.')}
+        <tr><td colspan="2" style="font-size:11px;color:var(--muted);padding:2px 0 6px">ℹ️ Cestu ke každé restauraci zadejte přímo u dané restaurace v sekci „Restaurace".</td></tr>
         ${rowTextarea('Jak se dostat do baru', 'nav_bar', h.nav_bar, 'např. Bar je vedle recepce vlevo, otevřeno 16:00–01:00.')}
         <tr><td colspan="2" style="padding:12px 0 4px;font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px">🅿️ Parkování & příjezd</td></tr>
         ${rowTextarea('Jak se dostat na parkoviště / do garáže', 'nav_parking', h.nav_parking, 'např. Podzemní garáž je přístupná z ulice Nádražní. Vjezd je označen cedulí P. Použijte klíčovou kartu z pokoje.')}
@@ -447,6 +442,8 @@ function renderPortal() {
         ${row('Bazén', 'pool_info', 'text', h.pool_info, 'např. Krytý bazén, 25m, otevřeno celoročně')}
         ${row('Spa / Masáže', 'spa_info', 'text', h.spa_info, 'např. Thajské masáže, rezervace na recepci')}
         ${row('Room service', 'room_service_hours', 'text', h.room_service_hours, 'např. 0–24h, menu na pokoji')}
+        ${row('Minibar na pokoji', 'minibar', 'text', h.minibar, 'např. Ano, doplňován denně')}
+        ${row('Parkování', 'parking_info', 'text', h.parking_info, 'např. Bezplatné parkování před hotelem, garáž 200 Kč/noc')}
         ${row('Prádelna / Čistírna', 'laundry_info', 'text', h.laundry_info, 'např. Výdej do 24h, expresní 4h')}
         ${row('Půjčovna kol', 'bike_rental', 'text', h.bike_rental, 'cena a dostupnost')}
         ${row('Transfer / Shuttle', 'transfer_info', 'text', h.transfer_info, 'např. Shuttle na letiště, taxi')}
@@ -592,7 +589,7 @@ function renderSection(icon, title, desc, content, fields, defaultOpen) {
   const isOpen = defaultOpen ? 'open' : '';
   // Placeholder pro score badge – vyplní updateSectionScore() po renderování
   const scorePlaceholder = fields && fields.length
-    ? `<span class="section-score" id="score-${id}"><span class="score-badge empty">○ 0/${fields.length}</span></span>`
+    ? `<span class="section-score" id="score-${id}"><span class="score-badge empty">○ 0%</span></span>`
     : '';
   return `<div class="section" id="${id}">
     <div class="section-head ${isOpen}" onclick="toggleSection('${id}')">
@@ -609,26 +606,108 @@ function renderSection(icon, title, desc, content, fields, defaultOpen) {
 }
 
 function updateSectionScore(id) {
-  const fields = _sectionFields[id];
-  if (!fields) return;
   const el = document.getElementById('score-' + id);
   if (!el) return;
-  const filled = fields.filter(k => {
-    const inp = document.getElementById('f-' + k);
-    if (inp) return inp.value.trim() !== '';
-    const tags = document.querySelectorAll('#tags-' + k + ' .tag-item');
-    return tags.length > 0;
-  }).length;
-  const total = fields.length;
-  const cls = filled === total ? 'full' : filled > 0 ? 'partial' : 'empty';
-  const emoji = filled === total ? '✓' : filled > 0 ? '◑' : '○';
-  el.innerHTML = `<span class="score-badge ${cls}">${emoji} ${filled}/${total}</span>`;
+  const sec = document.getElementById(id);
+  const body = sec && sec.querySelector('.section-body');
+  if (!body) { el.innerHTML = ''; return; }
+  // Spočítej VŠECHNA editovatelná pole v sekci (aby číslo sedělo s řádky)
+  let total = 0, filled = 0;
+  body.querySelectorAll('input[id^="f-"], textarea[id^="f-"], select[id^="f-"]').forEach(inp => {
+    if (inp.type === 'checkbox' || inp.type === 'button' || inp.type === 'hidden') return;
+    total++;
+    if (String(inp.value || '').trim() !== '') filled++;
+  });
+  // Tagové skupiny (vybavení, místa v okolí…)
+  body.querySelectorAll('[id^="tags-"]').forEach(tc => {
+    total++;
+    if (tc.querySelectorAll('.tag-item').length > 0) filled++;
+  });
+  // Opakovatelné restaurace — každá s názvem se počítá jako vyplněná
+  body.querySelectorAll('.resto-card').forEach(card => {
+    total++;
+    const nm = card.querySelector('.r-name');
+    if (nm && nm.value.trim()) filled++;
+  });
+  if (total === 0) { el.innerHTML = ''; return; }
+  const pct = Math.round(filled / total * 100);
+  const cls = pct >= 80 ? 'full' : pct > 0 ? 'partial' : 'empty';
+  const emoji = pct >= 80 ? '✓' : pct > 0 ? '◑' : '○';
+  el.innerHTML = `<span class="score-badge ${cls}" title="Vyplněno ${filled} z ${total} polí">${emoji} ${pct}% <span style="opacity:.65;font-weight:500">(${filled}/${total})</span></span>`;
 }
 
 function updateAllSectionScores() {
   Object.keys(_sectionFields).forEach(id => updateSectionScore(id));
   buildSidebarNav();
 }
+
+// ══ RESTAURACE (opakovatelné) ═══════════════════
+const MENU_TYPES = ['Snídaňové','Polední','Večerní','Celodenní','Nápojový lístek','Vinný lístek','Jiné'];
+function legacyRestaurants(h){
+  if (h.restaurants && h.restaurants.length) return h.restaurants;
+  const hasLegacy = h.restaurant_name || (h.menu_urls && h.menu_urls.length) || h.nav_restaurant;
+  if (!hasLegacy) return [{}];
+  return [{
+    name: h.restaurant_name||'', type: h.breakfast_type||'', hours:'', dietary: h.dietary_options||'',
+    directions: h.nav_restaurant||'',
+    menus: (h.menu_urls||[]).filter(u=>u).map(u=>({label:'Jiné', url:u}))
+  }];
+}
+function menuRow(m){
+  m = m || {};
+  const opts = MENU_TYPES.map(t=>`<option${m.label===t?' selected':''}>${t}</option>`).join('');
+  return `<div class="r-menu-row" style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+    <select class="r-menu-label" onchange="markChanged()" style="flex:0 0 150px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 10px">${opts}</select>
+    <input class="r-menu-url" value="${esc(m.url||'')}" oninput="markChanged()" placeholder="https://…/menu.pdf" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px">
+    <button type="button" onclick="this.closest('.r-menu-row').remove();markChanged()" style="background:rgba(255,79,106,.1);border:1px solid rgba(255,79,106,.3);border-radius:6px;padding:8px 10px;color:var(--danger);cursor:pointer;font-size:12px">✕</button>
+  </div>`;
+}
+function restaurantCard(r, i){
+  r = r || {};
+  const menus = (r.menus && r.menus.length) ? r.menus : [{}];
+  const inp = (cls,val,ph)=>`<input class="${cls}" value="${esc(val||'')}" oninput="markChanged()" placeholder="${ph}" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:10px 12px">`;
+  return `<div class="resto-card" style="border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;background:var(--card)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <strong style="font-size:14px">🍽️ Restaurace ${i+1}</strong>
+      <button type="button" onclick="removeRestaurant(${i})" class="btn btn-secondary" style="padding:4px 10px;font-size:11px;border-color:rgba(255,79,106,.3);color:var(--danger)">✕ Odebrat</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Název</div>${inp('r-name',r.name,'např. Restaurace U Zlaté hvězdy')}</div>
+      <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Typ kuchyně</div>${inp('r-type',r.type,'např. Česká · Italská · À la carte')}</div>
+      <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Otevírací doba</div>${inp('r-hours',r.hours,'např. 11:00–22:00')}</div>
+      <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Dietní možnosti</div>${inp('r-dietary',r.dietary,'vegetariánská · vegan · bezlepková')}</div>
+      <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Jak se tam dostat</div><textarea class="r-directions" oninput="markChanged()" placeholder="Krok za krokem: z recepce doprava, v přízemí…" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:10px 12px;min-height:60px;resize:vertical">${esc(r.directions||'')}</textarea></div>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin:14px 0 6px">Jídelníky (odkaz na PDF/web):</div>
+    <div class="r-menus">${menus.map(m=>menuRow(m)).join('')}</div>
+    <button type="button" onclick="addMenu(this)" class="btn btn-secondary" style="margin-top:6px;font-size:12px;padding:5px 12px">+ Přidat jídelník</button>
+  </div>`;
+}
+function renderRestaurants(list){
+  const arr = (list && list.length) ? list : [{}];
+  return arr.map((r,i)=>restaurantCard(r,i)).join('');
+}
+function collectRestaurants(){
+  const out = [];
+  document.querySelectorAll('#restaurants-list .resto-card').forEach(card=>{
+    const g = s => { const el=card.querySelector(s); return el ? el.value.trim() : ''; };
+    const menus = [];
+    card.querySelectorAll('.r-menu-row').forEach(mr=>{
+      const label = (mr.querySelector('.r-menu-label')||{}).value || 'Jiné';
+      const url = ((mr.querySelector('.r-menu-url')||{}).value||'').trim();
+      if (url) menus.push({label, url});
+    });
+    out.push({name:g('.r-name'), type:g('.r-type'), hours:g('.r-hours'), dietary:g('.r-dietary'), directions:g('.r-directions'), menus});
+  });
+  return out;
+}
+function rerenderRestaurants(list){
+  const c = document.getElementById('restaurants-list');
+  if (c) c.innerHTML = renderRestaurants(list && list.length ? list : [{}]);
+}
+function addRestaurant(){ const list=collectRestaurants(); list.push({}); rerenderRestaurants(list); markChanged(); }
+function removeRestaurant(i){ const list=collectRestaurants(); list.splice(i,1); rerenderRestaurants(list.length?list:[{}]); updateAllSectionScores(); markChanged(); }
+function addMenu(btn){ const menus=btn.closest('.resto-card').querySelector('.r-menus'); if(menus){ menus.insertAdjacentHTML('beforeend', menuRow({})); markChanged(); } }
 
 function buildSidebarNav() {
   const nav = document.getElementById('sidebar-nav');
@@ -1023,37 +1102,29 @@ async function loadPricing(){
 
 // ── Uložení ───────────────────────────────────
 async function saveAll() {
-  const numFields = ['bed_count', 'room_count', 'star_rating'];
-  const textFields = ['checkin_time','checkout_time','breakfast_hours','lunch_hours','dinner_hours',
-    'phone','email','whatsapp_number','whatsapp_wellness','restaurant_name','wellness_info','parking_info',
-    'wifi_name','wifi_password',
-    'description','extra_info','active_offer','address','country',
-    'nav_pool','nav_wellness','nav_fitness','nav_restaurant','nav_bar',
-    'nav_parking','nav_arrival','nav_elevator','nav_conference','nav_other'];
-
+  const numKeys = new Set(['bed_count', 'room_count', 'star_rating']);
   const data = {};
-  textFields.forEach(k => {
-    const el = document.getElementById('f-' + k);
-    if (el) data[k] = el.value.trim() || null;
-  });
-  numFields.forEach(k => {
-    const el = document.getElementById('f-' + k);
-    if (el && el.value.trim() !== '') {
-      const v = parseInt(el.value);
-      data[k] = isNaN(v) ? null : v;
-    }
+  // Sesbírej VŠECHNA pole f-* genericky (oprava: dřív se ukládala jen ručně vyjmenovaná)
+  document.querySelectorAll('input[id^="f-"], textarea[id^="f-"], select[id^="f-"]').forEach(el => {
+    if (el.type === 'checkbox' || el.type === 'button' || el.type === 'hidden') return;
+    const key = el.id.slice(2);
+    const v = String(el.value || '').trim();
+    if (numKeys.has(key)) { const n = parseInt(v); data[key] = (v === '' || isNaN(n)) ? null : n; }
+    else { data[key] = v || null; }
   });
   data.amenities = getTagValues('amenities');
   data.nearby_places = getTagValues('nearby_places');
   data.hidden_gems = getTagValues('hidden_gems');
 
-  // Menu URLs
-  const menuUrls = [];
-  for(let i=0;i<5;i++){
-    const el=document.getElementById('menu-url-'+i);
-    if(el && el.value.trim()) menuUrls.push(el.value.trim());
-  }
-  data.menu_urls = menuUrls.length ? menuUrls : null;
+  // Opakovatelné restaurace + jídelníky
+  const restaurants = collectRestaurants().filter(r => r.name || r.type || r.hours || r.directions || (r.menus && r.menus.length));
+  data.restaurants = restaurants;
+  // Zpětná kompatibilita (completeness / fallback)
+  data.restaurant_name = (restaurants[0] && restaurants[0].name) || null;
+  data.nav_restaurant = (restaurants[0] && restaurants[0].directions) || null;
+  const allMenus = [];
+  restaurants.forEach(r => (r.menus || []).forEach(m => m.url && allMenus.push(m.url)));
+  data.menu_urls = allMenus.length ? allMenus : null;
 
   // Vlastní navigační body
   data.nav_custom = getNavCustomItems().filter(i => i.name || i.desc);
