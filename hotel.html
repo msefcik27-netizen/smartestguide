@@ -1328,31 +1328,67 @@ function generateInvoicePdf(inv){
 }
 
 // ── Analytics ────────────────────────────────
-// ── Průvodce spuštěním (guided onboarding) ─────
-const OB_FIELDS = [
-  {k:'wifi_name',       label:'WiFi síť (název)',    ph:'např. Hotel_Guest'},
-  {k:'wifi_password',   label:'WiFi heslo',          ph:'např. vitejte2024'},
-  {k:'checkin_time',    label:'Check-in od',         ph:'např. 14:00'},
-  {k:'checkout_time',   label:'Check-out do',        ph:'např. 11:00'},
-  {k:'breakfast_hours', label:'Snídaně (čas)',       ph:'např. 7:00–10:00'},
-  {k:'parking_info',    label:'Parkování',           ph:'např. Zdarma před hotelem'},
-  {k:'address',         label:'Adresa hotelu',       ph:'ulice, město'},
-  {k:'phone',           label:'Telefon na recepci',  ph:'+420…'},
+// ── Průvodce spuštěním (guided onboarding) — etapy ─────
+const OB_STAGES = [
+  { title:'Základ pro hosty', sub:'Na co se host ptá hned po příjezdu', fields:[
+    {k:'wifi_name',       label:'WiFi síť (název)',    ph:'např. Hotel_Guest'},
+    {k:'wifi_password',   label:'WiFi heslo',          ph:'např. vitejte2024'},
+    {k:'checkin_time',    label:'Check-in od',         ph:'např. 14:00'},
+    {k:'checkout_time',   label:'Check-out do',        ph:'např. 11:00'},
+    {k:'breakfast_hours', label:'Snídaně (čas)',       ph:'např. 7:00–10:00'},
+    {k:'parking_info',    label:'Parkování',           ph:'např. Zdarma před hotelem'},
+    {k:'address',         label:'Adresa hotelu',       ph:'ulice, město'},
+    {k:'phone',           label:'Telefon na recepci',  ph:'+420…'},
+  ]},
+  { title:'Vylepšení', sub:'Víc hodnoty pro hosty', fields:[
+    {k:'description',     label:'Krátký popis hotelu', ph:'2–3 věty o hotelu'},
+    {k:'wellness_info',   label:'Wellness / Spa',      ph:'např. Sauna a vířivka, 15:00–21:00'},
+    {k:'pool_info',       label:'Bazén',               ph:'např. Krytý bazén, 7:00–21:00'},
+    {k:'restaurant_name', label:'Restaurace (název)',  ph:'např. Restaurace U Hvězdy'},
+    {k:'dinner_hours',    label:'Večeře (čas)',        ph:'např. 18:00–22:00'},
+    {k:'pet_policy',      label:'Domácí mazlíčci',     ph:'např. Psi vítáni, 300 Kč/noc'},
+  ]},
+  { title:'Lokální tipy', sub:'Váš trumf oproti generickým chatbotům', fields:[
+    {k:'nearby_places',   label:'Zajímavá místa v okolí', ph:'oddělte čárkou', arr:true},
+    {k:'hidden_gems',     label:'Tipy od místních',       ph:'kam chodí místní, oddělte čárkou', arr:true},
+    {k:'fitness_info',    label:'Fitness',                ph:'např. Posilovna 24/7 v přízemí'},
+  ]},
 ];
+function obAllFields(){ return OB_STAGES.reduce((a,s)=>a.concat(s.fields),[]); }
+function obField(k){ return obAllFields().find(f=>f.k===k); }
+function obHasVal(h,f){ return f.arr ? Array.isArray(h[f.k]) && h[f.k].length>0 : !!String(h[f.k]||'').trim(); }
+function obShow(h,f){ return f.arr ? (h[f.k]||[]).join(', ') : String(h[f.k]||'').trim(); }
 function renderOnboarding(){
   const el=document.getElementById('onboarding-wizard');
   if(!el||!hotelData) return;
   const h=hotelData;
-  const done=OB_FIELDS.filter(f=>String(h[f.k]||'').trim());
-  const pct=Math.round(done.length/OB_FIELDS.length*100);
-  if(pct>=100 || localStorage.getItem('sg_ob_hide_'+h.id)==='1'){ el.innerHTML=''; return; }
-  const rowsHtml=OB_FIELDS.map(f=>{
-    const val=String(h[f.k]||'').trim();
-    if(val){
+  if(localStorage.getItem('sg_ob_hide_'+h.id)==='1'){ el.innerHTML=''; return; }
+  const all=obAllFields();
+  const filledAll=all.filter(f=>obHasVal(h,f)).length;
+  const pctAll=Math.round(filledAll/all.length*100);
+  // První nedokončená etapa
+  const idx=OB_STAGES.findIndex(s=>s.fields.some(f=>!obHasVal(h,f)));
+  if(idx===-1){
+    el.innerHTML=`<div style="background:linear-gradient(135deg,#0f3d2e,#16a34a);color:#fff;border-radius:14px;padding:20px 22px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div><div style="font-size:16px;font-weight:800">🎉 Hotovo! Alex je plně připraven</div>
+      <div style="font-size:12px;opacity:.9;margin-top:2px">Vyplnil jste všechna doporučená pole. Alex teď hostům odpoví na to nejdůležitější.</div></div>
+      <button onclick="dismissOnboarding()" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer">Skrýt</button></div>`;
+    return;
+  }
+  const stage=OB_STAGES[idx];
+  const stageFilled=stage.fields.filter(f=>obHasVal(h,f)).length;
+  const stagePct=Math.round(stageFilled/stage.fields.length*100);
+  const stepsBar=OB_STAGES.map((s,i)=>{
+    const complete=s.fields.every(f=>obHasVal(h,f));
+    const color=complete?'#16a34a':(i===idx?'#ff8a3d':'rgba(255,255,255,.25)');
+    return `<span style="flex:1;height:6px;border-radius:3px;background:${color}"></span>`;
+  }).join('');
+  const rowsHtml=stage.fields.map(f=>{
+    if(obHasVal(h,f)){
       return `<div style="display:flex;align-items:center;gap:10px;padding:9px 2px;border-top:1px solid #eee">
         <span style="color:#16a34a;font-size:15px">✅</span>
         <span style="flex:1;font-size:13px;color:#888">${f.label}</span>
-        <span style="font-size:12px;color:#1a1a1a;font-weight:600;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(val)}</span>
+        <span style="font-size:12px;color:#1a1a1a;font-weight:600;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(obShow(h,f))}</span>
       </div>`;
     }
     return `<div style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-top:1px solid #eee;flex-wrap:wrap">
@@ -1366,27 +1402,27 @@ function renderOnboarding(){
     <div style="background:linear-gradient(135deg,#1a1a1a,#2a2a2a);color:#fff;border-radius:14px;padding:20px 22px;margin-bottom:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div>
-          <div style="font-size:16px;font-weight:800">🚀 Průvodce spuštěním</div>
-          <div style="font-size:12px;opacity:.85;margin-top:2px;max-width:520px">Vyplňte, na co se hosté ptají nejčastěji — Alex pak odpoví správně od první chvíle. Stačí pár vteřin na pole.</div>
+          <div style="font-size:16px;font-weight:800">🚀 Průvodce spuštěním <span style="font-size:12px;font-weight:600;opacity:.7">· krok ${idx+1}/${OB_STAGES.length}: ${stage.title}</span></div>
+          <div style="font-size:12px;opacity:.85;margin-top:2px;max-width:540px">${stage.sub}. Vyplňte pole a další krok se odemkne sám.</div>
         </div>
         <button onclick="dismissOnboarding()" style="background:transparent;border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer">Skrýt</button>
       </div>
-      <div style="margin-top:14px;background:rgba(255,255,255,.15);border-radius:8px;height:10px;overflow:hidden">
-        <div style="height:10px;width:${pct}%;background:#ff8a3d;transition:width .3s"></div>
-      </div>
-      <div style="font-size:12px;margin-top:6px">Alex je připraven na <strong style="color:#ff8a3d">${pct}%</strong> — vyplněno ${done.length}/${OB_FIELDS.length}</div>
+      <div style="display:flex;gap:6px;margin-top:14px">${stepsBar}</div>
+      <div style="font-size:12px;margin-top:8px">Tento krok: <strong style="color:#ff8a3d">${stagePct}%</strong> · celkově Alex připraven na <strong style="color:#ff8a3d">${pctAll}%</strong> (${filledAll}/${all.length})</div>
       <div style="background:#fff;color:#1a1a1a;border-radius:10px;padding:4px 16px 12px;margin-top:14px">${rowsHtml}</div>
     </div>`;
 }
 async function saveOb(k){
   const inp=document.getElementById('ob-'+k); if(!inp) return;
-  const v=inp.value.trim();
-  if(!v){ toast('Vyplňte hodnotu','warn'); inp.focus(); return; }
+  const raw=inp.value.trim();
+  if(!raw){ toast('Vyplňte hodnotu','warn'); inp.focus(); return; }
+  const f=obField(k);
+  const payloadVal = (f && f.arr) ? raw.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean) : raw;
   try{
-    const r=await fetch(`${API}/api/hotel-portal/update?token=${token}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[k]:v})});
+    const r=await fetch(`${API}/api/hotel-portal/update?token=${token}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[k]:payloadVal})});
     if(!r.ok) throw new Error('HTTP '+r.status);
     const d=await r.json(); hotelData=d.hotel;
-    const mainInp=document.getElementById('f-'+k); if(mainInp) mainInp.value=v; // synchronizace s velkým formulářem
+    if(!(f && f.arr)){ const mainInp=document.getElementById('f-'+k); if(mainInp) mainInp.value=raw; } // sync s velkým formulářem
     toast('Uloženo ✅');
     renderOnboarding();
     if(typeof loadCompleteness==='function') loadCompleteness();
