@@ -146,9 +146,10 @@ async def _email_backup(src) -> bool:
             "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
             "to": [{"email": e} for e in recips],
             "subject": f"SMARTEST GUIDE — záloha dat {stamp}",
-            "htmlContent": f"<p>Týdenní off-site záloha databáze (data.json) k {stamp}. Soubor je v příloze — ulož si ho mimo Railway.</p>",
-            "textContent": f"Zaloha dat {stamp} v priloze.",
-            "attachment": [{"name": f"data-backup-{stamp}.json", "content": content_b64}],
+            "htmlContent": f"<p>Týdenní off-site záloha databáze k {stamp}. Soubor je v příloze jako .txt (obsah je JSON — pro obnovu přejmenuj na .json). Ulož si ho mimo Railway.</p>",
+            "textContent": f"Zaloha dat {stamp} v priloze (.txt = JSON).",
+            # Brevo nepřijímá přílohy s příponou .json → posíláme jako .txt (stejný obsah)
+            "attachment": [{"name": f"data-backup-{stamp}.txt", "content": content_b64}],
         }
         import httpx
         async with httpx.AsyncClient() as client:

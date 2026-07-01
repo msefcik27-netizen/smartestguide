@@ -1,0 +1,66 @@
+# SmartestGuide v0.4.4
+name: E2E Test po deployi
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Pre-deploy: spustí inline JS ze statických HTML a chytí runtime chyby
+      # (TDZ, ReferenceError, SyntaxError) DŘÍV, než se projeví v prohlížeči.
+      - name: Node setup
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: JS smoke test (statické HTML)
+        run: |
+          npm install jsdom --no-save
+          node js_smoke.js
+
+      - name: Python setup
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalace závislostí
+        run: pip install requests
+
+      - name: Čekej až bude live TENTO commit (max 8 min)
+        run: |
+          EXPECTED_SHA="${{ github.sha }}"
+          echo "Čekám až produkce nasadí commit: $EXPECTED_SHA"
+          SUCCESS=false
+          for i in $(seq 1 96); do
+            HTTP=$(curl -s -o /tmp/ver.json -w "%{http_code}" \
+              https://smartestguide-production.up.railway.app/api/version 2>/dev/null || echo "000")
+            if [ "$HTTP" = "200" ]; then
+              DEPLOYED_SHA=$(python3 -c "import json;print(json.load(open('/tmp/ver.json')).get('commit',''))" 2>/dev/null || echo "")
+              DEPLOYED_VER=$(python3 -c "import json;print(json.load(open('/tmp/ver.json')).get('version',''))" 2>/dev/null || echo "")
+              if [ -n "$DEPLOYED_SHA" ] && { [ "$DEPLOYED_SHA" = "$EXPECTED_SHA" ] || [ "${EXPECTED_SHA#$DEPLOYED_SHA}" != "$EXPECTED_SHA" ]; }; then
+                echo "✅ Commit $DEPLOYED_SHA je live (verze $DEPLOYED_VER, pokus $i). Stabilizace 15s."
+                sleep 15
+                SUCCESS=true
+                break
+              fi
+              echo "⏳ $i/96 – live: '$DEPLOYED_SHA' (v$DEPLOYED_VER), čekám na '$EXPECTED_SHA'"
+            else
+              echo "⏳ $i/96 – HTTP $HTTP (deploy probíhá / restart)"
+            fi
+            sleep 5
+          done
+          [ "$SUCCESS" = "true" ] || { echo "❌ Timeout: commit $EXPECTED_SHA se nenasadil včas"; exit 1; }
+
+      - name: Spusť E2E testy
+        env:
+          # Admin API je za loginem — test se přihlásí tímto heslem (musí sedět s ADMIN_PASSWORD v Railway).
+          # Přidej jako GitHub secret: Settings → Secrets and variables → Actions → New repository secret.
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: python test_flow.py

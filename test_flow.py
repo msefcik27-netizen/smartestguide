@@ -11,8 +11,28 @@ Spuštění:
 import requests
 import sys
 import re
+import os
 
 BASE = "https://smartestguide-production.up.railway.app"
+
+# Sdílená session — po přihlášení nese admin cookie (sg_admin) do všech volání.
+S = requests.Session()
+AUTHED = False
+
+def admin_login():
+    """Přihlásí testovací session do administrace heslem z env ADMIN_PASSWORD.
+    Vrátí True při úspěchu. Bez hesla (nebo když admin login není aktivní) → False,
+    admin testy se pak přeskočí místo selhání."""
+    global AUTHED
+    pw = os.getenv("ADMIN_PASSWORD", "").strip()
+    if not pw:
+        return False
+    try:
+        r = S.post(f"{BASE}/api/admin/login", json={"password": pw}, timeout=10)
+        AUTHED = (r.status_code == 200)
+        return AUTHED
+    except Exception:
+        return False
 
 GREEN  = "\033[92m"
 RED    = "\033[91m"
@@ -46,7 +66,7 @@ def get_retry(url, **kwargs):
     """GET s retry při 502"""
     for attempt in range(3):
         try:
-            r = requests.get(url, **kwargs)
+            r = S.get(url, **kwargs)
             if r.status_code != 502:
                 return r
         except requests.exceptions.Timeout:
@@ -80,7 +100,7 @@ def test_basic():
 
     section("1b. Verze aplikace")
     try:
-        r = requests.get(f"{BASE}/api/version", timeout=10)
+        r = S.get(f"{BASE}/api/version", timeout=10)
         d = r.json()
         if r.status_code == 200 and d.get("version"):
             ok("/api/version", f"v{d['version']}")
@@ -123,8 +143,11 @@ def test_basic():
 # ─────────────────────────────────────────────
 def test_settings():
     section("2. Nastavení a klíče")
+    if not AUTHED:
+        skip("GET /api/settings", "admin login nedostupný (ADMIN_PASSWORD)")
+        return
     try:
-        r = requests.get(f"{BASE}/api/settings", timeout=10)
+        r = S.get(f"{BASE}/api/settings", timeout=10)
         d = r.json()
         if r.status_code == 200:
             ok("GET /api/settings dostupný")
@@ -170,9 +193,12 @@ def test_hotels():
     section("3. Hotely CRUD + portál")
     hotel_id = None
     token = None
+    if not AUTHED:
+        skip("Vytvoření hotelu", "admin login nedostupný (ADMIN_PASSWORD)")
+        return None, None
 
     try:
-        r = requests.post(f"{BASE}/api/hotels", json={
+        r = S.post(f"{BASE}/api/hotels", json={
             "name": "E2E Test Hotel",
             "url": "https://example.com",
             "bed_count": 50,
@@ -191,17 +217,17 @@ def test_hotels():
 
     for req_fn, label, check_fn in [
         (
-            lambda: requests.get(f"{BASE}/api/hotels/{hotel_id}", timeout=10),
+            lambda: S.get(f"{BASE}/api/hotels/{hotel_id}", timeout=10),
             "Načtení hotelu",
             lambda r: r.status_code == 200
         ),
         (
-            lambda: requests.patch(f"{BASE}/api/hotels/{hotel_id}", json={"star_rating": 4, "checkin_time": "14:00"}, timeout=10),
+            lambda: S.patch(f"{BASE}/api/hotels/{hotel_id}", json={"star_rating": 4, "checkin_time": "14:00"}, timeout=10),
             "Aktualizace hotelu (star_rating)",
             lambda r: r.status_code == 200 and r.json().get("hotel", {}).get("star_rating") == 4
         ),
         (
-            lambda: requests.patch(f"{BASE}/api/hotels/{hotel_id}", json={
+            lambda: S.patch(f"{BASE}/api/hotels/{hotel_id}", json={
                 "whatsapp_number": "+420111222333",
                 "whatsapp_wellness": "+420111222334",
                 "whatsapp_restaurant": "+420111222335",
@@ -211,7 +237,7 @@ def test_hotels():
             lambda r: r.status_code == 200 and r.json().get("hotel", {}).get("whatsapp_wellness") == "+420111222334"
         ),
         (
-            lambda: requests.patch(f"{BASE}/api/hotels/{hotel_id}", json={
+            lambda: S.patch(f"{BASE}/api/hotels/{hotel_id}", json={
                 "active_offer": "Dnes sleva 20% na wellness do 20:00",
                 "hidden_gems": ["Hospoda U Chvojena (místní oblíbená, 10 min)", "Tajný park nad řekou"]
             }, timeout=10),
@@ -219,7 +245,7 @@ def test_hotels():
             lambda r: r.status_code == 200 and r.json().get("hotel", {}).get("active_offer") == "Dnes sleva 20% na wellness do 20:00"
         ),
         (
-            lambda: requests.post(f"{BASE}/api/hotels/{hotel_id}/send-reminder?dry_run=1", timeout=15),
+            lambda: S.post(f"{BASE}/api/hotels/{hotel_id}/send-reminder?dry_run=1", timeout=15),
             "Reminder endpoint OK (dry-run, bez odeslání)",
             lambda r: r.status_code == 200 and r.json().get("status") == "ok" and r.json().get("dry_run") is True
         ),
@@ -239,7 +265,7 @@ def test_hotels():
 
     # Completeness
     try:
-        r = requests.get(f"{BASE}/api/hotels/{hotel_id}/completeness", timeout=10)
+        r = S.get(f"{BASE}/api/hotels/{hotel_id}/completeness", timeout=10)
         d = r.json()
         if r.status_code == 200 and "score" in d:
             ok("Completeness skóre", f"{d['score']}%")
@@ -250,7 +276,7 @@ def test_hotels():
 
     # QR kód PNG
     try:
-        r = requests.get(f"{BASE}/api/hotels/{hotel_id}/qr", timeout=15)
+        r = S.get(f"{BASE}/api/hotels/{hotel_id}/qr", timeout=15)
         d = r.json()
         if r.status_code == 200 and d.get("qr_base64"):
             url = d.get("guest_url", "")
@@ -265,7 +291,7 @@ def test_hotels():
 
     # Portal link
     try:
-        r = requests.get(f"{BASE}/api/hotels/{hotel_id}/portal-link", timeout=10)
+        r = S.get(f"{BASE}/api/hotels/{hotel_id}/portal-link", timeout=10)
         d = r.json()
         if r.status_code == 200 and d.get("portal_url"):
             url = d["portal_url"]
@@ -281,7 +307,7 @@ def test_hotels():
 
     # Leták PDF (starý endpoint)
     try:
-        r = requests.get(f"{BASE}/api/hotels/{hotel_id}/flyer", timeout=30)
+        r = S.get(f"{BASE}/api/hotels/{hotel_id}/flyer", timeout=30)
         if r.status_code == 200 and "pdf" in r.headers.get("content-type", ""):
             ok("Leták PDF (starý endpoint)", f"{len(r.content)} bytes")
         else:
@@ -307,7 +333,7 @@ def test_portal(hotel_id, token):
         (f"/api/hotel-portal/analytics?token={token}", "hotel-portal/analytics"),
     ]:
         try:
-            r = requests.get(f"{BASE}{endpoint}", timeout=10)
+            r = S.get(f"{BASE}{endpoint}", timeout=10)
             if r.status_code == 200:
                 ok(f"GET {label}")
             else:
@@ -317,7 +343,7 @@ def test_portal(hotel_id, token):
 
     # Portal update – aktivní nabídka + skrytá místa
     try:
-        r = requests.patch(f"{BASE}/api/hotel-portal/update?token={token}", json={
+        r = S.patch(f"{BASE}/api/hotel-portal/update?token={token}", json={
             "star_rating": 3,
             "active_offer": "Happy hour v baru 17-19h",
             "hidden_gems": ["Lokální kavárna za rohem", "Skrytý park u řeky"],
@@ -339,13 +365,13 @@ def test_guest(hotel_id):
     section("5. Guest API")
 
     try:
-        requests.post(f"{BASE}/api/hotels/{hotel_id}/subscription?active=true", timeout=10)
+        S.post(f"{BASE}/api/hotels/{hotel_id}/subscription?active=true", timeout=10)
     except:
         pass
 
     # Nastav aktivní nabídku pro test
     try:
-        requests.patch(f"{BASE}/api/hotels/{hotel_id}", json={
+        S.patch(f"{BASE}/api/hotels/{hotel_id}", json={
             "active_offer": "Dnes sleva 20% na wellness do 20:00",
             "hidden_gems": ["Hospoda U Chvojena — kam chodí místní, 10 min pěšky"]
         }, timeout=10)
@@ -353,7 +379,7 @@ def test_guest(hotel_id):
         pass
 
     try:
-        r = requests.get(f"{BASE}/api/guest/{hotel_id}", timeout=10)
+        r = S.get(f"{BASE}/api/guest/{hotel_id}", timeout=10)
         d = r.json()
         if r.status_code == 200 and d.get("hotel"):
             ok("GET /api/guest/{id}", d["hotel"].get("name", ""))
@@ -373,7 +399,7 @@ def test_guest(hotel_id):
 
     # Chat endpoint
     try:
-        r = requests.post(f"{BASE}/api/guest/chat", json={
+        r = S.post(f"{BASE}/api/guest/chat", json={
             "hotel_id": hotel_id,
             "message": "What time is check-in?",
             "language": "en",
@@ -388,7 +414,7 @@ def test_guest(hotel_id):
 
     # Chat — aktivní nabídka se zmíní při relevantní otázce
     try:
-        r = requests.post(f"{BASE}/api/guest/chat", json={
+        r = S.post(f"{BASE}/api/guest/chat", json={
             "hotel_id": hotel_id,
             "message": "Do you have wellness or spa?",
             "language": "en",
@@ -407,7 +433,7 @@ def test_guest(hotel_id):
 
     # Chat — skrytá místa
     try:
-        r = requests.post(f"{BASE}/api/guest/chat", json={
+        r = S.post(f"{BASE}/api/guest/chat", json={
             "hotel_id": hotel_id,
             "message": "Where do locals go? Any hidden gems nearby?",
             "language": "en",
@@ -426,7 +452,7 @@ def test_guest(hotel_id):
 
     # Chat — detekce jazyka (německy)
     try:
-        r = requests.post(f"{BASE}/api/guest/chat", json={
+        r = S.post(f"{BASE}/api/guest/chat", json={
             "hotel_id": hotel_id,
             "message": "Wann ist das Frühstück?",
             "language": "auto",
@@ -478,7 +504,7 @@ def test_guest(hotel_id):
 def test_pricing():
     section("6. Ceník")
     try:
-        s = requests.get(f"{BASE}/api/settings", timeout=10).json()
+        s = S.get(f"{BASE}/api/settings", timeout=10).json()
         base      = int(s.get("pricing_base", 200))
         threshold = int(s.get("pricing_threshold", 100))
         per_bed   = float(s.get("pricing_per_bed", 3))
@@ -513,12 +539,12 @@ def test_invoices(hotel_id):
     section("7. Faktury")
 
     try:
-        requests.post(f"{BASE}/api/hotels/{hotel_id}/subscription?active=true", timeout=10)
+        S.post(f"{BASE}/api/hotels/{hotel_id}/subscription?active=true", timeout=10)
     except:
         pass
 
     try:
-        r = requests.post(f"{BASE}/api/settings/company", json={
+        r = S.post(f"{BASE}/api/settings/company", json={
             "company_name": "Test s.r.o.",
             "company_email": "test@test.com",
             "company_ico": "12345678"
@@ -528,7 +554,7 @@ def test_invoices(hotel_id):
         fail("POST /api/settings/company", str(e))
 
     try:
-        r = requests.get(f"{BASE}/api/settings/company", timeout=10)
+        r = S.get(f"{BASE}/api/settings/company", timeout=10)
         d = r.json()
         # Firemní údaje jsou v produkci na tvrdo (přebíjí uložené) — ověř jen, že dorazí vyplněné
         if r.status_code == 200 and d.get("company_name") and d.get("company_ico"):
@@ -540,7 +566,7 @@ def test_invoices(hotel_id):
 
     inv_id = None
     try:
-        r = requests.post(f"{BASE}/api/hotels/{hotel_id}/invoices/generate", timeout=10)
+        r = S.post(f"{BASE}/api/hotels/{hotel_id}/invoices/generate", timeout=10)
         d = r.json()
         if r.status_code == 200 and d.get("invoice", {}).get("id"):
             inv_id = d["invoice"]["id"]
@@ -551,7 +577,7 @@ def test_invoices(hotel_id):
         fail("Generování faktury", str(e))
 
     try:
-        r = requests.get(f"{BASE}/api/invoices", timeout=10)
+        r = S.get(f"{BASE}/api/invoices", timeout=10)
         d = r.json()
         if r.status_code == 200 and isinstance(d.get("invoices"), list):
             ok("GET /api/invoices", f"{len(d['invoices'])} faktur")
@@ -566,7 +592,7 @@ def test_invoices(hotel_id):
         return
 
     try:
-        r = requests.patch(f"{BASE}/api/invoices/{inv_id}/status?status=paid", timeout=10)
+        r = S.patch(f"{BASE}/api/invoices/{inv_id}/status?status=paid", timeout=10)
         d = r.json()
         if r.status_code == 200 and d.get("invoice", {}).get("status") == "paid":
             ok("PATCH /api/invoices/{id}/status", "→ paid")
@@ -576,7 +602,7 @@ def test_invoices(hotel_id):
         fail("PATCH /api/invoices/{id}/status", str(e))
 
     try:
-        r = requests.get(f"{BASE}/api/invoices/{inv_id}/pdf", timeout=30)
+        r = S.get(f"{BASE}/api/invoices/{inv_id}/pdf", timeout=30)
         if r.status_code == 200 and "pdf" in r.headers.get("content-type", ""):
             ok("GET /api/invoices/{id}/pdf", f"{len(r.content)} bytes")
         else:
@@ -591,7 +617,7 @@ def test_invoices(hotel_id):
     # Faktura viditelná na portálu hotelu + stažení PDF přes token (a odmítnutí cizího)
     token = None
     try:
-        r = requests.get(f"{BASE}/api/hotels/{hotel_id}/portal-link", timeout=10)
+        r = S.get(f"{BASE}/api/hotels/{hotel_id}/portal-link", timeout=10)
         purl = r.json().get("portal_url", "")
         if "token=" in purl:
             token = purl.split("token=", 1)[1]
@@ -604,7 +630,7 @@ def test_invoices(hotel_id):
         skip("Portál — cizí token odmítnut", "nezískán token")
     else:
         try:
-            r = requests.get(f"{BASE}/api/hotel-portal/invoices?token={token}", timeout=10)
+            r = S.get(f"{BASE}/api/hotel-portal/invoices?token={token}", timeout=10)
             ids = [i.get("id") for i in r.json().get("invoices", [])]
             if r.status_code == 200 and inv_id in ids:
                 ok("Portál — faktura viditelná", f"{len(ids)} faktur hotelu")
@@ -614,7 +640,7 @@ def test_invoices(hotel_id):
             fail("Portál — faktura viditelná", str(e))
 
         try:
-            r = requests.get(f"{BASE}/api/invoices/{inv_id}/pdf?token={token}", timeout=30)
+            r = S.get(f"{BASE}/api/invoices/{inv_id}/pdf?token={token}", timeout=30)
             if r.status_code == 200 and "pdf" in r.headers.get("content-type", ""):
                 ok("Portál — stažení PDF přes token", f"{len(r.content)} bytes")
             else:
@@ -623,7 +649,7 @@ def test_invoices(hotel_id):
             fail("Portál — stažení PDF přes token", str(e))
 
         try:
-            r = requests.get(f"{BASE}/api/invoices/{inv_id}/pdf?token=NEPLATNY_TOKEN_XYZ", timeout=15)
+            r = S.get(f"{BASE}/api/invoices/{inv_id}/pdf?token=NEPLATNY_TOKEN_XYZ", timeout=15)
             if r.status_code == 403:
                 ok("Portál — cizí token odmítnut", "403")
             else:
@@ -643,7 +669,7 @@ def test_legal():
         ("/terms?lang=cs",    "Terms CZ",            "Obchodní podmínky"),
     ]:
         try:
-            r = requests.get(f"{BASE}{path}", timeout=10)
+            r = S.get(f"{BASE}{path}", timeout=10)
             if r.status_code == 200 and check_text in r.text:
                 ok(label)
             else:
@@ -652,7 +678,7 @@ def test_legal():
             fail(label, str(e))
 
     try:
-        r = requests.get(f"{BASE}/privacy", timeout=10)
+        r = S.get(f"{BASE}/privacy", timeout=10)
         if "lang=cs" in r.text and "lang=en" in r.text:
             ok("Privacy — CZ/EN přepínač přítomen")
         else:
@@ -666,7 +692,7 @@ def test_legal():
 def test_stripe(hotel_id):
     section("9. Stripe webhook")
     try:
-        r = requests.get(f"{BASE}/api/stripe/webhook", timeout=10)
+        r = S.get(f"{BASE}/api/stripe/webhook", timeout=10)
         if r.status_code == 405:
             ok("GET /api/stripe/webhook → 405 (endpoint existuje)")
         elif r.status_code == 200:
@@ -677,7 +703,7 @@ def test_stripe(hotel_id):
         fail("GET /api/stripe/webhook", str(e))
 
     try:
-        r = requests.post(f"{BASE}/api/stripe/webhook",
+        r = S.post(f"{BASE}/api/stripe/webhook",
             data="test",
             headers={"stripe-signature": "invalid"},
             timeout=10)
@@ -756,13 +782,13 @@ def test_landing():
         fail("Landing page funkce", str(e))
 
     try:
-        r = requests.get(f"{BASE}/sw.js", timeout=10)
+        r = S.get(f"{BASE}/sw.js", timeout=10)
         ok("PWA service worker /sw.js dostupný") if r.status_code == 200 else fail("PWA service worker", f"status {r.status_code}")
     except Exception as e:
         fail("PWA service worker", str(e))
 
     try:
-        r = requests.get(f"{BASE}/success", timeout=10)
+        r = S.get(f"{BASE}/success", timeout=10)
         if r.status_code in (200, 422):
             ok("Success stránka dostupná")
         else:
@@ -778,7 +804,7 @@ def test_print_materials(hotel_id):
 
     # Nastav zemi CZ → aktivuje lokální (CZ) větev letáků v hubu (has_local=True)
     try:
-        requests.patch(f"{BASE}/api/hotels/{hotel_id}", json={"country": "CZ"}, timeout=10)
+        S.patch(f"{BASE}/api/hotels/{hotel_id}", json={"country": "CZ"}, timeout=10)
     except:
         pass
 
@@ -908,7 +934,7 @@ def test_admin():
 def test_widget(hotel_id):
     section("13. Widget.js")
     try:
-        r = requests.get(f"{BASE}/widget.js?hotel_id={hotel_id}", timeout=10)
+        r = S.get(f"{BASE}/widget.js?hotel_id={hotel_id}", timeout=10)
         if r.status_code == 200 and "SmartestGuide" in r.text:
             ok("GET /widget.js", f"{len(r.content)} bytes")
         else:
@@ -922,7 +948,7 @@ def test_widget(hotel_id):
 def cleanup(hotel_id):
     section("19. Úklid")
     try:
-        r = requests.delete(f"{BASE}/api/hotels/{hotel_id}", timeout=10)
+        r = S.delete(f"{BASE}/api/hotels/{hotel_id}", timeout=10)
         if r.status_code == 200:
             ok("Testovací hotel smazán")
         else:
@@ -967,7 +993,7 @@ def test_wifi(hotel_id, token):
         return
     # Ulož WiFi přes portál
     try:
-        r = requests.patch(f"{BASE}/api/hotel-portal/update?token={token}", json={
+        r = S.patch(f"{BASE}/api/hotel-portal/update?token={token}", json={
             "wifi_name": "Hotel_Test_Guest",
             "wifi_password": "testpass2024"
         }, timeout=10)
@@ -986,7 +1012,7 @@ def test_wifi(hotel_id, token):
 
     # Ověř že Alex zná WiFi
     try:
-        r = requests.post(f"{BASE}/api/guest/chat", json={
+        r = S.post(f"{BASE}/api/guest/chat", json={
             "hotel_id": hotel_id,
             "message": "What is the WiFi password?",
             "language": "en",
@@ -1011,7 +1037,7 @@ def test_subscription(hotel_id):
 
     # Ověř že hotel má subscription_period_end pole
     try:
-        r = requests.get(f"{BASE}/api/hotels/{hotel_id}", timeout=10)
+        r = S.get(f"{BASE}/api/hotels/{hotel_id}", timeout=10)
         d = r.json().get("hotel", {})
         if "subscription_period_end" in d or "trial_used" in d or "subscription_active" in d:
             ok("Hotel má subscription pole")
@@ -1022,7 +1048,7 @@ def test_subscription(hotel_id):
 
     # Test ochrany proti duplicitní registraci
     try:
-        r = requests.post(f"{BASE}/api/register", json={
+        r = S.post(f"{BASE}/api/register", json={
             "hotel_name": "E2E Duplicate Test",
             "contact_email": "test@test.com",  # stejný email jako test hotel
             "bed_count": 10,
@@ -1040,10 +1066,10 @@ def test_subscription(hotel_id):
 
     # Test cancel endpoint
     try:
-        r = requests.get(f"{BASE}/api/hotels/{hotel_id}/portal-link", timeout=10)
+        r = S.get(f"{BASE}/api/hotels/{hotel_id}/portal-link", timeout=10)
         token = r.json().get("token", "")
         if token:
-            r2 = requests.post(f"{BASE}/api/hotel-portal/cancel?token={token}", timeout=10)
+            r2 = S.post(f"{BASE}/api/hotel-portal/cancel?token={token}", timeout=10)
             d = r2.json()
             if r2.status_code == 200:
                 # Cancel nastaví subscription_cancel_requested, NEDEAKTIVUJE okamžitě
@@ -1095,7 +1121,7 @@ def test_local_flyres(hotel_id):
 def test_reminder_email(hotel_id):
     section("18. Reminder email")
     try:
-        r = requests.post(f"{BASE}/api/hotels/{hotel_id}/send-reminder?dry_run=1", timeout=15)
+        r = S.post(f"{BASE}/api/hotels/{hotel_id}/send-reminder?dry_run=1", timeout=15)
         d = r.json()
         if r.status_code == 200 and d.get("status") == "ok" and d.get("dry_run") is True:
             ok("Reminder endpoint OK (dry-run, bez odeslání)", f"na: {d.get('email_to','?')}")
@@ -1112,7 +1138,7 @@ def test_country_none_guard():
     section("20. Regrese — country=None robustnost")
     nid = None
     try:
-        r = requests.post(f"{BASE}/api/hotels", json={
+        r = S.post(f"{BASE}/api/hotels", json={
             "name": "E2E NullCountry Hotel",
             "url": "https://example.com",
             "bed_count": 20,
@@ -1145,8 +1171,8 @@ def test_country_none_guard():
 
     # Faktura nad hotelem bez země/emailu → nesmí 500 (guard na created_at/email)
     try:
-        requests.post(f"{BASE}/api/hotels/{nid}/subscription?active=true", timeout=10)
-        r = requests.post(f"{BASE}/api/hotels/{nid}/invoices/generate", timeout=10)
+        S.post(f"{BASE}/api/hotels/{nid}/subscription?active=true", timeout=10)
+        r = S.post(f"{BASE}/api/hotels/{nid}/invoices/generate", timeout=10)
         if r.status_code in (200, 400):
             ok("Generování faktury (country=None) — bez 500")
         else:
@@ -1156,7 +1182,7 @@ def test_country_none_guard():
 
     # Úklid
     try:
-        requests.delete(f"{BASE}/api/hotels/{nid}", timeout=10)
+        S.delete(f"{BASE}/api/hotels/{nid}", timeout=10)
         ok("country=None hotel smazán")
     except Exception as e:
         fail("Mazání country=None hotelu", str(e))
@@ -1167,6 +1193,9 @@ def test_country_none_guard():
 # ─────────────────────────────────────────────
 def test_commissions():
     section("21. Provize (partneři + ledger)")
+    if not AUTHED:
+        skip("Provize (API testy)", "admin login nedostupný (ADMIN_PASSWORD)")
+        return
     import time as _t
     # Nastavení provize
     try:
@@ -1180,7 +1209,7 @@ def test_commissions():
         fail("GET /api/settings/commission", str(e))
 
     try:
-        r = requests.post(f"{BASE}/api/settings/commission",
+        r = S.post(f"{BASE}/api/settings/commission",
                           json={"commission_enabled": True, "commission_amount": 1500, "commission_hold_days": 30}, timeout=10)
         ok("POST /api/settings/commission") if r.status_code == 200 else fail("POST /api/settings/commission", f"status {r.status_code}")
     except Exception as e:
@@ -1190,7 +1219,7 @@ def test_commissions():
     ref = f"E2E{int(_t.time())%100000}"
     pid = None
     try:
-        r = requests.post(f"{BASE}/api/partners",
+        r = S.post(f"{BASE}/api/partners",
                           json={"name": "E2E Partner", "referral_code": ref, "email": "e2e@test.com"}, timeout=10)
         d = r.json()
         if r.status_code == 200 and d.get("partner", {}).get("id"):
@@ -1203,14 +1232,14 @@ def test_commissions():
 
     # Duplicitní referral kód → 409
     try:
-        r = requests.post(f"{BASE}/api/partners", json={"name": "Dup", "referral_code": ref}, timeout=10)
+        r = S.post(f"{BASE}/api/partners", json={"name": "Dup", "referral_code": ref}, timeout=10)
         ok("Duplicitní referral odmítnut (409)") if r.status_code == 409 else fail("Duplicitní referral", f"status {r.status_code}")
     except Exception as e:
         fail("Duplicitní referral", str(e))
 
     # Seznam partnerů obsahuje statistiky
     try:
-        r = requests.get(f"{BASE}/api/partners", timeout=10)
+        r = S.get(f"{BASE}/api/partners", timeout=10)
         d = r.json()
         found = any(p.get("id") == pid for p in d.get("partners", []))
         if r.status_code == 200 and found:
@@ -1222,7 +1251,7 @@ def test_commissions():
 
     # Ledger provizí dostupný
     try:
-        r = requests.get(f"{BASE}/api/commissions", timeout=10)
+        r = S.get(f"{BASE}/api/commissions", timeout=10)
         d = r.json()
         ok("GET /api/commissions", f"{len(d.get('commissions', []))} provizí") if r.status_code == 200 and isinstance(d.get("commissions"), list) else fail("GET /api/commissions", f"status {r.status_code}")
     except Exception as e:
@@ -1241,7 +1270,7 @@ def test_commissions():
     # Úklid partnera
     if pid:
         try:
-            requests.delete(f"{BASE}/api/partners/{pid}", timeout=10)
+            S.delete(f"{BASE}/api/partners/{pid}", timeout=10)
             ok("E2E partner smazán")
         except Exception as e:
             fail("Mazání partnera", str(e))
@@ -1271,7 +1300,7 @@ def test_restaurants(hotel_id, token):
     }
     hotel = {}
     try:
-        r = requests.patch(f"{BASE}/api/hotel-portal/update?token={token}", json=payload, timeout=15)
+        r = S.patch(f"{BASE}/api/hotel-portal/update?token={token}", json=payload, timeout=15)
         if r.status_code != 200:
             fail("Portal update (restaurace + pole)", f"status {r.status_code}")
             return
@@ -1297,7 +1326,7 @@ def test_restaurants(hotel_id, token):
 
     # Přetrvání po opětovném načtení
     try:
-        r = requests.get(f"{BASE}/api/hotel-portal/me?token={token}", timeout=10)
+        r = S.get(f"{BASE}/api/hotel-portal/me?token={token}", timeout=10)
         rest2 = r.json().get("hotel", {}).get("restaurants") or []
         ok("Restaurace přetrvaly po /me", f"{len(rest2)} restaurací") if len(rest2) == 2 else fail("Restaurace /me", f"{len(rest2)}")
     except Exception as e:
@@ -1307,6 +1336,12 @@ def test_restaurants(hotel_id, token):
 if __name__ == "__main__":
     print(f"\n{BOLD}SmartestGuide – E2E Test Runner{RESET}")
     print(f"URL: {BLUE}{BASE}{RESET}\n")
+
+    # Přihlášení do administrace (admin API je za loginem)
+    if admin_login():
+        print(f"  {GREEN}🔐 Admin login OK — admin testy poběží{RESET}")
+    else:
+        print(f"  {YELLOW}🔓 Admin login přeskočen (chybí/nesedí ADMIN_PASSWORD) — admin testy se přeskočí{RESET}")
 
     test_basic()
     test_settings()
