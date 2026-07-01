@@ -948,11 +948,11 @@ def test_widget(hotel_id):
 def cleanup(hotel_id):
     section("19. Úklid")
     try:
-        r = S.delete(f"{BASE}/api/hotels/{hotel_id}", timeout=10)
-        if r.status_code == 200:
-            ok("Testovací hotel smazán")
+        r = S.delete(f"{BASE}/api/hotels/{hotel_id}?hard=1", timeout=10)
+        if r.status_code == 200 and r.json().get("deleted") is True:
+            ok("Testovací hotel smazán (hard)")
         else:
-            fail("Mazání hotelu", f"status {r.status_code}")
+            fail("Mazání hotelu", f"status {r.status_code}, {str(r.json())[:80]}")
     except Exception as e:
         fail("Mazání hotelu", str(e))
 
@@ -1182,8 +1182,8 @@ def test_country_none_guard():
 
     # Úklid
     try:
-        S.delete(f"{BASE}/api/hotels/{nid}", timeout=10)
-        ok("country=None hotel smazán")
+        S.delete(f"{BASE}/api/hotels/{nid}?hard=1", timeout=10)
+        ok("country=None hotel smazán (hard)")
     except Exception as e:
         fail("Mazání country=None hotelu", str(e))
 

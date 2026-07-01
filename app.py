@@ -1298,15 +1298,26 @@ def update_hotel(hotel_id: str, data: HotelData):
     return {"status": "ok", "hotel": db["hotels"][hotel_id]}
 
 @app.delete("/api/hotels/{hotel_id}")
-def delete_hotel(hotel_id: str):
+def delete_hotel(hotel_id: str, hard: bool = False):
+    """Produkce: hotel se NEMAŽE, jen deaktivuje/archivuje (subscription_active=false + archived).
+    Tvrdé smazání (hard=1) je povolené JEN pro testovací hotely — úklid E2E testů.
+    Faktury (účetní doklady) ani provize se nikdy nemažou."""
     db = db_load()
-    if hotel_id not in db["hotels"]:
+    h = db["hotels"].get(hotel_id)
+    if not h:
         raise HTTPException(404, "Hotel nenalezen")
-    del db["hotels"][hotel_id]
-    # POZOR: faktury (účetní doklady) ani provize NEMAŽEME — v produkci se nic nemaže.
-    # Faktury smazaných/testovacích hotelů se pouze skrývají ve výpisu (nedestruktivně).
+    is_test = str(h.get("name", "")).startswith("E2E") or (h.get("url") in ("https://example.com", "http://example.com"))
+    if hard and is_test:
+        del db["hotels"][hotel_id]
+        db_save(db)
+        return {"status": "ok", "deleted": True}
+    # Deaktivace/archivace — data i historie zůstávají (reálný hotel nejde smazat).
+    h["subscription_active"] = False
+    h["archived"] = True
+    h["archived_at"] = datetime.utcnow().isoformat()
+    db["hotels"][hotel_id] = h
     db_save(db)
-    return {"status": "ok"}
+    return {"status": "ok", "archived": True}
 
 # ─────────────────────────────────────────────
 # Helper – detekce base URL (lokál i Railway)
@@ -2092,8 +2103,8 @@ def pricing(beds: int):
     per_bed = s.get("pricing_per_bed", 3)
     price = base if beds <= threshold else base + (beds - threshold) * per_bed
     price = int(price)
-    return {"beds": beds, "monthly_eur": price, "quarterly_eur": price * 3,
-            "note": "Zaváděcí cena – při objednání v prvních 3 měsících zůstane zachována"}
+    return {"beds": beds, "monthly_eur": price, "yearly_eur": price * 12,
+            "note": "Zaváděcí cena – měsíční předplatné, bez závazku (zrušíte kdykoli)"}
 
 # ─────────────────────────────────────────────
 # Registrace z landing page + Stripe Checkout
@@ -3204,10 +3215,11 @@ def toggle_subscription(hotel_id: str, active: bool):
         raise HTTPException(404, "Hotel nenalezen")
     db["hotels"][hotel_id]["subscription_active"] = active
     db["hotels"][hotel_id]["updated_at"] = datetime.utcnow().isoformat()
-    # Při aktivaci nastav zaplacená lůžka = aktuální počet
+    # Při aktivaci nastav zaplacená lůžka = aktuální počet a zruš případnou archivaci (obnovení)
     if active:
         beds = db["hotels"][hotel_id].get("bed_count", 0)
         db["hotels"][hotel_id]["subscription_paid_beds"] = beds
+        db["hotels"][hotel_id]["archived"] = False
     db_save(db)
     return {"status": "ok", "subscription_active": active}
 
