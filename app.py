@@ -43,7 +43,15 @@ _bg_tasks = set()
 def _spawn(coro):
     t = asyncio.create_task(coro)
     _bg_tasks.add(t)
-    t.add_done_callback(_bg_tasks.discard)
+    def _done(task):
+        _bg_tasks.discard(task)
+        try:
+            exc = task.exception()
+        except Exception:
+            exc = None
+        if exc:
+            logging.error("Background task SELHAL: %r", exc, exc_info=exc)
+    t.add_done_callback(_done)
     return t
 
 # ─────────────────────────────────────────────
@@ -331,7 +339,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.5"
+APP_VERSION = "0.5.6"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -2837,7 +2845,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
                 timeout=30
             )
             if r.status_code in (200, 201):
-                logging.info(f"Onboarding email OK -> {hotel_email}, lang={'cs' if is_cs else 'en'}, prilohy={len(attachments)}")
+                logging.warning(f"Onboarding email OK -> {hotel_email}, lang={'cs' if is_cs else 'en'}, prilohy={len(attachments)}")
             else:
                 logging.error(f"Brevo API CHYBA {r.status_code}: {r.text[:300]}")
     except Exception as e:
@@ -3237,14 +3245,12 @@ async def stripe_webhook(request: Request):
 
                 db_save(db)
 
-                # Spusť automatický scraping webu hotelu na pozadí
-                hotel_url = db["hotels"][hotel_id].get("url") or db["hotels"][hotel_id].get("source_url")
-                if hotel_url and event_type == "checkout.session.completed":
-                    _spawn(auto_scrape_after_payment(hotel_id, hotel_url))
-                    # Posli onboarding email
+                # Po checkout.session.completed VŽDY: vygeneruj portal token + pošli onboarding
+                # (NEZÁVISLE na tom, jestli má hotel vyplněný web — URL je nepovinná!).
+                # Scraping webu jen když hotel web má.
+                if event_type == "checkout.session.completed":
                     hotel_email = db["hotels"][hotel_id].get("email", "")
                     hotel_name = db["hotels"][hotel_id].get("name", "Hotel")
-                    # Ziskej portal link
                     if not db["hotels"][hotel_id].get("hotel_token"):
                         import uuid as _uuid
                         db["hotels"][hotel_id]["hotel_token"] = str(_uuid.uuid4()).replace("-", "")
@@ -3252,10 +3258,13 @@ async def stripe_webhook(request: Request):
                     token = db["hotels"][hotel_id]["hotel_token"]
                     base_url = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app")
                     portal_url = f"{base_url}/hotel?token={token}"
-                    # Onboarding NA POZADÍ — webhook musí Stripe odpovědět rychle (jinak timeout).
-                    # _spawn drží referenci na task (na rozdíl od holého create_task), takže se
-                    # nemůže ztratit přes GC a spolehlivě doběhne i po odeslání odpovědi.
+                    # Onboarding NA POZADÍ — webhook musí Stripe odpovědět rychle. _spawn drží referenci (žádný GC).
+                    logging.warning("Onboarding trigger -> hotel %s (%s)", hotel_id, hotel_email)
                     _spawn(send_onboarding_email(hotel_id, portal_url, hotel_name, hotel_email))
+                    # Scraping webu jen když hotel web má
+                    hotel_url = db["hotels"][hotel_id].get("url") or db["hotels"][hotel_id].get("source_url")
+                    if hotel_url:
+                        _spawn(auto_scrape_after_payment(hotel_id, hotel_url))
 
     # customer.subscription.deleted – zrušení předplatného
     elif event_type == "customer.subscription.deleted":
