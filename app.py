@@ -339,7 +339,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.15"
+APP_VERSION = "0.5.19"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -1667,8 +1667,9 @@ body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height
 .formats{{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:0}}
 .fmt-card{{background:#181920;border:1px solid #222330;border-radius:16px;overflow:hidden;display:flex;flex-direction:column}}
 .fmt-card:hover{{border-color:#FF6B00;box-shadow:0 4px 16px rgba(255,107,0,.12)}}
-.fmt-preview{{background:#1a1a1a;padding:24px;display:flex;justify-content:center;align-items:center;min-height:200px;cursor:pointer;position:relative;overflow:hidden}}
-.fmt-preview::before{{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 80% at 50% 50%,rgba(255,107,0,.08),transparent 70%);pointer-events:none}}
+.fmt-preview{{background:#e9eaee;padding:24px;display:flex;justify-content:center;align-items:center;min-height:200px;cursor:pointer;position:relative;overflow:hidden}}
+.fmt-preview::before{{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 80% at 50% 50%,rgba(0,0,0,.04),transparent 70%);pointer-events:none}}
+.fmt-preview>div{{box-shadow:0 6px 18px rgba(0,0,0,.20)}}
 .fmt-info{{padding:20px}}
 .fmt-name{{font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:#f0ece0;margin-bottom:4px}}
 .fmt-desc{{font-size:13px;color:#6b6b6b;line-height:1.5;margin-bottom:16px}}
@@ -1692,7 +1693,7 @@ body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height
     <div class="hub-hotel">{hotel_name}</div>
     <div class="hub-title">{hub_title}</div>
     {f'<a href="{portal_url}" style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:rgba(255,107,0,.1);border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;color:#FF6B00;text-decoration:none;transition:opacity .15s" onmouseover="this.style.opacity=.8" onmouseout="this.style.opacity=1">⚙️ {portal_label}</a>' if portal_url else ''}
-    <div style="margin-top:16px;font-size:12px;color:#1a1a1a;font-weight:700;margin-bottom:7px">🎨 Vyberte vzhled letáku:</div>
+    <div style="margin-top:16px;font-size:12px;color:#1a1a1a;font-weight:700;margin-bottom:7px">🎨 Vyberte vzhled tiskovin:</div>
     <div style="display:inline-flex;background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.15);border-radius:10px;padding:4px;gap:4px">
       <button id="theme-dark" onclick="setFlyerTheme('dark')" style="border:1px solid transparent;background:#FF6B00;color:#0a0b0f;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">🌙 Tmavá</button>
       <button id="theme-light" onclick="setFlyerTheme('light')" style="border:1px solid rgba(255,107,0,.55);background:transparent;color:#1a1a1a;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">📄 Print-friendly</button>
@@ -1823,8 +1824,8 @@ function openFormat(fmt){{
   }};
   var u = urls[fmt];
   if(!u){{ console.error('Neznámý formát:', fmt); return; }}
-  // Print-friendly téma platí jen pro letáky (A4/A5)
-  if(fmt.indexOf('flyer')===0 && window._flyerTheme==='light'){{
+  // Print-friendly téma platí pro VŠECHNY tiskoviny (leták, rollup, QR poster)
+  if(window._flyerTheme==='light'){{
     u += (u.indexOf('?')>=0?'&':'?') + 'theme=light';
   }}
   window.open(u, '_blank');
@@ -1835,6 +1836,8 @@ function setFlyerTheme(t){{
   var d=document.getElementById('theme-dark'), l=document.getElementById('theme-light');
   if(d){{ d.style.background = t==='dark'?'#FF6B00':'transparent'; d.style.color = t==='dark'?'#0a0b0f':'#1a1a1a'; d.style.borderColor = t==='dark'?'transparent':'rgba(255,107,0,.55)'; }}
   if(l){{ l.style.background = t==='light'?'#FF6B00':'transparent'; l.style.color = t==='light'?'#0a0b0f':'#1a1a1a'; l.style.borderColor = t==='light'?'transparent':'rgba(255,107,0,.55)'; }}
+  // Přepni i pozadí náhledů (mini-plakátů) v kartách
+  document.querySelectorAll('.fmt-preview>div').forEach(function(m){{ m.style.background = (t==='light')?'#ffffff':'#1a1a1a'; }});
 }}
 </script>
 </body>
@@ -1844,7 +1847,7 @@ function setFlyerTheme(t){{
 
 # QR Plakát — print view
 @app.get("/api/hotels/{hotel_id}/qr-poster-print")
-def qr_poster_print(hotel_id: str, request: Request):
+def qr_poster_print(hotel_id: str, request: Request, theme: str = "dark"):
     db = db_load()
     hotel = db["hotels"].get(hotel_id)
     if not hotel:
@@ -1852,38 +1855,52 @@ def qr_poster_print(hotel_id: str, request: Request):
     base = get_base_url(request)
     guest_url = _guest_url(base, hotel_id, hotel)
     hotel_name = hotel.get("name", "Hotel")
-    return HTMLResponse(content=_render_qr_poster(hotel_name, guest_url))
+    return HTMLResponse(content=_render_qr_poster(hotel_name, guest_url, theme=theme))
 
-def _render_qr_poster(hotel_name: str, guest_url: str) -> str:
+def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark") -> str:
+    light = (theme == "light")
+    c_page   = "#e9eaee" if light else "#1b1c22"
+    c_bg     = "#ffffff" if light else "#1a1a1a"
+    c_ink    = "#1a1a1a" if light else "#f0ece0"
+    c_dim    = "#555555" if light else "#9ba0c0"
+    c_teal   = "#0a9d86" if light else "#00d4aa"
+    c_qrcard = "#ffffff" if light else "#0c0d12"
+    c_qrfill = "#1a1a1a" if light else "#FF6B00"      # tmavý QR na bílé = nejspolehlivější sken/tisk
+    c_badge  = "#ffffff" if light else "#1a1a1a"
+    _tt = "dark" if light else "light"
+    _tl = "🌙 Tmavá verze" if light else "☀️ Světlá (šetří inkoust)"
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
-.btn{{position:fixed;top:16px;right:16px;background:#FF6B00;color:#0a0b0f;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:14px;cursor:pointer}}
+<style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
+.btn{{position:fixed;top:16px;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer}}
+.btn-print{{right:16px;background:#FF6B00;color:#0a0b0f}}
+.btn-theme{{left:16px;background:#333;color:#fff}}
 @media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{margin:0}}}}</style></head>
-<body><button class="btn" onclick="window.print()">🖨️ Tisknout / PDF</button>
-<div style="position:relative;width:800px;height:800px;background:#1a1a1a;border:1px solid rgba(255,107,0,.35);border-radius:24px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5)">
+<body><button class="btn btn-print" onclick="window.print()">🖨️ Tisknout / PDF</button>
+<button class="btn btn-theme" onclick="location.href='?theme={_tt}'">{_tl}</button>
+<div style="position:relative;width:800px;height:800px;background:{c_bg};border:1px solid rgba(255,107,0,.35);border-radius:24px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5)">
   <div style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#FF6B00)"></div>
   <div style="position:absolute;top:300px;left:50%;width:620px;height:620px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(255,107,0,.16),transparent 70%);pointer-events:none"></div>
   <div style="height:100%;display:flex;flex-direction:column;align-items:center;padding:58px 48px 48px;position:relative">
-    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:34px;color:#f0ece0;display:flex;align-items:center;gap:4px">SmartestGuide<span style="width:10px;height:10px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:2px;box-shadow:0 0 14px rgba(255,107,0,.9)"></span></div>
-    <div style="margin-top:10px;font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:#00d4aa">AI Concierge for Hotels</div>
-    <div style="margin-top:26px;font-family:'Syne',sans-serif;font-weight:700;font-size:22px;color:#f0ece0;text-align:center">{hotel_name}</div>
-    <div style="position:relative;margin-top:22px;padding:22px;background:#0c0d12;border:1px solid rgba(255,107,0,.4);border-radius:20px;box-shadow:0 0 40px rgba(255,107,0,.12)">
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:34px;color:{c_ink};display:flex;align-items:center;gap:4px">SmartestGuide<span style="width:10px;height:10px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:2px;box-shadow:0 0 14px rgba(255,107,0,.9)"></span></div>
+    <div style="margin-top:10px;font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:{c_teal}">AI Concierge for Hotels</div>
+    <div style="margin-top:26px;font-family:'Syne',sans-serif;font-weight:700;font-size:22px;color:{c_ink};text-align:center">{hotel_name}</div>
+    <div style="position:relative;margin-top:22px;padding:22px;background:{c_qrcard};border:1px solid rgba(255,107,0,.4);border-radius:20px;box-shadow:0 0 40px rgba(255,107,0,.12)">
       <div id="qr" style="width:420px;height:420px;display:flex;align-items:center;justify-content:center"></div>
-      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:50%;background:#1a1a1a;border:3px solid #FF6B00;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:30px;color:#FF6B00;box-shadow:0 0 22px rgba(255,107,0,.5)">SG</div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:50%;background:{c_badge};border:3px solid #FF6B00;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:30px;color:#FF6B00;box-shadow:0 0 22px rgba(255,107,0,.5)">SG</div>
     </div>
-    <div style="margin-top:30px;font-family:'Syne',sans-serif;font-weight:700;font-size:24px;color:#f0ece0;text-align:center">Scan for your personal AI concierge</div>
-    <div style="margin-top:10px;font-size:15px;color:#9ba0c0">16 languages · No app needed · 24/7</div>
+    <div style="margin-top:30px;font-family:'Syne',sans-serif;font-weight:700;font-size:24px;color:{c_ink};text-align:center">Scan for your personal AI concierge</div>
+    <div style="margin-top:10px;font-size:15px;color:{c_dim}">16 languages · No app needed · 24/7</div>
     <div style="flex:1"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,170,.5),transparent)"></div>
-    <div style="margin-top:18px;font-size:14px;font-weight:600;color:#00d4aa">smartestguide.com</div>
+    <div style="margin-top:18px;font-size:14px;font-weight:600;color:{c_teal}">smartestguide.com</div>
   </div>
 </div>
 <script>
 (function(){{function draw(){{var h=document.getElementById('qr');if(!h)return;if(!window.qrcode){{setTimeout(draw,120);return;}}
 var qr=window.qrcode(0,'H');qr.addData('{guest_url}');qr.make();var n=qr.getModuleCount(),S=420,cell=S/n,r='';
-for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#FF6B00"/>';
+for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="{c_qrfill}"/>';
 h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
 </script></body></html>"""
 
@@ -2045,9 +2062,12 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
-.btn{{position:fixed;top:16px;right:16px;background:#FF6B00;color:#0a0b0f;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:14px;cursor:pointer}}
+.btn{{position:fixed;top:16px;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer}}
+.btn-print{{right:16px;background:#FF6B00;color:#0a0b0f}}
+.btn-theme{{left:16px;background:#333;color:#fff}}
 @media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:{page_size};margin:0}}}}</style></head>
-<body><button class="btn" onclick="window.print()">🖨️ Tisknout / PDF</button>
+<body><button class="btn btn-print" onclick="window.print()">🖨️ Tisknout / PDF</button>
+<button class="btn btn-theme" onclick="location.href='?theme={"dark" if light else "light"}'">{"🌙 Tmavá verze" if light else "☀️ Světlá (šetří inkoust)"}</button>
 <div style="width:{page_w};min-height:{page_h};background:{c_bg};position:relative;overflow:hidden;padding:0">
   <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,{c_teal},{c_teal} 60%,{c_orange})"></div>
   <div style="position:absolute;top:80px;left:50%;width:500px;height:500px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(255,107,0,.1),transparent 70%);pointer-events:none"></div>
@@ -2077,56 +2097,56 @@ for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell
 h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
 </script></body></html>"""
 
-def _render_rollup(hotel_name: str, guest_url: str) -> str:
-    flags_html = """<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="8" fill="#fff"/><rect y="8" width="24" height="8" fill="#D7141A"/><path d="M0 0 L12 8 L0 16 Z" fill="#11457E"/></svg></span>
-<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#012169"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#fff" stroke-width="3.2"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#C8102E" stroke-width="1.6"/><path d="M12 0 V16 M0 8 H24" stroke="#fff" stroke-width="5"/><path d="M12 0 V16 M0 8 H24" stroke="#C8102E" stroke-width="3"/></svg></span>
-<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#000"/><rect y="5.33" width="24" height="5.33" fill="#DD0000"/><rect y="10.66" width="24" height="5.34" fill="#FFCE00"/></svg></span>
-<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="8" height="16" fill="#002395"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#ED2939"/></svg></span>
-<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#009246"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#CE2B37"/></svg></span>
-<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#c60b1e"/><rect y="5.5" width="24" height="5" fill="#ffc400"/></svg></span>
-<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#fff"/><rect y="10.67" width="24" height="5.33" fill="#dc143c"/><rect width="8" height="16" fill="#dc143c"/></svg></span>
-<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="8" height="16" fill="#fff"/><rect x="8" width="8" height="16" fill="#0b4ea2"/><rect x="16" width="8" height="16" fill="#fff"/><rect y="6" width="24" height="4" fill="#ee1c25"/></svg></span>
-<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="8" height="16" fill="#477050"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#ce2939"/></svg></span>
-<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="5.33" fill="#fff"/><rect y="5.33" width="24" height="5.33" fill="#003DA5"/><rect y="10.66" width="24" height="5.34" fill="#fff"/></svg></span>
-<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#EE1C25"/><rect x="4" y="3" width="6" height="10" fill="#FFFF00" rx="3"/></svg></span>
-<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#fff"/><circle cx="12" cy="8" r="5" fill="#BC002D"/></svg></span>
-<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="16" fill="#006C35"/><circle cx="8" cy="8" r="4" fill="#fff"/></svg></span>
-<span style="width:28px;height:20px;border-radius:3px;overflow:hidden;outline:1px solid rgba(255,255,255,.14);outline-offset:-1px;display:inline-block"><svg viewBox="0 0 24 16" width="100%" height="100%" preserveAspectRatio="none"><rect width="24" height="5.33" fill="#fff"/><rect y="5.33" width="24" height="5.33" fill="#003DA5"/><rect y="10.66" width="24" height="5.34" fill="#CE1126"/></svg></span>"""
-    # 16 reálných vlajek (bez duplicit, dle jazyků Alexe)
-    flags_html = _flags_row(28, 20, shadow=False)
+def _render_rollup(hotel_name: str, guest_url: str, theme: str = "dark") -> str:
+    light = (theme == "light")
+    c_page   = "#e9eaee" if light else "#1b1c22"
+    c_bg     = "#ffffff" if light else "#1a1a1a"
+    c_ink    = "#1a1a1a" if light else "#f0ece0"
+    c_sub    = "#333333" if light else "#cfcad0"
+    c_dim    = "#555555" if light else "#9ba0c0"
+    c_teal   = "#0a9d86" if light else "#00d4aa"
+    c_qrcard = "#ffffff" if light else "#0c0d12"
+    c_qrfill = "#1a1a1a" if light else "#FF6B00"
+    c_badge  = "#ffffff" if light else "#1a1a1a"
+    flags_html = _flags_row(28, 20, shadow=False, light=light)
+    _tt = "dark" if light else "light"
+    _tl = "🌙 Tmavá verze" if light else "☀️ Světlá (šetří inkoust)"
 
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
-.btn{{position:fixed;top:16px;right:16px;background:#FF6B00;color:#0a0b0f;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:14px;cursor:pointer}}
+body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
+.btn{{position:fixed;top:16px;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer}}
+.btn-print{{right:16px;background:#FF6B00;color:#0a0b0f}}
+.btn-theme{{left:16px;background:#333;color:#fff}}
 @media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:85mm 200mm;margin:0}}}}</style></head>
-<body><button class="btn" onclick="window.print()">🖨️ Tisknout / PDF</button>
-<div style="width:340px;background:#1a1a1a;position:relative;overflow:hidden;padding:0;border:1px solid rgba(255,107,0,.3);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+<body><button class="btn btn-print" onclick="window.print()">🖨️ Tisknout / PDF</button>
+<button class="btn btn-theme" onclick="location.href='?theme={_tt}'">{_tl}</button>
+<div style="width:340px;background:{c_bg};position:relative;overflow:hidden;padding:0;border:1px solid rgba(255,107,0,.3);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.6)">
   <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#FF6B00)"></div>
   <div style="position:absolute;top:120px;left:50%;width:400px;height:400px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(255,107,0,.1),transparent 70%);pointer-events:none"></div>
   <div style="padding:36px 28px;display:flex;flex-direction:column;align-items:center;text-align:center">
-    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:#f0ece0;display:flex;align-items:center;gap:3px">SmartestGuide<span style="width:7px;height:7px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:2px;box-shadow:0 0 8px rgba(255,107,0,.9)"></span></div>
-    <div style="margin-top:5px;font-size:9px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#00d4aa">AI CONCIERGE FOR HOTELS</div>
-    <div style="margin-top:6px;font-size:12px;color:#9ba0c0">{hotel_name}</div>
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:{c_ink};display:flex;align-items:center;gap:3px">SmartestGuide<span style="width:7px;height:7px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:2px;box-shadow:0 0 8px rgba(255,107,0,.9)"></span></div>
+    <div style="margin-top:5px;font-size:9px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">AI CONCIERGE FOR HOTELS</div>
+    <div style="margin-top:6px;font-size:12px;color:{c_dim}">{hotel_name}</div>
     <h1 style="font-family:'Syne',sans-serif;font-weight:800;font-size:36px;line-height:1.05;letter-spacing:-.02em;margin:28px 0 0;color:#FF6B00">Your<br>personal<br>AI<br>concierge</h1>
-    <p style="font-size:14px;line-height:1.6;color:#cfcad0;margin:16px 0 0">Let <span style="color:#FF6B00;font-weight:600">Alex</span> answer every question — instantly, in your language, around the clock.</p>
+    <p style="font-size:14px;line-height:1.6;color:{c_sub};margin:16px 0 0">Let <span style="color:#FF6B00;font-weight:600">Alex</span> answer every question — instantly, in your language, around the clock.</p>
     <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:5px;margin-top:22px;max-width:300px">{flags_html}</div>
-    <div style="margin-top:28px;position:relative;padding:14px;background:#0c0d12;border:1px solid rgba(255,107,0,.4);border-radius:14px;box-shadow:0 0 24px rgba(255,107,0,.1)">
+    <div style="margin-top:28px;position:relative;padding:14px;background:{c_qrcard};border:1px solid rgba(255,107,0,.4);border-radius:14px;box-shadow:0 0 24px rgba(255,107,0,.1)">
       <div id="qr-rollup" style="width:180px;height:180px;display:flex;align-items:center;justify-content:center"></div>
-      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:42px;height:42px;border-radius:50%;background:#1a1a1a;border:2px solid #FF6B00;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:#FF6B00">SG</div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:42px;height:42px;border-radius:50%;background:{c_badge};border:2px solid #FF6B00;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:#FF6B00">SG</div>
     </div>
-    <div style="margin-top:18px;font-family:'Syne',sans-serif;font-weight:700;font-size:18px;color:#f0ece0">Scan me</div>
-    <div style="margin-top:5px;font-size:13px;color:#9ba0c0">16 languages · No app needed · 24/7</div>
+    <div style="margin-top:18px;font-family:'Syne',sans-serif;font-weight:700;font-size:18px;color:{c_ink}">Scan me</div>
+    <div style="margin-top:5px;font-size:13px;color:{c_dim}">16 languages · No app needed · 24/7</div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,170,.4),transparent);margin-top:32px"></div>
-    <div style="margin-top:12px;font-size:12px;font-weight:600;color:#00d4aa">smartestguide.com</div>
+    <div style="margin-top:12px;font-size:12px;font-weight:600;color:{c_teal}">smartestguide.com</div>
   </div>
 </div>
 <script>
 (function(){{function draw(){{var h=document.getElementById('qr-rollup');if(!h)return;if(!window.qrcode){{setTimeout(draw,120);return;}}
 var qr=window.qrcode(0,'H');qr.addData('{guest_url}');qr.make();var n=qr.getModuleCount(),S=180,cell=S/n,r='';
-for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#FF6B00"/>';
+for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="{c_qrfill}"/>';
 h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
 </script></body></html>"""
 
@@ -2189,11 +2209,11 @@ def flyer_a5_local(hotel_id: str, request: Request, theme: str = "dark"):
     return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), lang, size="a5", theme=_flyer_theme(theme)))
 
 @app.get("/api/hotels/{hotel_id}/rollup")
-def rollup(hotel_id: str, request: Request):
+def rollup(hotel_id: str, request: Request, theme: str = "dark"):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_rollup(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel)))
+    return HTMLResponse(content=_render_rollup(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), theme=_flyer_theme(theme)))
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -4025,7 +4045,7 @@ def app_icon(size: int):
     buf = BytesIO()
     img.save(buf, "PNG")
     return Response(content=buf.getvalue(), media_type="image/png",
-                    headers={"Cache-Control": "public, max-age=86400"})
+                    headers={"Cache-Control": "public, max-age=300"})
 
 @app.get("/api/hotels/{hotel_id}/manifest.webmanifest")
 def hotel_manifest(hotel_id: str, request: Request):
