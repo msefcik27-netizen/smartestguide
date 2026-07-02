@@ -339,7 +339,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.17"
+APP_VERSION = "0.5.18"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -1835,6 +1835,8 @@ function setFlyerTheme(t){{
   var d=document.getElementById('theme-dark'), l=document.getElementById('theme-light');
   if(d){{ d.style.background = t==='dark'?'#FF6B00':'transparent'; d.style.color = t==='dark'?'#0a0b0f':'#1a1a1a'; d.style.borderColor = t==='dark'?'transparent':'rgba(255,107,0,.55)'; }}
   if(l){{ l.style.background = t==='light'?'#FF6B00':'transparent'; l.style.color = t==='light'?'#0a0b0f':'#1a1a1a'; l.style.borderColor = t==='light'?'transparent':'rgba(255,107,0,.55)'; }}
+  // Přepni i pozadí náhledů (mini-plakátů) v kartách
+  document.querySelectorAll('.fmt-preview>div').forEach(function(m){{ m.style.background = (t==='light')?'#ffffff':'#1a1a1a'; }});
 }}
 </script>
 </body>
@@ -1872,7 +1874,7 @@ def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark") -> s
 <style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
 .btn{{position:fixed;top:16px;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer}}
 .btn-print{{right:16px;background:#FF6B00;color:#0a0b0f}}
-.btn-theme{{right:150px;background:#333;color:#fff}}
+.btn-theme{{left:16px;background:#333;color:#fff}}
 @media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{margin:0}}}}</style></head>
 <body><button class="btn btn-print" onclick="window.print()">🖨️ Tisknout / PDF</button>
 <button class="btn btn-theme" onclick="location.href='?theme={_tt}'">{_tl}</button>
@@ -2061,7 +2063,7 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
 body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
 .btn{{position:fixed;top:16px;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer}}
 .btn-print{{right:16px;background:#FF6B00;color:#0a0b0f}}
-.btn-theme{{right:150px;background:#333;color:#fff}}
+.btn-theme{{left:16px;background:#333;color:#fff}}
 @media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:{page_size};margin:0}}}}</style></head>
 <body><button class="btn btn-print" onclick="window.print()">🖨️ Tisknout / PDF</button>
 <button class="btn btn-theme" onclick="location.href='?theme={"dark" if light else "light"}'">{"🌙 Tmavá verze" if light else "☀️ Světlá (šetří inkoust)"}</button>
@@ -2116,7 +2118,7 @@ def _render_rollup(hotel_name: str, guest_url: str, theme: str = "dark") -> str:
 body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:32px;font-family:'Inter',sans-serif}}
 .btn{{position:fixed;top:16px;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer}}
 .btn-print{{right:16px;background:#FF6B00;color:#0a0b0f}}
-.btn-theme{{right:150px;background:#333;color:#fff}}
+.btn-theme{{left:16px;background:#333;color:#fff}}
 @media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:85mm 200mm;margin:0}}}}</style></head>
 <body><button class="btn btn-print" onclick="window.print()">🖨️ Tisknout / PDF</button>
 <button class="btn btn-theme" onclick="location.href='?theme={_tt}'">{_tl}</button>

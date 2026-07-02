@@ -1087,23 +1087,24 @@ window.addEventListener('beforeinstallprompt', e => {
   }
 });
 
-const _pwaInstallBtn = document.getElementById('pwa-install-btn');
-if(_pwaInstallBtn) _pwaInstallBtn.addEventListener('click', async () => {
+// Obsluha tlačítka „Přidat" — GLOBÁLNÍ funkce volaná přes onclick (banner je v DOM až za skriptem,
+// takže addEventListener v čase načtení skriptu by se nenapojil — proto onclick).
+async function installPwa(){
   if(!deferredPrompt){
     // Nativní instalační prompt není k dispozici (iOS vždy; Android když prohlížeč
     // ještě nevyhodnotil kritéria). NESMÍME tiše nic neudělat — ukážeme návod.
     showManualInstallHelp();
-    document.getElementById('pwa-banner').classList.remove('show');
+    const _b=document.getElementById('pwa-banner'); if(_b) _b.classList.remove('show');
     return;
   }
   deferredPrompt.prompt();
   const result = await deferredPrompt.userChoice;
   deferredPrompt = null;
-  document.getElementById('pwa-banner').classList.remove('show');
+  const _b=document.getElementById('pwa-banner'); if(_b) _b.classList.remove('show');
   if(result.outcome === 'accepted'){
     localStorage.setItem('sg_pwa_installed', '1');
   }
-});
+}
 
 const MANUAL_INSTALL_IOS = {
   cs:'📲 Přidání na plochu (iPhone / iPad, Safari): klepněte dole na ikonu Sdílet ⬆️ a vyberte „Přidat na plochu".',
@@ -1188,7 +1189,7 @@ loadHotel();
     <strong>📱 Přidat na plochu</strong>
     Otevírejte concierge přímo z ikony
   </div>
-  <button class="pwa-btn" id="pwa-install-btn">Přidat</button>
+  <button class="pwa-btn" id="pwa-install-btn" onclick="installPwa()">Přidat</button>
   <button class="pwa-btn-dismiss" onclick="dismissPwaBanner()">✕</button>
 </div>
 
