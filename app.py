@@ -339,7 +339,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.6"
+APP_VERSION = "0.5.7"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -2600,17 +2600,20 @@ async def send_invoice_email(hotel: dict, inv: dict, portal_url: str = ""):
     except Exception as e:
         logging.error(f"Nepodarilo se vygenerovat PDF faktury pro e-mail: {e}")
     cc_email = s.get("cc_email", "")
-    cc_emails = [{"email": cc_email}] if cc_email else []
     payload = {
         "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
         "to": [{"email": hotel_email, "name": hotel_name}],
-        "cc": cc_emails,
-        "bcc": _admin_notify_bcc(exclude=cc_email),
         "subject": subject,
         "htmlContent": html_body,
         "textContent": text_body,
         "attachment": attachments,
     }
+    # Brevo odmítá prázdné pole cc/bcc → přidáme jen když nejsou prázdné.
+    if cc_email:
+        payload["cc"] = [{"email": cc_email}]
+    _bcc = _admin_notify_bcc(exclude=cc_email)
+    if _bcc:
+        payload["bcc"] = _bcc
     try:
         import httpx
         async with httpx.AsyncClient() as client:
@@ -2822,18 +2825,21 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
 
     s = db_get_settings()
     cc_email = s.get("cc_email", "")
-    cc_emails = [{"email": cc_email}] if cc_email else []
 
     payload = {
         "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
         "to": [{"email": hotel_email, "name": hotel_name}],
-        "cc": cc_emails,
-        "bcc": _admin_notify_bcc(exclude=cc_email),
         "subject": subject,
         "htmlContent": html_body,
         "textContent": text_body,
         "attachment": attachments,
     }
+    # Brevo odmítá prázdné pole cc/bcc → přidáme jen když nejsou prázdné.
+    if cc_email:
+        payload["cc"] = [{"email": cc_email}]
+    _bcc = _admin_notify_bcc(exclude=cc_email)
+    if _bcc:
+        payload["bcc"] = _bcc
 
     try:
         import httpx
