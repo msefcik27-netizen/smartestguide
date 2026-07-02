@@ -447,6 +447,28 @@ async def admin_status(request: Request):
     return {"protected": bool(_ADMIN_TOKEN),
             "authed": (not _ADMIN_TOKEN) or request.cookies.get("sg_admin", "") == _ADMIN_TOKEN}
 
+# ── Migrace DB: export/import (chráněno admin_gate — cesta NENÍ v _is_public_api) ──
+# Používá se při přesunu do jiného regionu (US → EU): export ze staré DB, import do nové.
+@app.get("/api/db-export")
+def admin_db_export():
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        db_load(),
+        headers={"Content-Disposition": 'attachment; filename="smartestguide-db-export.json"'},
+    )
+
+@app.post("/api/db-import")
+async def admin_db_import(request: Request):
+    """POZOR: nahradí CELOU databázi nahraným JSONem. Jen pro migraci."""
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(400, "Neplatny JSON")
+    if not isinstance(data, dict) or "hotels" not in data:
+        raise HTTPException(400, "JSON musi obsahovat klic 'hotels' (kompletni export DB).")
+    db_save(data)
+    return {"status": "ok", "hotels": len(data.get("hotels", {})), "note": "DB nahrazena importem"}
+
 # ─────────────────────────────────────────────
 # Lokální JSON databáze
 # ─────────────────────────────────────────────

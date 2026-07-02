@@ -432,6 +432,17 @@
           <button class="btn btn-danger" style="font-size:12px" onclick="clearAllData()">🗑 Smazat všechna data</button>
         </div>
       </div>
+
+      <div class="card settings-section" style="margin-top:20px">
+        <h3>🌍 Migrace dat (přesun regionu)</h3>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Kompletní export/import databáze pro přesun do jiného regionu (US → EU). <strong style="color:var(--danger)">Import přepíše CELOU databázi</strong> — používej jen při migraci.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <a class="btn btn-secondary" style="font-size:12px;text-decoration:none" href="/api/db-export">⬇ Export celé DB (JSON)</a>
+          <input type="file" id="db-import-file" accept="application/json,.json" style="font-size:12px"/>
+          <button class="btn btn-primary" style="font-size:12px" onclick="importDb()">⬆ Import DB (přepíše vše)</button>
+        </div>
+        <div id="db-import-result" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
+      </div>
       </div><!-- konec sloupce 2 -->
       </div><!-- konec gridu -->
     </div>
@@ -1451,6 +1462,25 @@ async function clearAllData(){
   addLog('warn','Všechna data smazána','admin');
   toast('Všechna data smazána','warn');
   loadHotels();
+}
+
+// ── Migrace: import celé DB z JSON exportu (přepíše vše) ──
+async function importDb(){
+  const inp=document.getElementById('db-import-file');
+  const f=inp&&inp.files&&inp.files[0];
+  if(!f){ toast('Vyber JSON soubor s exportem','warn'); return; }
+  if(!confirm('POZOR: Import PŘEPÍŠE celou databázi obsahem tohoto souboru. Pokračovat?'))return;
+  const res=document.getElementById('db-import-result');
+  try{
+    const data=JSON.parse(await f.text());
+    const r=await fetch(`${API}/api/db-import`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.detail||('HTTP '+r.status));
+    if(res) res.innerHTML=`✅ Import OK — hotelů: <strong>${d.hotels}</strong>. Obnov stránku (F5).`;
+    addLog('ok','DB naimportována ('+d.hotels+' hotelů)','admin');
+    toast('DB naimportována ✅');
+    loadHotels();
+  }catch(e){ if(res) res.textContent='❌ Chyba: '+e.message; toast('Chyba importu','err'); }
 }
 
 // ══ PORTÁL LINK ══════════════════════════════
