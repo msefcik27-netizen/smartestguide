@@ -438,7 +438,7 @@
         <h3>🌍 Migrace dat (přesun regionu)</h3>
         <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Kompletní export/import databáze pro přesun do jiného regionu (US → EU). <strong style="color:var(--danger)">Import přepíše CELOU databázi</strong> — používej jen při migraci.</p>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-          <a class="btn btn-secondary" style="font-size:12px;text-decoration:none" href="/api/db-export">⬇ Export celé DB (JSON)</a>
+          <button class="btn btn-secondary" style="font-size:12px" onclick="exportFullDb()">⬇ Export celé DB (JSON)</button>
           <input type="file" id="db-import-file" accept="application/json,.json" style="font-size:12px"/>
           <button class="btn btn-primary" style="font-size:12px" onclick="importDb()">⬆ Import DB (přepíše vše)</button>
         </div>
@@ -631,7 +631,36 @@ function exportLog(){
 
 // ══ NAV ══════════════════════════════════════
 const PAGES=['dashboard','scrape','hotels','pricing','settings','billing','commissions','log'];
+// ── Zámek citlivých sekcí (Nastavení, Provize) + nebezpečné akce ──
+// Heslo se ověří jednou, drží se v paměti pro session a přiloží se jako X-Danger-Key.
+let dangerKey=null, dangerEnabled=null;
+async function dangerIsEnabled(){
+  if(dangerEnabled!==null) return dangerEnabled;
+  try{ const d=await (await fetch(API+'/api/danger/status')).json(); dangerEnabled=!!d.enabled; }
+  catch(e){ dangerEnabled=false; }
+  return dangerEnabled;
+}
+async function ensureUnlocked(){
+  if(!(await dangerIsEnabled())) return true;   // heslo není nastavené → nezamykáme
+  if(dangerKey) return true;                    // už odemčeno v této session
+  const pw=prompt('🔒 Zadej heslo pro citlivé akce (Nastavení / Provize / mazání):');
+  if(pw===null) return false;
+  try{
+    const r=await fetch(API+'/api/danger/verify',{method:'POST',headers:{'X-Danger-Key':pw}});
+    if(!r.ok) throw new Error('bad');
+    dangerKey=pw; return true;
+  }catch(e){ toast('❌ Špatné heslo','err'); return false; }
+}
+function dangerHeaders(extra){ const h=Object.assign({},extra||{}); if(dangerKey) h['X-Danger-Key']=dangerKey; return h; }
+
 function showPage(name){
+  if(name==='settings'||name==='commissions'){
+    ensureUnlocked().then(ok=>{ if(ok) _renderPage(name); });
+    return;
+  }
+  _renderPage(name);
+}
+function _renderPage(name){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
@@ -711,7 +740,7 @@ async function saveStripeSettings(){
   highlightMissing('stripe-key-input', !key, 'Secret Key chybí – vlož sk_live_...');
   if(!key){toast('Vyplň Stripe Secret Key','err');return;}
   try{
-    const r=await fetch(API+'/api/settings/stripe',{method:'POST',headers:{'Content-Type':'application/json'},
+    const r=await fetch(API+'/api/settings/stripe',{method:'POST',headers:dangerHeaders({'Content-Type':'application/json'}),
       body:JSON.stringify({stripe_secret_key:key,stripe_payment_link:link,stripe_webhook_secret:webhook})});
     if(!r.ok){const e=await r.json();throw new Error(e.detail);}
     addLog('ok','Stripe nastavení uložena','settings');
@@ -726,7 +755,7 @@ async function saveApiKey(){
   if(!key){toast('Zadej API klíč','err');return;}
   addLog('info','Ukládám API klíč...','settings');
   try{
-    const r=await fetch(API+'/api/settings/api-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key})});
+    const r=await fetch(API+'/api/settings/api-key',{method:'POST',headers:dangerHeaders({'Content-Type':'application/json'}),body:JSON.stringify({api_key:key})});
     if(!r.ok){const e=await r.json();throw new Error(e.detail);}
     const d=await r.json();
     document.getElementById('api-key-input').value='';
@@ -738,7 +767,7 @@ async function saveApiKey(){
 
 async function deleteApiKey(){
   if(!confirm('Opravdu odstranit API klíč?'))return;
-  await fetch(API+'/api/settings/api-key',{method:'DELETE'});
+  await fetch(API+'/api/settings/api-key',{method:'DELETE',headers:dangerHeaders()});
   addLog('warn','API klíč odstraněn','settings');
   toast('API klíč odstraněn','warn');
   loadKeyStatus();
@@ -1352,9 +1381,10 @@ async function purgeTestHotels(){
   const tests=all_hotels.filter(h=>String(h.name||'').startsWith('E2E')||['https://example.com','http://example.com'].includes(h.url)||['https://example.com','http://example.com'].includes(h.source_url));
   if(!tests.length){toast('Žádné testovací hotely k smazání');return;}
   if(!confirm(`Natvrdo smazat ${tests.length} testovacích hotelů?\n\n${tests.map(h=>'• '+(h.name||h.id)).join('\n')}\n\nToto je NEVRATNÉ. Reálných hotelů se to nedotkne (maže jen E2E / example.com).`))return;
+  if(!(await ensureUnlocked())) return;
   addLog('warn',`Mažu ${tests.length} testovacích hotelů`,'hotels');
   try{
-    const r=await fetch(`${API}/api/hotels/purge-test`,{method:'POST'});
+    const r=await fetch(`${API}/api/hotels/purge-test`,{method:'POST',headers:dangerHeaders()});
     const d=await r.json();
     if(!r.ok)throw new Error(d.detail||'chyba');
     addLog('ok',`Smazáno ${d.deleted} testovacích hotelů`,'hotels');
@@ -1475,6 +1505,15 @@ async function clearAllData(){
   loadHotels();
 }
 
+// ── Migrace: export celé DB (chráněno heslem přes X-Danger-Key) ──
+async function exportFullDb(){
+  try{
+    const r=await fetch(API+'/api/db-export',{headers:dangerHeaders()});
+    if(!r.ok){ const d=await r.json().catch(()=>({})); throw new Error(d.detail||('HTTP '+r.status)); }
+    dl(await r.blob(),'smartestguide-db-export.json');
+    addLog('ok','Celá DB exportována','admin');
+  }catch(e){ toast('Chyba exportu: '+e.message,'err'); }
+}
 // ── Migrace: import celé DB z JSON exportu (přepíše vše) ──
 async function importDb(){
   const inp=document.getElementById('db-import-file');
@@ -1484,7 +1523,7 @@ async function importDb(){
   const res=document.getElementById('db-import-result');
   try{
     const data=JSON.parse(await f.text());
-    const r=await fetch(`${API}/api/db-import`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const r=await fetch(`${API}/api/db-import`,{method:'POST',headers:dangerHeaders({'Content-Type':'application/json'}),body:JSON.stringify(data)});
     const d=await r.json();
     if(!r.ok) throw new Error(d.detail||('HTTP '+r.status));
     if(res) res.innerHTML=`✅ Import OK — hotelů: <strong>${d.hotels}</strong>. Obnov stránku (F5).`;
@@ -1578,7 +1617,7 @@ async function addPartner(){
 }
 async function deletePartner(id,name){
   if(!confirm('Smazat partnera „'+name+'"?\n\nExistující provize zůstanou v ledgeru.'))return;
-  try{ await fetch(API+'/api/partners/'+id,{method:'DELETE'}); toast('Partner smazán'); await loadPartners(); renderPartners(); }catch(e){toast('Chyba: '+e.message,'err');}
+  try{ const r=await fetch(API+'/api/partners/'+id,{method:'DELETE',headers:dangerHeaders()}); if(!r.ok)throw new Error((await r.json().catch(()=>({}))).detail||'chyba'); toast('Partner smazán'); await loadPartners(); renderPartners(); }catch(e){toast('Chyba: '+e.message,'err');}
 }
 async function loadCommissions(){
   try{ const d=await (await fetch(API+'/api/commissions')).json(); _commissions=d.commissions||[]; }catch(e){}

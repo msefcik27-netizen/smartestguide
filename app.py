@@ -339,7 +339,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.10"
+APP_VERSION = "0.5.13"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -455,10 +455,35 @@ async def admin_status(request: Request):
     return {"protected": bool(_ADMIN_TOKEN),
             "authed": (not _ADMIN_TOKEN) or request.cookies.get("sg_admin", "") == _ADMIN_TOKEN}
 
-# ── Migrace DB: export/import (chráněno admin_gate — cesta NENÍ v _is_public_api) ──
+# ── Ochrana nebezpečných akcí (export/import DB, tvrdé mazání hotelů) ──
+# Vyžaduje DRUHÉ heslo DANGER_PASSWORD navíc k admin přihlášení. Posílá se v hlavičce X-Danger-Key.
+# Nastav ho v Railway u staging i produkce. Když není nastaveno, akce zůstává jen za admin loginem.
+DANGER_PASSWORD = os.getenv("DANGER_PASSWORD", "").strip()
+
+def _check_danger(request: Request):
+    """Ověří druhé heslo pro destruktivní akce. Bez správného hesla vyhodí 403."""
+    if not DANGER_PASSWORD:
+        return  # nenakonfigurováno → spoléháme jen na admin gate
+    key = request.headers.get("x-danger-key", "")
+    if not (key and hmac.compare_digest(key, DANGER_PASSWORD)):
+        raise HTTPException(403, "Neplatné heslo pro nebezpečnou akci.")
+
+@app.get("/api/danger/status")
+def danger_status():
+    """Zjistí, jestli je vůbec nastavené heslo pro citlivé sekce (bez prozrazení hesla)."""
+    return {"enabled": bool(DANGER_PASSWORD)}
+
+@app.post("/api/danger/verify")
+def danger_verify(request: Request):
+    """Ověří heslo pro odemčení citlivých sekcí (Nastavení/Provize). Vrací 403 při chybě."""
+    _check_danger(request)
+    return {"ok": True}
+
+# ── Migrace DB: export/import (chráněno admin_gate + DANGER_PASSWORD) ──
 # Používá se při přesunu do jiného regionu (US → EU): export ze staré DB, import do nové.
 @app.get("/api/db-export")
-def admin_db_export():
+def admin_db_export(request: Request):
+    _check_danger(request)
     from fastapi.responses import JSONResponse
     return JSONResponse(
         db_load(),
@@ -468,6 +493,7 @@ def admin_db_export():
 @app.post("/api/db-import")
 async def admin_db_import(request: Request):
     """POZOR: nahradí CELOU databázi nahraným JSONem. Jen pro migraci."""
+    _check_danger(request)
     try:
         data = await request.json()
     except Exception:
@@ -825,7 +851,8 @@ class StripeSettingsRequest(BaseModel):
     stripe_webhook_secret: Optional[str] = None
 
 @app.post("/api/settings/stripe")
-def save_stripe_settings(req: StripeSettingsRequest):
+def save_stripe_settings(req: StripeSettingsRequest, request: Request):
+    _check_danger(request)
     key = req.stripe_secret_key.strip()
     if not (key.startswith("sk_test_") or key.startswith("sk_live_")):
         raise HTTPException(400, "Neplatny Stripe klic")
@@ -837,7 +864,8 @@ def save_stripe_settings(req: StripeSettingsRequest):
     return {"status": "ok"}
 
 @app.post("/api/settings/api-key")
-def save_api_key(req: ApiKeyRequest):
+def save_api_key(req: ApiKeyRequest, request: Request):
+    _check_danger(request)
     key = req.api_key.strip()
     if not key.startswith("sk-ant-"):
         raise HTTPException(400, "Neplatný API klíč – musí začínat 'sk-ant-'")
@@ -845,7 +873,8 @@ def save_api_key(req: ApiKeyRequest):
     return {"status": "ok", "preview": "sk-ant-..." + key[-6:]}
 
 @app.delete("/api/settings/api-key")
-def delete_api_key():
+def delete_api_key(request: Request):
+    _check_danger(request)
     db_save_settings({"anthropic_api_key": ""})
     return {"status": "ok"}
 
@@ -1416,10 +1445,12 @@ def update_hotel(hotel_id: str, data: HotelData):
     return {"status": "ok", "hotel": db["hotels"][hotel_id]}
 
 @app.delete("/api/hotels/{hotel_id}")
-def delete_hotel(hotel_id: str, hard: bool = False):
+def delete_hotel(hotel_id: str, request: Request, hard: bool = False):
     """Produkce: hotel se NEMAŽE, jen deaktivuje/archivuje (subscription_active=false + archived).
     Tvrdé smazání (hard=1) je povolené JEN pro testovací hotely — úklid E2E testů.
     Faktury (účetní doklady) ani provize se nikdy nemažou."""
+    if hard:
+        _check_danger(request)  # tvrdé smazání vyžaduje druhé heslo
     db = db_load()
     h = db["hotels"].get(hotel_id)
     if not h:
@@ -1444,9 +1475,10 @@ def _is_test_hotel(h: dict) -> bool:
             or (h.get("source_url") in ("https://example.com", "http://example.com")))
 
 @app.post("/api/hotels/purge-test")
-def purge_test_hotels():
+def purge_test_hotels(request: Request):
     """Úklid před startem: natvrdo smaže VŠECHNY testovací hotely (E2E / example.com).
-    Reálných hotelů se NEDOTKNE. Faktury a provize zůstávají. Admin-gated."""
+    Reálných hotelů se NEDOTKNE. Faktury a provize zůstávají. Admin-gated + DANGER_PASSWORD."""
+    _check_danger(request)
     db = db_load()
     victims = [(hid, h.get("name", "")) for hid, h in db["hotels"].items() if _is_test_hotel(h)]
     for hid, _ in victims:
@@ -3898,6 +3930,28 @@ def generate_flyer_pdf(hotel: dict, base_url: str) -> bytes:
 
 # Frontend – servíruje HTML přímo z Pythonu
 # ─────────────────────────────────────────────
+# TEST lišta — objeví se jen když je nastaveno SG_ENV=staging/test/dev.
+# Na produkci (SG_ENV nenastaveno) se NEZOBRAZÍ. Chrání před záměnou staging × produkce.
+SG_ENV = os.getenv("SG_ENV", "").strip().lower()
+
+def _staging_banner(html: str) -> str:
+    if SG_ENV not in ("staging", "test", "dev"):
+        return html
+    banner = (
+        '<div style="position:fixed;top:0;left:0;right:0;height:30px;line-height:30px;'
+        'background:#1e66f5;color:#fff;text-align:center;font:600 13px system-ui,-apple-system,sans-serif;'
+        'z-index:2147483647;letter-spacing:.4px;box-shadow:0 1px 4px rgba(0,0,0,.25)">'
+        '\U0001f9ea TESTOVACÍ PROSTŘEDÍ (STAGING) — změny se neprojeví v ostré verzi</div>'
+        '<script>try{document.body.style.paddingTop='
+        "((parseInt(getComputedStyle(document.body).paddingTop)||0)+30)+'px';}catch(e){}</script>"
+    )
+    # Vkládej k POSLEDNÍMU </body> (pravý závěr dokumentu). První výskyt může být
+    # uvnitř JS template stringu (např. v index.html) — tam by banner rozbil skript.
+    idx = html.rfind("</body>")
+    if idx != -1:
+        return html[:idx] + banner + html[idx:]
+    return html + banner
+
 # URL struktura:
 #   /              → landing (marketing)
 #   /admin         → náš admin (login-gated)
@@ -3908,32 +3962,32 @@ def generate_flyer_pdf(hotel: dict, base_url: str) -> bytes:
 def serve_landing():
     html_path = os.path.join(os.path.dirname(__file__), "landing.html")
     with open(html_path, "r", encoding="utf-8") as f:
-        return f.read()
+        return _staging_banner(f.read())
 
 @app.get("/admin", response_class=HTMLResponse)
 def serve_frontend():
     html_path = os.path.join(os.path.dirname(__file__), "index.html")
     with open(html_path, "r", encoding="utf-8") as f:
-        return f.read()
+        return _staging_banner(f.read())
 
 @app.get("/portal", response_class=HTMLResponse)
 @app.get("/hotel", response_class=HTMLResponse)
 def serve_hotel_portal():
     html_path = os.path.join(os.path.dirname(__file__), "hotel.html")
     with open(html_path, "r", encoding="utf-8") as f:
-        return f.read()
+        return _staging_banner(f.read())
 
 @app.get("/h/{slug}", response_class=HTMLResponse)
 def serve_guest_slug(slug: str):
     html_path = os.path.join(os.path.dirname(__file__), "guest.html")
     with open(html_path, "r", encoding="utf-8") as f:
-        return f.read()
+        return _staging_banner(f.read())
 
 @app.get("/guest/{hotel_id}", response_class=HTMLResponse)
 def serve_guest(hotel_id: str):
     html_path = os.path.join(os.path.dirname(__file__), "guest.html")
     with open(html_path, "r", encoding="utf-8") as f:
-        return f.read()
+        return _staging_banner(f.read())
 
 @app.get("/sw.js")
 def serve_sw():
@@ -4692,7 +4746,8 @@ def update_partner(partner_id: str, req: PartnerRequest):
     return {"status": "ok", "partner": p}
 
 @app.delete("/api/partners/{partner_id}")
-def delete_partner(partner_id: str):
+def delete_partner(partner_id: str, request: Request):
+    _check_danger(request)  # trvalé smazání partnera vyžaduje druhé heslo
     db = db_load()
     if partner_id in db.get("partners", {}):
         db["partners"].pop(partner_id)
