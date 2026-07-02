@@ -2240,13 +2240,13 @@ async def register_hotel(req: RegistrationRequest, request: Request):
     base = get_base_url(request)
     try:
         async with httpx.AsyncClient() as client:
-            # Zkontroluj jestli email již trial využil (ochrana proti opakovanému trialu)
+            # Zkontroluj jestli email již trial využil (ochrana proti opakovanému trialu).
+            # Reuse už načtené `db` — žádný další round-trip do databáze (rychlejší checkout).
             contact_email_lower = req.contact_email.lower().strip()
-            db_check = db_load()
             trial_already_used = any(
                 (h.get("registration_email") or "").lower().strip() == contact_email_lower and
                 h.get("trial_used", False)
-                for h in db_check["hotels"].values()
+                for h in db["hotels"].values()
             )
 
             trial_params = {}
@@ -3230,7 +3230,13 @@ async def stripe_webhook(request: Request):
                     token = db["hotels"][hotel_id]["hotel_token"]
                     base_url = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app")
                     portal_url = f"{base_url}/hotel?token={token}"
-                    _spawn(send_onboarding_email(hotel_id, portal_url, hotel_name, hotel_email))
+                    # Onboarding posíláme SYNCHRONNĚ (await) — fire-and-forget se občas ztrácel (GC).
+                    # Chyba nesmí shodit webhook (hotel už je aktivní), jen se zaloguje.
+                    try:
+                        await send_onboarding_email(hotel_id, portal_url, hotel_name, hotel_email)
+                        logging.warning("Onboarding email odeslan (webhook) -> hotel %s", hotel_id)
+                    except Exception as _e:
+                        logging.error("Onboarding email SELHAL pro hotel %s: %s", hotel_id, _e)
 
     # customer.subscription.deleted – zrušení předplatného
     elif event_type == "customer.subscription.deleted":
