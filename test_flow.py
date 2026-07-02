@@ -903,7 +903,7 @@ def test_print_materials(hotel_id):
 def test_admin():
     section("12. Admin panel funkce")
     try:
-        r = get_retry(f"{BASE}/", timeout=15)
+        r = get_retry(f"{BASE}/admin", timeout=15)
         html = r.text
 
         # Verze v sidebaru
@@ -1264,7 +1264,7 @@ def test_commissions():
 
     # Admin má stránku Provize
     try:
-        r = get_retry(f"{BASE}/", timeout=15)
+        r = get_retry(f"{BASE}/admin", timeout=15)
         if "page-commissions" in r.text and "loadCommissionsPage" in r.text:
             ok("Admin — stránka Provize přítomna")
         else:
