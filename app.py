@@ -339,7 +339,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.14"
+APP_VERSION = "0.5.15"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -3992,6 +3992,12 @@ def serve_guest(hotel_id: str):
     html_path = os.path.join(os.path.dirname(__file__), "guest.html")
     with open(html_path, "r", encoding="utf-8") as f:
         return _staging_banner(f.read())
+
+@app.get("/favicon.ico")
+def favicon():
+    """Brandovaná SG ikona v záložce prohlížeče — platí pro všechny stránky."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse("/api/app-icon/64")
 
 @app.get("/sw.js")
 def serve_sw():
