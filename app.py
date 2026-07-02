@@ -339,7 +339,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.16"
+APP_VERSION = "0.5.17"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -1692,7 +1692,7 @@ body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height
     <div class="hub-hotel">{hotel_name}</div>
     <div class="hub-title">{hub_title}</div>
     {f'<a href="{portal_url}" style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:rgba(255,107,0,.1);border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;color:#FF6B00;text-decoration:none;transition:opacity .15s" onmouseover="this.style.opacity=.8" onmouseout="this.style.opacity=1">⚙️ {portal_label}</a>' if portal_url else ''}
-    <div style="margin-top:16px;font-size:12px;color:#1a1a1a;font-weight:700;margin-bottom:7px">🎨 Vyberte vzhled letáku:</div>
+    <div style="margin-top:16px;font-size:12px;color:#1a1a1a;font-weight:700;margin-bottom:7px">🎨 Vyberte vzhled tiskovin:</div>
     <div style="display:inline-flex;background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.15);border-radius:10px;padding:4px;gap:4px">
       <button id="theme-dark" onclick="setFlyerTheme('dark')" style="border:1px solid transparent;background:#FF6B00;color:#0a0b0f;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">🌙 Tmavá</button>
       <button id="theme-light" onclick="setFlyerTheme('light')" style="border:1px solid rgba(255,107,0,.55);background:transparent;color:#1a1a1a;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">📄 Print-friendly</button>
@@ -1823,8 +1823,8 @@ function openFormat(fmt){{
   }};
   var u = urls[fmt];
   if(!u){{ console.error('Neznámý formát:', fmt); return; }}
-  // Print-friendly téma platí jen pro letáky (A4/A5)
-  if(fmt.indexOf('flyer')===0 && window._flyerTheme==='light'){{
+  // Print-friendly téma platí pro VŠECHNY tiskoviny (leták, rollup, QR poster)
+  if(window._flyerTheme==='light'){{
     u += (u.indexOf('?')>=0?'&':'?') + 'theme=light';
   }}
   window.open(u, '_blank');
@@ -4042,7 +4042,7 @@ def app_icon(size: int):
     buf = BytesIO()
     img.save(buf, "PNG")
     return Response(content=buf.getvalue(), media_type="image/png",
-                    headers={"Cache-Control": "public, max-age=86400"})
+                    headers={"Cache-Control": "public, max-age=300"})
 
 @app.get("/api/hotels/{hotel_id}/manifest.webmanifest")
 def hotel_manifest(hotel_id: str, request: Request):
