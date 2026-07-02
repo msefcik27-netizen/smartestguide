@@ -339,7 +339,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.14"
+APP_VERSION = "0.5.15"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -3993,6 +3993,12 @@ def serve_guest(hotel_id: str):
     with open(html_path, "r", encoding="utf-8") as f:
         return _staging_banner(f.read())
 
+@app.get("/favicon.ico")
+def favicon():
+    """Brandovaná SG ikona v záložce prohlížeče — platí pro všechny stránky."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse("/api/app-icon/64")
+
 @app.get("/sw.js")
 def serve_sw():
     """Minimální service worker s fetch handlerem — splňuje kritérium instalace PWA."""
@@ -4006,24 +4012,16 @@ def serve_sw():
 
 @app.get("/api/app-icon/{size}")
 def app_icon(size: int):
-    """Generuje brandovanou ikonu aplikace (SG) pro PWA / přidání na plochu."""
-    from PIL import Image, ImageDraw, ImageFont
+    """Brandová ikona (logo) — favicon + PWA. Načítá logo.png (průhledné pozadí)."""
+    from PIL import Image
     from io import BytesIO
     from fastapi.responses import Response
-    size = max(48, min(int(size), 512))
-    img = Image.new("RGB", (size, size), (26, 26, 26))  # #1a1a1a
-    draw = ImageDraw.Draw(img)
-    # jemný oranžový rám
-    draw.rounded_rectangle([2, 2, size - 3, size - 3], radius=int(size * 0.18),
-                           outline=(255, 107, 0), width=max(2, size // 40))
+    size = max(16, min(int(size), 512))
     try:
-        font = ImageFont.truetype(os.path.join(os.path.dirname(__file__), "LiberationSans-Bold.ttf"), int(size * 0.44))
+        p = os.path.join(os.path.dirname(__file__), "logo.png")
+        img = Image.open(p).convert("RGBA").resize((size, size), Image.LANCZOS)
     except Exception:
-        font = ImageFont.load_default()
-    text = "SG"
-    bbox = draw.textbbox((0, 0), text, font=font)
-    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    draw.text(((size - tw) / 2 - bbox[0], (size - th) / 2 - bbox[1]), text, fill=(255, 107, 0), font=font)
+        img = Image.new("RGBA", (size, size), (255, 107, 0, 255))  # fallback
     buf = BytesIO()
     img.save(buf, "PNG")
     return Response(content=buf.getvalue(), media_type="image/png",
