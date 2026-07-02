@@ -339,7 +339,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.10"
+APP_VERSION = "0.5.11"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -3898,6 +3898,25 @@ def generate_flyer_pdf(hotel: dict, base_url: str) -> bytes:
 
 # Frontend – servíruje HTML přímo z Pythonu
 # ─────────────────────────────────────────────
+# TEST lišta — objeví se jen když je nastaveno SG_ENV=staging/test/dev.
+# Na produkci (SG_ENV nenastaveno) se NEZOBRAZÍ. Chrání před záměnou staging × produkce.
+SG_ENV = os.getenv("SG_ENV", "").strip().lower()
+
+def _staging_banner(html: str) -> str:
+    if SG_ENV not in ("staging", "test", "dev"):
+        return html
+    banner = (
+        '<div style="position:fixed;top:0;left:0;right:0;height:30px;line-height:30px;'
+        'background:#1e66f5;color:#fff;text-align:center;font:600 13px system-ui,-apple-system,sans-serif;'
+        'z-index:2147483647;letter-spacing:.4px;box-shadow:0 1px 4px rgba(0,0,0,.25)">'
+        '\U0001f9ea TESTOVACÍ PROSTŘEDÍ (STAGING) — změny se neprojeví v ostré verzi</div>'
+        '<script>try{document.body.style.paddingTop='
+        "((parseInt(getComputedStyle(document.body).paddingTop)||0)+30)+'px';}catch(e){}</script>"
+    )
+    if "</body>" in html:
+        return html.replace("</body>", banner + "</body>", 1)
+    return html + banner
+
 # URL struktura:
 #   /              → landing (marketing)
 #   /admin         → náš admin (login-gated)
@@ -3908,32 +3927,32 @@ def generate_flyer_pdf(hotel: dict, base_url: str) -> bytes:
 def serve_landing():
     html_path = os.path.join(os.path.dirname(__file__), "landing.html")
     with open(html_path, "r", encoding="utf-8") as f:
-        return f.read()
+        return _staging_banner(f.read())
 
 @app.get("/admin", response_class=HTMLResponse)
 def serve_frontend():
     html_path = os.path.join(os.path.dirname(__file__), "index.html")
     with open(html_path, "r", encoding="utf-8") as f:
-        return f.read()
+        return _staging_banner(f.read())
 
 @app.get("/portal", response_class=HTMLResponse)
 @app.get("/hotel", response_class=HTMLResponse)
 def serve_hotel_portal():
     html_path = os.path.join(os.path.dirname(__file__), "hotel.html")
     with open(html_path, "r", encoding="utf-8") as f:
-        return f.read()
+        return _staging_banner(f.read())
 
 @app.get("/h/{slug}", response_class=HTMLResponse)
 def serve_guest_slug(slug: str):
     html_path = os.path.join(os.path.dirname(__file__), "guest.html")
     with open(html_path, "r", encoding="utf-8") as f:
-        return f.read()
+        return _staging_banner(f.read())
 
 @app.get("/guest/{hotel_id}", response_class=HTMLResponse)
 def serve_guest(hotel_id: str):
     html_path = os.path.join(os.path.dirname(__file__), "guest.html")
     with open(html_path, "r", encoding="utf-8") as f:
-        return f.read()
+        return _staging_banner(f.read())
 
 @app.get("/sw.js")
 def serve_sw():
