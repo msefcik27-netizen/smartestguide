@@ -339,7 +339,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.18"
+APP_VERSION = "0.5.19"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -1667,8 +1667,9 @@ body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height
 .formats{{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:0}}
 .fmt-card{{background:#181920;border:1px solid #222330;border-radius:16px;overflow:hidden;display:flex;flex-direction:column}}
 .fmt-card:hover{{border-color:#FF6B00;box-shadow:0 4px 16px rgba(255,107,0,.12)}}
-.fmt-preview{{background:#1a1a1a;padding:24px;display:flex;justify-content:center;align-items:center;min-height:200px;cursor:pointer;position:relative;overflow:hidden}}
-.fmt-preview::before{{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 80% at 50% 50%,rgba(255,107,0,.08),transparent 70%);pointer-events:none}}
+.fmt-preview{{background:#e9eaee;padding:24px;display:flex;justify-content:center;align-items:center;min-height:200px;cursor:pointer;position:relative;overflow:hidden}}
+.fmt-preview::before{{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 80% at 50% 50%,rgba(0,0,0,.04),transparent 70%);pointer-events:none}}
+.fmt-preview>div{{box-shadow:0 6px 18px rgba(0,0,0,.20)}}
 .fmt-info{{padding:20px}}
 .fmt-name{{font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:#f0ece0;margin-bottom:4px}}
 .fmt-desc{{font-size:13px;color:#6b6b6b;line-height:1.5;margin-bottom:16px}}
