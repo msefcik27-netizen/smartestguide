@@ -259,6 +259,7 @@
         <div class="page-title">Hotely <small>správa profilů</small></div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-secondary" onclick="bulkRemindIncomplete()" title="Pošle připomínku všem aktivním hotelům pod 80 % vyplněnosti">📧 Připomenout neúplným</button>
+          <button class="btn btn-secondary" onclick="purgeTestHotels()" title="Natvrdo smaže všechny testovací hotely (E2E / example.com). Reálných se nedotkne." style="color:#c0392b">🧹 Vyčistit testovací</button>
           <button class="btn btn-primary" onclick="showPage('scrape')">+ Přidat hotel</button>
         </div>
       </div>
@@ -1346,6 +1347,19 @@ async function reactivateHotel(id){
     addLog('ok',`Hotel obnoven: ${h?.name}`,'hotels');
     toast('Hotel obnoven');loadHotels();
   }catch(e){addLog('error','Chyba obnovení: '+e.message,'hotels');toast('Chyba','err');}
+}
+async function purgeTestHotels(){
+  const tests=all_hotels.filter(h=>String(h.name||'').startsWith('E2E')||['https://example.com','http://example.com'].includes(h.url)||['https://example.com','http://example.com'].includes(h.source_url));
+  if(!tests.length){toast('Žádné testovací hotely k smazání');return;}
+  if(!confirm(`Natvrdo smazat ${tests.length} testovacích hotelů?\n\n${tests.map(h=>'• '+(h.name||h.id)).join('\n')}\n\nToto je NEVRATNÉ. Reálných hotelů se to nedotkne (maže jen E2E / example.com).`))return;
+  addLog('warn',`Mažu ${tests.length} testovacích hotelů`,'hotels');
+  try{
+    const r=await fetch(`${API}/api/hotels/purge-test`,{method:'POST'});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||'chyba');
+    addLog('ok',`Smazáno ${d.deleted} testovacích hotelů`,'hotels');
+    toast(`Smazáno ${d.deleted} testovacích hotelů`);loadHotels();
+  }catch(e){addLog('error','Chyba úklidu: '+e.message,'hotels');toast('Chyba úklidu','err');}
 }
 
 // ══ CENÍK ════════════════════════════════════

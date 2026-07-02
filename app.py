@@ -269,7 +269,7 @@ async def _check_and_send_reminders():
             if not hotel_email:
                 continue
 
-            portal_url = f"{base_url}/hotel?token={h.get('hotel_token','')}"
+            portal_url = f"{base_url}/portal?token={h.get('hotel_token','')}"
             missing_labels = {
                 "address": "Adresa hotelu", "phone": "Telefon recepce",
                 "email": "Email", "checkin_time": "Check-in čas",
@@ -339,7 +339,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.8"
+APP_VERSION = "0.5.9"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -601,11 +601,77 @@ def db_save_settings(s: dict):
     data["settings"] = {**data.get("settings", {}), **s}
     db_save(data)
 
+# ─────────────────────────────────────────────
+# Slug hotelu — čitelná guest URL (/h/{slug}) místo UUID.
+# Guest běží pod prefixem /h/, takže slug NIKDY nekoliduje s /admin, /portal apod.
+# ─────────────────────────────────────────────
+import unicodedata as _unicodedata
+
+def _slugify(name: str) -> str:
+    """Název hotelu -> URL-safe slug (bez diakritiky, malá písmena)."""
+    s = _unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode("ascii")
+    s = re.sub(r"[^a-zA-Z0-9]+", "-", s).strip("-").lower()
+    return s or "hotel"
+
+def _unique_slug(db: dict, base: str, exclude_id: str = "") -> str:
+    """Zajistí unikátnost slugu napříč hotely (kolize -> -2, -3…)."""
+    taken = {h.get("slug") for hid, h in db.get("hotels", {}).items()
+             if hid != exclude_id and h.get("slug")}
+    if base not in taken:
+        return base
+    i = 2
+    while f"{base}-{i}" in taken:
+        i += 1
+    return f"{base}-{i}"
+
+def _ensure_slug(db: dict, hotel_id: str, hotel: dict) -> str:
+    """Doplní slug hotelu pokud chybí. Vrací slug. NEUKLÁDÁ (uloží volající)."""
+    if hotel.get("slug"):
+        return hotel["slug"]
+    slug = _unique_slug(db, _slugify(hotel.get("name", "")), exclude_id=hotel_id)
+    hotel["slug"] = slug
+    return slug
+
+def _resolve_hotel(db: dict, ident: str):
+    """Najde (hotel_id, hotel) podle ID nebo slugu. Vrací (None, None) když nenalezen."""
+    if not ident:
+        return None, None
+    h = db.get("hotels", {}).get(ident)
+    if h:
+        return ident, h
+    for hid, hh in db.get("hotels", {}).items():
+        if hh.get("slug") == ident:
+            return hid, hh
+    return None, None
+
+def _guest_url(base: str, hotel_id: str, hotel: dict = None) -> str:
+    """Veřejná guest URL — slug když existuje, jinak UUID fallback."""
+    ident = (hotel or {}).get("slug") or hotel_id
+    return f"{base.rstrip('/')}/h/{ident}"
+
+def _backfill_slugs():
+    """Doplní slug všem hotelům, kteří ho ještě nemají (jednorázově při startu)."""
+    try:
+        db = db_load()
+        changed = False
+        for hid, h in db.get("hotels", {}).items():
+            if not h.get("slug"):
+                _ensure_slug(db, hid, h)
+                changed = True
+        if changed:
+            db_save(db)
+            logging.warning("Slug backfill: doplněny slugy hotelů")
+    except Exception as e:
+        logging.error("Slug backfill selhal: %r", e)
+
 # Inicializuj databázi (Postgres pokud DATABASE_URL, jinak soubor) — MUSÍ být před db_load()
 _pg_init()
 
 # Načti nastavení z env proměnných při startu
 init_settings_from_env()
+
+# Doplň slugy existujícím hotelům (čitelné guest URL)
+_backfill_slugs()
 
 # ─────────────────────────────────────────────
 # Pydantic modely
@@ -1020,6 +1086,7 @@ def create_hotel(data: HotelData):
         "subscription_active": False,
         **data.model_dump(exclude_none=True),
     }
+    _ensure_slug(db, hid, hotel)  # čitelná guest URL /h/{slug}
     db["hotels"][hid] = hotel
     db_save(db)
     return {"status": "ok", "hotel": hotel}
@@ -1320,7 +1387,7 @@ def generate_token(hotel_id: str, request: Request):
         db_save(db)
     token = db["hotels"][hotel_id]["hotel_token"]
     base = get_base_url(request)
-    return {"status": "ok", "token": token, "portal_url": f"{base}/hotel?token={token}"}
+    return {"status": "ok", "token": token, "portal_url": f"{base}/portal?token={token}"}
 
 @app.get("/api/hotels")
 def list_hotels():
@@ -1369,6 +1436,25 @@ def delete_hotel(hotel_id: str, hard: bool = False):
     db["hotels"][hotel_id] = h
     db_save(db)
     return {"status": "ok", "archived": True}
+
+def _is_test_hotel(h: dict) -> bool:
+    """Testovací hotel = E2E jméno nebo example.com URL. Jen tyhle jde tvrdě smazat."""
+    return (str(h.get("name", "")).startswith("E2E")
+            or (h.get("url") in ("https://example.com", "http://example.com"))
+            or (h.get("source_url") in ("https://example.com", "http://example.com")))
+
+@app.post("/api/hotels/purge-test")
+def purge_test_hotels():
+    """Úklid před startem: natvrdo smaže VŠECHNY testovací hotely (E2E / example.com).
+    Reálných hotelů se NEDOTKNE. Faktury a provize zůstávají. Admin-gated."""
+    db = db_load()
+    victims = [(hid, h.get("name", "")) for hid, h in db["hotels"].items() if _is_test_hotel(h)]
+    for hid, _ in victims:
+        del db["hotels"][hid]
+    if victims:
+        db_save(db)
+        logging.warning("Purge testovacích hotelů: smazáno %d (%s)", len(victims), [n for _, n in victims])
+    return {"status": "ok", "deleted": len(victims), "names": [n for _, n in victims]}
 
 # ─────────────────────────────────────────────
 # Helper – detekce base URL (lokál i Railway)
@@ -1425,7 +1511,7 @@ def generate_qr(hotel_id: str, request: Request):
         raise HTTPException(404, "Hotel nenalezen")
 
     base = get_base_url(request)
-    guest_url = f"{base}/guest/{hotel_id}"
+    guest_url = _guest_url(base, hotel_id, hotel)
     try:
         png_bytes = _generate_qr_png_branded(guest_url, size=400)
     except Exception as e:
@@ -1444,10 +1530,10 @@ def generate_qr_poster(hotel_id: str, request: Request):
         raise HTTPException(404, "Hotel nenalezen")
 
     base = get_base_url(request)
-    guest_url = f"{base}/guest/{hotel_id}"
+    guest_url = _guest_url(base, hotel_id, hotel)
     hotel_name = hotel.get("name", "Hotel")
     hotel_token = hotel.get("hotel_token", "")
-    portal_url = f"{base}/hotel?token={hotel_token}" if hotel_token else ""
+    portal_url = f"{base}/portal?token={hotel_token}" if hotel_token else ""
     portal_label = "Přejít do portálu hotelu" if (hotel.get("country") or "").upper() in ("CZ","SK") else "Go to hotel portal"
     country = (hotel.get("country") or "").upper()
     is_cs = country in ("CZ", "SK")
@@ -1728,7 +1814,7 @@ def qr_poster_print(hotel_id: str, request: Request):
     if not hotel:
         raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    guest_url = f"{base}/guest/{hotel_id}"
+    guest_url = _guest_url(base, hotel_id, hotel)
     hotel_name = hotel.get("name", "Hotel")
     return HTMLResponse(content=_render_qr_poster(hotel_name, guest_url))
 
@@ -2016,7 +2102,7 @@ def flyer_en(hotel_id: str, request: Request, theme: str = "dark"):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "en", theme=_flyer_theme(theme)))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "en", theme=_flyer_theme(theme)))
 
 @app.get("/api/hotels/{hotel_id}/flyer-cz")
 def flyer_cz(hotel_id: str, request: Request, theme: str = "dark"):
@@ -2024,7 +2110,7 @@ def flyer_cz(hotel_id: str, request: Request, theme: str = "dark"):
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
     try:
-        html = _render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "cs", theme=_flyer_theme(theme))
+        html = _render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "cs", theme=_flyer_theme(theme))
         if not html:
             return HTMLResponse(content="<h1>Render vrátil prázdný string</h1>", status_code=500)
         return HTMLResponse(content=html)
@@ -2041,21 +2127,21 @@ def flyer_local(hotel_id: str, request: Request, theme: str = "dark"):
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
     lang = get_hotel_local_lang(hotel)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", lang, theme=_flyer_theme(theme)))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), lang, theme=_flyer_theme(theme)))
 
 @app.get("/api/hotels/{hotel_id}/flyer-a5-en")
 def flyer_a5_en(hotel_id: str, request: Request, theme: str = "dark"):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "en", size="a5", theme=_flyer_theme(theme)))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "en", size="a5", theme=_flyer_theme(theme)))
 
 @app.get("/api/hotels/{hotel_id}/flyer-a5-cz")
 def flyer_a5_cz(hotel_id: str, request: Request, theme: str = "dark"):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", "cs", size="a5", theme=_flyer_theme(theme)))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "cs", size="a5", theme=_flyer_theme(theme)))
 
 @app.get("/api/hotels/{hotel_id}/flyer-a5-local")
 def flyer_a5_local(hotel_id: str, request: Request, theme: str = "dark"):
@@ -2064,14 +2150,14 @@ def flyer_a5_local(hotel_id: str, request: Request, theme: str = "dark"):
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
     lang = get_hotel_local_lang(hotel)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}", lang, size="a5", theme=_flyer_theme(theme)))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), lang, size="a5", theme=_flyer_theme(theme)))
 
 @app.get("/api/hotels/{hotel_id}/rollup")
 def rollup(hotel_id: str, request: Request):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_rollup(hotel.get("name","Hotel"), f"{base}/guest/{hotel_id}"))
+    return HTMLResponse(content=_render_rollup(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel)))
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -2263,6 +2349,7 @@ async def register_hotel(req: RegistrationRequest, request: Request):
     hotel["acquired_by"] = _ref_partner["id"] if _ref_partner else "auto"
     hotel["referral_code"] = _norm_ref(req.ref) if _ref_partner else ""
     hotel["acquired_at"] = now
+    _ensure_slug(db, hid, hotel)  # čitelná guest URL /h/{slug}
     db["hotels"][hid] = hotel
     db_save(db)
 
@@ -2336,7 +2423,7 @@ def success_page(hotel_id: str = "", request: Request = None):
         h = db["hotels"].get(hotel_id)
         if h and h.get("hotel_token"):
             base = get_base_url(request) if request else ""
-            portal_url = f"{base}/hotel?token={h['hotel_token']}"
+            portal_url = f"{base}/portal?token={h['hotel_token']}"
 
     redirect_script = f"""
     <script>
@@ -2638,7 +2725,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
         return
 
     # Odvoď base_url z portal_url
-    base_url = portal_url.split("/hotel?")[0] if "/hotel?" in portal_url else portal_url.rsplit("/", 1)[0]
+    base_url = portal_url.split("/portal?")[0] if "/portal?" in portal_url else portal_url.rsplit("/", 1)[0]
     poster_url = f"{base_url}/api/hotels/{hotel_id}/qr-poster"
     if not hotel_email:
         logging.warning(f"Hotel {hotel_id} nema email")
@@ -2812,7 +2899,8 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
     # Vygeneruj QR kod jako PNG prilohu
     attachments = []
     try:
-        guest_url = f"{base_url}/guest/{hotel_id}"
+        _oid, _ohotel = _resolve_hotel(db_load(), hotel_id)
+        guest_url = _guest_url(base_url, hotel_id, _ohotel)
         qr_bytes = _generate_qr_png_branded(guest_url, size=400)
         qr_b64 = base64.b64encode(qr_bytes).decode()
         attachments.append({
@@ -2914,7 +3002,7 @@ def build_monthly_report(hotel_id: str, month_key: str = None) -> dict:
     hotel_name = hotel.get("name") or "hotel"
     base_url = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app").rstrip("/")
     token = hotel.get("hotel_token", "")
-    portal_url = f"{base_url}/hotel?token={token}" if token else base_url
+    portal_url = f"{base_url}/portal?token={token}" if token else base_url
 
     # Top 3 jazyky hostů
     langs = cur.get("langs", {}) or {}
@@ -3144,7 +3232,7 @@ async def stripe_checkout(hotel_id: str, request: Request):
                     "client_reference_id": hotel_id,
                     "customer_email": hotel.get("email", ""),
                     "success_url": f"{base_url}/success?hotel_id={hotel_id}",
-                    "cancel_url": f"{base_url}/hotel?token={hotel.get('hotel_token','')}",
+                    "cancel_url": f"{base_url}/portal?token={hotel.get('hotel_token','')}",
                     "line_items[0][price_data][currency]": "eur",
                     "line_items[0][price_data][product_data][name]": f"SmartestGuide – {hotel.get('name','hotel')}",
                     "line_items[0][price_data][product_data][description]": f"AI concierge pro {beds} lůžek",
@@ -3274,7 +3362,7 @@ async def stripe_webhook(request: Request):
                                 import uuid as _uuid
                                 _h["hotel_token"] = str(_uuid.uuid4()).replace("-", "")
                             _base = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app")
-                            _purl = f"{_base}/hotel?token={_h['hotel_token']}"
+                            _purl = f"{_base}/portal?token={_h['hotel_token']}"
                             _spawn(send_invoice_email(_h, inv, _purl))
                         except Exception as e:
                             logging.warning("Auto-faktura selhala pro hotel %s: %s", hotel_id, e)
@@ -3301,7 +3389,7 @@ async def stripe_webhook(request: Request):
                         db_save(db)
                     token = db["hotels"][hotel_id]["hotel_token"]
                     base_url = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app")
-                    portal_url = f"{base_url}/hotel?token={token}"
+                    portal_url = f"{base_url}/portal?token={token}"
                     # Onboarding NA POZADÍ — webhook musí Stripe odpovědět rychle. _spawn drží referenci (žádný GC).
                     logging.warning("Onboarding trigger -> hotel %s (%s)", hotel_id, hotel_email)
                     _spawn(send_onboarding_email(hotel_id, portal_url, hotel_name, hotel_email))
@@ -3379,7 +3467,8 @@ def get_hotel_lang(hotel: dict) -> str:
 def serve_widget(hotel_id: str, request: Request, lang: str = "auto"):
     """JavaScript widget pro vložení na web hotelu."""
     base = get_base_url(request)
-    guest_url = f"{base}/guest/{hotel_id}"
+    _wdb = db_load(); _whotel = _wdb["hotels"].get(hotel_id)
+    guest_url = _guest_url(base, hotel_id, _whotel)
     js = f"""/* SmartestGuide Widget v1 */
 (function(){{
   var btn = document.createElement('div');
@@ -3513,7 +3602,7 @@ def send_reminder(hotel_id: str, request: Request, dry_run: bool = False):
     if not hotel_id or not h:
         raise HTTPException(404, "Hotel nenalezen")
     completeness = hotel_profile_completeness(h)
-    portal_url = get_base_url(request) + "/hotel?token=" + h.get("hotel_token","")
+    portal_url = get_base_url(request) + "/portal?token=" + h.get("hotel_token","")
     hotel_email = h.get("registration_email") or h.get("email", "")
     hotel_name = h.get("name", "Hotel")
     missing_labels = {
@@ -3809,22 +3898,34 @@ def generate_flyer_pdf(hotel: dict, base_url: str) -> bytes:
 
 # Frontend – servíruje HTML přímo z Pythonu
 # ─────────────────────────────────────────────
+# URL struktura:
+#   /              → landing (marketing)
+#   /admin         → náš admin (login-gated)
+#   /portal?token= → hotelový portál  (/hotel = alias)
+#   /h/{slug}      → guest chat        (/guest/{id} = alias)
 @app.get("/", response_class=HTMLResponse)
+@app.get("/landing", response_class=HTMLResponse)
+def serve_landing():
+    html_path = os.path.join(os.path.dirname(__file__), "landing.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        return f.read()
+
 @app.get("/admin", response_class=HTMLResponse)
 def serve_frontend():
     html_path = os.path.join(os.path.dirname(__file__), "index.html")
     with open(html_path, "r", encoding="utf-8") as f:
         return f.read()
 
+@app.get("/portal", response_class=HTMLResponse)
 @app.get("/hotel", response_class=HTMLResponse)
 def serve_hotel_portal():
     html_path = os.path.join(os.path.dirname(__file__), "hotel.html")
     with open(html_path, "r", encoding="utf-8") as f:
         return f.read()
 
-@app.get("/landing", response_class=HTMLResponse)
-def serve_landing():
-    html_path = os.path.join(os.path.dirname(__file__), "landing.html")
+@app.get("/h/{slug}", response_class=HTMLResponse)
+def serve_guest_slug(slug: str):
+    html_path = os.path.join(os.path.dirname(__file__), "guest.html")
     with open(html_path, "r", encoding="utf-8") as f:
         return f.read()
 
@@ -3875,15 +3976,17 @@ def hotel_manifest(hotel_id: str, request: Request):
     """Per-hotel PWA manifest — instalovaná ikona otevře přímo Alexe tohoto hotelu."""
     from fastapi.responses import JSONResponse
     db = db_load()
-    hotel = db["hotels"].get(hotel_id) or {}
+    _hid, hotel = _resolve_hotel(db, hotel_id)
+    hotel = hotel or {}
     name = hotel.get("name") or "SmartestGuide"
     base = get_base_url(request)
+    ident = hotel.get("slug") or _hid or hotel_id
     manifest = {
         "name": f"{name} — Concierge",
         "short_name": (name[:12] if name else "Concierge"),
         "description": "Váš osobní AI concierge — kdykoli po ruce",
-        "start_url": f"/guest/{hotel_id}",
-        "scope": f"/guest/{hotel_id}",
+        "start_url": f"/h/{ident}",
+        "scope": f"/h/{ident}",
         "display": "standalone",
         "background_color": "#1a1a1a",
         "theme_color": "#1a1a1a",
@@ -3900,9 +4003,9 @@ def hotel_manifest(hotel_id: str, request: Request):
 # ─────────────────────────────────────────────
 @app.get("/api/guest/{hotel_id}")
 def get_guest_hotel(hotel_id: str):
-    """Vrátí veřejná data hotelu pro guest app."""
+    """Vrátí veřejná data hotelu pro guest app. `hotel_id` může být ID i slug."""
     db = db_load()
-    h = db["hotels"].get(hotel_id)
+    _hid, h = _resolve_hotel(db, hotel_id)
     if not h:
         raise HTTPException(404, "Hotel nenalezen")
     if not h.get("subscription_active"):
@@ -3931,7 +4034,7 @@ async def guest_chat(req: GuestChatRequest, request: Request):
         raise HTTPException(400, "AI není nakonfigurováno")
 
     db = db_load()
-    h = db["hotels"].get(req.hotel_id)
+    _hid, h = _resolve_hotel(db, req.hotel_id)
     if not h:
         raise HTTPException(404, "Hotel nenalezen")
 
@@ -4051,7 +4154,7 @@ Guest name: {req.guest_name or 'Guest'}"""
     reply = r.json()["content"][0]["text"]
     # Zaloguj reálný dotaz hosta (analytika + detekce mezer v informacích)
     try:
-        _log_guest_question(req.hotel_id, req.message, req.language, reply)
+        _log_guest_question(_hid, req.message, req.language, reply)
     except Exception as e:
         logging.warning("Log dotazu hosta selhal: %s", e)
     return {"status": "ok", "reply": reply}
@@ -4111,7 +4214,7 @@ def get_portal_link(hotel_id: str, request: Request):
         db_save(db)
     token = db["hotels"][hotel_id]["hotel_token"]
     base = get_base_url(request)
-    return {"status": "ok", "token": token, "portal_url": f"{base}/hotel?token={token}"}
+    return {"status": "ok", "token": token, "portal_url": f"{base}/portal?token={token}"}
 
 # ─────────────────────────────────────────────
 # Privacy Policy & Terms of Service stránky

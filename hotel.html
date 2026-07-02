@@ -548,7 +548,7 @@ function renderPortal() {
         Klikněte a vyzkoušejte si Alexe jako host — zeptejte se na WiFi, snídani, parkování nebo tipy na okolí. Uvidíte přesně to, co uvidí vaši hosté po naskenování QR kódu.
         <br><br>💡 Čím víc údajů máte vyplněno výše, tím lépe Alex odpovídá — po každé úpravě si výsledek hned otestujte.
       </div>
-      <a href="/guest/${h.id}" target="_blank" rel="noopener" style="display:inline-block;background:var(--accent);color:#ffffff;text-decoration:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700">🧪 Otevřít Alexe (jako host)</a>
+      <a href="/h/${h.slug||h.id}" target="_blank" rel="noopener" style="display:inline-block;background:var(--accent);color:#ffffff;text-decoration:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700">🧪 Otevřít Alexe (jako host)</a>
     `, [])}
 
     ${renderSection('🖨️', 'Tiskové materiály', 'QR plakát a letáky pro hosty — kdykoli ke stažení a tisku', `
@@ -1604,7 +1604,7 @@ function copyEmbedCode(){
 
 function previewWidget(){
   const base = window.location.origin;
-  window.open(`${base}/guest/${hotelData.id}`, 'sg_preview', 'width=420,height=700');
+  window.open(`${base}/h/${hotelData.slug||hotelData.id}`, 'sg_preview', 'width=420,height=700');
 }
 
 // ── Zrušení předplatného ─────────────────────
