@@ -3230,13 +3230,10 @@ async def stripe_webhook(request: Request):
                     token = db["hotels"][hotel_id]["hotel_token"]
                     base_url = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app")
                     portal_url = f"{base_url}/hotel?token={token}"
-                    # Onboarding posíláme SYNCHRONNĚ (await) — fire-and-forget se občas ztrácel (GC).
-                    # Chyba nesmí shodit webhook (hotel už je aktivní), jen se zaloguje.
-                    try:
-                        await send_onboarding_email(hotel_id, portal_url, hotel_name, hotel_email)
-                        logging.warning("Onboarding email odeslan (webhook) -> hotel %s", hotel_id)
-                    except Exception as _e:
-                        logging.error("Onboarding email SELHAL pro hotel %s: %s", hotel_id, _e)
+                    # Onboarding NA POZADÍ — webhook musí Stripe odpovědět rychle (jinak timeout).
+                    # _spawn drží referenci na task (na rozdíl od holého create_task), takže se
+                    # nemůže ztratit přes GC a spolehlivě doběhne i po odeslání odpovědi.
+                    _spawn(send_onboarding_email(hotel_id, portal_url, hotel_name, hotel_email))
 
     # customer.subscription.deleted – zrušení předplatného
     elif event_type == "customer.subscription.deleted":
