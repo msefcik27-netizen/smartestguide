@@ -339,7 +339,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.11"
+APP_VERSION = "0.5.12"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -3913,8 +3913,11 @@ def _staging_banner(html: str) -> str:
         '<script>try{document.body.style.paddingTop='
         "((parseInt(getComputedStyle(document.body).paddingTop)||0)+30)+'px';}catch(e){}</script>"
     )
-    if "</body>" in html:
-        return html.replace("</body>", banner + "</body>", 1)
+    # Vkládej k POSLEDNÍMU </body> (pravý závěr dokumentu). První výskyt může být
+    # uvnitř JS template stringu (např. v index.html) — tam by banner rozbil skript.
+    idx = html.rfind("</body>")
+    if idx != -1:
+        return html[:idx] + banner + html[idx:]
     return html + banner
 
 # URL struktura:
