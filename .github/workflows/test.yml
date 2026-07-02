@@ -62,4 +62,7 @@ jobs:
         env:
           # Admin API je za loginem — test se přihlásí tímto heslem (musí sedět s ADMIN_PASSWORD v Railway).
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          # Heslo pro nebezpečné akce (tvrdé mazání hotelů + mazání partnera při úklidu).
+          # Musí sedět s DANGER_PASSWORD v produkčním Railway, jinak úklid dostane 403.
+          DANGER_PASSWORD: ${{ secrets.DANGER_PASSWORD }}
         run: python test_flow.py

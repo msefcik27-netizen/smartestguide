@@ -339,7 +339,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.13"
+APP_VERSION = "0.5.14"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -1446,9 +1446,10 @@ def update_hotel(hotel_id: str, data: HotelData):
 
 @app.delete("/api/hotels/{hotel_id}")
 def delete_hotel(hotel_id: str, request: Request, hard: bool = False):
-    """Produkce: hotel se NEMAŽE, jen deaktivuje/archivuje (subscription_active=false + archived).
-    Tvrdé smazání (hard=1) je povolené JEN pro testovací hotely — úklid E2E testů.
-    Faktury (účetní doklady) ani provize se nikdy nemažou."""
+    """Produkce: aktivní hotel se NEMAŽE, jen deaktivuje/archivuje (subscription_active=false + archived).
+    Tvrdé smazání (hard=1) je povolené pro TESTOVACÍ hotely NEBO už ARCHIVOVANÉ hotely
+    (nejdřív deaktivovat, pak smazat) — vždy s heslem DANGER_PASSWORD.
+    Aktivní reálný hotel nejde smazat jedním krokem. Faktury se nikdy nemažou."""
     if hard:
         _check_danger(request)  # tvrdé smazání vyžaduje druhé heslo
     db = db_load()
@@ -1456,10 +1457,13 @@ def delete_hotel(hotel_id: str, request: Request, hard: bool = False):
     if not h:
         raise HTTPException(404, "Hotel nenalezen")
     is_test = str(h.get("name", "")).startswith("E2E") or (h.get("url") in ("https://example.com", "http://example.com"))
-    if hard and is_test:
+    if hard and (is_test or h.get("archived")):
         del db["hotels"][hotel_id]
         db_save(db)
         return {"status": "ok", "deleted": True}
+    if hard:
+        # Aktivní reálný hotel nejde smazat napřímo — nejdřív ho deaktivuj.
+        raise HTTPException(400, "Aktivní hotel nelze smazat natrvalo. Nejdřív ho deaktivuj, pak smaž.")
     # Deaktivace/archivace — data i historie zůstávají (reálný hotel nejde smazat).
     h["subscription_active"] = False
     h["archived"] = True

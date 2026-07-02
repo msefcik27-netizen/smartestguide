@@ -30,6 +30,11 @@ def admin_login():
     try:
         r = S.post(f"{BASE}/api/admin/login", json={"password": pw}, timeout=10)
         AUTHED = (r.status_code == 200)
+        # Heslo pro nebezpečné akce (tvrdé mazání hotelů, mazání partnera) — pošli v každém requestu.
+        # Gated endpointy ho přijmou přes hlavičku X-Danger-Key, ostatní ho ignorují.
+        dpw = os.getenv("DANGER_PASSWORD", "").strip()
+        if dpw:
+            S.headers.update({"X-Danger-Key": dpw})
         return AUTHED
     except Exception:
         return False
