@@ -339,7 +339,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.7"
+APP_VERSION = "0.5.8"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -755,7 +755,7 @@ def apply_pricing_to_new_hotels():
 
 class StripeSettingsRequest(BaseModel):
     stripe_secret_key: str
-    stripe_payment_link: str
+    stripe_payment_link: Optional[str] = None   # už se nepoužívá (reaktivace jede dynamicky) — necháno kvůli kompatibilitě
     stripe_webhook_secret: Optional[str] = None
 
 @app.post("/api/settings/stripe")
@@ -765,7 +765,7 @@ def save_stripe_settings(req: StripeSettingsRequest):
         raise HTTPException(400, "Neplatny Stripe klic")
     db_save_settings({
         "stripe_secret_key": key,
-        "stripe_payment_link": req.stripe_payment_link.strip(),
+        "stripe_payment_link": (req.stripe_payment_link or "").strip(),
         "stripe_webhook_secret": req.stripe_webhook_secret or "",
     })
     return {"status": "ok"}
@@ -3115,20 +3115,58 @@ async def auto_scrape_after_payment(hotel_id: str, hotel_url: str):
 # Stripe – platby a webhook
 # ─────────────────────────────────────────────
 @app.get("/api/stripe/checkout/{hotel_id}")
-def stripe_checkout(hotel_id: str):
-    """Vrátí Stripe payment link s prefilled hotel_id v metadata přes client_reference_id."""
+async def stripe_checkout(hotel_id: str, request: Request):
+    """Vytvoří dynamickou Stripe Checkout Session (per-lůžko) pro reaktivaci/platbu z portálu.
+    Nahrazuje statický payment link → vždy aktuální cena a žádný test/live link k údržbě."""
     db = db_load()
     s = db_get_settings()
     hotel = db["hotels"].get(hotel_id)
     if not hotel:
         raise HTTPException(404, "Hotel nenalezen")
-    payment_link = s.get("stripe_payment_link", "")
-    if not payment_link:
-        raise HTTPException(400, "Stripe payment link neni nastaven")
-    # Přidej client_reference_id = hotel_id pro identifikaci po platbě
-    sep = "&" if "?" in payment_link else "?"
-    url = f"{payment_link}{sep}client_reference_id={hotel_id}"
-    return {"status": "ok", "checkout_url": url, "hotel_name": hotel.get("name", "")}
+    stripe_key = s.get("stripe_secret_key", "")
+    if not stripe_key:
+        raise HTTPException(400, "Stripe není nastaven")
+    base = int(s.get("pricing_base", 199))
+    threshold = int(s.get("pricing_threshold", 100))
+    per_bed = float(s.get("pricing_per_bed", 3))
+    beds = hotel.get("bed_count", 0) or 0
+    price = base if beds <= threshold else int(base + (beds - threshold) * per_bed)
+    base_url = get_base_url(request)
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                "https://api.stripe.com/v1/checkout/sessions",
+                headers={"Authorization": f"Bearer {stripe_key}",
+                         "Content-Type": "application/x-www-form-urlencoded"},
+                data={
+                    "mode": "subscription",
+                    "client_reference_id": hotel_id,
+                    "customer_email": hotel.get("email", ""),
+                    "success_url": f"{base_url}/success?hotel_id={hotel_id}",
+                    "cancel_url": f"{base_url}/hotel?token={hotel.get('hotel_token','')}",
+                    "line_items[0][price_data][currency]": "eur",
+                    "line_items[0][price_data][product_data][name]": f"SmartestGuide – {hotel.get('name','hotel')}",
+                    "line_items[0][price_data][product_data][description]": f"AI concierge pro {beds} lůžek",
+                    "line_items[0][price_data][recurring][interval]": "month",
+                    "line_items[0][price_data][unit_amount]": str(price * 100),
+                    "line_items[0][quantity]": "1",
+                    "metadata[hotel_id]": hotel_id,
+                },
+                timeout=30.0,
+            )
+        if r.status_code != 200:
+            logging.error("Stripe checkout (portal) chyba %s: %s", r.status_code, r.text[:200])
+            raise HTTPException(502, "Nepodařilo se vytvořit platbu")
+        url = r.json().get("url")
+        if not url:
+            raise HTTPException(502, "Stripe nevrátil URL")
+        return {"status": "ok", "checkout_url": url, "hotel_name": hotel.get("name", "")}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error("Stripe checkout (portal) výjimka: %s", e)
+        raise HTTPException(502, "Chyba při vytváření platby")
 
 @app.post("/api/stripe/webhook")
 async def stripe_webhook(request: Request):

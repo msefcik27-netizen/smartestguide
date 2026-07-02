@@ -385,11 +385,11 @@
           <input type="password" id="stripe-key-input" placeholder="sk_live_..." style="margin-top:2px"/>
         </div>
         <div class="form-group" style="margin-bottom:14px">
-          <label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Payment Link URL</label>
-          <div style="font-size:11px;color:var(--accent);margin-bottom:4px;margin-top:3px">
-            📍 Najdeš na: <a href="https://dashboard.stripe.com/payment-links" target="_blank" style="color:var(--accent)">dashboard.stripe.com/payment-links</a> → zkopíruj aktivní LIVE link
+          <label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Payment Link URL <span style="color:var(--muted);font-weight:400;text-transform:none">(nepovinné — už se nepoužívá)</span></label>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;margin-top:3px">
+            Reaktivace i registrace jedou přes dynamický checkout (per‑lůžko). Payment link není potřeba — pole můžeš nechat prázdné.
           </div>
-          <input type="text" id="stripe-link-input" placeholder="https://buy.stripe.com/..." style="margin-top:2px"/>
+          <input type="text" id="stripe-link-input" placeholder="(nepoužívá se)" style="margin-top:2px"/>
         </div>
         <div class="form-group" style="margin-bottom:14px">
           <label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Webhook Secret (volitelné)</label>
@@ -684,9 +684,8 @@ async function loadKeyStatus(){
     // Zvýrazni API key pole pokud chybí v DB
     highlightMissing('api-key-input', !has, 'API klíč není nastaven – scraping nebude fungovat');
     // Stripe status
-    const stripeOk=d.has_stripe_key&&d.stripe_payment_link;
+    const stripeOk=d.has_stripe_key;   // payment link už není potřeba (reaktivace jede dynamicky)
     const stripeKeyMissing=!d.has_stripe_key;
-    const stripeLinkMissing=!d.stripe_payment_link;
     if(document.getElementById('stripe-status')){
       document.getElementById('stripe-status').className='key-status '+(stripeOk?'ok':'missing');
       document.getElementById('stripe-dot').className='key-dot '+(stripeOk?'ok':'missing');
@@ -694,7 +693,6 @@ async function loadKeyStatus(){
       if(d.stripe_payment_link) document.getElementById('stripe-link-input').value=d.stripe_payment_link;
       // Červená jen pokud opravdu chybí v DB (ne jen prázdné input pole)
       highlightMissing('stripe-key-input', stripeKeyMissing, 'Secret Key chybí – vlož sk_live_...');
-      highlightMissing('stripe-link-input', stripeLinkMissing, 'Payment Link chybí – vlož URL z Stripe Dashboardu');
       // Pokud je klíč uložen v DB, zobraz placeholder místo prázdného pole
       if(d.has_stripe_key){
         const skEl = document.getElementById('stripe-key-input');
@@ -708,10 +706,9 @@ async function saveStripeSettings(){
   const key=document.getElementById('stripe-key-input').value.trim();
   const link=document.getElementById('stripe-link-input').value.trim();
   const webhook=document.getElementById('stripe-webhook-input').value.trim();
-  // Zvýrazni chybějící povinná pole
-  highlightMissing('stripe-key-input', !key, 'Secret Key chybí – vlož sk_test_... nebo sk_live_...');
-  highlightMissing('stripe-link-input', !link, 'Payment Link chybí – vlož URL z Stripe Dashboardu');
-  if(!key||!link){toast('Vyplň Secret Key i Payment Link','err');return;}
+  // Zvýrazni chybějící povinná pole (payment link už není povinný)
+  highlightMissing('stripe-key-input', !key, 'Secret Key chybí – vlož sk_live_...');
+  if(!key){toast('Vyplň Stripe Secret Key','err');return;}
   try{
     const r=await fetch(API+'/api/settings/stripe',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({stripe_secret_key:key,stripe_payment_link:link,stripe_webhook_secret:webhook})});
