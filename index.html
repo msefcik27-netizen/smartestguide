@@ -974,7 +974,7 @@ function renderHotelsTable(){
         <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(255,170,51,.4);color:var(--warn)" data-id="${h.id}" data-name="${esc(h.name||'')}" onclick="sendReminder(this.dataset.id,this.dataset.name)">📧 Reminder</button>
         <button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(108,99,255,.45);color:#6c63ff" data-id="${h.id}" data-name="${esc(h.name||'')}" onclick="rescrapeHotel(this.dataset.id,this.dataset.name)">🔄 Doplnit z webu</button>
         ${h.archived
-          ? `<button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(46,204,135,.4);color:var(--success)" onclick="reactivateHotel('${h.id}')">♻ Obnovit</button>`
+          ? `<button class="btn btn-secondary" style="padding:5px 2px;font-size:10px;border-color:rgba(46,204,135,.4);color:var(--success)" onclick="reactivateHotel('${h.id}')">♻ Obnovit</button><button class="btn btn-danger" style="padding:5px 2px;font-size:10px" onclick="hardDeleteHotel('${h.id}')">🗑 Smazat natrvalo</button>`
           : `<button class="btn btn-danger" style="padding:5px 2px;font-size:10px" onclick="deleteHotel('${h.id}')">⏸ Deaktivovat</button>`}
       </div>
     </td></tr>`;
@@ -1376,6 +1376,18 @@ async function reactivateHotel(id){
     addLog('ok',`Hotel obnoven: ${h?.name}`,'hotels');
     toast('Hotel obnoven');loadHotels();
   }catch(e){addLog('error','Chyba obnovení: '+e.message,'hotels');toast('Chyba','err');}
+}
+async function hardDeleteHotel(id){
+  const h=all_hotels.find(x=>x.id===id);
+  if(!confirm(`NATRVALO smazat hotel "${h?.name||id}"?\n\nToto je NEVRATNÉ — hotel a jeho data zmizí. Faktury zůstávají zachované.\n(Jde jen u deaktivovaného hotelu.)`))return;
+  if(!(await ensureUnlocked())) return;
+  try{
+    const r=await fetch(`${API}/api/hotels/${id}?hard=1`,{method:'DELETE',headers:dangerHeaders()});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(d.detail||('HTTP '+r.status));
+    addLog('warn',`Hotel natrvalo smazán: ${h?.name||id}`,'hotels');
+    toast('🗑 Hotel natrvalo smazán');loadHotels();
+  }catch(e){addLog('error','Chyba trvalého mazání: '+e.message,'hotels');toast('Chyba: '+e.message,'err');}
 }
 async function purgeTestHotels(){
   const tests=all_hotels.filter(h=>String(h.name||'').startsWith('E2E')||['https://example.com','http://example.com'].includes(h.url)||['https://example.com','http://example.com'].includes(h.source_url));
