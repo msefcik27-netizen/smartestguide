@@ -1092,9 +1092,9 @@ window.addEventListener('beforeinstallprompt', e => {
 async function installPwa(){
   if(!deferredPrompt){
     // Nativní instalační prompt není k dispozici (iOS vždy; Android když prohlížeč
-    // ještě nevyhodnotil kritéria). NESMÍME tiše nic neudělat — ukážeme návod.
+    // ještě nevyhodnotil kritéria nebo už prompt „spotřeboval"). NESMÍME tiše nic
+    // neudělat — ukážeme návod PŘÍMO v banneru (banner NEschováváme, ať je vidět).
     showManualInstallHelp();
-    const _b=document.getElementById('pwa-banner'); if(_b) _b.classList.remove('show');
     return;
   }
   deferredPrompt.prompt();
@@ -1131,7 +1131,19 @@ function showManualInstallHelp(){
   const isIOS = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const map = isIOS ? MANUAL_INSTALL_IOS : MANUAL_INSTALL_ANDROID;
   const msg = map[guestLang] || map['en'];
-  try { addBot(msg); } catch(e){ try{ alert(msg); }catch(_){} }
+  // Návod ukážeme PŘÍMO v banneru — je viditelný na úvodní obrazovce i v chatu
+  // (chat je na úvodu skrytý, proto sem NEpíšeme přes addBot). Tlačítko „Přidat"
+  // skryjeme, protože víc už udělat nedokáže; zůstává jen ✕ pro zavření.
+  const banner = document.getElementById('pwa-banner');
+  const box = banner ? banner.querySelector('.pwa-banner-text') : null;
+  const btn = document.getElementById('pwa-install-btn');
+  if(box){
+    box.innerHTML = '<span style="display:block;font-size:12.5px;line-height:1.5">'+msg+'</span>';
+    if(btn) btn.style.display = 'none';
+    banner.classList.add('show');
+  } else {
+    try{ alert(msg); }catch(_){}
+  }
 }
 
 // Texty instalačního banneru podle jazyka hosta
