@@ -111,7 +111,7 @@ async def _deactivate_expired_subscriptions():
         db_save(db)
 
 async def _backup_data():
-    """Denní rotovaná záloha data.json (na volume) + týdenní off-site kopie e-mailem."""
+    """Denní rotovaná záloha data.json (na volume) + denní off-site kopie e-mailem (kód + DB)."""
     import shutil, glob
     try:
         src = DB_PATH
@@ -141,7 +141,7 @@ async def _backup_data():
                 os.remove(old)
             except Exception:
                 pass
-        # Týdenní off-site záloha e-mailem (přežije i ztrátu volume)
+        # Denní off-site záloha e-mailem (přežije i ztrátu volume)
         marker = os.path.join(bdir, ".last_email")
         last = ""
         if os.path.exists(marker):
@@ -154,7 +154,7 @@ async def _backup_data():
             last_dt = datetime.fromisoformat(last) if last else None
         except Exception:
             last_dt = None
-        if last_dt is None or (now - last_dt).days >= 7:
+        if last_dt is None or (now - last_dt).days >= 1:
             if await _email_backup(src):
                 try:
                     open(marker, "w").write(now.isoformat())
@@ -163,8 +163,20 @@ async def _backup_data():
     except Exception as e:
         logging.warning("Záloha selhala: %s", e)
 
+def _redact_secrets(db: dict) -> dict:
+    """Vrátí kopii DB bez citlivých klíčů — ať neputují e-mailem. Klíče se stejně
+    obnovují z Railway env při startu aplikace, takže záloha zůstává plně použitelná."""
+    import copy
+    d = copy.deepcopy(db) if isinstance(db, dict) else {}
+    s = d.get("settings")
+    if isinstance(s, dict):
+        for k in ("anthropic_api_key", "stripe_secret_key", "stripe_webhook_secret"):
+            if s.get(k):
+                s[k] = "<REDACTED — uloženo v Railway env>"
+    return d
+
 async def _email_backup(src) -> bool:
-    """Pošle data.json jako přílohu na zálohovací e-mail (off-site kopie)."""
+    """Pošle KOMPLETNÍ zálohu (kód + databáze) jako .zip na zálohovací e-maily (off-site)."""
     brevo_key = os.getenv("BREVO_API_KEY", "")
     # Zálohy chodí na obě adresy natvrdo (+ volitelně další přes BACKUP_EMAIL)
     recips = ["martin.1303@seznam.cz", "msefcik27@gmail.com"]
@@ -174,24 +186,38 @@ async def _email_backup(src) -> bool:
     if not brevo_key:
         return False
     try:
-        with open(src, "rb") as f:
-            content_b64 = base64.b64encode(f.read()).decode()
+        import io, zipfile
         stamp = datetime.utcnow().strftime("%Y-%m-%d")
+        appdir = os.path.dirname(os.path.abspath(__file__))
+        code_files = ["app.py", "index.html", "hotel.html", "guest.html", "landing.html", "logo.png"]
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            # Databáze — živý snímek, bez citlivých klíčů
+            z.writestr("database.json", json.dumps(_redact_secrets(db_load()), ensure_ascii=False, indent=2))
+            # Kód aplikace (admin, portál, guest, landing, backend)
+            for fn in code_files:
+                p = os.path.join(appdir, fn)
+                if os.path.exists(p):
+                    z.write(p, arcname=f"code/{fn}")
+        content_b64 = base64.b64encode(buf.getvalue()).decode()
         payload = {
             "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
             "to": [{"email": e} for e in recips],
-            "subject": f"SMARTEST GUIDE — záloha dat {stamp}",
-            "htmlContent": f"<p>Týdenní off-site záloha databáze k {stamp}. Soubor je v příloze jako .txt (obsah je JSON — pro obnovu přejmenuj na .json). Ulož si ho mimo Railway.</p>",
-            "textContent": f"Zaloha dat {stamp} v priloze (.txt = JSON).",
-            # Brevo nepřijímá přílohy s příponou .json → posíláme jako .txt (stejný obsah)
-            "attachment": [{"name": f"data-backup-{stamp}.txt", "content": content_b64}],
+            "subject": f"SMARTEST GUIDE — denní záloha {stamp}",
+            "htmlContent": (f"<p>Denní off-site záloha k {stamp}. V příloze .zip:</p>"
+                            f"<ul><li><strong>database.json</strong> — živá data (hotely, faktury, provize, nastavení)</li>"
+                            f"<li><strong>code/</strong> — app.py, index.html (admin), hotel.html (portál), guest.html, landing.html</li></ul>"
+                            f"<p>Rozbal a ulož mimo Railway.</p>"
+                            f"<p style='color:#888;font-size:12px'>Pozn.: citlivé klíče (Anthropic/Stripe) v záloze nejsou — jsou v Railway env a obnoví se automaticky při startu.</p>"),
+            "textContent": f"Denni zaloha {stamp}: kod + databaze v .zip. Citlive klice nejsou (jsou v Railway env).",
+            "attachment": [{"name": f"smartestguide-backup-{stamp}.zip", "content": content_b64}],
         }
         import httpx
         async with httpx.AsyncClient() as client:
             r = await client.post("https://api.brevo.com/v3/smtp/email", json=payload,
-                headers={"api-key": brevo_key, "Content-Type": "application/json"}, timeout=30)
+                headers={"api-key": brevo_key, "Content-Type": "application/json"}, timeout=60)
             if r.status_code in (200, 201):
-                logging.info("Off-site záloha odeslána -> %s", ", ".join(recips))
+                logging.info("Off-site záloha (kód+DB) odeslána -> %s", ", ".join(recips))
                 return True
             logging.error("Brevo záloha CHYBA %s: %s", r.status_code, r.text[:200])
             return False
@@ -339,7 +365,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.20"
+APP_VERSION = "0.5.21"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
