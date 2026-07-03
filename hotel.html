@@ -1486,7 +1486,8 @@ async function loadMonthlyReport(){
       <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:32px;font-weight:700;color:var(--accent)">${a.total||0}</div><div style="font-size:12px;color:var(--muted)">${L.total}</div></div>
       <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:18px;font-weight:700;color:var(--accent2)">${lastChat}</div><div style="font-size:12px;color:var(--muted)">${L.last}</div></div>
     </div>${topics.length?`<div style="font-size:12px;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">${L.topics}</div>${topicHtml}`:''}`;
-    const hasData = (rep.count || 0) > 0;
+    const hasMonthly = (rep.count || 0) > 0;
+    const curCount = cur.count || 0;
     const trendHtml = (rep.trend_pct !== null && rep.trend_pct !== undefined && rep.prev_count > 0)
       ? `<div style="font-size:13px;font-weight:600;margin-top:4px;color:${rep.trend_pct>=0?'var(--success)':'var(--warn)'}">${rep.trend_pct>=0?'+':''}${rep.trend_pct}% ${L.trendPrefix}</div>` : '';
     const langsHtml = (rep.top_langs && rep.top_langs.length)
@@ -1500,13 +1501,13 @@ async function loadMonthlyReport(){
       <div class="section">
         <div class="section-head">
           <div class="section-icon">📈</div>
-          <div><div class="section-title">${L.title} · ${rep.month_label||''}</div>
+          <div><div class="section-title">${L.title}${hasMonthly?` · ${rep.month_label||''}`:''}</div>
           <div class="section-desc">${L.desc}</div></div>
         </div>
-        ${hasData ? `
+        ${hasMonthly ? `
         <div style="background:linear-gradient(135deg,#1a1a1a,#2a2a2a);color:#fff;border-radius:12px;padding:22px;text-align:center;margin-bottom:14px">
           <div style="font-size:44px;font-weight:800;color:#ff8a3d;line-height:1">${rep.count}</div>
-          <div style="font-size:13px;opacity:.85;margin-top:2px">${L.conv}</div>
+          <div style="font-size:13px;opacity:.85;margin-top:2px">${L.conv}${rep.month_label?` · ${rep.month_label}`:''}</div>
           ${trendHtml}
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -1521,9 +1522,16 @@ async function loadMonthlyReport(){
         </div>
         ${flaggedHtml}
         ${profileHtml}
-        ${cur.count>0?`<div style="margin-top:12px;font-size:12px;color:var(--muted);text-align:center">${L.thisMonth}: <strong style="color:var(--text)">${cur.count}</strong> ${L.conv}</div>`:''}
+        ${curCount>0?`<div style="margin-top:12px;font-size:12px;color:var(--muted);text-align:center">${L.thisMonth}: <strong style="color:var(--text)">${curCount}</strong> ${L.conv}</div>`:''}
+        ` : (curCount>0 ? `
+        <div style="background:linear-gradient(135deg,#1a1a1a,#2a2a2a);color:#fff;border-radius:12px;padding:22px;text-align:center;margin-bottom:14px">
+          <div style="font-size:44px;font-weight:800;color:#ff8a3d;line-height:1">${curCount}</div>
+          <div style="font-size:13px;opacity:.85;margin-top:2px">${L.conv} · ${(L.thisMonth||'').toLowerCase()}</div>
+        </div>
+        ${flaggedHtml}
+        ${profileHtml}
         ` : `
-        <div style="text-align:center;padding:20px 10px;color:var(--muted);font-size:13px">📈 ${L.empty}${cur.count>0?`<br><br>${L.thisMonth}: <strong style="color:var(--text)">${cur.count}</strong> ${L.conv}`:''}</div>`}
+        <div style="text-align:center;padding:20px 10px;color:var(--muted);font-size:13px">📈 ${L.empty}</div>`)}
         ${allTimeHtml}
       </div>`;
   }catch(e){}

@@ -4874,7 +4874,7 @@ th{background:#faf8f4}
 
 <h2><span class="n">3</span>Referral link — jak funguje</h2>
 <p>Z kódu se automaticky sestaví odkaz, který partner posílá hotelům:</p>
-<div class="box"><code>https://vase-domena.cz/landing?ref=JAN2026</code></div>
+<div class="box"><code>https://www.smartestguide.com/landing?ref=JAN2026</code></div>
 <p>Co se stane, když hotel přijde přes tento odkaz:</p>
 <ol>
 <li>Kód <code>ref=JAN2026</code> se <strong>uloží</strong> hotelu do prohlížeče (přežije i to, když odejde a vrátí se na stránku).</li>
