@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>SMARTEST GUIDE – Správa hotelu</title>
+  <title>SMARTEST GUIDE – Hotel AI Concierge</title>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <style>
     :root {
@@ -135,12 +135,12 @@ html{color-scheme:light}
 <div class="topbar">
   <div style="display:flex;align-items:center;gap:16px">
     <div class="logo">SMARTEST GUIDE<span style="width:6px;height:6px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:3px;margin-bottom:1px;box-shadow:0 0 6px rgba(255,107,0,.8)"></span></div>
-    <div class="hotel-name-bar">Správa hotelu: <strong id="hotel-name-bar">–</strong></div>
+    <div class="hotel-name-bar">Hotel AI Concierge: <strong id="hotel-name-bar">–</strong></div>
   </div>
   <div class="save-bar">
     <span class="last-saved" id="last-saved"></span>
     <span class="unsaved-dot" id="unsaved-dot"></span>
-    <button class="btn btn-primary" id="save-btn" onclick="saveAll()" disabled>💾 Uložit změny</button>
+    <button class="btn btn-secondary" id="save-btn" onclick="saveAll()" title="Ukládá se automaticky — tlačítko je jen pojistka">✓ Uloženo</button>
   </div>
 </div>
 
@@ -265,7 +265,6 @@ async function loadHotel() {
     loadPaymentSection();
     loadInvoicesSection();
     loadMonthlyReport();
-    loadAnalytics();
     setTimeout(initEmbedCode, 100);
   } catch(e) {
     document.getElementById('main-container').innerHTML = `
@@ -587,7 +586,6 @@ function renderPortal() {
 
   <div id="invoices-section" style="margin-top:0"></div>
   <div id="monthly-report-section"></div>
-  <div id="analytics-section"></div>
   `;
 
   // Init tag inputs
@@ -1016,11 +1014,18 @@ function getTagValues(key) {
   return [...document.querySelectorAll(`#tags-${key} .tag-item`)].map(t => t.dataset.val);
 }
 
-// ── Změny ─────────────────────────────────────
+// ── Změny + AUTO-SAVE ─────────────────────────
+let _autoTimer = null;
+function scheduleAutoSave(){
+  clearTimeout(_autoTimer);
+  _autoTimer = setTimeout(() => { if(hasChanges) saveAll(true); }, 1400);
+}
 function markChanged() {
   hasChanges = true;
   document.getElementById('unsaved-dot').classList.add('show');
-  document.getElementById('last-saved').textContent = 'Neuložené změny';
+  document.getElementById('last-saved').textContent = 'Ukládá se…';
+  const b=document.getElementById('save-btn'); if(b) b.innerHTML='💾 Uložit teď';
+  scheduleAutoSave();
 }
 
 // ── Platba ───────────────────────────────────
@@ -1157,7 +1162,7 @@ async function loadPricing(){
 }
 
 // ── Uložení ───────────────────────────────────
-async function saveAll() {
+async function saveAll(auto) {
   const numKeys = new Set(['bed_count', 'room_count', 'star_rating']);
   const data = {};
   // Sesbírej VŠECHNA pole f-* genericky (oprava: dřív se ukládala jen ručně vyjmenovaná)
@@ -1212,7 +1217,7 @@ async function saveAll() {
     hasChanges = false;
     document.getElementById('unsaved-dot').classList.remove('show');
     const now = new Date().toLocaleTimeString('cs-CZ', {hour:'2-digit',minute:'2-digit'});
-    document.getElementById('last-saved').textContent = `Uloženo v ${now}`;
+    document.getElementById('last-saved').textContent = `✓ Uloženo v ${now}`;
     // Okamžitá aktualizace platební sekce a hlavičky bez refreshe
     await loadPaymentSection();
     // Přepočítej completeness skóre
@@ -1221,14 +1226,14 @@ async function saveAll() {
     const newBeds = hotelData.bed_count || 0;
     if(hotelData.subscription_active && newBeds > oldBeds && oldBeds > 0){
       toast('⚠️ Počet lůžek zvýšen – vyžadován doplatek!', 'warn');
-    } else {
+    } else if(!auto){
       toast('✅ Změny uloženy!');
     }
   } catch(e) {
     toast('Chyba při ukládání: ' + e.message, 'err');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '💾 Uložit změny';
+    btn.innerHTML = hasChanges ? '💾 Uložit teď' : '✓ Uloženo';
   }
 }
 
@@ -1400,8 +1405,7 @@ function renderOnboarding(){
     return `<div style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-top:1px solid #eee;flex-wrap:wrap">
       <span style="font-size:15px">⬜</span>
       <span style="flex:1;min-width:120px;font-size:13px;color:#1a1a1a;font-weight:600">${f.label}</span>
-      <input id="ob-${f.k}" placeholder="${f.ph}" onkeydown="if(event.key==='Enter')saveOb('${f.k}')" style="flex:2;min-width:150px;padding:7px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;font-size:13px"/>
-      <button onclick="saveOb('${f.k}')" style="padding:7px 15px;border:none;border-radius:8px;background:#ff6b00;color:#fff;font-weight:600;font-size:12px;cursor:pointer">Uložit</button>
+      <input id="ob-${f.k}" placeholder="${f.ph}" onkeydown="if(event.key==='Enter')saveOb('${f.k}')" onblur="saveOb('${f.k}', true)" style="flex:2;min-width:150px;padding:7px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;font-size:13px"/>
     </div>`;
   }).join('');
   el.innerHTML=`
@@ -1418,10 +1422,10 @@ function renderOnboarding(){
       <div style="background:#fff;color:#1a1a1a;border-radius:10px;padding:4px 16px 12px;margin-top:14px">${rowsHtml}</div>
     </div>`;
 }
-async function saveOb(k){
+async function saveOb(k, auto){
   const inp=document.getElementById('ob-'+k); if(!inp) return;
   const raw=inp.value.trim();
-  if(!raw){ toast('Vyplňte hodnotu','warn'); inp.focus(); return; }
+  if(!raw){ if(!auto){ toast('Vyplňte hodnotu','warn'); inp.focus(); } return; }
   const f=obField(k);
   const payloadVal = (f && f.arr) ? raw.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean) : raw;
   try{
@@ -1429,10 +1433,12 @@ async function saveOb(k){
     if(!r.ok) throw new Error('HTTP '+r.status);
     const d=await r.json(); hotelData=d.hotel;
     if(!(f && f.arr)){ const mainInp=document.getElementById('f-'+k); if(mainInp) mainInp.value=raw; } // sync s velkým formulářem
-    toast('Uloženo ✅');
-    renderOnboarding();
+    const now=new Date().toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
+    const ls=document.getElementById('last-saved'); if(ls) ls.textContent=`✓ Uloženo v ${now}`;
+    const b=document.getElementById('save-btn'); if(b) b.innerHTML='✓ Uloženo';
+    if(!auto){ toast('Uloženo ✅'); renderOnboarding(); }  // re-render jen při Enter, ať auto-blur nezruší fokus
     if(typeof loadCompleteness==='function') loadCompleteness();
-  }catch(e){ toast('Chyba při ukládání','error'); }
+  }catch(e){ if(!auto) toast('Chyba při ukládání','error'); }
 }
 function dismissOnboarding(){
   if(hotelData) localStorage.setItem('sg_ob_hide_'+hotelData.id,'1');
@@ -1441,28 +1447,45 @@ function dismissOnboarding(){
 
 async function loadMonthlyReport(){
   try{
-    const r = await fetch(`${API}/api/hotel-portal/monthly-report?token=${token}`);
-    if(!r.ok) return;
-    const d = await r.json();
+    const [rr, ra] = await Promise.all([
+      fetch(`${API}/api/hotel-portal/monthly-report?token=${token}`).catch(()=>null),
+      fetch(`${API}/api/hotel-portal/analytics?token=${token}`).catch(()=>null)
+    ]);
     const el = document.getElementById('monthly-report-section');
     if(!el) return;
-    const cs = (d.lang === 'cs');
+    const d = (rr && rr.ok) ? await rr.json() : {};
+    const ad = (ra && ra.ok) ? await ra.json() : {};
+    const a = (ad && ad.analytics) || {total:0, topics:{}, last_chat:null, flagged_count:0};
+    const cs = (d.lang !== 'en');
     const rep = d.report || {}, cur = d.current || {};
     const L = cs ? {
-      title:'Měsíční přehled', desc:'Jak Alex sloužil vašim hostům',
+      title:'Přehled & statistiky', desc:'Jak Alex sloužil vašim hostům',
       conv:'konverzací s hosty', trendPrefix:'oproti minulému měsíci',
       langs:'Nejčastější jazyky', saved:'Ušetřeno recepci', thisMonth:'Tento měsíc zatím',
+      total:'Celkem dotazů', last:'Poslední chat', topics:'Nejčastější témata',
       flagged:'× Alex neměl dost informací — doplňte profil výše, ať hosté dostanou odpověď vždy.',
       profile:'% vyplněný profil — doplnění zvýší kvalitu odpovědí.',
-      empty:'Za tento měsíc zatím žádná aktivita. Přehled se objeví po prvních dotazech hostů.'
+      empty:'Zatím žádná aktivita tento měsíc. Souhrn se objeví po prvních dotazech hostů.'
     } : {
-      title:'Monthly summary', desc:'How Alex served your guests',
+      title:'Overview & stats', desc:'How Alex served your guests',
       conv:'guest conversations', trendPrefix:'vs. last month',
       langs:'Top languages', saved:'Reception time saved', thisMonth:'This month so far',
+      total:'Total questions', last:'Last chat', topics:'Top topics',
       flagged:'× Alex lacked enough info — complete your profile above so guests always get an answer.',
       profile:'% profile complete — filling the gaps improves answers.',
       empty:'No activity yet this month. The summary appears after your first guest questions.'
     };
+    const TOPIC_LABELS = { checkin:'Check-in/out', checkout:'Check-in/out', breakfast:'Snídaně', parking:'Parkování', wellness:'Wellness/Spa', restaurant:'Restaurace', weather:'Počasí', nearby:'Okolí', contact:'Kontakt' };
+    const topics = Object.entries(a.topics||{}).sort((x,y)=>y[1]-x[1]).slice(0,6);
+    const topicHtml = topics.map(([k,v])=>{
+      const pct = a.total ? Math.round((v/a.total)*100) : 0;
+      return `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span>${TOPIC_LABELS[k]||k}</span><span style="color:var(--accent2);font-weight:600">${v}x</span></div><div style="background:var(--border);border-radius:4px;height:6px"><div style="background:var(--accent);border-radius:4px;height:6px;width:${pct}%"></div></div></div>`;
+    }).join('');
+    const lastChat = a.last_chat ? new Date(a.last_chat).toLocaleDateString(cs?'cs-CZ':'en-GB') : '–';
+    const allTimeHtml = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:32px;font-weight:700;color:var(--accent)">${a.total||0}</div><div style="font-size:12px;color:var(--muted)">${L.total}</div></div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:18px;font-weight:700;color:var(--accent2)">${lastChat}</div><div style="font-size:12px;color:var(--muted)">${L.last}</div></div>
+    </div>${topics.length?`<div style="font-size:12px;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">${L.topics}</div>${topicHtml}`:''}`;
     const hasData = (rep.count || 0) > 0;
     const trendHtml = (rep.trend_pct !== null && rep.trend_pct !== undefined && rep.prev_count > 0)
       ? `<div style="font-size:13px;font-weight:600;margin-top:4px;color:${rep.trend_pct>=0?'var(--success)':'var(--warn)'}">${rep.trend_pct>=0?'+':''}${rep.trend_pct}% ${L.trendPrefix}</div>` : '';
@@ -1500,7 +1523,8 @@ async function loadMonthlyReport(){
         ${profileHtml}
         ${cur.count>0?`<div style="margin-top:12px;font-size:12px;color:var(--muted);text-align:center">${L.thisMonth}: <strong style="color:var(--text)">${cur.count}</strong> ${L.conv}</div>`:''}
         ` : `
-        <div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">📈 ${L.empty}${cur.count>0?`<br><br>${L.thisMonth}: <strong style="color:var(--text)">${cur.count}</strong> ${L.conv}`:''}</div>`}
+        <div style="text-align:center;padding:20px 10px;color:var(--muted);font-size:13px">📈 ${L.empty}${cur.count>0?`<br><br>${L.thisMonth}: <strong style="color:var(--text)">${cur.count}</strong> ${L.conv}`:''}</div>`}
+        ${allTimeHtml}
       </div>`;
   }catch(e){}
 }

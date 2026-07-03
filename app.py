@@ -339,7 +339,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.19"
+APP_VERSION = "0.5.20"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -616,6 +616,8 @@ _COMPANY_HARDCODED = {
     "company_dic": "",                              # neni platce DPH (potvrzeno v ARES)
     "company_email": "admin@smartestguide.com",
     "company_vat_payer": False,
+    "company_bank": "1947110004/5500",             # Raiffeisenbank
+    "company_iban": "CZ9855000000001947110004",
 }
 
 def db_get_settings() -> dict:
