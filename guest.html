@@ -1074,37 +1074,12 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.register('/sw.js').catch(()=>{});
 }
 
-// Zachyť install prompt
-window.addEventListener('beforeinstallprompt', e => {
-  e.preventDefault();
-  deferredPrompt = e;
-  // Zobraz banner při každém spuštění, pokud není nainstalováno a není odloženo
-  if(pwaShouldRemind()){
-    setTimeout(() => {
-      localizePwaBanner(false);
-      document.getElementById('pwa-banner').classList.add('show');
-    }, 3000); // Zobraz po 3 sekundách
-  }
-});
-
-// Obsluha tlačítka „Přidat" — GLOBÁLNÍ funkce volaná přes onclick (banner je v DOM až za skriptem,
-// takže addEventListener v čase načtení skriptu by se nenapojil — proto onclick).
-async function installPwa(){
-  if(!deferredPrompt){
-    // Nativní instalační prompt není k dispozici (iOS vždy; Android když prohlížeč
-    // ještě nevyhodnotil kritéria nebo už prompt „spotřeboval"). NESMÍME tiše nic
-    // neudělat — ukážeme návod PŘÍMO v banneru (banner NEschováváme, ať je vidět).
-    showManualInstallHelp();
-    return;
-  }
-  deferredPrompt.prompt();
-  const result = await deferredPrompt.userChoice;
-  deferredPrompt = null;
-  const _b=document.getElementById('pwa-banner'); if(_b) _b.classList.remove('show');
-  if(result.outcome === 'accepted'){
-    localStorage.setItem('sg_pwa_installed', '1');
-  }
-}
+// Zachyť a POTLAČ nativní install prompt Chromu — instalaci NEspouštíme sami.
+// Na Androidu „Přidat na plochu" generuje WebAPK (balí ji Google) a na starším telefonu
+// ji Play Protect zablokuje hláškou „Nebezpečná aplikace" (targetSdk té WebAPK neovlivníme).
+// Proto hosta netlačíme do instalace jedním klikem — ukážeme nenásilný NÁVOD stejně jako
+// na iOS, nezávisle na verzi prohlížeče.
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; });
 
 const MANUAL_INSTALL_IOS = {
   cs:'📲 Přidání na plochu (iPhone / iPad, Safari): klepněte dole na ikonu Sdílet ⬆️ a vyberte „Přidat na plochu".',
@@ -1126,24 +1101,35 @@ const MANUAL_INSTALL_ANDROID = {
   pl:'📲 Dodaj do ekranu głównego (Android, Chrome): dotknij menu ⋮ w prawym górnym rogu i wybierz „Dodaj do ekranu głównego" / „Zainstaluj aplikację".',
   sk:'📲 Pridať na plochu (Android, Chrome): klepnite vpravo hore na menu ⋮ a vyberte „Pridať na plochu" / „Inštalovať aplikáciu".',
 };
-function showManualInstallHelp(){
+// Uklidnění pro Android — kdyby přesto přišla Googlí hláška Play Protect
+const INSTALL_REASSURE_ANDROID = {
+  cs:'Kdyby telefon ukázal bezpečnostní upozornění, je neškodné — nebo concierge klidně používejte přímo v prohlížeči.',
+  en:'If your phone shows a security notice, it\'s harmless — or just keep using the concierge in your browser.',
+  de:'Falls Ihr Telefon einen Sicherheitshinweis zeigt, ist er harmlos — oder nutzen Sie den Concierge einfach im Browser.',
+  fr:'Si votre téléphone affiche un avertissement de sécurité, il est sans danger — ou continuez simplement dans le navigateur.',
+  es:'Si tu teléfono muestra un aviso de seguridad, es inofensivo — o simplemente sigue usando el conserje en el navegador.',
+  it:'Se il telefono mostra un avviso di sicurezza, è innocuo — oppure continua a usare il concierge nel browser.',
+  pl:'Jeśli telefon pokaże ostrzeżenie bezpieczeństwa, jest nieszkodliwe — albo po prostu korzystaj z konsjerża w przeglądarce.',
+  sk:'Ak telefón ukáže bezpečnostné upozornenie, je neškodné — alebo concierge pokojne používajte priamo v prehliadači.',
+};
+// Ukáže nenásilný NÁVOD na přidání na plochu (Android i iOS) přímo v banneru.
+// Nespouští žádnou nativní instalaci — jen vysvětlí kroky přes menu prohlížeče.
+function showInstallGuide(){
   const ua = navigator.userAgent || '';
   const isIOS = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const map = isIOS ? MANUAL_INSTALL_IOS : MANUAL_INSTALL_ANDROID;
-  const msg = map[guestLang] || map['en'];
-  // Návod ukážeme PŘÍMO v banneru — je viditelný na úvodní obrazovce i v chatu
-  // (chat je na úvodu skrytý, proto sem NEpíšeme přes addBot). Tlačítko „Přidat"
-  // skryjeme, protože víc už udělat nedokáže; zůstává jen ✕ pro zavření.
+  const isAndroid = /Android/i.test(ua);
+  if(!isIOS && !isAndroid) return; // desktop: instalaci na plochu nenabízíme
+  const t = PWA_BANNER[guestLang] || PWA_BANNER['en'];
+  const stepsMap = isIOS ? MANUAL_INSTALL_IOS : MANUAL_INSTALL_ANDROID;
+  const steps = stepsMap[guestLang] || stepsMap['en'];
+  const reassure = isAndroid ? (INSTALL_REASSURE_ANDROID[guestLang] || INSTALL_REASSURE_ANDROID['en']) : '';
   const banner = document.getElementById('pwa-banner');
   const box = banner ? banner.querySelector('.pwa-banner-text') : null;
-  const btn = document.getElementById('pwa-install-btn');
-  if(box){
-    box.innerHTML = '<span style="display:block;font-size:12.5px;line-height:1.5">'+msg+'</span>';
-    if(btn) btn.style.display = 'none';
-    banner.classList.add('show');
-  } else {
-    try{ alert(msg); }catch(_){}
-  }
+  if(!banner || !box) return;
+  box.innerHTML = '<strong>'+t.title+'</strong>'
+    + '<span style="display:block;margin-top:3px;font-size:12px;line-height:1.5;opacity:.9">'+steps+'</span>'
+    + (reassure ? '<span style="display:block;margin-top:4px;font-size:11px;line-height:1.45;opacity:.6">'+reassure+'</span>' : '');
+  banner.classList.add('show');
 }
 
 // Texty instalačního banneru podle jazyka hosta
@@ -1157,20 +1143,6 @@ const PWA_BANNER = {
   pl:{title:'📱 Dodaj do ekranu głównego', sub:'Otwieraj konsjerża prosto z ikony', btn:'Dodaj', iosTitle:'📱 Dodaj do ekranu głównego (iOS)', iosSub:'Dotknij Udostępnij → Dodaj do ekranu głównego'},
   sk:{title:'📱 Pridať na plochu', sub:'Otvárajte concierge priamo z ikony', btn:'Pridať', iosTitle:'📱 Pridať na plochu (iOS)', iosSub:'Klepnite na Zdieľať → Pridať na plochu'},
 };
-function localizePwaBanner(ios){
-  const t = PWA_BANNER[guestLang] || PWA_BANNER['en'];
-  const btn = document.getElementById('pwa-install-btn');
-  const box = document.querySelector('#pwa-banner .pwa-banner-text');
-  if(btn) btn.textContent = t.btn;
-  if(box){
-    if(ios){
-      box.innerHTML = '<strong>'+t.iosTitle+'</strong><br><span style="font-size:11px;opacity:.8">'+t.iosSub+'</span>';
-    } else {
-      box.innerHTML = '<strong>'+t.title+'</strong> '+t.sub;
-    }
-  }
-}
-
 function dismissPwaBanner(){
   document.getElementById('pwa-banner').classList.remove('show');
   // Snooze: připomeň znovu za 3 dny (ne trvalé odmítnutí — kontrola je při každém spuštění)
@@ -1180,17 +1152,15 @@ function pwaShouldRemind(){
   return !isPwaInstalled() && Date.now() > (parseInt(localStorage.getItem('sg_pwa_snooze')||'0', 10));
 }
 
-// iOS Safari - manuální instrukce (iOS nepodporuje beforeinstallprompt)
-const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
-const isInStandalone = window.matchMedia('(display-mode: standalone)').matches;
-if(isIos && pwaShouldRemind()){
-  setTimeout(() => {
-    const banner = document.getElementById('pwa-banner');
-    localizePwaBanner(true);
-    banner.querySelector('#pwa-install-btn').style.display = 'none';
-    banner.classList.add('show');
-  }, 3000);
-}
+// Nabídni nenásilný návod „Přidat na plochu" — na mobilu (iOS i Android), až po chvíli,
+// ať si host nejdřív vyzkouší chat. Nezávislé na verzi prohlížeče, žádná nativní instalace.
+(function(){
+  const ua = navigator.userAgent || '';
+  const isMobile = /iphone|ipad|ipod|Android/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if(isMobile && pwaShouldRemind()){
+    setTimeout(showInstallGuide, 4000);
+  }
+})();
 
 // ══ INIT ══════════════════════════════════════
 loadHotel();
@@ -1201,7 +1171,6 @@ loadHotel();
     <strong>📱 Přidat na plochu</strong>
     Otevírejte concierge přímo z ikony
   </div>
-  <button class="pwa-btn" id="pwa-install-btn" onclick="installPwa()">Přidat</button>
   <button class="pwa-btn-dismiss" onclick="dismissPwaBanner()">✕</button>
 </div>
 
