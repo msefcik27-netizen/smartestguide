@@ -365,7 +365,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.21"
+APP_VERSION = "0.5.22"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -855,8 +855,8 @@ def apply_pricing_to_new_hotels():
     updated = []
     skipped = []
     for hotel_id, hotel in db["hotels"].items():
-        # Přeskočit hotely které již mají zaplacenou cenu
-        if hotel.get("subscription_price") and hotel.get("subscription_active"):
+        # Přeskočit hotely, které už mají zaplacenou cenu NEBO jsou označené jako zdarma
+        if (hotel.get("subscription_price") and hotel.get("subscription_active")) or hotel.get("is_free"):
             skipped.append(hotel.get("name", hotel_id))
             continue
         # Aplikovat novou cenu na ostatní
@@ -1280,6 +1280,7 @@ _PORTAL_PROTECTED = {
     "subscription_active", "subscription_start", "subscription_period_end",
     "subscription_paid_beds", "stripe_customer_id", "stripe_subscription_id",
     "acquired_by", "referral_code", "acquired_at", "trial_used", "trial_start",
+    "is_free",
 }
 
 @app.patch("/api/hotel-portal/update")
@@ -1471,6 +1472,22 @@ def update_hotel(hotel_id: str, data: HotelData):
     })
     db_save(db)
     return {"status": "ok", "hotel": db["hotels"][hotel_id]}
+
+@app.post("/api/hotels/{hotel_id}/free")
+def set_hotel_free(hotel_id: str, data: dict = Body(default={})):
+    """Označí/zruší hotel jako ZDARMA. Zdarma hotel má cenu 0 a přeskočí ho hromadné
+    přecenění (apply-to-new), takže se cena nemůže omylem překlopit na standardní ceník."""
+    db = db_load()
+    h = db["hotels"].get(hotel_id)
+    if not h:
+        raise HTTPException(404, "Hotel nenalezen")
+    is_free = bool(data.get("is_free"))
+    h["is_free"] = is_free
+    if is_free:
+        h["subscription_price"] = 0
+    h["updated_at"] = datetime.utcnow().isoformat()
+    db_save(db)
+    return {"status": "ok", "is_free": is_free}
 
 @app.delete("/api/hotels/{hotel_id}")
 def delete_hotel(hotel_id: str, request: Request, hard: bool = False):
