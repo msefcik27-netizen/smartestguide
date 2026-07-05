@@ -1342,6 +1342,8 @@ async function showQrPopup(id, name){
       const d=await r.json();
       if(!window._qrCache)window._qrCache={};
       window._qrCache[id]=d.qr_base64;
+      window._qrUrl=window._qrUrl||{};
+      window._qrUrl[id]=d.guest_url||'';
     }catch(e){toast('QR nelze načíst','err');return;}
   }
   const b64=window._qrCache[id];
@@ -1365,6 +1367,19 @@ async function showQrPopup(id, name){
         <button class="btn btn-secondary" onclick="document.getElementById('qr-modal').remove()">Zavřít</button>
       </div>
     </div>`;
+  // Doplň guest URL pod QR (+ kopírování) — dřív zůstával štítek prázdný
+  let _gu=(window._qrUrl||{})[id]||'';
+  if(!_gu){
+    try{
+      const r=await fetch(`${API}/api/hotels/${id}/qr`);
+      const d=await r.json();
+      _gu=d.guest_url||'';
+      window._qrUrl=window._qrUrl||{};
+      window._qrUrl[id]=_gu;
+    }catch(e){}
+  }
+  const _lbl=document.getElementById(`qr-url-label-${id}`);
+  if(_lbl&&_gu)_lbl.innerHTML=`${esc(_gu)}<br><button class="btn btn-secondary" style="margin-top:8px;padding:4px 12px;font-size:11px" onclick="navigator.clipboard.writeText('${esc(_gu)}').then(()=>toast('Odkaz zkopírován!'))">📋 Kopírovat odkaz</button>`;
 }
 
 async function downloadQr(id, name){
