@@ -1465,7 +1465,8 @@ async function loadMonthlyReport(){
       total:'Celkem dotazů', last:'Poslední chat', topics:'Nejčastější témata',
       flagged:'× Alex neměl dost informací — doplňte profil výše, ať hosté dostanou odpověď vždy.',
       profile:'% vyplněný profil — doplnění zvýší kvalitu odpovědí.',
-      empty:'Zatím žádná aktivita tento měsíc. Souhrn se objeví po prvních dotazech hostů.'
+      empty:'Zatím žádná aktivita tento měsíc. Souhrn se objeví po prvních dotazech hostů.',
+      visitors:'hostů si otevřelo průvodce', totalVisits:'Otevření průvodce celkem'
     } : {
       title:'Overview & stats', desc:'How Alex served your guests',
       conv:'guest conversations', trendPrefix:'vs. last month',
@@ -1473,7 +1474,8 @@ async function loadMonthlyReport(){
       total:'Total questions', last:'Last chat', topics:'Top topics',
       flagged:'× Alex lacked enough info — complete your profile above so guests always get an answer.',
       profile:'% profile complete — filling the gaps improves answers.',
-      empty:'No activity yet this month. The summary appears after your first guest questions.'
+      empty:'No activity yet this month. The summary appears after your first guest questions.',
+      visitors:'guests opened the guide', totalVisits:'Total guide opens'
     };
     const TOPIC_LABELS = { checkin:'Check-in/out', checkout:'Check-in/out', breakfast:'Snídaně', parking:'Parkování', wellness:'Wellness/Spa', restaurant:'Restaurace', weather:'Počasí', nearby:'Okolí', contact:'Kontakt' };
     const topics = Object.entries(a.topics||{}).sort((x,y)=>y[1]-x[1]).slice(0,6);
@@ -1482,7 +1484,9 @@ async function loadMonthlyReport(){
       return `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span>${TOPIC_LABELS[k]||k}</span><span style="color:var(--accent2);font-weight:600">${v}x</span></div><div style="background:var(--border);border-radius:4px;height:6px"><div style="background:var(--accent);border-radius:4px;height:6px;width:${pct}%"></div></div></div>`;
     }).join('');
     const lastChat = a.last_chat ? new Date(a.last_chat).toLocaleDateString(cs?'cs-CZ':'en-GB') : '–';
-    const allTimeHtml = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0">
+    const totalVisits = d.total_visits||0;
+    const allTimeHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:14px 0">
+      ${totalVisits?`<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:32px;font-weight:700;color:var(--accent2)">${totalVisits}</div><div style="font-size:12px;color:var(--muted)">${L.totalVisits}</div></div>`:''}
       <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:32px;font-weight:700;color:var(--accent)">${a.total||0}</div><div style="font-size:12px;color:var(--muted)">${L.total}</div></div>
       <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:18px;font-weight:700;color:var(--accent2)">${lastChat}</div><div style="font-size:12px;color:var(--muted)">${L.last}</div></div>
     </div>${topics.length?`<div style="font-size:12px;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">${L.topics}</div>${topicHtml}`:''}`;
@@ -1509,6 +1513,7 @@ async function loadMonthlyReport(){
           <div style="font-size:44px;font-weight:800;color:#ff8a3d;line-height:1">${rep.count}</div>
           <div style="font-size:13px;opacity:.85;margin-top:2px">${L.conv}${rep.month_label?` · ${rep.month_label}`:''}</div>
           ${trendHtml}
+          ${(rep.visitors>0)?`<div style="font-size:13px;opacity:.85;margin-top:6px">👀 <strong>${rep.visitors}</strong> ${L.visitors}</div>`:''}
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px">
@@ -1530,8 +1535,14 @@ async function loadMonthlyReport(){
         </div>
         ${flaggedHtml}
         ${profileHtml}
+        ` : ((cur.visitors||0)>0 ? `
+        <div style="background:linear-gradient(135deg,#1a1a1a,#2a2a2a);color:#fff;border-radius:12px;padding:22px;text-align:center;margin-bottom:14px">
+          <div style="font-size:44px;font-weight:800;color:#ff8a3d;line-height:1">${cur.visitors}</div>
+          <div style="font-size:13px;opacity:.85;margin-top:2px">${L.visitors} · ${(L.thisMonth||'').toLowerCase()}</div>
+        </div>
+        ${profileHtml}
         ` : `
-        <div style="text-align:center;padding:20px 10px;color:var(--muted);font-size:13px">📈 ${L.empty}</div>`)}
+        <div style="text-align:center;padding:20px 10px;color:var(--muted);font-size:13px">📈 ${L.empty}</div>`))}
         ${allTimeHtml}
       </div>`;
   }catch(e){}
