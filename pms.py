@@ -25,7 +25,9 @@ class Stay:
     room: str                       # číslo/název pokoje (unit name)
     guest_name: str = ""            # jméno primárního hosta
     arrival: str = ""               # ISO datum příjezdu (YYYY-MM-DD)
+    arrival_time: str = ""          # čas příjezdu z rezervace (HH:MM), "" = neznámo
     departure: str = ""             # ISO datum odjezdu (YYYY-MM-DD)
+    departure_time: str = ""        # čas check-outu z rezervace (HH:MM), "" = neznámo
     nights: int = 0
     adults: int = 0
     children: int = 0
@@ -43,8 +45,9 @@ def format_stay_block(stay: "Stay") -> str:
         f"- Pokoj: {stay.room}",
     ]
     if stay.guest_name: lines.append(f"- Host: {stay.guest_name}")
-    if stay.arrival:    lines.append(f"- Příjezd: {stay.arrival}")
-    if stay.departure:  lines.append(f"- Odjezd (check-out): {stay.departure}")
+    if stay.arrival:    lines.append(f"- Příjezd: {stay.arrival}" + (f" od {stay.arrival_time}" if stay.arrival_time else ""))
+    if stay.departure:  lines.append(f"- Odjezd (check-out): {stay.departure}" + (f" v {stay.departure_time}" if stay.departure_time else ""))
+    lines.append("DŮLEŽITÉ: Časy z této rezervace mají PŘEDNOST před obecnými časy hotelu (check-in/check-out v profilu). Hostovi vždy říkej čas z jeho rezervace.")
     if stay.nights:     lines.append(f"- Počet nocí: {stay.nights}")
     if stay.adults or stay.children:
         lines.append(f"- Osoby: {stay.adults} dosp." + (f" + {stay.children} děti" if stay.children else ""))
@@ -102,8 +105,13 @@ def _apaleo_normalize(res: dict) -> Stay:
     name = " ".join(x for x in (guest.get("firstName"), guest.get("lastName")) if x)
     bal = res.get("balance") or {}
     balance = f'{bal.get("amount")} {bal.get("currency")}' if bal.get("amount") is not None else ""
-    arrival = (res.get("arrival") or "")[:10]
-    departure = (res.get("departure") or "")[:10]
+    arrival_raw = res.get("arrival") or ""
+    departure_raw = res.get("departure") or ""
+    arrival = arrival_raw[:10]
+    departure = departure_raw[:10]
+    # ISO "2026-07-08T10:00:00+02:00" → "10:00" (lokální čas property, jak ho vrací PMS)
+    arrival_time = arrival_raw[11:16] if len(arrival_raw) >= 16 else ""
+    departure_time = departure_raw[11:16] if len(departure_raw) >= 16 else ""
     nights = 0
     try:
         from datetime import date
@@ -115,7 +123,9 @@ def _apaleo_normalize(res: dict) -> Stay:
         room=(res.get("unit") or {}).get("name", ""),
         guest_name=name,
         arrival=arrival,
+        arrival_time=arrival_time,
         departure=departure,
+        departure_time=departure_time,
         nights=nights,
         adults=res.get("adults") or 0,
         children=len(res.get("childrenAges") or []),
