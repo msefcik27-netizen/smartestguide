@@ -286,7 +286,7 @@
         </div>
       </div>
       <div class="card">
-        <div class="table-wrap"><table><thead><tr><th>Název / URL</th><th>Lůžka / Cena</th><th>Stav / předplatné</th><th>Akce</th></tr></thead><tbody id="hotels-tbody"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Název / URL</th><th>Lůžka</th><th>Cena</th><th>Stav / předplatné</th><th>Akce</th></tr></thead><tbody id="hotels-tbody"></tbody></table></div>
       </div>
     </div>
 
@@ -933,7 +933,7 @@ function resetHotelFilter(){
 function renderHotelsTable(){
   const tb=document.getElementById('hotels-tbody');
   const cnt=document.getElementById('hotel-count');
-  if(!all_hotels.length){tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px">Žádné hotely. <a href="#" onclick="showPage(\'scrape\')" style="color:var(--accent)">Přidej první →</a></td></tr>';if(cnt)cnt.textContent='';return;}
+  if(!all_hotels.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">Žádné hotely. <a href="#" onclick="showPage(\'scrape\')" style="color:var(--accent)">Přidej první →</a></td></tr>';if(cnt)cnt.textContent='';return;}
   const rows=getFilteredHotels();
   if(cnt)cnt.textContent=`Zobrazeno ${rows.length} z ${all_hotels.length}`;
   if(!rows.length){tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px">Žádný hotel neodpovídá filtru.</td></tr>';return;}
@@ -956,16 +956,20 @@ function renderHotelsTable(){
         <span style="font-size:10px;color:var(--muted)">${continentHtml(h)}</span>
       </div>
     </td>
-    <!-- LŮŽKA + CENA + COMPLETENESS -->
-    <td style="padding:10px 8px;min-width:100px;white-space:nowrap">
-      <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px">
+    <!-- LŮŽKA + COMPLETENESS -->
+    <td style="padding:10px 8px;min-width:80px;white-space:nowrap">
+      <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
         <span style="font-weight:700;font-size:15px">${h.bed_count||'–'}</span>
         <span style="font-size:10px;color:var(--muted)">lůžek</span>
         ${h.bed_count_warning ? `<span title="Scraping našel ${h.scraped_bed_count} lůžek, ale hotel uvedl ${h.registered_bed_count} (rozdíl ${h.bed_count_diff_pct}%)" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;background:#ff9500;color:#fff;border-radius:50%;font-size:9px;font-weight:700;cursor:help">!</span>` : ''}
       </div>
-      <div style="font-weight:700;font-size:14px;color:var(--accent2);margin-bottom:2px">${priceHtml(h)}</div>
-      <div style="margin-bottom:3px"><button onclick="toggleFree('${h.id}',${!h.is_free})" style="padding:2px 8px;font-size:9px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer" title="Přepnout zdarma / placené">${h.is_free?'× zrušit zdarma':'+ zdarma'}</button></div>
       <span id="comp-${h.id}" style="font-size:10px;color:var(--muted)">⏳</span>
+    </td>
+    <!-- CENA + ZDARMA -->
+    <td style="padding:10px 8px;min-width:100px;white-space:nowrap">
+      <div style="font-weight:800;font-size:16px;line-height:1;margin-bottom:5px;${h.is_free?'color:var(--muted);text-decoration:line-through':'color:var(--accent2)'}">${calcPriceNum(h.bed_count||0)} €${h.is_free?'':'<span style="font-size:9px;font-weight:400;color:var(--muted)">/měs</span>'}</div>
+      ${h.is_free ? '<div style="margin-bottom:6px"><span class="badge badge-green" style="font-size:10px;padding:2px 9px">ZDARMA</span></div>' : ''}
+      <button onclick="toggleFree('${h.id}',${!h.is_free})" style="padding:3px 9px;font-size:9px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer" title="Přepnout zdarma / placené">${h.is_free?'× zrušit zdarma':'+ zdarma'}</button>
     </td>
     <!-- STAV + ORIGIN -->
     <td style="padding:10px 8px;min-width:110px">

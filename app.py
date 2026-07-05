@@ -365,7 +365,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.24"
+APP_VERSION = "0.5.25"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -4298,7 +4298,8 @@ INSTRUKCE K MÍSTŮM: Pokud host žádá tipy na okolí, doporučuj turistická 
 Guest name: {req.guest_name or 'Guest'}"""
 
     messages = []
-    for m in (req.history or []):
+    # Omez historii na posledních 10 zpráv (~5 výměn) — starší kontext jen zbytečně žere vstupní tokeny
+    for m in (req.history or [])[-10:]:
         if isinstance(m, dict) and m.get("role") in ("user", "assistant"):
             messages.append({"role": m["role"], "content": m["content"]})
     messages.append({"role": "user", "content": req.message})
@@ -4307,7 +4308,14 @@ Guest name: {req.guest_name or 'Guest'}"""
         r = await client.post(
             "https://api.anthropic.com/v1/messages",
             headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-            json={"model": "claude-haiku-4-5-20251001", "max_tokens": 500, "system": hotel_info, "messages": messages},
+            json={
+                "model": "claude-haiku-4-5-20251001", "max_tokens": 500,
+                # Prompt caching: statický profil hotelu (system) se kešuje → další zprávy v téže
+                # konverzaci čtou tenhle vstup levněji. Kešování naskočí, když prefix dosáhne minima
+                # (~1–2k tokenů); u bohatšího profilu ušetří nejvíc. Bez benefitu to neškodí.
+                "system": [{"type": "text", "text": hotel_info, "cache_control": {"type": "ephemeral"}}],
+                "messages": messages,
+            },
             timeout=30.0,
         )
     if r.status_code != 200:
