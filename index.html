@@ -1107,6 +1107,15 @@ function resetHotelFilter(){
   ['hotel-search','hotel-status','hotel-sort'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   renderHotelsTable();
 }
+// PMS badge — obecné pro libovolný systém (Apaleo, Mews, …) dle h.pms_type
+function pmsHtml(h){
+  if(!h.pms_type) return '<span style="font-size:10px;color:var(--muted)" title="Hotel nemá připojený hotelový systém (PMS)">🔌 PMS: –</span>';
+  const name = h.pms_type.charAt(0).toUpperCase()+h.pms_type.slice(1);
+  const prop = h.pms_property_id ? ' · '+esc(h.pms_property_id) : '';
+  const warn = h.pms_property_id ? '' : ' <span style="color:var(--warn)" title="Hotel ještě nezadal kód property">⚠</span>';
+  return `<span class="badge badge-green" style="font-size:10px;padding:2px 8px" title="Připojený hotelový systém — Alex čte rezervace">🔌 ${name}${prop}</span>${warn}`;
+}
+
 function renderHotelsTable(){
   const tb=document.getElementById('hotels-tbody');
   const cnt=document.getElementById('hotel-count');
@@ -1154,6 +1163,7 @@ function renderHotelsTable(){
       ${h.subscription_cancel_requested?'<span style="display:block;margin-top:2px;font-size:10px;color:var(--warn)">⏳ Zrušení naplánováno</span>':''}
       ${trialHtml}
       <div style="margin-top:4px;font-size:10px;color:${h.origin==='automatic'?'var(--accent2)':'var(--muted)'}">${h.origin==='automatic'?'🤖 Auto':'✋ Ruční'}</div>
+      <div style="margin-top:4px">${pmsHtml(h)}</div>
     </td>
     <!-- AKCE — 4×2 grid -->
     <td style="padding:8px;min-width:440px">
@@ -1474,7 +1484,7 @@ function openEdit(id){
         </select>
         <input type="text" id="ef-pms_property_id" value="${esc(h.pms_property_id||'')}" placeholder="Property kód (např. BER)" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:8px 10px;outline:none">
         <input type="text" id="ef-pms_client_id" value="${esc(h.pms_client_id||'')}" placeholder="Client ID" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:8px 10px;outline:none">
-        <input type="password" id="ef-pms_client_secret" value="" placeholder="${h.pms_client_secret?'••••••• (uloženo — vyplňte jen při změně)':'Client Secret'}" autocomplete="new-password" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:8px 10px;outline:none">
+        <input type="password" id="ef-pms_client_secret" value="" placeholder="${(h.pms_client_secret_set||h.pms_client_secret)?'••••••• (uloženo — vyplňte jen při změně)':'Client Secret'}" autocomplete="new-password" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:8px 10px;outline:none">
       </div>
     </div>
 

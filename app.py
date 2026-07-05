@@ -1485,11 +1485,20 @@ def generate_token(hotel_id: str, request: Request):
     base = get_base_url(request)
     return {"status": "ok", "token": token, "portal_url": f"{base}/portal?token={token}"}
 
+def _admin_safe_hotel(h: dict) -> dict:
+    """Kopie hotelu bez PMS credentials — refresh tokeny nepatří ani do admin API.
+    Místo hodnot vrací jen příznak, že secret existuje (pro placeholder v admin editu)."""
+    out = dict(h)
+    out["pms_client_secret_set"] = bool(h.get("pms_client_secret"))
+    for k in ("pms_refresh_token", "pms_oauth_state", "pms_oauth_state_at", "pms_client_secret"):
+        out.pop(k, None)
+    return out
+
 @app.get("/api/hotels")
 def list_hotels():
     db = db_load()
     hotels = sorted(db["hotels"].values(), key=lambda h: h.get("created_at", ""), reverse=True)
-    return {"status": "ok", "hotels": hotels}
+    return {"status": "ok", "hotels": [_admin_safe_hotel(h) for h in hotels]}
 
 @app.get("/api/hotels/{hotel_id}")
 def get_hotel(hotel_id: str):
@@ -1497,7 +1506,7 @@ def get_hotel(hotel_id: str):
     h = db["hotels"].get(hotel_id)
     if not h:
         raise HTTPException(404, "Hotel nenalezen")
-    return {"status": "ok", "hotel": h}
+    return {"status": "ok", "hotel": _admin_safe_hotel(h)}
 
 @app.patch("/api/hotels/{hotel_id}")
 def update_hotel(hotel_id: str, data: HotelData):
@@ -4558,7 +4567,8 @@ def apaleo_connect(token: str, request: Request):
     redirect_uri = f"{get_base_url(request)}/api/pms/apaleo/callback"
     from urllib.parse import urlencode
     q = urlencode({"response_type": "code", "client_id": client_id,
-                   "redirect_uri": redirect_uri, "scope": _APALEO_SCOPES, "state": state})
+                   "redirect_uri": redirect_uri, "scope": _APALEO_SCOPES, "state": state,
+                   "prompt": "consent"})  # vynutí consent obrazovku i při opakovaném připojení
     return RedirectResponse(f"{_APALEO_AUTHORIZE_URL}?{q}")
 
 @app.get("/api/pms/apaleo/callback")
