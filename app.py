@@ -4205,6 +4205,12 @@ def serve_landing():
     with open(html_path, "r", encoding="utf-8") as f:
         return _staging_banner(f.read())
 
+@app.get("/apaleo", response_class=HTMLResponse)
+def serve_apaleo_landing():
+    html_path = os.path.join(os.path.dirname(__file__), "apaleo.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        return _staging_banner(f.read())
+
 @app.get("/admin", response_class=HTMLResponse)
 def serve_frontend():
     html_path = os.path.join(os.path.dirname(__file__), "index.html")
