@@ -365,7 +365,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.22"
+APP_VERSION = "0.5.24"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -910,8 +910,12 @@ def delete_api_key(request: Request):
 # Scraping
 # ─────────────────────────────────────────────
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "cs,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
 }
 SUBPAGE_HINTS = [
     "/contact", "/kontakt", "/about", "/o-nas",
@@ -943,9 +947,12 @@ def extract_text(html: str, max_chars: int = 4000) -> str:
 
 async def fetch_page(client, url: str) -> Optional[str]:
     try:
-        r = await client.get(url, timeout=12.0, follow_redirects=True)
-        ct = r.headers.get("content-type", "")
-        if r.status_code == 200 and "text/html" in ct:
+        r = await client.get(url, timeout=20.0, follow_redirects=True)
+        ct = r.headers.get("content-type", "").lower()
+        head = (r.text or "")[:2000].lower()
+        # Tolerantnější: přijmi i weby bez přesného text/html v content-type,
+        # pokud tělo vypadá jako HTML dokument.
+        if r.status_code == 200 and ("html" in ct or "<html" in head or "<!doctype html" in head):
             return r.text
     except Exception:
         pass
@@ -955,13 +962,26 @@ async def scrape_hotel_data(url: str, api_key: str) -> dict:
     if not url.startswith("http"):
         url = "https://" + url
 
-    parsed = urlparse(url)
-    base = f"{parsed.scheme}://{parsed.netloc}"
-
-    async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
-        main_html = await fetch_page(client, url)
+    async with httpx.AsyncClient(headers=HEADERS, timeout=20.0, follow_redirects=True) as client:
+        # Zkus víc variant hlavní stránky — přehození www a http fallback (některé weby
+        # jednu variantu blokují nebo přesměrovávají jinam).
+        _p = urlparse(url)
+        _alt = _p.netloc[4:] if _p.netloc.startswith("www.") else "www." + _p.netloc
+        candidates = [url, f"{_p.scheme}://{_alt}{_p.path or ''}", f"http://{_p.netloc}{_p.path or ''}"]
+        seen, main_html = set(), None
+        for cu in candidates:
+            if cu in seen:
+                continue
+            seen.add(cu)
+            main_html = await fetch_page(client, cu)
+            if main_html:
+                url = cu
+                break
         if not main_html:
-            raise ValueError(f"Nepodařilo se stáhnout {url} – web možná blokuje boty nebo je nedostupný")
+            raise ValueError(f"Nepodařilo se stáhnout {url} – web možná blokuje boty, běží jen v JavaScriptu, nebo je nedostupný")
+
+        parsed = urlparse(url)
+        base = f"{parsed.scheme}://{parsed.netloc}"
 
         # Hlavní stránka – max 4000 znaků
         main_text = extract_text(main_html, 4000)
@@ -2370,6 +2390,18 @@ class RegistrationRequest(BaseModel):
     billing_name: Optional[str] = None   # právní/fakturační název
     ref: Optional[str] = None            # referral kód partnera (atribuce provize)
 
+def _norm_ico(x: str) -> str:
+    """IČO na porovnání — jen číslice."""
+    return re.sub(r'\D', '', x or '')
+
+def _norm_domain(url: str) -> str:
+    """Doména webu na porovnání — bez schématu, www a cesty, malými písmeny."""
+    u = (url or '').strip().lower()
+    u = re.sub(r'^https?://', '', u)
+    u = re.sub(r'^www\.', '', u)
+    u = u.split('/')[0].split('?')[0].strip()
+    return u
+
 @app.post("/api/register")
 async def register_hotel(req: RegistrationRequest, request: Request):
     """
@@ -2458,12 +2490,20 @@ async def register_hotel(req: RegistrationRequest, request: Request):
     base = get_base_url(request)
     try:
         async with httpx.AsyncClient() as client:
-            # Zkontroluj jestli email již trial využil (ochrana proti opakovanému trialu).
-            # Reuse už načtené `db` — žádný další round-trip do databáze (rychlejší checkout).
+            # Ochrana proti opakovanému trialu — dedup podle E-MAILU, IČO i DOMÉNY webu.
+            # Když už kdokoli s touhle identitou trial využil (i archivovaný hotel), další
+            # trial nedáme — Stripe rovnou účtuje. Zabrání to opakování s jiným e-mailem.
             contact_email_lower = req.contact_email.lower().strip()
+            req_ico = _norm_ico(req.ico)
+            req_domain = _norm_domain(req.hotel_url)
+            def _same_identity(h):
+                if (h.get("email") or "").lower().strip() == contact_email_lower: return True
+                if (h.get("registration_email") or "").lower().strip() == contact_email_lower: return True
+                if req_ico and _norm_ico(h.get("ico")) == req_ico: return True
+                if req_domain and _norm_domain(h.get("url") or h.get("source_url")) == req_domain: return True
+                return False
             trial_already_used = any(
-                (h.get("registration_email") or "").lower().strip() == contact_email_lower and
-                h.get("trial_used", False)
+                h.get("trial_used", False) and _same_identity(h)
                 for h in db["hotels"].values()
             )
 
