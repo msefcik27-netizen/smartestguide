@@ -1791,7 +1791,7 @@ body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height
       <div class="fmt-preview" onclick="openFormat('rollup')">
         <div style="width:65px;height:156px;background:#1a1a1a;border:1px solid rgba(255,107,0,.3);border-radius:6px;padding:8px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:7px;color:#FF6B00;line-height:1.2">Your<br>personal<br>AI<br>concierge</div>
-          <div style="font-size:7px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 16 LANG</div>
+          <div style="font-size:7px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 100+ LANG</div>
           <div id="qr-rollup" style="width:44px;height:44px"></div>
           <div style="font-size:6px;color:#00d4aa">smartestguide.com</div>
         </div>
@@ -1807,7 +1807,7 @@ body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height
       <div class="fmt-preview" onclick="openFormat('{flyer_primary_url}')">
         <div style="width:110px;min-height:155px;background:#1a1a1a;border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#FF6B00;line-height:1.2">{'Váš osobní<br>AI concierge' if is_cs else 'Your personal<br>AI concierge'}</div>
-          <div style="font-size:8px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 16 LANGUAGES</div>
+          <div style="font-size:8px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 100+ LANGUAGES</div>
           <div id="qr-a4-primary" style="width:70px;height:70px"></div>
           <div style="font-size:7px;color:#00d4aa">smartestguide.com</div>
         </div>
@@ -1822,7 +1822,7 @@ body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height
       <div class="fmt-preview" onclick="openFormat('{flyer_secondary_url}')">
         <div style="width:110px;min-height:155px;background:#1a1a1a;border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#FF6B00;line-height:1.2">{'Your personal<br>AI concierge' if is_cs else 'Váš osobní<br>AI concierge'}</div>
-          <div style="font-size:8px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 16 LANGUAGES</div>
+          <div style="font-size:8px;color:#00d4aa;font-weight:600;letter-spacing:.05em">🌍 100+ LANGUAGES</div>
           <div id="qr-a4-secondary" style="width:70px;height:70px"></div>
           <div style="font-size:7px;color:#00d4aa">smartestguide.com</div>
         </div>
@@ -1850,7 +1850,7 @@ body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height
       <div class="fmt-preview" onclick="openFormat('flyer-a5-en')">
         <div style="width:130px;height:92px;background:#1a1a1a;border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#FF6B00;line-height:1.2">Your AI concierge</div>
-          <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 16 LANGUAGES</div>
+          <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 100+ LANGUAGES</div>
           <div id="qr-a5-primary" style="width:50px;height:50px"></div>
         </div>
       </div>
@@ -1864,7 +1864,7 @@ body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height
       <div class="fmt-preview" onclick="openFormat('flyer-a5-local')">
         <div style="width:130px;height:92px;background:#1a1a1a;border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:9px;color:#FF6B00;line-height:1.2">AI concierge</div>
-          <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 16 LANGUAGES</div>
+          <div style="font-size:8px;color:#00d4aa;font-weight:600">🌍 100+ LANGUAGES</div>
           <div id="qr-a5-secondary" style="width:50px;height:50px"></div>
         </div>
       </div>
@@ -1974,7 +1974,7 @@ def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark") -> s
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:50%;background:{c_badge};border:3px solid #FF6B00;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:30px;color:#FF6B00;box-shadow:0 0 22px rgba(255,107,0,.5)">SG</div>
     </div>
     <div style="margin-top:30px;font-family:'Syne',sans-serif;font-weight:700;font-size:24px;color:{c_ink};text-align:center">Scan for your personal AI concierge</div>
-    <div style="margin-top:10px;font-size:15px;color:{c_dim}">16 languages · No app needed · 24/7</div>
+    <div style="margin-top:10px;font-size:15px;color:{c_dim}">100+ languages · No app needed · 24/7</div>
     <div style="flex:1"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,170,.5),transparent)"></div>
     <div style="margin-top:18px;font-size:14px;font-weight:600;color:{c_teal}">smartestguide.com</div>
@@ -2131,6 +2131,24 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
         features = ["Śniadanie & restauracja", "Lokalne wskazówki & ukryte miejsca", "Pogoda & transport", "Usługi hotelowe & WiFi", "Dostępny 24/7"]
         scan_text = "Zeskanuj mnie"
         no_app = "Bez instalacji aplikacji"
+    elif lang == "hu":
+        headline = "Az Ön személyes<br>AI concierge-e"
+        subline = f'Hagyja, hogy <span style="color:#FF6B00;font-weight:600">Alex</span> azonnal válaszoljon minden kérdésére — az Ön nyelvén, 24/7.'
+        features = ["Reggeli és étterem", "Helyi tippek és rejtett helyek", "Időjárás és közlekedés", "Szállodai szolgáltatások és WiFi", "Elérhető 24/7"]
+        scan_text = "Szkenneljen be"
+        no_app = "Nincs szükség alkalmazásra"
+    elif lang == "ru":
+        headline = "Ваш персональный<br>AI-консьерж"
+        subline = f'<span style="color:#FF6B00;font-weight:600">Алекс</span> ответит на все ваши вопросы — мгновенно, на вашем языке, 24/7.'
+        features = ["Завтрак и ресторан", "Местные советы и скрытые места", "Погода и транспорт", "Услуги отеля и WiFi", "Доступен 24/7"]
+        scan_text = "Отсканируйте меня"
+        no_app = "Без установки приложения"
+    elif lang == "uk":
+        headline = "Ваш персональний<br>AI-консьєрж"
+        subline = f'<span style="color:#FF6B00;font-weight:600">Алекс</span> відповість на всі ваші запитання — миттєво, вашою мовою, 24/7.'
+        features = ["Сніданок і ресторан", "Місцеві поради та приховані місця", "Погода і транспорт", "Послуги готелю та WiFi", "Доступний 24/7"]
+        scan_text = "Відскануйте мене"
+        no_app = "Без встановлення додатку"
     else:
         headline = "Your personal<br>AI concierge"
         subline = f'Let <span style="color:#FF6B00;font-weight:600">Alex</span> answer all your questions — instantly, in your language, 24/7.'
@@ -2167,7 +2185,7 @@ body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;background:{c_badge_bg};border:2px solid {c_orange};display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:{c_orange}">SG</div>
     </div>
     <div style="margin-top:20px;font-family:'Syne',sans-serif;font-weight:700;font-size:20px;color:{c_ink}">{scan_text}</div>
-    <div style="margin-top:6px;font-size:14px;color:{c_dim}">{no_app} · 16 languages · 24/7</div>
+    <div style="margin-top:6px;font-size:14px;color:{c_dim}">{no_app} · 100+ languages · 24/7</div>
     <div style="flex:1;min-height:32px"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,{c_teal},transparent);margin-top:32px;opacity:.5"></div>
     <div style="margin-top:14px;font-size:13px;font-weight:600;color:{c_teal}">smartestguide.com</div>
@@ -2221,7 +2239,7 @@ body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:3
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:42px;height:42px;border-radius:50%;background:{c_badge};border:2px solid #FF6B00;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:#FF6B00">SG</div>
     </div>
     <div style="margin-top:18px;font-family:'Syne',sans-serif;font-weight:700;font-size:18px;color:{c_ink}">Scan me</div>
-    <div style="margin-top:5px;font-size:13px;color:{c_dim}">16 languages · No app needed · 24/7</div>
+    <div style="margin-top:5px;font-size:13px;color:{c_dim}">100+ languages · No app needed · 24/7</div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,170,.4),transparent);margin-top:32px"></div>
     <div style="margin-top:12px;font-size:12px;font-weight:600;color:{c_teal}">smartestguide.com</div>
   </div>
@@ -2329,7 +2347,7 @@ def rollup(hotel_id: str, request: Request, theme: str = "dark"):
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:50%;background:#1a1a1a;border:3px solid #FF6B00;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:30px;color:#FF6B00;box-shadow:0 0 22px rgba(255,107,0,.5)">SG</div>
     </div>
     <div style="margin-top:30px;font-family:'Syne',sans-serif;font-weight:700;font-size:24px;color:#f0ece0;text-align:center">Scan for your personal AI concierge</div>
-    <div style="margin-top:10px;font-size:15px;color:#9ba0c0;letter-spacing:.02em">16 languages · No app needed · 24/7</div>
+    <div style="margin-top:10px;font-size:15px;color:#9ba0c0;letter-spacing:.02em">100+ languages · No app needed · 24/7</div>
     <div style="flex:1"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,170,.5),transparent)"></div>
     <div style="margin-top:18px;font-size:14px;font-weight:600;color:#00d4aa;letter-spacing:.04em">smartestguide.com</div>
@@ -2904,7 +2922,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
             "subject": f"Vítejte ve SMARTEST GUIDE – {hotel_name} je připraven!",
             "greeting": f"Vítejte, {hotel_name}!",
             "subtitle": "AI concierge pro váš hotel",
-            "intro": f"Váš hotel byl úspěšně zaregistrován a platba proběhla. Alex je připraven odpovídat hostům ve 16 jazycích 24 hodin denně.",
+            "intro": f"Váš hotel byl úspěšně zaregistrován a platba proběhla. Alex je připraven odpovídat hostům ve více než 100 jazycích 24 hodin denně.",
             "portal_btn_text": "Otevřít hotelový portál",
             "steps_title": "Co dělat jako první:",
             "steps": ["Přihlaste se do portálu a zkontrolujte informace o hotelu","Doplňte orientaci v hotelu (wellness, parkoviště, restaurace, bar)","Přidejte lokální tipy pro hosty","Stáhněte QR plakát k tisku (odkaz níže) a umístěte ho na recepci"],
@@ -2916,7 +2934,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
             "subject": f"Willkommen bei SMARTEST GUIDE - {hotel_name} ist bereit!",
             "greeting": f"Willkommen, {hotel_name}!",
             "subtitle": "KI-Concierge für Ihr Hotel",
-            "intro": f"Ihr Hotel wurde erfolgreich registriert und die Zahlung bestätigt. Alex ist bereit, Ihren Gästen in 16 Sprachen rund um die Uhr zu antworten.",
+            "intro": f"Ihr Hotel wurde erfolgreich registriert und die Zahlung bestätigt. Alex ist bereit, Ihren Gästen in über 100 Sprachen rund um die Uhr zu antworten.",
             "portal_btn_text": "Hotel-Portal öffnen",
             "steps_title": "Was zuerst tun:",
             "steps": ["Im Portal anmelden und Hotelinformationen überprüfen","Hotelnavigation hinzufügen (Wellness, Parkplatz, Restaurant, Bar)","Lokale Tipps für Gäste hinzufügen","QR-Poster herunterladen und an der Rezeption platzieren"],
@@ -2928,7 +2946,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
             "subject": f"Bienvenue sur SMARTEST GUIDE - {hotel_name} est prêt!",
             "greeting": f"Bienvenue, {hotel_name}!",
             "subtitle": "Concierge IA pour votre hôtel",
-            "intro": f"Votre hôtel a été enregistré avec succès et le paiement confirmé. Alex est prêt à répondre à vos clients en 16 langues, 24h/24.",
+            "intro": f"Votre hôtel a été enregistré avec succès et le paiement confirmé. Alex est prêt à répondre à vos clients en plus de 100 langues, 24h/24.",
             "portal_btn_text": "Ouvrir le portail hôtel",
             "steps_title": "Que faire en premier:",
             "steps": ["Se connecter au portail et vérifier les informations","Ajouter la navigation de l'hôtel (bien-être, parking, restaurant)","Ajouter des conseils locaux pour les clients","Télécharger l'affiche QR et la placer à la réception"],
@@ -2940,7 +2958,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
             "subject": f"Benvenuto su SMARTEST GUIDE - {hotel_name} è pronto!",
             "greeting": f"Benvenuto, {hotel_name}!",
             "subtitle": "Concierge IA per il vostro hotel",
-            "intro": f"Il vostro hotel è stato registrato con successo e il pagamento confermato. Alex è pronto a rispondere ai vostri ospiti in 16 lingue, 24/7.",
+            "intro": f"Il vostro hotel è stato registrato con successo e il pagamento confermato. Alex è pronto a rispondere ai vostri ospiti in oltre 100 lingue, 24/7.",
             "portal_btn_text": "Apri portale hotel",
             "steps_title": "Cosa fare prima:",
             "steps": ["Accedere al portale e verificare le informazioni","Aggiungere la navigazione dell'hotel (wellness, parcheggio, ristorante)","Aggiungere consigli locali per gli ospiti","Scaricare il poster QR e posizionarlo alla reception"],
@@ -2952,7 +2970,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
             "subject": f"Bienvenido a SMARTEST GUIDE - {hotel_name} está listo!",
             "greeting": f"Bienvenido, {hotel_name}!",
             "subtitle": "Concierge IA para su hotel",
-            "intro": f"Su hotel ha sido registrado con éxito y el pago confirmado. Alex está listo para responder a sus huéspedes en 16 idiomas, 24/7.",
+            "intro": f"Su hotel ha sido registrado con éxito y el pago confirmado. Alex está listo para responder a sus huéspedes en más de 100 idiomas, 24/7.",
             "portal_btn_text": "Abrir portal del hotel",
             "steps_title": "Qué hacer primero:",
             "steps": ["Iniciar sesión en el portal y revisar la información","Añadir navegación del hotel (spa, aparcamiento, restaurante)","Añadir consejos locales para los huéspedes","Descargar el cartel QR y colocarlo en recepción"],
@@ -2990,7 +3008,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
         subject = f"Welcome to SMARTEST GUIDE - {hotel_name} is ready!"
         greeting = f"Welcome, {hotel_name}!"
         subtitle = "AI Concierge for your hotel"
-        intro = f"Your hotel has been successfully registered and payment confirmed. Alex is ready to answer your guests in 16 languages, 24/7."
+        intro = f"Your hotel has been successfully registered and payment confirmed. Alex is ready to answer your guests in 100+ languages, 24/7."
         portal_btn_text = "Open hotel portal"
         steps_title = "What to do first:"
         steps = [
@@ -3204,7 +3222,7 @@ def build_monthly_report(hotel_id: str, month_key: str = None) -> dict:
         saved_label = "Odhadem ušetřeno recepci"
         saved_val = f"~{saved_h} h" if saved_h >= 1 else f"~{saved_min} min"
         cta = "Otevřít hotelový portál"
-        outro = "Alex odpovídá 24/7 ve 16 jazycích – bez zatížení recepce."
+        outro = "Alex odpovídá 24/7 ve více než 100 jazycích – bez zatížení recepce."
     else:
         subject = f"Monthly summary – {hotel_name} · {month_lbl}"
         trend_html = f'<p style="margin:2px 0 0;color:#16a34a;font-size:13px">{trend_en}</p>' if trend_en else ""
@@ -3224,7 +3242,7 @@ def build_monthly_report(hotel_id: str, month_key: str = None) -> dict:
         saved_label = "Estimated reception time saved"
         saved_val = f"~{saved_h} h" if saved_h >= 1 else f"~{saved_min} min"
         cta = "Open hotel portal"
-        outro = "Alex answers 24/7 in 16 languages — without burdening your reception."
+        outro = "Alex answers 24/7 in 100+ languages — without burdening your reception."
 
     html = f"""<!DOCTYPE html><html><body style="margin:0;background:#f5f5f5;font-family:Arial,Helvetica,sans-serif;color:#1a1a1a">
 <div style="max-width:560px;margin:0 auto;padding:24px">
@@ -4012,7 +4030,7 @@ def generate_flyer_pdf(hotel: dict, base_url: str) -> bytes:
         T2("Doporučení míst v okolí",          "Recommendations nearby"),
         T2("Aktuální počasí",                  "Current weather"),
         T2("Kontakt na recepci",               "Contact reception"),
-        T2("16 jazyků komunikace",             "16 languages available"),
+        T2("100+ jazyků komunikace",             "100+ languages available"),
     ]
 
     buf = BytesIO()
@@ -4542,19 +4560,20 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
     """Návrat z Apaleo: výměna kódu za tokeny, uložení k hotelu dle state."""
     def _page(title, body, ok=True):
         color = "#2ecc87" if ok else "#ff4f6a"
-        return HTMLResponse(f"""<!DOCTYPE html><html lang="cs"><head><meta charset="utf-8">
+        return HTMLResponse(f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title></head>
 <body style="font-family:sans-serif;background:#15161a;color:#e6e4df;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0">
-<div style="max-width:440px;padding:36px;text-align:center;background:#1e1f25;border-radius:16px">
+<div style="max-width:460px;padding:36px;text-align:center;background:#1e1f25;border-radius:16px">
+<div style="font-weight:800;font-size:15px;letter-spacing:.02em;margin-bottom:18px">SMARTEST GUIDE<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#FF6B00;margin-left:3px"></span></div>
 <div style="font-size:40px;margin-bottom:12px">{"✅" if ok else "⚠️"}</div>
 <h2 style="color:{color};margin:0 0 10px">{title}</h2>
 <p style="line-height:1.6;color:#a9adc1">{body}</p>
-<p style="margin-top:22px;font-size:13px;color:#6b6f8e">Toto okno můžete zavřít a vrátit se do portálu.</p>
+<p style="margin-top:22px;font-size:13px;color:#6b6f8e">You can close this window and return to your SMARTEST GUIDE portal.</p>
 </div></body></html>""")
     if error:
-        return _page("Připojení se nezdařilo", f"Apaleo vrátilo chybu: {error}. Zkuste to prosím znovu z portálu.", ok=False)
+        return _page("Connection failed", f"Apaleo returned an error: {error}. Please start the connection again from your portal.", ok=False)
     if not (code and state):
-        return _page("Neplatný požadavek", "Chybí kód nebo state. Spusťte připojení znovu z portálu.", ok=False)
+        return _page("Invalid request", "Missing authorization code or state. Please start the connection again from your portal.", ok=False)
     # Najdi hotel podle state (a zkontroluj stáří)
     db = db_load()
     hid, h = None, None
@@ -4563,11 +4582,11 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
             hid, h = _id, _h
             break
     if not h:
-        return _page("Neplatný state", "Bezpečnostní kontrola nevyšla. Spusťte připojení znovu z portálu.", ok=False)
+        return _page("Invalid state", "Security check failed. Please start the connection again from your portal.", ok=False)
     try:
         started = datetime.fromisoformat(h.get("pms_oauth_state_at", "2000-01-01"))
         if (datetime.utcnow() - started).total_seconds() > 900:
-            return _page("Vypršel čas", "Připojení trvalo příliš dlouho. Spusťte ho prosím znovu z portálu.", ok=False)
+            return _page("Session expired", "The connection took too long. Please start again from your portal.", ok=False)
     except Exception:
         pass
     s = db_get_settings()
@@ -4581,11 +4600,11 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
             data={"grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri})
     if r.status_code != 200:
         logging.warning("Apaleo callback token exchange selhal: %s %s", r.status_code, r.text[:200])
-        return _page("Výměna tokenu selhala", "Apaleo nepřijalo autorizační kód. Zkuste to znovu, případně kontaktujte podporu.", ok=False)
+        return _page("Token exchange failed", "Apaleo did not accept the authorization code. Please try again, or contact support@smartestguide.com.", ok=False)
     tok = r.json()
     refresh_token = tok.get("refresh_token", "")
     if not refresh_token:
-        return _page("Chybí refresh token", "Apaleo nevrátilo trvalý přístup (offline_access). Zkontrolujte nastavení Connect aplikace.", ok=False)
+        return _page("Missing refresh token", "Apaleo did not grant offline access. Please contact support@smartestguide.com.", ok=False)
     db["hotels"][hid]["pms_type"] = "apaleo"
     db["hotels"][hid]["pms_refresh_token"] = refresh_token
     db["hotels"][hid].pop("pms_oauth_state", None)
@@ -4593,9 +4612,25 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
     db_save(db)
     prop_note = ""
     if not h.get("pms_property_id"):
-        prop_note = " Zbývá doplnit kód property (např. BER) — v portálu v sekci PMS, nebo vám ho nastavíme my."
+        prop_note = " One last step: enter your property code (e.g. BER) in the PMS section of your portal."
     logging.info("Apaleo Connect: hotel %s připojen.", hid)
-    return _page("Apaleo připojeno", f"Hotel {h.get('name','')} je propojen se SMARTEST GUIDE.{prop_note}")
+    return _page("Apaleo connected", f"{h.get('name','Your hotel')} is now connected to SMARTEST GUIDE. Alex, the AI concierge, can answer your guests using their reservation details (check-out time, package, balance).{prop_note}")
+
+@app.post("/api/pms/apaleo/disconnect")
+def apaleo_disconnect(token: str):
+    """Offboarding: hotel odpojí Apaleo z portálu — smažeme refresh token i vazbu.
+    Žádná data hostů neuchováváme, takže odpojením končí veškerý přístup."""
+    h = find_hotel_by_token(token)
+    if not h:
+        raise HTTPException(403, "Neplatný přístupový token")
+    db = db_load()
+    hid = h.get("id")
+    for k in ("pms_refresh_token", "pms_type", "pms_oauth_state", "pms_oauth_state_at",
+              "pms_client_id", "pms_client_secret"):
+        db["hotels"][hid].pop(k, None)
+    db_save(db)
+    logging.info("Apaleo odpojeno: hotel %s", hid)
+    return {"status": "ok", "disconnected": True}
 
 class TranslateMenuRequest(BaseModel):
     hotel_id: str
