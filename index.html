@@ -483,6 +483,8 @@
           <div class="form-group"><label>Banka / č. účtu</label><input type="text" id="co-bank" placeholder="123456789/0800"/></div>
           <div class="form-group full"><label>IBAN</label><input type="text" id="co-iban" placeholder="CZ65 0800 0000 0012 3456 7890"/></div>
           <div class="form-group full"><label>CC Email (kopie onboarding emailů)</label><input type="email" id="co-cc-email" placeholder="support@smartestguide.com"/></div>
+          <div class="form-group"><label>Plátce DPH</label><label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer;margin-top:6px"><input type="checkbox" id="co-vat-payer" style="width:auto" onchange="document.getElementById('co-vat-rate').disabled=!this.checked"/> Jsme plátci DPH</label></div>
+          <div class="form-group"><label>Sazba DPH (%)</label><input type="number" id="co-vat-rate" placeholder="21" min="0" max="30" step="0.1" disabled/></div>
         </div>
         <button class="btn btn-primary" onclick="saveCompanySettings()">Uložit firemní údaje</button>
       </div>
@@ -1686,6 +1688,8 @@ async function loadCompanySettings(){
     document.getElementById('co-bank').value=d.company_bank||'';
     document.getElementById('co-iban').value=d.company_iban||'';
     if(document.getElementById('co-cc-email')) document.getElementById('co-cc-email').value=d.cc_email||'';
+    const vp=document.getElementById('co-vat-payer'), vr=document.getElementById('co-vat-rate');
+    if(vp&&vr){vp.checked=!!d.company_vat_payer;vr.value=(d.company_vat_rate??21);vr.disabled=!vp.checked;}
   }catch(e){}
 }
 
@@ -1701,6 +1705,8 @@ async function saveCompanySettings(){
     company_bank:document.getElementById('co-bank').value.trim(),
     company_iban:document.getElementById('co-iban').value.trim(),
     cc_email:document.getElementById('co-cc-email')?document.getElementById('co-cc-email').value.trim():'',
+    company_vat_payer:!!(document.getElementById('co-vat-payer')&&document.getElementById('co-vat-payer').checked),
+    company_vat_rate:parseFloat(document.getElementById('co-vat-rate')?.value)||21,
   };
   try{
     const r=await fetch(API+'/api/settings/company',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
