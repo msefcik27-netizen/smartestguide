@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from dotenv import load_dotenv
+import pms as pms_layer  # PMS napojení (Apaleo…) — viz pms.py, PLAN_PMS_NAPOJENI.md
 
 load_dotenv()
 
@@ -780,6 +781,11 @@ class HotelData(BaseModel):
     country: Optional[str] = None
     continent: Optional[str] = None
     pet_policy: Optional[str] = None     # pravidla pro mazlíčky (časté dotazy hostů)
+    # PMS napojení (per hotel) — nastavuje jen admin; credentials NIKDY ke guestům
+    pms_type: Optional[str] = None          # 'apaleo' | '' (vypnuto)
+    pms_client_id: Optional[str] = None
+    pms_client_secret: Optional[str] = None
+    pms_property_id: Optional[str] = None
     ico: Optional[str] = None            # fakturační IČO hotelu (odběratel)
     dic: Optional[str] = None            # DIČ / VAT ID hotelu
     billing_name: Optional[str] = None   # právní/fakturační název (fallback name)
@@ -1249,7 +1255,7 @@ def hotel_portal_me(token: str):
     h = find_hotel_by_token(token)
     if not h:
         raise HTTPException(403, "Neplatny pristupovy token")
-    safe = {k: v for k, v in h.items() if k not in ("hotel_token",)}
+    safe = {k: v for k, v in h.items() if k not in ("hotel_token", "pms_client_secret")}
     return {"status": "ok", "hotel": safe}
 
 class HotelPortalUpdate(BaseModel):
@@ -4271,8 +4277,10 @@ def get_guest_hotel(hotel_id: str):
         raise HTTPException(404, "Hotel nenalezen")
     if not h.get("subscription_active"):
         raise HTTPException(403, "Hotel nemá aktivní předplatné")
-    # Vrátí pouze veřejná data (bez tokenů a interních dat)
-    public = {k: v for k, v in h.items() if k not in ("hotel_token", "stripe_customer_id", "stripe_subscription_id")}
+    # Vrátí pouze veřejná data (bez tokenů, interních dat a PMS credentials)
+    public = {k: v for k, v in h.items() if k not in (
+        "hotel_token", "stripe_customer_id", "stripe_subscription_id",
+        "pms_type", "pms_client_id", "pms_client_secret", "pms_property_id")}
     return {"status": "ok", "hotel": public}
 
 class GuestVisitRequest(BaseModel):
@@ -4316,6 +4324,7 @@ class GuestChatRequest(BaseModel):
     history: Optional[list] = None
     auto_lang: Optional[bool] = True
     device_id: Optional[str] = None  # anonymní ID zařízení (localStorage) pro počítání unikátních hostů
+    room: Optional[str] = None       # číslo pokoje z QR (?room=214) — pro PMS lookup pobytu
 
 @app.post("/api/guest/chat")
 async def guest_chat(req: GuestChatRequest, request: Request):
@@ -4431,6 +4440,18 @@ INSTRUKCE K MÍSTŮM: Pokud host žádá tipy na okolí, doporučuj turistická 
 
 Guest name: {req.guest_name or 'Guest'}"""
 
+    # PMS: když host přišel z QR pokoje a hotel má PMS nakonfigurované, přidej aktuální pobyt
+    # jako SAMOSTATNÝ system blok (za kešovaným profilem hotelu — cache zůstane stabilní).
+    # Jakákoli chyba => beze změny (graceful degradace, chat nikdy nesmí spadnout kvůli PMS).
+    stay_block = None
+    if req.room and h.get("pms_type"):
+        try:
+            stay = await pms_layer.get_stay_for_room(h, req.room)
+            if stay:
+                stay_block = pms_layer.format_stay_block(stay)
+        except Exception as e:
+            logging.warning("PMS injekce do promptu selhala: %s", e)
+
     messages = []
     # Omez historii na posledních 10 zpráv (~5 výměn) — starší kontext jen zbytečně žere vstupní tokeny
     for m in (req.history or [])[-10:]:
@@ -4447,7 +4468,8 @@ Guest name: {req.guest_name or 'Guest'}"""
                 # Prompt caching: statický profil hotelu (system) se kešuje → další zprávy v téže
                 # konverzaci čtou tenhle vstup levněji. Kešování naskočí, když prefix dosáhne minima
                 # (~1–2k tokenů); u bohatšího profilu ušetří nejvíc. Bez benefitu to neškodí.
-                "system": [{"type": "text", "text": hotel_info, "cache_control": {"type": "ephemeral"}}],
+                "system": ([{"type": "text", "text": hotel_info, "cache_control": {"type": "ephemeral"}}]
+                           + ([{"type": "text", "text": stay_block}] if stay_block else [])),
                 "messages": messages,
             },
             timeout=30.0,
