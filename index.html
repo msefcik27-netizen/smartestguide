@@ -1449,6 +1449,20 @@ function openEdit(id){
       </div>
     </div>
 
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-weight:700;margin-bottom:4px">🔌 PMS napojení (personalizovaný Alex)</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Host, který přijde z QR pokoje (?room=214), dostane odpovědi o svém pobytu (check-out, balíček, účet). Credentials vidí jen admin — nikdy host ani portál.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <select id="ef-pms_type" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:8px 10px;outline:none">
+          <option value="" ${!h.pms_type?'selected':''}>— PMS vypnuto —</option>
+          <option value="apaleo" ${h.pms_type==='apaleo'?'selected':''}>Apaleo</option>
+        </select>
+        <input type="text" id="ef-pms_property_id" value="${esc(h.pms_property_id||'')}" placeholder="Property kód (např. BER)" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:8px 10px;outline:none">
+        <input type="text" id="ef-pms_client_id" value="${esc(h.pms_client_id||'')}" placeholder="Client ID" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:8px 10px;outline:none">
+        <input type="password" id="ef-pms_client_secret" value="" placeholder="${h.pms_client_secret?'••••••• (uloženo — vyplňte jen při změně)':'Client Secret'}" autocomplete="new-password" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:8px 10px;outline:none">
+      </div>
+    </div>
+
     <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:10px">
       <button class="btn btn-primary" onclick="saveEdit('${id}')">💾 Uložit změny</button>
       <button class="btn btn-secondary" onclick="closePanel()">Zrušit</button>
@@ -1507,6 +1521,18 @@ async function saveEdit(id){
     ci++;
   }
   data.custom_fields=customFields.length?customFields:null;
+
+  // PMS napojení — secret se posílá jen když ho admin vyplnil (jinak zůstává uložený beze změny)
+  const pmsTypeEl=document.getElementById('ef-pms_type');
+  if(pmsTypeEl){
+    data.pms_type=pmsTypeEl.value;
+    ['pms_client_id','pms_property_id'].forEach(k=>{
+      const el=document.getElementById('ef-'+k);
+      if(el&&el.value.trim())data[k]=el.value.trim();
+    });
+    const secEl=document.getElementById('ef-pms_client_secret');
+    if(secEl&&secEl.value.trim())data.pms_client_secret=secEl.value.trim();
+  }
 
   addLog('info',`Ukládám editaci: ${data.name||id}`,'hotels');
   try{
