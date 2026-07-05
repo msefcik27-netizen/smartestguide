@@ -354,6 +354,16 @@ try{
   }
 }catch(e){}
 
+// Beacon "otevření průvodce" — max 1× denně na zařízení a hotel
+try{
+  const _vk='sg_visit_'+hotelId, _today=new Date().toISOString().slice(0,10);
+  if(localStorage.getItem(_vk)!==_today){
+    localStorage.setItem(_vk,_today);
+    fetch(`${API}/api/guest/visit`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({hotel_id:hotelId,device_id:deviceId})}).catch(()=>{});
+  }
+}catch(e){}
+
 // Obnov jméno a jazyk z předchozí návštěvy
 const _savedName = localStorage.getItem('sg_guest_name_'+hotelId);
 const _savedLang = localStorage.getItem('sg_lang_'+hotelId);

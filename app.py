@@ -1424,6 +1424,8 @@ def hotel_portal_monthly_report(token: str, month: str = ""):
             "count": count,
             "prev_count": prev_count,
             "trend_pct": pct,
+            "visits": int(cur.get("visits", 0)),
+            "visitors": len(cur.get("visit_devices") or {}),
             "flagged": int(cur.get("flagged", 0)),
             "top_langs": [{"code": c, "name": lname.get(c, c), "count": n} for c, n in top],
             "saved_minutes": saved_min,
@@ -1439,6 +1441,8 @@ def hotel_portal_monthly_report(token: str, month: str = ""):
         "profile_score": comp.get("score", 0) if isinstance(comp, dict) else 0,
         "report": summarize(report_key),
         "current": summarize(current_key),
+        "total_questions": int(a.get("total", 0)),
+        "total_visits": int(a.get("visits_total", 0)),
         "available_months": sorted(monthly.keys(), reverse=True),
     }
 
@@ -3665,7 +3669,7 @@ def analytics_overview():
     # Posledních 12 měsíců, od nejstaršího po aktuální
     month_keys = [_month_key_shift(cur_key, -i) for i in range(11, -1, -1)]
 
-    months = {mk: {"count": 0, "flagged": 0, "devices": 0} for mk in month_keys}
+    months = {mk: {"count": 0, "flagged": 0, "devices": 0, "visits": 0, "visitors": 0} for mk in month_keys}
     langs_total = {}
     hotels_out = []
     grand_total = 0
@@ -3678,6 +3682,8 @@ def analytics_overview():
             months[mk]["count"] += int(m.get("count", 0))
             months[mk]["flagged"] += int(m.get("flagged", 0))
             months[mk]["devices"] += len(m.get("devices") or {})
+            months[mk]["visits"] += int(m.get("visits", 0))
+            months[mk]["visitors"] += len(m.get("visit_devices") or {})
             for code, n in (m.get("langs") or {}).items():
                 langs_total[code] = langs_total.get(code, 0) + int(n)
         cur = monthly.get(cur_key) or {}
@@ -3694,6 +3700,7 @@ def analytics_overview():
                 pass
         total = int(a.get("total", 0))
         grand_total += total
+        visits_total = int(a.get("visits_total", 0))
         hotels_out.append({
             "id": hid,
             "name": h.get("name") or hid,
@@ -3701,6 +3708,9 @@ def analytics_overview():
             "total": total,
             "month_count": cur_n,
             "month_devices": len(cur.get("devices") or {}),
+            "month_visits": int(cur.get("visits", 0)),
+            "month_visitors": len(cur.get("visit_devices") or {}),
+            "visits_total": visits_total,
             "prev_count": prev_n,
             "trend_pct": trend,
             "month_flagged": int(cur.get("flagged", 0)),
@@ -3721,6 +3731,9 @@ def analytics_overview():
         "months": [{"key": mk, **months[mk]} for mk in month_keys],
         "summary": {
             "grand_total": grand_total,
+            "grand_visits": sum(x["visits_total"] for x in hotels_out),
+            "month_visits": cur_m["visits"],
+            "month_visitors": cur_m["visitors"],
             "month_count": cur_m["count"],
             "prev_month_count": prev_m["count"],
             "trend_pct": trend_all,
@@ -4261,6 +4274,39 @@ def get_guest_hotel(hotel_id: str):
     # Vrátí pouze veřejná data (bez tokenů a interních dat)
     public = {k: v for k, v in h.items() if k not in ("hotel_token", "stripe_customer_id", "stripe_subscription_id")}
     return {"status": "ok", "hotel": public}
+
+class GuestVisitRequest(BaseModel):
+    hotel_id: str
+    device_id: Optional[str] = None
+
+@app.post("/api/guest/visit")
+def guest_visit(req: GuestVisitRequest, request: Request):
+    """Beacon při otevření průvodce — počítá otevření a unikátní návštěvníky.
+    Klient posílá max 1× denně (localStorage), server navíc rate-limituje IP.
+    Vždy vrací ok (neprozrazuje existenci hotelu, chyby tiše ignoruje)."""
+    if not _rate_limit_ok("visit:" + _client_ip(request), max_hits=10):
+        return {"status": "ok"}
+    try:
+        db = db_load()
+        _hid, h = _resolve_hotel(db, req.hotel_id)
+        if not h:
+            return {"status": "ok"}
+        a = db.setdefault("analytics", {}).setdefault(_hid, {"total": 0, "topics": {}})
+        now = datetime.utcnow()
+        a["visits_total"] = a.get("visits_total", 0) + 1
+        a["last_visit"] = now.isoformat()
+        monthly = a.setdefault("monthly", {})
+        m = monthly.setdefault(now.strftime("%Y-%m"), {"count": 0, "flagged": 0, "langs": {}})
+        m["visits"] = m.get("visits", 0) + 1
+        if req.device_id:
+            dh = hashlib.sha256(req.device_id.encode()).hexdigest()[:12]
+            dv = m.setdefault("visit_devices", {})
+            if dh in dv or len(dv) < 5000:
+                dv[dh] = dv.get(dh, 0) + 1
+        db_save(db)
+    except Exception as e:
+        logging.warning("guest_visit chyba: %s", e)
+    return {"status": "ok"}
 
 class GuestChatRequest(BaseModel):
     hotel_id: str
