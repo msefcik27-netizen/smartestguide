@@ -238,6 +238,7 @@ const EN_MAP = {
   "Statistiky chatbota":"Chatbot statistics","Přehled dotazů vašich hostů":"Overview of your guests’ questions",
   // ── Základní provozní info ──
   "Hvězdičky ★ (1–5)":"Stars ★ (1–5)","1 až 5":"1 to 5","Check-in od":"Check-in from","Check-out do":"Check-out until",
+  "např. 12:00–14:00 nebo nevyplňovat":"e.g. 12:00–14:00 or leave empty","recepce@hotel.cz":"reception@hotel.com",
   "Snídaně":"Breakfast","Oběd":"Lunch","Večeře":"Dinner","Počet pokojů":"Number of rooms",
   "přesný počet lůžek":"exact number of beds",
   // ── Kontakty ──
@@ -410,6 +411,7 @@ const EN_MAP = {
 };
 // Regexová pravidla pro uzly s čísly uvnitř textu
 const EN_REGEX = [
+  [/^(🟢|🟡|🔴) Vyplněnost profilu hotelu$/, "$1 Hotel profile completeness"],
   [/^🍽️ Restaurace (\d+)$/, "🍽️ Restaurant $1"],
   [/^(\d+) lůžek$/, "$1 beds"],
   [/^(\d+) lůžek × ceník SmartestGuide$/, "$1 beds × SmartestGuide pricing"],
@@ -433,7 +435,9 @@ if(!portalLang){
 function tr(s){
   if(portalLang!=='en') return s;
   const k = String(s).replace(/\s+/g,' ').trim();
-  return (EN_MAP[k]!==undefined) ? EN_MAP[k] : s;
+  if(EN_MAP[k]!==undefined) return EN_MAP[k];
+  if(k.startsWith('např. ')) return 'e.g. ' + k.slice(6);
+  return s;
 }
 function trText(raw){
   if(portalLang!=='en') return raw;
