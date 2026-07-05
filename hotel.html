@@ -1313,6 +1313,9 @@ function loadPmsSection(){
           </div>`}
         </div>
         ${prop?'':`<div style="font-size:11px;color:var(--muted);margin-top:10px">Kód property najdete v adresním řádku po přihlášení do Apaleo — např. <b>app.apaleo.com/BER/…</b> → kód je <b>BER</b>.</div>`}
+        <div style="margin-top:10px;text-align:right">
+          <button onclick="disconnectPms()" style="background:transparent;border:1px solid rgba(255,79,106,.3);color:var(--danger);border-radius:8px;padding:5px 12px;font-size:11px;cursor:pointer">Odpojit Apaleo</button>
+        </div>
       </div>`;
   }else{
     el.innerHTML=`
@@ -1340,6 +1343,17 @@ async function savePmsProperty(){
     hotelData.pms_property_id=val;
     loadPmsSection();
   }catch(e){alert('Uložení se nepovedlo: '+e.message);}
+}
+
+async function disconnectPms(){
+  if(!confirm('Opravdu odpojit hotelový systém (Apaleo)?\n\nAlex přestane znát pobyty hostů a bude odpovídat jen z profilu hotelu. Připojit ho můžete kdykoli znovu jedním kliknutím.'))return;
+  try{
+    const r=await fetch(`${API}/api/pms/apaleo/disconnect?token=${token}`,{method:'POST'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    hotelData.pms_type='';
+    hotelData.pms_refresh_token='';
+    loadPmsSection();
+  }catch(e){alert('Odpojení se nepovedlo: '+e.message);}
 }
 
 async function downloadMyInvoice(invoiceId){

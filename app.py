@@ -4542,19 +4542,20 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
     """Návrat z Apaleo: výměna kódu za tokeny, uložení k hotelu dle state."""
     def _page(title, body, ok=True):
         color = "#2ecc87" if ok else "#ff4f6a"
-        return HTMLResponse(f"""<!DOCTYPE html><html lang="cs"><head><meta charset="utf-8">
+        return HTMLResponse(f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title></head>
 <body style="font-family:sans-serif;background:#15161a;color:#e6e4df;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0">
-<div style="max-width:440px;padding:36px;text-align:center;background:#1e1f25;border-radius:16px">
+<div style="max-width:460px;padding:36px;text-align:center;background:#1e1f25;border-radius:16px">
+<div style="font-weight:800;font-size:15px;letter-spacing:.02em;margin-bottom:18px">SMARTEST GUIDE<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#FF6B00;margin-left:3px"></span></div>
 <div style="font-size:40px;margin-bottom:12px">{"✅" if ok else "⚠️"}</div>
 <h2 style="color:{color};margin:0 0 10px">{title}</h2>
 <p style="line-height:1.6;color:#a9adc1">{body}</p>
-<p style="margin-top:22px;font-size:13px;color:#6b6f8e">Toto okno můžete zavřít a vrátit se do portálu.</p>
+<p style="margin-top:22px;font-size:13px;color:#6b6f8e">You can close this window and return to your SMARTEST GUIDE portal.</p>
 </div></body></html>""")
     if error:
-        return _page("Připojení se nezdařilo", f"Apaleo vrátilo chybu: {error}. Zkuste to prosím znovu z portálu.", ok=False)
+        return _page("Connection failed", f"Apaleo returned an error: {error}. Please start the connection again from your portal.", ok=False)
     if not (code and state):
-        return _page("Neplatný požadavek", "Chybí kód nebo state. Spusťte připojení znovu z portálu.", ok=False)
+        return _page("Invalid request", "Missing authorization code or state. Please start the connection again from your portal.", ok=False)
     # Najdi hotel podle state (a zkontroluj stáří)
     db = db_load()
     hid, h = None, None
@@ -4563,11 +4564,11 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
             hid, h = _id, _h
             break
     if not h:
-        return _page("Neplatný state", "Bezpečnostní kontrola nevyšla. Spusťte připojení znovu z portálu.", ok=False)
+        return _page("Invalid state", "Security check failed. Please start the connection again from your portal.", ok=False)
     try:
         started = datetime.fromisoformat(h.get("pms_oauth_state_at", "2000-01-01"))
         if (datetime.utcnow() - started).total_seconds() > 900:
-            return _page("Vypršel čas", "Připojení trvalo příliš dlouho. Spusťte ho prosím znovu z portálu.", ok=False)
+            return _page("Session expired", "The connection took too long. Please start again from your portal.", ok=False)
     except Exception:
         pass
     s = db_get_settings()
@@ -4581,11 +4582,11 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
             data={"grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri})
     if r.status_code != 200:
         logging.warning("Apaleo callback token exchange selhal: %s %s", r.status_code, r.text[:200])
-        return _page("Výměna tokenu selhala", "Apaleo nepřijalo autorizační kód. Zkuste to znovu, případně kontaktujte podporu.", ok=False)
+        return _page("Token exchange failed", "Apaleo did not accept the authorization code. Please try again, or contact support@smartestguide.com.", ok=False)
     tok = r.json()
     refresh_token = tok.get("refresh_token", "")
     if not refresh_token:
-        return _page("Chybí refresh token", "Apaleo nevrátilo trvalý přístup (offline_access). Zkontrolujte nastavení Connect aplikace.", ok=False)
+        return _page("Missing refresh token", "Apaleo did not grant offline access. Please contact support@smartestguide.com.", ok=False)
     db["hotels"][hid]["pms_type"] = "apaleo"
     db["hotels"][hid]["pms_refresh_token"] = refresh_token
     db["hotels"][hid].pop("pms_oauth_state", None)
@@ -4593,9 +4594,25 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
     db_save(db)
     prop_note = ""
     if not h.get("pms_property_id"):
-        prop_note = " Zbývá doplnit kód property (např. BER) — v portálu v sekci PMS, nebo vám ho nastavíme my."
+        prop_note = " One last step: enter your property code (e.g. BER) in the PMS section of your portal."
     logging.info("Apaleo Connect: hotel %s připojen.", hid)
-    return _page("Apaleo připojeno", f"Hotel {h.get('name','')} je propojen se SMARTEST GUIDE.{prop_note}")
+    return _page("Apaleo connected", f"{h.get('name','Your hotel')} is now connected to SMARTEST GUIDE. Alex, the AI concierge, can answer your guests using their reservation details (check-out time, package, balance).{prop_note}")
+
+@app.post("/api/pms/apaleo/disconnect")
+def apaleo_disconnect(token: str):
+    """Offboarding: hotel odpojí Apaleo z portálu — smažeme refresh token i vazbu.
+    Žádná data hostů neuchováváme, takže odpojením končí veškerý přístup."""
+    h = find_hotel_by_token(token)
+    if not h:
+        raise HTTPException(403, "Neplatný přístupový token")
+    db = db_load()
+    hid = h.get("id")
+    for k in ("pms_refresh_token", "pms_type", "pms_oauth_state", "pms_oauth_state_at",
+              "pms_client_id", "pms_client_secret"):
+        db["hotels"][hid].pop(k, None)
+    db_save(db)
+    logging.info("Apaleo odpojeno: hotel %s", hid)
+    return {"status": "ok", "disconnected": True}
 
 class TranslateMenuRequest(BaseModel):
     hotel_id: str
