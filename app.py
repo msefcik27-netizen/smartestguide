@@ -365,7 +365,7 @@ async def lifespan(app):
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.21"
+APP_VERSION = "0.5.25"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -855,8 +855,8 @@ def apply_pricing_to_new_hotels():
     updated = []
     skipped = []
     for hotel_id, hotel in db["hotels"].items():
-        # Přeskočit hotely které již mají zaplacenou cenu
-        if hotel.get("subscription_price") and hotel.get("subscription_active"):
+        # Přeskočit hotely, které už mají zaplacenou cenu NEBO jsou označené jako zdarma
+        if (hotel.get("subscription_price") and hotel.get("subscription_active")) or hotel.get("is_free"):
             skipped.append(hotel.get("name", hotel_id))
             continue
         # Aplikovat novou cenu na ostatní
@@ -910,8 +910,12 @@ def delete_api_key(request: Request):
 # Scraping
 # ─────────────────────────────────────────────
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "cs,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
 }
 SUBPAGE_HINTS = [
     "/contact", "/kontakt", "/about", "/o-nas",
@@ -943,9 +947,12 @@ def extract_text(html: str, max_chars: int = 4000) -> str:
 
 async def fetch_page(client, url: str) -> Optional[str]:
     try:
-        r = await client.get(url, timeout=12.0, follow_redirects=True)
-        ct = r.headers.get("content-type", "")
-        if r.status_code == 200 and "text/html" in ct:
+        r = await client.get(url, timeout=20.0, follow_redirects=True)
+        ct = r.headers.get("content-type", "").lower()
+        head = (r.text or "")[:2000].lower()
+        # Tolerantnější: přijmi i weby bez přesného text/html v content-type,
+        # pokud tělo vypadá jako HTML dokument.
+        if r.status_code == 200 and ("html" in ct or "<html" in head or "<!doctype html" in head):
             return r.text
     except Exception:
         pass
@@ -955,13 +962,26 @@ async def scrape_hotel_data(url: str, api_key: str) -> dict:
     if not url.startswith("http"):
         url = "https://" + url
 
-    parsed = urlparse(url)
-    base = f"{parsed.scheme}://{parsed.netloc}"
-
-    async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
-        main_html = await fetch_page(client, url)
+    async with httpx.AsyncClient(headers=HEADERS, timeout=20.0, follow_redirects=True) as client:
+        # Zkus víc variant hlavní stránky — přehození www a http fallback (některé weby
+        # jednu variantu blokují nebo přesměrovávají jinam).
+        _p = urlparse(url)
+        _alt = _p.netloc[4:] if _p.netloc.startswith("www.") else "www." + _p.netloc
+        candidates = [url, f"{_p.scheme}://{_alt}{_p.path or ''}", f"http://{_p.netloc}{_p.path or ''}"]
+        seen, main_html = set(), None
+        for cu in candidates:
+            if cu in seen:
+                continue
+            seen.add(cu)
+            main_html = await fetch_page(client, cu)
+            if main_html:
+                url = cu
+                break
         if not main_html:
-            raise ValueError(f"Nepodařilo se stáhnout {url} – web možná blokuje boty nebo je nedostupný")
+            raise ValueError(f"Nepodařilo se stáhnout {url} – web možná blokuje boty, běží jen v JavaScriptu, nebo je nedostupný")
+
+        parsed = urlparse(url)
+        base = f"{parsed.scheme}://{parsed.netloc}"
 
         # Hlavní stránka – max 4000 znaků
         main_text = extract_text(main_html, 4000)
@@ -1280,6 +1300,7 @@ _PORTAL_PROTECTED = {
     "subscription_active", "subscription_start", "subscription_period_end",
     "subscription_paid_beds", "stripe_customer_id", "stripe_subscription_id",
     "acquired_by", "referral_code", "acquired_at", "trial_used", "trial_start",
+    "is_free",
 }
 
 @app.patch("/api/hotel-portal/update")
@@ -1471,6 +1492,22 @@ def update_hotel(hotel_id: str, data: HotelData):
     })
     db_save(db)
     return {"status": "ok", "hotel": db["hotels"][hotel_id]}
+
+@app.post("/api/hotels/{hotel_id}/free")
+def set_hotel_free(hotel_id: str, data: dict = Body(default={})):
+    """Označí/zruší hotel jako ZDARMA. Zdarma hotel má cenu 0 a přeskočí ho hromadné
+    přecenění (apply-to-new), takže se cena nemůže omylem překlopit na standardní ceník."""
+    db = db_load()
+    h = db["hotels"].get(hotel_id)
+    if not h:
+        raise HTTPException(404, "Hotel nenalezen")
+    is_free = bool(data.get("is_free"))
+    h["is_free"] = is_free
+    if is_free:
+        h["subscription_price"] = 0
+    h["updated_at"] = datetime.utcnow().isoformat()
+    db_save(db)
+    return {"status": "ok", "is_free": is_free}
 
 @app.delete("/api/hotels/{hotel_id}")
 def delete_hotel(hotel_id: str, request: Request, hard: bool = False):
@@ -2353,6 +2390,18 @@ class RegistrationRequest(BaseModel):
     billing_name: Optional[str] = None   # právní/fakturační název
     ref: Optional[str] = None            # referral kód partnera (atribuce provize)
 
+def _norm_ico(x: str) -> str:
+    """IČO na porovnání — jen číslice."""
+    return re.sub(r'\D', '', x or '')
+
+def _norm_domain(url: str) -> str:
+    """Doména webu na porovnání — bez schématu, www a cesty, malými písmeny."""
+    u = (url or '').strip().lower()
+    u = re.sub(r'^https?://', '', u)
+    u = re.sub(r'^www\.', '', u)
+    u = u.split('/')[0].split('?')[0].strip()
+    return u
+
 @app.post("/api/register")
 async def register_hotel(req: RegistrationRequest, request: Request):
     """
@@ -2441,12 +2490,20 @@ async def register_hotel(req: RegistrationRequest, request: Request):
     base = get_base_url(request)
     try:
         async with httpx.AsyncClient() as client:
-            # Zkontroluj jestli email již trial využil (ochrana proti opakovanému trialu).
-            # Reuse už načtené `db` — žádný další round-trip do databáze (rychlejší checkout).
+            # Ochrana proti opakovanému trialu — dedup podle E-MAILU, IČO i DOMÉNY webu.
+            # Když už kdokoli s touhle identitou trial využil (i archivovaný hotel), další
+            # trial nedáme — Stripe rovnou účtuje. Zabrání to opakování s jiným e-mailem.
             contact_email_lower = req.contact_email.lower().strip()
+            req_ico = _norm_ico(req.ico)
+            req_domain = _norm_domain(req.hotel_url)
+            def _same_identity(h):
+                if (h.get("email") or "").lower().strip() == contact_email_lower: return True
+                if (h.get("registration_email") or "").lower().strip() == contact_email_lower: return True
+                if req_ico and _norm_ico(h.get("ico")) == req_ico: return True
+                if req_domain and _norm_domain(h.get("url") or h.get("source_url")) == req_domain: return True
+                return False
             trial_already_used = any(
-                (h.get("registration_email") or "").lower().strip() == contact_email_lower and
-                h.get("trial_used", False)
+                h.get("trial_used", False) and _same_identity(h)
                 for h in db["hotels"].values()
             )
 
@@ -4241,7 +4298,8 @@ INSTRUKCE K MÍSTŮM: Pokud host žádá tipy na okolí, doporučuj turistická 
 Guest name: {req.guest_name or 'Guest'}"""
 
     messages = []
-    for m in (req.history or []):
+    # Omez historii na posledních 10 zpráv (~5 výměn) — starší kontext jen zbytečně žere vstupní tokeny
+    for m in (req.history or [])[-10:]:
         if isinstance(m, dict) and m.get("role") in ("user", "assistant"):
             messages.append({"role": m["role"], "content": m["content"]})
     messages.append({"role": "user", "content": req.message})
@@ -4250,7 +4308,14 @@ Guest name: {req.guest_name or 'Guest'}"""
         r = await client.post(
             "https://api.anthropic.com/v1/messages",
             headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-            json={"model": "claude-haiku-4-5-20251001", "max_tokens": 500, "system": hotel_info, "messages": messages},
+            json={
+                "model": "claude-haiku-4-5-20251001", "max_tokens": 500,
+                # Prompt caching: statický profil hotelu (system) se kešuje → další zprávy v téže
+                # konverzaci čtou tenhle vstup levněji. Kešování naskočí, když prefix dosáhne minima
+                # (~1–2k tokenů); u bohatšího profilu ušetří nejvíc. Bez benefitu to neškodí.
+                "system": [{"type": "text", "text": hotel_info, "cache_control": {"type": "ephemeral"}}],
+                "messages": messages,
+            },
             timeout=30.0,
         )
     if r.status_code != 200:
