@@ -263,6 +263,7 @@ async function loadHotel() {
     renderOnboarding();
     loadCompleteness();
     loadPaymentSection();
+    loadPmsSection();
     loadInvoicesSection();
     loadMonthlyReport();
     setTimeout(initEmbedCode, 100);
@@ -381,6 +382,8 @@ function renderPortal() {
     <div id="onboarding-wizard"></div>
 
     <div id="payment-section"></div>
+
+    <div id="pms-section"></div>
 
     ${renderSection('📋', 'Základní provozní informace', 'Check-in, check-out, stravování', `
       <table class="edit-table">
@@ -1285,6 +1288,39 @@ async function loadInvoicesSection(){
         </table>
       </div>`;
   }catch(e){}
+}
+
+function loadPmsSection(){
+  // Propojení s hotelovým systémem (PMS) — zatím Apaleo (OAuth Connect)
+  const el=document.getElementById('pms-section');
+  if(!el||!hotelData)return;
+  const h=hotelData;
+  const connected=!!h.pms_type;
+  const prop=h.pms_property_id||'';
+  if(connected){
+    el.innerHTML=`
+      <div style="background:rgba(46,204,135,.08);border:1px solid rgba(46,204,135,.3);border-radius:12px;padding:18px 22px;margin-bottom:24px">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <div style="font-size:26px">🔌</div>
+          <div style="flex:1;min-width:220px">
+            <div style="font-family:var(--font-head);font-size:14px;font-weight:700;color:#2ecc87">Hotelový systém připojen (Apaleo)</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px">${prop?`Property: <b>${prop}</b>. `:'Zbývá doplnit kód property — ozvěte se nám. '}Alex zná pobyty hostů a odpovídá jim osobně (check-out, balíček, účet).</div>
+          </div>
+        </div>
+      </div>`;
+  }else{
+    el.innerHTML=`
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:24px">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <div style="font-size:26px">🔌</div>
+          <div style="flex:1;min-width:220px">
+            <div style="font-family:var(--font-head);font-size:14px;font-weight:700">Propojte svůj hotelový systém</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px">Používáte <b>Apaleo</b>? Po propojení bude Alex znát pobyty hostů a odpoví jim osobně (check-out, balíček, účet). Žádné kopírování klíčů — jedno kliknutí a souhlas v Apaleu.</div>
+          </div>
+          <a href="${API}/api/pms/apaleo/connect?token=${token}" style="background:var(--accent);color:#0a0b0f;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;white-space:nowrap">Propojit s Apaleo →</a>
+        </div>
+      </div>`;
+  }
 }
 
 async function downloadMyInvoice(invoiceId){
