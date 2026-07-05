@@ -263,6 +263,7 @@ async function loadHotel() {
     renderOnboarding();
     loadCompleteness();
     loadPaymentSection();
+    loadPmsSection();
     loadInvoicesSection();
     loadMonthlyReport();
     setTimeout(initEmbedCode, 100);
@@ -377,6 +378,8 @@ function renderPortal() {
       Tyto informace bude avatar sdělovat vašim hostům. Čím více vyplníte, tím lépe
       bude avatar sloužit. Po každé úpravě klikněte na <strong>Uložit změny</strong>.
     </div>
+
+    <div id="pms-section"></div>
 
     <div id="onboarding-wizard"></div>
 
@@ -1285,6 +1288,58 @@ async function loadInvoicesSection(){
         </table>
       </div>`;
   }catch(e){}
+}
+
+function loadPmsSection(){
+  // Propojení s hotelovým systémem (PMS) — zatím Apaleo (OAuth Connect)
+  const el=document.getElementById('pms-section');
+  if(!el||!hotelData)return;
+  const h=hotelData;
+  const connected=!!h.pms_type;
+  const prop=h.pms_property_id||'';
+  if(connected){
+    el.innerHTML=`
+      <div style="background:rgba(46,204,135,.08);border:1px solid rgba(46,204,135,.3);border-radius:12px;padding:18px 22px;margin-bottom:24px">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <div style="font-size:26px">🔌</div>
+          <div style="flex:1;min-width:220px">
+            <div style="font-family:var(--font-head);font-size:14px;font-weight:700;color:#2ecc87">Hotelový systém připojen (Apaleo)</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px">${prop?`Property: <b>${prop}</b>. `:''}Alex zná pobyty hostů a odpovídá jim osobně (check-out, balíček, účet).</div>
+          </div>
+          ${prop?'':`
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="text" id="pms-prop-input" placeholder="Kód property (např. BER)" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;width:180px;outline:none">
+            <button onclick="savePmsProperty()" style="background:var(--accent);color:#0a0b0f;border:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Uložit</button>
+          </div>`}
+        </div>
+        ${prop?'':`<div style="font-size:11px;color:var(--muted);margin-top:10px">Kód property najdete v adresním řádku po přihlášení do Apaleo — např. <b>app.apaleo.com/BER/…</b> → kód je <b>BER</b>.</div>`}
+      </div>`;
+  }else{
+    el.innerHTML=`
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:24px">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <div style="font-size:26px">🔌</div>
+          <div style="flex:1;min-width:220px">
+            <div style="font-family:var(--font-head);font-size:14px;font-weight:700">Propojte svůj hotelový systém</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px">Používáte <b>Apaleo</b>? Po propojení bude Alex znát pobyty hostů a odpoví jim osobně (check-out, balíček, účet). Žádné kopírování klíčů — jedno kliknutí a souhlas v Apaleu.</div>
+          </div>
+          <a href="${API}/api/pms/apaleo/connect?token=${token}" style="background:var(--accent);color:#0a0b0f;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;white-space:nowrap">Propojit s Apaleo →</a>
+        </div>
+      </div>`;
+  }
+}
+
+async function savePmsProperty(){
+  const el=document.getElementById('pms-prop-input');
+  const val=(el?.value||'').trim().toUpperCase();
+  if(!val){alert('Zadejte kód property (např. BER)');return;}
+  try{
+    const r=await fetch(`${API}/api/hotel-portal/update?token=${token}`,{method:'PATCH',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({pms_property_id:val})});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    hotelData.pms_property_id=val;
+    loadPmsSection();
+  }catch(e){alert('Uložení se nepovedlo: '+e.message);}
 }
 
 async function downloadMyInvoice(invoiceId){

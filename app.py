@@ -69,6 +69,11 @@ def init_settings_from_env():
         updates["stripe_payment_link"] = os.getenv("STRIPE_PAYMENT_LINK")
     if os.getenv("STRIPE_WEBHOOK_SECRET"):
         updates["stripe_webhook_secret"] = os.getenv("STRIPE_WEBHOOK_SECRET")
+    # Apaleo Connect app (OAuth) — jedny credentials pro celý SmartestGuide (ne per hotel)
+    if os.getenv("APALEO_CLIENT_ID"):
+        updates["apaleo_client_id"] = os.getenv("APALEO_CLIENT_ID")
+    if os.getenv("APALEO_CLIENT_SECRET"):
+        updates["apaleo_client_secret"] = os.getenv("APALEO_CLIENT_SECRET")
     if updates:
         db_save_settings(updates)
 
@@ -430,7 +435,8 @@ def _is_public_api(path: str) -> bool:
     if path in ("/api/version", "/api/pricing", "/api/pricing-config"):
         return True
     for p in ("/api/guest/", "/api/hotel-portal/", "/api/app-icon/", "/api/docs/",
-              "/api/ares/", "/api/stripe/", "/api/register", "/api/admin/"):
+              "/api/ares/", "/api/stripe/", "/api/register", "/api/admin/",
+              "/api/pms/apaleo/"):  # OAuth connect/callback — hlídá se hotel tokenem + state
         if path.startswith(p):
             return True
     if path.startswith("/api/hotels/"):
@@ -1255,7 +1261,8 @@ def hotel_portal_me(token: str):
     h = find_hotel_by_token(token)
     if not h:
         raise HTTPException(403, "Neplatny pristupovy token")
-    safe = {k: v for k, v in h.items() if k not in ("hotel_token", "pms_client_secret")}
+    safe = {k: v for k, v in h.items() if k not in (
+        "hotel_token", "pms_client_secret", "pms_refresh_token", "pms_oauth_state", "pms_oauth_state_at")}
     return {"status": "ok", "hotel": safe}
 
 class HotelPortalUpdate(BaseModel):
@@ -1263,6 +1270,7 @@ class HotelPortalUpdate(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     phone2: Optional[str] = None
+    pms_property_id: Optional[str] = None   # kód property v PMS (hotel ho smí nastavit sám; credentials NE)
     nav_pool: Optional[str] = None
     nav_wellness: Optional[str] = None
     nav_fitness: Optional[str] = None
@@ -4280,7 +4288,8 @@ def get_guest_hotel(hotel_id: str):
     # Vrátí pouze veřejná data (bez tokenů, interních dat a PMS credentials)
     public = {k: v for k, v in h.items() if k not in (
         "hotel_token", "stripe_customer_id", "stripe_subscription_id",
-        "pms_type", "pms_client_id", "pms_client_secret", "pms_property_id")}
+        "pms_type", "pms_client_id", "pms_client_secret", "pms_property_id",
+        "pms_refresh_token", "pms_oauth_state", "pms_oauth_state_at")}
     return {"status": "ok", "hotel": public}
 
 class GuestVisitRequest(BaseModel):
@@ -4446,7 +4455,20 @@ Guest name: {req.guest_name or 'Guest'}"""
     stay_block = None
     if req.room and h.get("pms_type"):
         try:
-            stay = await pms_layer.get_stay_for_room(h, req.room)
+            _ph = dict(h)  # kopie — do originálu nezasahujeme
+            if h.get("pms_refresh_token"):  # Connect (OAuth) režim → app-level credentials
+                _ph["_apaleo_app_client_id"] = settings.get("apaleo_client_id", "")
+                _ph["_apaleo_app_client_secret"] = settings.get("apaleo_client_secret", "")
+            stay = await pms_layer.get_stay_for_room(_ph, req.room)
+            # Rotace refresh tokenu (Apaleo vrací při každém refreshi nový) — ulož
+            if _ph.get("_new_refresh_token"):
+                try:
+                    _db2 = db_load()
+                    if _hid in _db2["hotels"]:
+                        _db2["hotels"][_hid]["pms_refresh_token"] = _ph["_new_refresh_token"]
+                        db_save(_db2)
+                except Exception as e2:
+                    logging.warning("Uložení rotovaného refresh tokenu selhalo: %s", e2)
             if stay:
                 stay_block = pms_layer.format_stay_block(stay)
         except Exception as e:
@@ -4483,6 +4505,97 @@ Guest name: {req.guest_name or 'Guest'}"""
     except Exception as e:
         logging.warning("Log dotazu hosta selhal: %s", e)
     return {"status": "ok", "reply": reply}
+
+# ─────────────────────────────────────────────
+# Apaleo Connect (OAuth) — jednoklikové připojení hotelu (Apaleo Store ready)
+# Flow: portál → /connect?token=… → Apaleo authorize → /callback → uložení refresh tokenu
+# ─────────────────────────────────────────────
+_APALEO_AUTHORIZE_URL = "https://identity.apaleo.com/connect/authorize"
+_APALEO_SCOPES = "offline_access reservations.read"
+
+@app.get("/api/pms/apaleo/connect")
+def apaleo_connect(token: str, request: Request):
+    """Start OAuth: přesměruje hotel (přihlášený portál tokenem) na Apaleo souhlas."""
+    from fastapi.responses import RedirectResponse
+    h = find_hotel_by_token(token)
+    if not h:
+        raise HTTPException(403, "Neplatný přístupový token")
+    s = db_get_settings()
+    client_id = (s.get("apaleo_client_id") or "").strip()
+    if not client_id:
+        raise HTTPException(400, "Apaleo Connect není nakonfigurováno (APALEO_CLIENT_ID)")
+    # CSRF ochrana: náhodný state uložený u hotelu (platnost 15 min)
+    state = uuid.uuid4().hex
+    db = db_load()
+    hid = h.get("id")
+    db["hotels"][hid]["pms_oauth_state"] = state
+    db["hotels"][hid]["pms_oauth_state_at"] = datetime.utcnow().isoformat()
+    db_save(db)
+    redirect_uri = f"{get_base_url(request)}/api/pms/apaleo/callback"
+    from urllib.parse import urlencode
+    q = urlencode({"response_type": "code", "client_id": client_id,
+                   "redirect_uri": redirect_uri, "scope": _APALEO_SCOPES, "state": state})
+    return RedirectResponse(f"{_APALEO_AUTHORIZE_URL}?{q}")
+
+@app.get("/api/pms/apaleo/callback")
+async def apaleo_callback(request: Request, code: str = "", state: str = "", error: str = ""):
+    """Návrat z Apaleo: výměna kódu za tokeny, uložení k hotelu dle state."""
+    def _page(title, body, ok=True):
+        color = "#2ecc87" if ok else "#ff4f6a"
+        return HTMLResponse(f"""<!DOCTYPE html><html lang="cs"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title></head>
+<body style="font-family:sans-serif;background:#15161a;color:#e6e4df;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0">
+<div style="max-width:440px;padding:36px;text-align:center;background:#1e1f25;border-radius:16px">
+<div style="font-size:40px;margin-bottom:12px">{"✅" if ok else "⚠️"}</div>
+<h2 style="color:{color};margin:0 0 10px">{title}</h2>
+<p style="line-height:1.6;color:#a9adc1">{body}</p>
+<p style="margin-top:22px;font-size:13px;color:#6b6f8e">Toto okno můžete zavřít a vrátit se do portálu.</p>
+</div></body></html>""")
+    if error:
+        return _page("Připojení se nezdařilo", f"Apaleo vrátilo chybu: {error}. Zkuste to prosím znovu z portálu.", ok=False)
+    if not (code and state):
+        return _page("Neplatný požadavek", "Chybí kód nebo state. Spusťte připojení znovu z portálu.", ok=False)
+    # Najdi hotel podle state (a zkontroluj stáří)
+    db = db_load()
+    hid, h = None, None
+    for _id, _h in db["hotels"].items():
+        if _h.get("pms_oauth_state") == state:
+            hid, h = _id, _h
+            break
+    if not h:
+        return _page("Neplatný state", "Bezpečnostní kontrola nevyšla. Spusťte připojení znovu z portálu.", ok=False)
+    try:
+        started = datetime.fromisoformat(h.get("pms_oauth_state_at", "2000-01-01"))
+        if (datetime.utcnow() - started).total_seconds() > 900:
+            return _page("Vypršel čas", "Připojení trvalo příliš dlouho. Spusťte ho prosím znovu z portálu.", ok=False)
+    except Exception:
+        pass
+    s = db_get_settings()
+    client_id = (s.get("apaleo_client_id") or "").strip()
+    client_secret = (s.get("apaleo_client_secret") or "").strip()
+    redirect_uri = f"{get_base_url(request)}/api/pms/apaleo/callback"
+    basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.post("https://identity.apaleo.com/connect/token",
+            headers={"Authorization": f"Basic {basic}", "Content-Type": "application/x-www-form-urlencoded"},
+            data={"grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri})
+    if r.status_code != 200:
+        logging.warning("Apaleo callback token exchange selhal: %s %s", r.status_code, r.text[:200])
+        return _page("Výměna tokenu selhala", "Apaleo nepřijalo autorizační kód. Zkuste to znovu, případně kontaktujte podporu.", ok=False)
+    tok = r.json()
+    refresh_token = tok.get("refresh_token", "")
+    if not refresh_token:
+        return _page("Chybí refresh token", "Apaleo nevrátilo trvalý přístup (offline_access). Zkontrolujte nastavení Connect aplikace.", ok=False)
+    db["hotels"][hid]["pms_type"] = "apaleo"
+    db["hotels"][hid]["pms_refresh_token"] = refresh_token
+    db["hotels"][hid].pop("pms_oauth_state", None)
+    db["hotels"][hid].pop("pms_oauth_state_at", None)
+    db_save(db)
+    prop_note = ""
+    if not h.get("pms_property_id"):
+        prop_note = " Zbývá doplnit kód property (např. BER) — v portálu v sekci PMS, nebo vám ho nastavíme my."
+    logging.info("Apaleo Connect: hotel %s připojen.", hid)
+    return _page("Apaleo připojeno", f"Hotel {h.get('name','')} je propojen se SMARTEST GUIDE.{prop_note}")
 
 class TranslateMenuRequest(BaseModel):
     hotel_id: str

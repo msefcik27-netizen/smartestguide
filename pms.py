@@ -53,6 +53,7 @@ def format_stay_block(stay: "Stay") -> str:
         lines.append(f"- Osoby: {stay.adults} dosp." + (f" + {stay.children} děti" if stay.children else ""))
     if stay.rate_plan:  lines.append(f"- Balíček/sazba: {stay.rate_plan}")
     if stay.balance:    lines.append(f"- Zůstatek na účtu pokoje: {stay.balance} (u dotazů na účet doporuč ověření na recepci)")
+    lines.append("Pokud jsi dříve v této konverzaci uvedl jiné časy (obecné časy hotelu), tyto údaje z rezervace je NAHRAZUJÍ — odpovídej podle rezervace a případný rozpor krátce vysvětli (obecný čas hotelu vs. čas ve vaší rezervaci).")
     lines.append("PRAVIDLO PŘESNOSTI PRO POBYT: Odpovídej VÝHRADNĚ z údajů uvedených výše. Pokud se host ptá na detail pobytu, který tu není (např. co přesně zahrnuje balíček, cena, platby, změna rezervace), NIKDY ho nedomýšlej — řekni, že tuto informaci nemáš, a odkaž na recepci. Změny rezervace (prodloužení, pozdní check-out) NIKDY nepotvrzuj — jen předej kontakt na recepci.")
     return "\n".join(lines)
 
@@ -136,13 +137,42 @@ def _apaleo_normalize(res: dict) -> Stay:
         source="apaleo",
     )
 
+async def apaleo_refresh_access_token(client_id: str, client_secret: str, refresh_token: str):
+    """Connect (OAuth) flow: vymění refresh token za nový access + refresh token.
+    Vrací (access_token, new_refresh_token) nebo (None, None)."""
+    basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+    async with httpx.AsyncClient(timeout=8.0) as client:
+        r = await client.post(
+            _APALEO_TOKEN_URL,
+            headers={"Authorization": f"Basic {basic}", "Content-Type": "application/x-www-form-urlencoded"},
+            data={"grant_type": "refresh_token", "refresh_token": refresh_token},
+        )
+    if r.status_code != 200:
+        logging.warning("Apaleo refresh token selhal: %s %s", r.status_code, r.text[:150])
+        return None, None
+    d = r.json()
+    return d.get("access_token"), d.get("refresh_token")
+
 async def _apaleo_get_stay(hotel: dict, room: str) -> Optional[Stay]:
-    client_id = (hotel.get("pms_client_id") or "").strip()
-    client_secret = (hotel.get("pms_client_secret") or "").strip()
     property_id = (hotel.get("pms_property_id") or "").strip()
-    if not (client_id and client_secret and property_id):
+    if not property_id:
         return None
-    token = await _apaleo_token(client_id, client_secret)
+    token = None
+    # 1) Connect (OAuth) režim — hotel připojený přes Apaleo Store / tlačítko v portálu
+    if hotel.get("pms_refresh_token") and hotel.get("_apaleo_app_client_id"):
+        token, new_rt = await apaleo_refresh_access_token(
+            hotel["_apaleo_app_client_id"], hotel.get("_apaleo_app_client_secret", ""),
+            hotel["pms_refresh_token"])
+        if new_rt and new_rt != hotel.get("pms_refresh_token"):
+            # rotace refresh tokenu — volající (app.py) ho po požadavku uloží
+            hotel["_new_refresh_token"] = new_rt
+    # 2) Custom app režim — ručně zadané client credentials per hotel
+    if not token:
+        client_id = (hotel.get("pms_client_id") or "").strip()
+        client_secret = (hotel.get("pms_client_secret") or "").strip()
+        if not (client_id and client_secret):
+            return None
+        token = await _apaleo_token(client_id, client_secret)
     if not token:
         return None
     # Ubytovaní hosté (InHouse) pro danou property; pokoj filtrujeme lokálně dle unit.name

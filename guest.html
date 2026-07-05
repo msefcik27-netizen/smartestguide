@@ -359,7 +359,15 @@ try{
 let roomNumber = '';
 try{
   const _qRoom = new URLSearchParams(location.search).get('room') || '';
-  if(_qRoom){ sessionStorage.setItem('sg_room', _qRoom); }
+  if(_qRoom){
+    // Nový/jiný pokoj v URL => začni čistou konverzaci (stará historie bez pobytu
+    // by Alexe svazovala — držel by se dřívějších obecných odpovědí)
+    const _prevRoom = sessionStorage.getItem('sg_room') || '';
+    if(_qRoom !== _prevRoom){
+      try{ localStorage.removeItem('sg_history_'+hotelId); }catch(e){}
+    }
+    sessionStorage.setItem('sg_room', _qRoom);
+  }
   roomNumber = sessionStorage.getItem('sg_room') || '';
 }catch(e){}
 
