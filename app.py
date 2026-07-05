@@ -1270,6 +1270,7 @@ class HotelPortalUpdate(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     phone2: Optional[str] = None
+    pms_property_id: Optional[str] = None   # kód property v PMS (hotel ho smí nastavit sám; credentials NE)
     nav_pool: Optional[str] = None
     nav_wellness: Optional[str] = None
     nav_fitness: Optional[str] = None
