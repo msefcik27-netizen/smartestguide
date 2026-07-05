@@ -347,7 +347,7 @@
         </div>
       </div>
       <div class="card">
-        <div class="table-wrap"><table><thead><tr><th>Název / URL</th><th>Lůžka</th><th>Cena</th><th>Stav / předplatné</th><th>Akce</th></tr></thead><tbody id="hotels-tbody"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Název / URL</th><th>Lůžka</th><th>Cena</th><th>Stav / předplatné</th><th>PMS</th><th>Akce</th></tr></thead><tbody id="hotels-tbody"></tbody></table></div>
       </div>
     </div>
 
@@ -1109,7 +1109,7 @@ function resetHotelFilter(){
 }
 // PMS badge — obecné pro libovolný systém (Apaleo, Mews, …) dle h.pms_type
 function pmsHtml(h){
-  if(!h.pms_type) return '<span style="font-size:10px;color:var(--muted)" title="Hotel nemá připojený hotelový systém (PMS)">🔌 PMS: –</span>';
+  if(!h.pms_type) return '<span style="font-size:11px;color:var(--muted)" title="Hotel nemá připojený hotelový systém (PMS)">–</span>';
   const name = h.pms_type.charAt(0).toUpperCase()+h.pms_type.slice(1);
   const prop = h.pms_property_id ? ' · '+esc(h.pms_property_id) : '';
   const warn = h.pms_property_id ? '' : ' <span style="color:var(--warn)" title="Hotel ještě nezadal kód property">⚠</span>';
@@ -1119,10 +1119,10 @@ function pmsHtml(h){
 function renderHotelsTable(){
   const tb=document.getElementById('hotels-tbody');
   const cnt=document.getElementById('hotel-count');
-  if(!all_hotels.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">Žádné hotely. <a href="#" onclick="showPage(\'scrape\')" style="color:var(--accent)">Přidej první →</a></td></tr>';if(cnt)cnt.textContent='';return;}
+  if(!all_hotels.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Žádné hotely. <a href="#" onclick="showPage(\'scrape\')" style="color:var(--accent)">Přidej první →</a></td></tr>';if(cnt)cnt.textContent='';return;}
   const rows=getFilteredHotels();
   if(cnt)cnt.textContent=`Zobrazeno ${rows.length} z ${all_hotels.length}`;
-  if(!rows.length){tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px">Žádný hotel neodpovídá filtru.</td></tr>';return;}
+  if(!rows.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Žádný hotel neodpovídá filtru.</td></tr>';return;}
   tb.innerHTML=rows.map(h=>{
     // Trial badge
     let trialHtml='';
@@ -1163,8 +1163,9 @@ function renderHotelsTable(){
       ${h.subscription_cancel_requested?'<span style="display:block;margin-top:2px;font-size:10px;color:var(--warn)">⏳ Zrušení naplánováno</span>':''}
       ${trialHtml}
       <div style="margin-top:4px;font-size:10px;color:${h.origin==='automatic'?'var(--accent2)':'var(--muted)'}">${h.origin==='automatic'?'🤖 Auto':'✋ Ruční'}</div>
-      <div style="margin-top:4px">${pmsHtml(h)}</div>
     </td>
+    <!-- PMS -->
+    <td style="padding:10px 8px;min-width:110px;white-space:nowrap">${pmsHtml(h)}</td>
     <!-- AKCE — 4×2 grid -->
     <td style="padding:8px;min-width:440px">
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px">
