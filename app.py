@@ -3652,6 +3652,87 @@ def portal_analytics(token: str):
     analytics = db.get("analytics", {}).get(h["id"], {"total": 0, "topics": {}})
     return {"status": "ok", "analytics": analytics}
 
+@app.get("/api/analytics/overview")
+def analytics_overview():
+    """Souhrnná usage analytika napříč hotely — jen pro admina.
+    POZOR: záměrně NENÍ pod /api/admin/ (ten prefix je veřejný kvůli loginu),
+    takže tento endpoint chrání _admin_gate cookie."""
+    db = db_load()
+    hotels = db.get("hotels", {})
+    analytics = db.get("analytics", {})
+    now = datetime.utcnow()
+    cur_key = now.strftime("%Y-%m")
+    # Posledních 12 měsíců, od nejstaršího po aktuální
+    month_keys = [_month_key_shift(cur_key, -i) for i in range(11, -1, -1)]
+
+    months = {mk: {"count": 0, "flagged": 0, "devices": 0} for mk in month_keys}
+    langs_total = {}
+    hotels_out = []
+    grand_total = 0
+
+    for hid, h in hotels.items():
+        a = analytics.get(hid, {}) or {}
+        monthly = a.get("monthly", {}) or {}
+        for mk in month_keys:
+            m = monthly.get(mk) or {}
+            months[mk]["count"] += int(m.get("count", 0))
+            months[mk]["flagged"] += int(m.get("flagged", 0))
+            months[mk]["devices"] += len(m.get("devices") or {})
+            for code, n in (m.get("langs") or {}).items():
+                langs_total[code] = langs_total.get(code, 0) + int(n)
+        cur = monthly.get(cur_key) or {}
+        prev = monthly.get(_month_key_shift(cur_key, -1)) or {}
+        cur_n, prev_n = int(cur.get("count", 0)), int(prev.get("count", 0))
+        trend = round((cur_n - prev_n) / prev_n * 100) if prev_n > 0 else None
+        top = sorted((cur.get("langs") or {}).items(), key=lambda kv: kv[1], reverse=True)[:3]
+        last_chat = a.get("last_chat")
+        silent_days = None
+        if last_chat:
+            try:
+                silent_days = max(0, (now - datetime.fromisoformat(last_chat)).days)
+            except Exception:
+                pass
+        total = int(a.get("total", 0))
+        grand_total += total
+        hotels_out.append({
+            "id": hid,
+            "name": h.get("name") or hid,
+            "active": bool(h.get("subscription_active")),
+            "total": total,
+            "month_count": cur_n,
+            "month_devices": len(cur.get("devices") or {}),
+            "prev_count": prev_n,
+            "trend_pct": trend,
+            "month_flagged": int(cur.get("flagged", 0)),
+            "flagged_total": int(a.get("flagged_count", 0)),
+            "last_chat": last_chat,
+            "silent_days": silent_days,
+            "top_langs": [{"code": c, "count": n} for c, n in top],
+        })
+
+    hotels_out.sort(key=lambda x: (x["month_count"], x["total"]), reverse=True)
+    cur_m = months[cur_key]
+    prev_m = months[_month_key_shift(cur_key, -1)]
+    trend_all = (round((cur_m["count"] - prev_m["count"]) / prev_m["count"] * 100)
+                 if prev_m["count"] > 0 else None)
+    top_langs = sorted(langs_total.items(), key=lambda kv: kv[1], reverse=True)[:6]
+    return {
+        "status": "ok",
+        "months": [{"key": mk, **months[mk]} for mk in month_keys],
+        "summary": {
+            "grand_total": grand_total,
+            "month_count": cur_m["count"],
+            "prev_month_count": prev_m["count"],
+            "trend_pct": trend_all,
+            "month_flagged": cur_m["flagged"],
+            "month_devices": cur_m["devices"],
+            "hotels_with_usage": sum(1 for x in hotels_out if x["month_count"] > 0),
+            "hotels_total": len(hotels_out),
+        },
+        "top_langs": [{"code": c, "count": n} for c, n in top_langs],
+        "hotels": hotels_out,
+    }
+
 # Fráze naznačující, že Alexovi chyběla informace (heuristika napříč jazyky)
 _LOW_INFO_MARKERS = [
     "i don't have", "i do not have", "i'm not sure", "i am not sure", "no information",
@@ -3660,7 +3741,7 @@ _LOW_INFO_MARKERS = [
     "žádné informace", "zadne informace", "leider", "désolé je n'ai pas", "no tengo esa información",
 ]
 
-def _log_guest_question(hotel_id: str, message: str, language: str, reply: str):
+def _log_guest_question(hotel_id: str, message: str, language: str, reply: str, device_id: str = ""):
     """Zaloguje dotaz hosta do analytiky + drží posledních 50 reálných dotazů (pro doplnění mezer)."""
     if not message:
         return
@@ -3691,6 +3772,12 @@ def _log_guest_question(hotel_id: str, message: str, language: str, reply: str):
         m["flagged"] = m.get("flagged", 0) + 1
     if language:
         m.setdefault("langs", {})[language] = m["langs"].get(language, 0) + 1
+    # Unikátní zařízení: ukládáme jen zkrácený hash (pseudonymizace), cap 2000/měsíc proti bobtnání JSONB
+    if device_id:
+        dh = hashlib.sha256(device_id.encode()).hexdigest()[:12]
+        dv = m.setdefault("devices", {})
+        if dh in dv or len(dv) < 2000:
+            dv[dh] = dv.get(dh, 0) + 1
     # Nech jen posledních 18 měsíců, ať data.json nebobtná
     if len(monthly) > 18:
         for k in sorted(monthly.keys())[:-18]:
@@ -4182,6 +4269,7 @@ class GuestChatRequest(BaseModel):
     guest_name: Optional[str] = None
     history: Optional[list] = None
     auto_lang: Optional[bool] = True
+    device_id: Optional[str] = None  # anonymní ID zařízení (localStorage) pro počítání unikátních hostů
 
 @app.post("/api/guest/chat")
 async def guest_chat(req: GuestChatRequest, request: Request):
@@ -4323,7 +4411,7 @@ Guest name: {req.guest_name or 'Guest'}"""
     reply = r.json()["content"][0]["text"]
     # Zaloguj reálný dotaz hosta (analytika + detekce mezer v informacích)
     try:
-        _log_guest_question(_hid, req.message, req.language, reply)
+        _log_guest_question(_hid, req.message, req.language, reply, device_id=req.device_id or "")
     except Exception as e:
         logging.warning("Log dotazu hosta selhal: %s", e)
     return {"status": "ok", "reply": reply}

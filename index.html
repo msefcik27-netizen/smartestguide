@@ -176,6 +176,7 @@
   <aside class="sidebar">
     <div class="logo">SmartestGuide<span style="width:7px;height:7px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:3px;margin-bottom:1px;box-shadow:0 0 8px rgba(255,107,0,.8)"></span><sub>Admin</sub></div>
     <div class="nav-item active" onclick="showPage('dashboard')"><span class="nav-icon">📊</span> Dashboard</div>
+    <div class="nav-item" onclick="showPage('analytics')"><span class="nav-icon">📈</span> Analytika</div>
     <div class="nav-item" onclick="showPage('scrape')"><span class="nav-icon">🔍</span> Přidat hotel</div>
     <div class="nav-item" onclick="showPage('hotels')"><span class="nav-icon">🏨</span> Hotely</div>
     <div class="nav-item" onclick="showPage('pricing')"><span class="nav-icon">💶</span> Ceník</div>
@@ -222,6 +223,36 @@
           <div id="activity-feed" style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto"></div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- ANALYTIKA -->
+    <div class="page" id="page-analytics">
+      <div class="topbar"><div class="page-title">Analytika <small>využití napříč hotely</small></div></div>
+      <div class="stat-grid" style="grid-template-columns:repeat(6,1fr)">
+        <div class="stat-card"><div class="stat-label">Dotazy tento měsíc</div><div class="stat-value accent" id="an-month">–</div></div>
+        <div class="stat-card"><div class="stat-label">Unikátní zařízení</div><div class="stat-value teal" id="an-devices">–</div></div>
+        <div class="stat-card"><div class="stat-label">Trend vs. minulý měsíc</div><div class="stat-value" id="an-trend">–</div></div>
+        <div class="stat-card"><div class="stat-label">Bez odpovědi (měsíc)</div><div class="stat-value" style="color:var(--warn)" id="an-flagged">–</div></div>
+        <div class="stat-card"><div class="stat-label">Hotely s provozem</div><div class="stat-value" id="an-usage-hotels">–</div></div>
+        <div class="stat-card"><div class="stat-label">Dotazy celkem</div><div class="stat-value" id="an-total">–</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-bottom:28px">
+        <div class="card">
+          <div class="section-label">Dotazy po měsících (12 měs.)</div>
+          <div style="height:260px"><canvas id="an-chart-months"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="section-label">Jazyky hostů (12 měs.)</div>
+          <div style="height:260px"><canvas id="an-chart-langs"></canvas></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="section-label">Hotely dle využití</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Hotel</th><th>Tento měsíc</th><th>Zařízení</th><th>Trend</th><th>Bez odpovědi</th><th>Celkem</th><th>Jazyky (měsíc)</th><th>Poslední dotaz</th></tr></thead>
+          <tbody id="an-tbody"></tbody>
+        </table></div>
       </div>
     </div>
 
@@ -631,7 +662,7 @@ function exportLog(){
 }
 
 // ══ NAV ══════════════════════════════════════
-const PAGES=['dashboard','scrape','hotels','pricing','settings','billing','commissions','log'];
+const PAGES=['dashboard','analytics','scrape','hotels','pricing','settings','billing','commissions','log'];
 // ── Zámek citlivých sekcí (Nastavení, Provize) + nebezpečné akce ──
 // Heslo se ověří jednou, drží se v paměti pro session a přiloží se jako X-Danger-Key.
 let dangerKey=null, dangerEnabled=null;
@@ -669,6 +700,7 @@ function _renderPage(name){
   onLog=(name==='log');
   location.hash = name;
   if(name==='log')renderLog();
+  if(name==='analytics')loadAnalytics();
   if(name==='dashboard'||name==='hotels')loadHotels();
   if(name==='settings'){loadKeyStatus();loadCompanySettings();}
   if(name==='billing')loadBilling();
@@ -833,6 +865,88 @@ function updateStats(){
   document.getElementById('stat-revenue').textContent=rev?rev+' EUR':'0 EUR';
   document.getElementById('stat-beds').textContent=b||'–';
   document.getElementById('stat-potential').textContent=potential?potential+' EUR':'0 EUR';
+}
+
+// ══ ANALYTIKA (usage napříč hotely) ══════════
+let anCharts={}, _chartJsPromise=null;
+function ensureChartJs(){
+  if(window.Chart) return Promise.resolve();
+  if(_chartJsPromise) return _chartJsPromise;
+  _chartJsPromise=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js';
+    s.onload=res; s.onerror=()=>{_chartJsPromise=null;rej(new Error('Chart.js se nepodařilo načíst'));};
+    document.head.appendChild(s);
+  });
+  return _chartJsPromise;
+}
+const AN_LANGS={cs:'Čeština',en:'Angličtina',de:'Němčina',fr:'Francouzština',it:'Italština',es:'Španělština',pl:'Polština',sk:'Slovenština',nl:'Nizozemština',ru:'Ruština',uk:'Ukrajinština',hu:'Maďarština'};
+function anMonthLbl(k){return parseInt(k.slice(5,7),10)+'/'+k.slice(2,4);}
+function anLastChat(h){
+  if(h.silent_days==null) return '<span style="color:var(--muted)">nikdy</span>';
+  if(h.silent_days===0) return 'dnes';
+  const warn = h.active && h.silent_days>7;
+  return `<span${warn?' style="color:var(--warn);font-weight:600"':''}>před ${h.silent_days} d</span>`;
+}
+async function loadAnalytics(){
+  try{
+    const chartsP=ensureChartJs().then(()=>true).catch(()=>false);
+    const r=await fetch('/api/analytics/overview');
+    if(r.status===401){toast('Přihlaste se do administrace','err');return;}
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    const s=d.summary||{};
+    document.getElementById('an-month').textContent=s.month_count??0;
+    const tr=document.getElementById('an-trend');
+    if(s.trend_pct==null){tr.textContent='–';tr.style.color='';}
+    else{tr.textContent=(s.trend_pct>=0?'+':'')+s.trend_pct+' %';tr.style.color=s.trend_pct>=0?'var(--success)':'var(--danger)';}
+    document.getElementById('an-devices').textContent=s.month_devices??0;
+    document.getElementById('an-flagged').textContent=s.month_flagged??0;
+    document.getElementById('an-usage-hotels').textContent=(s.hotels_with_usage??0)+' / '+(s.hotels_total??0);
+    document.getElementById('an-total').textContent=s.grand_total??0;
+    renderAnTable(d.hotels||[]);
+    if(await chartsP) renderAnCharts(d); else toast('Grafy nedostupné (CDN)','err');
+  }catch(e){toast('Nelze načíst analytiku: '+e.message,'err');}
+}
+function renderAnTable(hotels){
+  const tb=document.getElementById('an-tbody');
+  if(!hotels.length){tb.innerHTML='<tr><td colspan="7" style="color:var(--muted)">Zatím žádná data</td></tr>';return;}
+  tb.innerHTML=hotels.map(h=>{
+    const trend=h.trend_pct==null?'<span style="color:var(--muted)">–</span>'
+      :`<span style="color:${h.trend_pct>=0?'var(--success)':'var(--danger)'};font-weight:600">${h.trend_pct>=0?'+':''}${h.trend_pct} %</span>`;
+    const langs=(h.top_langs||[]).map(l=>`${AN_LANGS[l.code]||l.code} (${l.count})`).join(', ')||'<span style="color:var(--muted)">–</span>';
+    const badge=h.active?'':' <span class="badge" style="background:var(--bg3);color:var(--muted);font-size:9px;padding:1px 7px">neaktivní</span>';
+    const fl=h.month_flagged>0?`<span style="color:var(--warn);font-weight:600">${h.month_flagged}</span>`:'0';
+    return `<tr><td>${h.name}${badge}</td><td><strong>${h.month_count}</strong></td><td>${h.month_devices??0}</td><td>${trend}</td><td>${fl}</td><td>${h.total}</td><td style="font-size:12px">${langs}</td><td>${anLastChat(h)}</td></tr>`;
+  }).join('');
+}
+function renderAnCharts(d){
+  Object.values(anCharts).forEach(c=>{try{c.destroy();}catch(_){}});
+  anCharts={};
+  const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const months=d.months||[];
+  anCharts.months=new Chart(document.getElementById('an-chart-months'),{
+    type:'bar',
+    data:{labels:months.map(m=>anMonthLbl(m.key)),datasets:[
+      {label:'Dotazy',data:months.map(m=>m.count),backgroundColor:css('--accent'),borderRadius:4},
+      {label:'Unikátní zařízení',data:months.map(m=>m.devices||0),backgroundColor:css('--accent2'),borderRadius:4},
+      {label:'Bez odpovědi',data:months.map(m=>m.flagged),backgroundColor:css('--warn'),borderRadius:4}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{font:{family:'Inter'},boxWidth:12}}},
+      scales:{x:{grid:{display:false}},y:{beginAtZero:true,ticks:{precision:0}}}}
+  });
+  const langs=d.top_langs||[];
+  anCharts.langs=new Chart(document.getElementById('an-chart-langs'),{
+    type:'doughnut',
+    data:{labels:langs.map(l=>AN_LANGS[l.code]||l.code),datasets:[{
+      data:langs.map(l=>l.count),
+      backgroundColor:[css('--accent'),css('--accent2'),css('--success'),css('--warn'),css('--danger'),'#8884d8'],
+      borderWidth:0
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',
+      plugins:{legend:{position:'bottom',labels:{font:{family:'Inter',size:11},boxWidth:10}}}}
+  });
 }
 
 function starsHtml(n){
