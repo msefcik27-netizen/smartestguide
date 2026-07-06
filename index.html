@@ -1107,6 +1107,17 @@ function resetHotelFilter(){
   ['hotel-search','hotel-status','hotel-sort'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   renderHotelsTable();
 }
+// Akviziční kanál — odkud hotel přišel (apaleo_store / partner / direct).
+// Starší hotely pole nemají → odvodí se z acquired_by.
+function channelHtml(h){
+  const ch = h.acquisition_channel || ((h.acquired_by && h.acquired_by !== 'auto') ? 'partner' : 'direct');
+  if(ch === 'apaleo_store')
+    return '<span style="font-size:10px;color:#0a9d86;font-weight:600" title="Hotel přišel z Apaleo Store — partnerská provize nevzniká">🏪 Apaleo Store</span>';
+  if(ch === 'partner')
+    return '<span style="font-size:10px;color:#6c63ff;font-weight:600" title="Přivedl partner (referral) — provize dle pravidel">🤝 Partner'+(h.referral_code ? ' · '+esc(h.referral_code) : '')+'</span>';
+  return '<span style="font-size:10px;color:var(--muted)" title="Přímá registrace bez partnera">🌐 Přímý</span>';
+}
+
 // PMS badge — obecné pro libovolný systém (Apaleo, Mews, …) dle h.pms_type
 function pmsHtml(h){
   if(!h.pms_type) return '<span style="font-size:11px;color:var(--muted)" title="Hotel nemá připojený hotelový systém (PMS)">–</span>';
@@ -1163,6 +1174,7 @@ function renderHotelsTable(){
       ${h.subscription_cancel_requested?'<span style="display:block;margin-top:2px;font-size:10px;color:var(--warn)">⏳ Zrušení naplánováno</span>':''}
       ${trialHtml}
       <div style="margin-top:4px;font-size:10px;color:${h.origin==='automatic'?'var(--accent2)':'var(--muted)'}">${h.origin==='automatic'?'🤖 Auto':'✋ Ruční'}</div>
+      <div style="margin-top:3px">${channelHtml(h)}</div>
     </td>
     <!-- PMS -->
     <td style="padding:10px 8px;min-width:110px;white-space:nowrap">${pmsHtml(h)}</td>

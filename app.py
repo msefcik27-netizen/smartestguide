@@ -2434,6 +2434,7 @@ class RegistrationRequest(BaseModel):
     dic: Optional[str] = None            # DIČ / VAT ID
     billing_name: Optional[str] = None   # právní/fakturační název
     ref: Optional[str] = None            # referral kód partnera (atribuce provize)
+    src: Optional[str] = None            # akviziční kanál ("apaleo" = přišel z Apaleo Store — bez provize)
 
 def _norm_ico(x: str) -> str:
     """IČO na porovnání — jen číslice."""
@@ -2522,10 +2523,14 @@ async def register_hotel(req: RegistrationRequest, request: Request):
         "dic": (req.dic or "").strip(),
         "billing_name": (req.billing_name or "").strip(),
     }
-    # Atribuce provize — pouze přes platný referral kód partnera
-    _ref_partner = _partner_by_ref(db, req.ref)
+    # Atribuce provize — pouze přes platný referral kód partnera.
+    # Výjimka: hotel z Apaleo Store (src=apaleo) NIKDY nezakládá provizi — lead přivedlo
+    # Apaleo, ne partner (i kdyby v prohlížeči zůstal starý ref kód z dřívějška).
+    _is_apaleo = (req.src or "").strip().lower() == "apaleo"
+    _ref_partner = None if _is_apaleo else _partner_by_ref(db, req.ref)
     hotel["acquired_by"] = _ref_partner["id"] if _ref_partner else "auto"
     hotel["referral_code"] = _norm_ref(req.ref) if _ref_partner else ""
+    hotel["acquisition_channel"] = "apaleo_store" if _is_apaleo else ("partner" if _ref_partner else "direct")
     hotel["acquired_at"] = now
     _ensure_slug(db, hid, hotel)  # čitelná guest URL /h/{slug}
     db["hotels"][hid] = hotel
