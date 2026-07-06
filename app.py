@@ -4323,6 +4323,8 @@ def get_guest_hotel(hotel_id: str):
         "hotel_token", "stripe_customer_id", "stripe_subscription_id",
         "pms_type", "pms_client_id", "pms_client_secret", "pms_property_id",
         "pms_refresh_token", "pms_oauth_state", "pms_oauth_state_at")}
+    # Jen boolean — guest app podle něj nabídne „propojit pobyt" (žádné PMS detaily ven)
+    public["pms_connected"] = bool(h.get("pms_type"))
     return {"status": "ok", "hotel": public}
 
 class GuestVisitRequest(BaseModel):
@@ -4367,6 +4369,65 @@ class GuestChatRequest(BaseModel):
     auto_lang: Optional[bool] = True
     device_id: Optional[str] = None  # anonymní ID zařízení (localStorage) pro počítání unikátních hostů
     room: Optional[str] = None       # číslo pokoje z QR (?room=214) — pro PMS lookup pobytu
+    arrival: Optional[str] = None    # datum příjezdu zadané hostem (znalostní ověření, bez útraty)
+
+def _norm_date(s: str) -> str:
+    """Normalizuje datum na YYYY-MM-DD. Přijímá i DD.MM.YYYY / D.M.YYYY. Jinak vrací ''. """
+    s = (s or "").strip()
+    try:
+        if "." in s:
+            parts = [p.strip() for p in s.rstrip(".").split(".")]
+            if len(parts) == 3:
+                d, m, y = parts
+                return f"{int(y):04d}-{int(m):02d}-{int(d):02d}"
+        from datetime import date as _d
+        return _d.fromisoformat(s[:10]).isoformat()
+    except Exception:
+        return ""
+
+async def _fetch_stay_for_hotel(h: dict, hid: str, room: str, settings: dict):
+    """Načte pobyt z PMS vč. app-level credentials a uložení rotovaného refresh tokenu."""
+    _ph = dict(h)  # kopie — do originálu nezasahujeme
+    if h.get("pms_refresh_token"):  # Connect (OAuth) režim → app-level credentials
+        _ph["_apaleo_app_client_id"] = settings.get("apaleo_client_id", "")
+        _ph["_apaleo_app_client_secret"] = settings.get("apaleo_client_secret", "")
+    stay = await pms_layer.get_stay_for_room(_ph, room)
+    if _ph.get("_new_refresh_token"):
+        try:
+            _db2 = db_load()
+            if hid in _db2["hotels"]:
+                _db2["hotels"][hid]["pms_refresh_token"] = _ph["_new_refresh_token"]
+                db_save(_db2)
+        except Exception as e2:
+            logging.warning("Uložení rotovaného refresh tokenu selhalo: %s", e2)
+    return stay
+
+class VerifyStayRequest(BaseModel):
+    hotel_id: str
+    room: str
+    arrival: str
+
+@app.post("/api/guest/verify-stay")
+async def guest_verify_stay(req: VerifyStayRequest, request: Request):
+    """Znalostní ověření pobytu: pokoj + datum příjezdu musí sedět s In-house rezervací.
+    Vrací jen {verified: bool} — žádné údaje z rezervace neprozrazuje."""
+    if not _rate_limit_ok("verify:" + _client_ip(request), max_hits=10):
+        raise HTTPException(429, "Příliš mnoho pokusů. Zkuste to prosím za chvíli.")
+    db = db_load()
+    _hid, h = _resolve_hotel(db, req.hotel_id)
+    if not h or not h.get("pms_type"):
+        return {"status": "ok", "verified": False}
+    arrival = _norm_date(req.arrival)
+    if not arrival or not (req.room or "").strip():
+        return {"status": "ok", "verified": False}
+    try:
+        settings = db_get_settings()
+        stay = await _fetch_stay_for_hotel(h, _hid, req.room.strip(), settings)
+        verified = bool(stay and stay.arrival == arrival)
+    except Exception as e:
+        logging.warning("Verify-stay selhal: %s", e)
+        verified = False
+    return {"status": "ok", "verified": verified}
 
 @app.post("/api/guest/chat")
 async def guest_chat(req: GuestChatRequest, request: Request):
@@ -4488,24 +4549,31 @@ Guest name: {req.guest_name or 'Guest'}"""
     stay_block = None
     if req.room and h.get("pms_type"):
         try:
-            _ph = dict(h)  # kopie — do originálu nezasahujeme
-            if h.get("pms_refresh_token"):  # Connect (OAuth) režim → app-level credentials
-                _ph["_apaleo_app_client_id"] = settings.get("apaleo_client_id", "")
-                _ph["_apaleo_app_client_secret"] = settings.get("apaleo_client_secret", "")
-            stay = await pms_layer.get_stay_for_room(_ph, req.room)
-            # Rotace refresh tokenu (Apaleo vrací při každém refreshi nový) — ulož
-            if _ph.get("_new_refresh_token"):
-                try:
-                    _db2 = db_load()
-                    if _hid in _db2["hotels"]:
-                        _db2["hotels"][_hid]["pms_refresh_token"] = _ph["_new_refresh_token"]
-                        db_save(_db2)
-                except Exception as e2:
-                    logging.warning("Uložení rotovaného refresh tokenu selhalo: %s", e2)
-            if stay:
+            stay = await _fetch_stay_for_hotel(h, _hid, req.room, settings)
+            if req.arrival:
+                # Znalostní režim (pokoj + datum příjezdu zadané v chatu): ověř shodu,
+                # personalizace BEZ útraty/zůstatku. Neshoda => žádná data z rezervace.
+                claimed = _norm_date(req.arrival)
+                if stay and claimed and stay.arrival == claimed:
+                    stay_block = pms_layer.format_stay_block(stay, include_balance=False)
+                else:
+                    stay_block = ("OVĚŘENÍ POBYTU SELHALO: Host zadal číslo pokoje a datum příjezdu, "
+                                  "ale neodpovídají žádné aktuální rezervaci. Pokud se ptá na svůj pobyt, "
+                                  "vysvětli, že se pobyt nepodařilo ověřit — ať zkontroluje údaje, naskenuje "
+                                  "QR kartičku na svém pokoji, nebo se obrátí na recepci. "
+                                  "NIKDY nesděluj žádné údaje z rezervací.")
+            elif stay:
+                # QR režim (pokoj z kartičky na pokoji) — plná personalizace vč. účtu
                 stay_block = pms_layer.format_stay_block(stay)
         except Exception as e:
             logging.warning("PMS injekce do promptu selhala: %s", e)
+    elif h.get("pms_type") and not req.room:
+        # Hotel má PMS, ale host bez propojeného pobytu — dej Alexovi vědět, jak hosta navést
+        stay_block = ("PMS PROPOJENÍ: Hotel je připojen k hotelovému systému, ale tento host nemá "
+                      "propojený pobyt. Pokud se ptá na SVŮJ pobyt (jeho check-out, rezervaci, účet), "
+                      "odpověz z obecných údajů hotelu a přátelsky dodej, že odpovědi přímo z jeho "
+                      "rezervace získá naskenováním QR kartičky na svém pokoji, nebo propojením pobytu "
+                      "tlačítkem pod chatem (zadá číslo pokoje a datum příjezdu).")
 
     messages = []
     # Omez historii na posledních 10 zpráv (~5 výměn) — starší kontext jen zbytečně žere vstupní tokeny

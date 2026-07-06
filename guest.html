@@ -354,21 +354,33 @@ try{
   }
 }catch(e){}
 
-// Číslo pokoje z QR na pokoji (?room=214) — drží se v sessionStorage, ať přežije navigaci.
-// Používá se pro PMS lookup pobytu (personalizovaný Alex). Bez PMS nemá žádný efekt.
+// Číslo pokoje — dva režimy personalizace:
+//   'qr'       = pokoj z QR kartičky na pokoji (?room=214) → plná personalizace vč. účtu
+//   'verified' = pokoj + datum příjezdu zadané v chatu (ověřeno serverem) → bez účtu/útraty
+// Ukládá se do localStorage per hotel, ať personalizace přežije i otevření z ikony na ploše.
 let roomNumber = '';
+let roomArrival = '';
+let roomMode = '';
 try{
   const _qRoom = new URLSearchParams(location.search).get('room') || '';
+  let _stored = {};
+  try{ _stored = JSON.parse(localStorage.getItem('sg_stay_'+hotelId)||'{}')||{}; }catch(e){}
   if(_qRoom){
     // Nový/jiný pokoj v URL => začni čistou konverzaci (stará historie bez pobytu
     // by Alexe svazovala — držel by se dřívějších obecných odpovědí)
-    const _prevRoom = sessionStorage.getItem('sg_room') || '';
+    const _prevRoom = _stored.room || sessionStorage.getItem('sg_room') || '';
     if(_qRoom !== _prevRoom){
       try{ localStorage.removeItem('sg_history_'+hotelId); }catch(e){}
     }
     sessionStorage.setItem('sg_room', _qRoom);
+    roomNumber = _qRoom; roomMode = 'qr'; roomArrival = '';
+    localStorage.setItem('sg_stay_'+hotelId, JSON.stringify({room:_qRoom, mode:'qr'}));
+  } else if(_stored.room){
+    roomNumber = _stored.room; roomMode = _stored.mode || 'qr'; roomArrival = _stored.arrival || '';
+  } else {
+    roomNumber = sessionStorage.getItem('sg_room') || '';
+    if(roomNumber) roomMode = 'qr';
   }
-  roomNumber = sessionStorage.getItem('sg_room') || '';
 }catch(e){}
 
 // Beacon "otevření průvodce" — max 1× denně na zařízení a hotel
@@ -624,6 +636,18 @@ const UI_T={
       wa_help:'Доброго дня, мені потрібна допомога з проживанням.',wa_guest:'Доброго дня, я гість готелю {hotel}{dept}. Потрібна допомога.',
       wa_title:'Зв\'язатися з відділом',dept_reception:'📞 Рецепція',dept_wellness:'💆 Велнес / Спа',dept_restaurant:'🍽️ Ресторан',dept_sport:'🏊 Спорт'},
 };
+Object.assign(UI_T.cs,{link_stay:'🛎 Propojit můj pobyt',ask_room:'Zadejte číslo pokoje (najdete ho na klíči/dveřích, např. 1.003):',ask_arrival:'Zadejte datum svého příjezdu (např. 5.7.2026):',
+  stay_linked:'✅ Hotovo, váš pobyt je propojený! Teď vám odpovím přímo z vaší rezervace — třeba na přesný čas check-outu. Údaje o účtu z bezpečnostních důvodů takto nesděluji, s těmi pomůže recepce nebo QR kartička na pokoji.',
+  stay_link_failed:'⚠️ Pobyt se nepodařilo ověřit. Zkontrolujte prosím číslo pokoje a datum příjezdu, naskenujte QR kartičku na svém pokoji, nebo se obraťte na recepci.'});
+Object.assign(UI_T.sk,{link_stay:'🛎 Prepojiť môj pobyt',ask_room:'Zadajte číslo izby (napr. 1.003):',ask_arrival:'Zadajte dátum svojho príchodu (napr. 5.7.2026):',
+  stay_linked:'✅ Hotovo, váš pobyt je prepojený! Teraz vám odpoviem priamo z vašej rezervácie. Údaje o účte z bezpečnostných dôvodov takto neposkytujem — pomôže recepcia alebo QR kartička na izbe.',
+  stay_link_failed:'⚠️ Pobyt sa nepodarilo overiť. Skontrolujte číslo izby a dátum príchodu, naskenujte QR kartičku na izbe, alebo sa obráťte na recepciu.'});
+Object.assign(UI_T.en,{link_stay:'🛎 Link my stay',ask_room:'Enter your room number (e.g. 1.003):',ask_arrival:'Enter your arrival date (e.g. 2026-07-05 or 5.7.2026):',
+  stay_linked:'✅ Done — your stay is linked! I can now answer straight from your reservation, like your exact check-out time. For security I don\'t share billing details this way — reception or the QR card in your room can help with that.',
+  stay_link_failed:'⚠️ I couldn\'t verify your stay. Please check your room number and arrival date, scan the QR card in your room, or ask reception.'});
+Object.assign(UI_T.de,{link_stay:'🛎 Aufenthalt verknüpfen',ask_room:'Zimmernummer eingeben (z. B. 1.003):',ask_arrival:'Anreisedatum eingeben (z. B. 5.7.2026):',
+  stay_linked:'✅ Fertig — Ihr Aufenthalt ist verknüpft! Ich antworte jetzt direkt aus Ihrer Reservierung, z. B. mit Ihrer genauen Check-out-Zeit. Rechnungsdetails teile ich aus Sicherheitsgründen so nicht — dabei hilft die Rezeption oder die QR-Karte im Zimmer.',
+  stay_link_failed:'⚠️ Ihr Aufenthalt konnte nicht bestätigt werden. Bitte prüfen Sie Zimmernummer und Anreisedatum, scannen Sie die QR-Karte im Zimmer oder wenden Sie sich an die Rezeption.'});
 function uiT(k){ const d=UI_T[guestLang]||UI_T.en; return (d[k]!==undefined)?d[k]:UI_T.en[k]; }
 function applyGuestLangUI(){
   const set=(id,html)=>{const e=document.getElementById(id); if(e) e.innerHTML=html;};
@@ -683,8 +707,38 @@ function startChat(){
 
 function setQuickReplies(){
   const list=QUICK[guestLang]||QUICK['en'];
+  const linkBtn=(hotelData&&hotelData.pms_connected&&!roomNumber)
+    ? `<button class="qr-btn" style="border-color:rgba(255,107,0,.5);color:var(--accent);font-weight:600" onclick="linkStay()">${uiT('link_stay')}</button>` : '';
   document.getElementById('quick-replies').innerHTML=
-    list.map(q=>`<button class="qr-btn" onclick="quickSend('${q}')">${q}</button>`).join('');
+    linkBtn + list.map(q=>`<button class="qr-btn" onclick="quickSend('${q}')">${q}</button>`).join('');
+}
+
+// Znalostní propojení pobytu: pokoj + datum příjezdu → server ověří proti PMS rezervaci.
+// Úspěch se ukládá (localStorage), personalizace pak platí trvale — bez údajů o účtu.
+async function linkStay(){
+  const room=(prompt(uiT('ask_room'))||'').trim();
+  if(!room) return;
+  const arr=(prompt(uiT('ask_arrival'))||'').trim();
+  if(!arr) return;
+  let iso=arr;
+  const m=arr.match(/^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})/);
+  if(m) iso=m[3]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0');
+  try{
+    const r=await fetch(`${API}/api/guest/verify-stay`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({hotel_id:hotelId,room:room,arrival:iso})});
+    const d=await r.json();
+    if(d.verified){
+      roomNumber=room; roomArrival=iso; roomMode='verified';
+      try{
+        localStorage.setItem('sg_stay_'+hotelId, JSON.stringify({room:room,arrival:iso,mode:'verified'}));
+        sessionStorage.setItem('sg_room', room);
+      }catch(e){}
+      addBot(uiT('stay_linked'));
+      setQuickReplies();
+    }else{
+      addBot(uiT('stay_link_failed'));
+    }
+  }catch(e){ addBot(uiT('stay_link_failed')); }
 }
 
 function quickSend(t){
@@ -816,7 +870,7 @@ async function sendMsg(){
   try{
     const r=await fetch(`${API}/api/guest/chat`,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({hotel_id:hotelId,message:text,language:guestLang,guest_name:guestName,history:history.slice(-10),auto_lang:true,device_id:deviceId,room:roomNumber||null})
+      body:JSON.stringify({hotel_id:hotelId,message:text,language:guestLang,guest_name:guestName,history:history.slice(-10),auto_lang:true,device_id:deviceId,room:roomNumber||null,arrival:(roomMode==='verified'&&roomArrival)?roomArrival:null})
     });
     hideTyping();
     if(r.ok){
