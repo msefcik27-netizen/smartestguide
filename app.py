@@ -117,7 +117,7 @@ async def _deactivate_expired_subscriptions():
         db_save(db)
 
 async def _backup_data():
-    """Denní rotovaná záloha data.json (na volume) + denní off-site kopie e-mailem (kód + DB)."""
+    """Denní rotovaná záloha data.json (na volume) + týdenní off-site kopie e-mailem (kód + DB)."""
     import shutil, glob
     try:
         src = DB_PATH
@@ -147,7 +147,7 @@ async def _backup_data():
                 os.remove(old)
             except Exception:
                 pass
-        # Denní off-site záloha e-mailem (přežije i ztrátu volume)
+        # Týdenní off-site záloha e-mailem (přežije i ztrátu volume)
         marker = os.path.join(bdir, ".last_email")
         last = ""
         if os.path.exists(marker):
@@ -160,7 +160,7 @@ async def _backup_data():
             last_dt = datetime.fromisoformat(last) if last else None
         except Exception:
             last_dt = None
-        if last_dt is None or (now - last_dt).days >= 1:
+        if last_dt is None or (now - last_dt).days >= 7:
             if await _email_backup(src):
                 try:
                     open(marker, "w").write(now.isoformat())
@@ -209,13 +209,13 @@ async def _email_backup(src) -> bool:
         payload = {
             "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
             "to": [{"email": e} for e in recips],
-            "subject": f"SMARTEST GUIDE — denní záloha {stamp}",
-            "htmlContent": (f"<p>Denní off-site záloha k {stamp}. V příloze .zip:</p>"
+            "subject": f"SMARTEST GUIDE — týdenní záloha {stamp}",
+            "htmlContent": (f"<p>Týdenní off-site záloha k {stamp}. V příloze .zip:</p>"
                             f"<ul><li><strong>database.json</strong> — živá data (hotely, faktury, provize, nastavení)</li>"
                             f"<li><strong>code/</strong> — app.py, index.html (admin), hotel.html (portál), guest.html, landing.html</li></ul>"
                             f"<p>Rozbal a ulož mimo Railway.</p>"
                             f"<p style='color:#888;font-size:12px'>Pozn.: citlivé klíče (Anthropic/Stripe) v záloze nejsou — jsou v Railway env a obnoví se automaticky při startu.</p>"),
-            "textContent": f"Denni zaloha {stamp}: kod + databaze v .zip. Citlive klice nejsou (jsou v Railway env).",
+            "textContent": f"Tydenni zaloha {stamp}: kod + databaze v .zip. Citlive klice nejsou (jsou v Railway env).",
             "attachment": [{"name": f"smartestguide-backup-{stamp}.zip", "content": content_b64}],
         }
         import httpx
