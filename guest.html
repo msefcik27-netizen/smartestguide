@@ -705,12 +705,23 @@ function startChat(){
   document.getElementById('msg-input').focus();
 }
 
+function _linkStayBtnHtml(){
+  return (hotelData&&hotelData.pms_connected&&!roomNumber)
+    ? `<button class="qr-btn" style="border-color:rgba(255,107,0,.5);color:var(--accent);font-weight:600" onclick="linkStay()">${uiT('link_stay')}</button>` : '';
+}
 function setQuickReplies(){
   const list=QUICK[guestLang]||QUICK['en'];
-  const linkBtn=(hotelData&&hotelData.pms_connected&&!roomNumber)
-    ? `<button class="qr-btn" style="border-color:rgba(255,107,0,.5);color:var(--accent);font-weight:600" onclick="linkStay()">${uiT('link_stay')}</button>` : '';
-  document.getElementById('quick-replies').innerHTML=
-    linkBtn + list.map(q=>`<button class="qr-btn" onclick="quickSend('${q}')">${q}</button>`).join('');
+  const el=document.getElementById('quick-replies');
+  el.style.display='';
+  el.innerHTML=_linkStayBtnHtml() + list.map(q=>`<button class="qr-btn" onclick="quickSend('${q}')">${q}</button>`).join('');
+}
+// Po první zprávě schovej běžné rychlé odpovědi, ale „Propojit pobyt" nech,
+// dokud host pobyt nepropojí (QR kartičkou nebo ověřením v chatu).
+function hideQuickReplies(){
+  const el=document.getElementById('quick-replies');
+  const btn=_linkStayBtnHtml();
+  if(btn){ el.innerHTML=btn; el.style.display=''; }
+  else { el.style.display='none'; }
 }
 
 // Znalostní propojení pobytu: pokoj + datum příjezdu → server ověří proti PMS rezervaci.
@@ -734,7 +745,7 @@ async function linkStay(){
         sessionStorage.setItem('sg_room', room);
       }catch(e){}
       addBot(uiT('stay_linked'));
-      setQuickReplies();
+      if(history.length) hideQuickReplies(); else setQuickReplies();
     }else{
       addBot(uiT('stay_link_failed'));
     }
@@ -861,7 +872,7 @@ async function sendMsg(){
   addUser(text);
   history.push({role:'user',content:text});
   saveHistory();
-  document.getElementById('quick-replies').style.display='none';
+  hideQuickReplies();
   showTyping();
 
   // Offline fallback - zkus fetch, pokud selže → offline
@@ -1192,7 +1203,7 @@ async function translateMenu(e){
   msgs.appendChild(userDiv);
   msgs.scrollTop = msgs.scrollHeight;
 
-  document.getElementById('quick-replies').style.display='none';
+  hideQuickReplies();
   showTyping();
 
   try{
