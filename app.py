@@ -4559,8 +4559,8 @@ Guest name: {req.guest_name or 'Guest'}"""
                 else:
                     stay_block = ("OVĚŘENÍ POBYTU SELHALO: Host zadal číslo pokoje a datum příjezdu, "
                                   "ale neodpovídají žádné aktuální rezervaci. Pokud se ptá na svůj pobyt, "
-                                  "vysvětli, že se pobyt nepodařilo ověřit — ať zkontroluje údaje, naskenuje "
-                                  "QR kartičku na svém pokoji, nebo se obrátí na recepci. "
+                                  "vysvětli, že se pobyt nepodařilo ověřit — ať zkontroluje číslo pokoje "
+                                  "a datum příjezdu, nebo se obrátí na recepci. "
                                   "NIKDY nesděluj žádné údaje z rezervací.")
             elif stay:
                 # QR režim (pokoj z kartičky na pokoji) — plná personalizace vč. účtu
@@ -4571,9 +4571,9 @@ Guest name: {req.guest_name or 'Guest'}"""
         # Hotel má PMS, ale host bez propojeného pobytu — dej Alexovi vědět, jak hosta navést
         stay_block = ("PMS PROPOJENÍ: Hotel je připojen k hotelovému systému, ale tento host nemá "
                       "propojený pobyt. Pokud se ptá na SVŮJ pobyt (jeho check-out, rezervaci, účet), "
-                      "odpověz z obecných údajů hotelu a přátelsky dodej, že odpovědi přímo z jeho "
-                      "rezervace získá naskenováním QR kartičky na svém pokoji, nebo propojením pobytu "
-                      "tlačítkem pod chatem (zadá číslo pokoje a datum příjezdu).")
+                      "odpověz z obecných údajů hotelu a přátelsky dodej, že odpovědi přímo ze své "
+                      "rezervace získá propojením pobytu — tlačítkem pod chatem, kde zadá číslo pokoje "
+                      "a datum příjezdu.")
 
     messages = []
     # Omez historii na posledních 10 zpráv (~5 výměn) — starší kontext jen zbytečně žere vstupní tokeny

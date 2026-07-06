@@ -636,18 +636,18 @@ const UI_T={
       wa_help:'Доброго дня, мені потрібна допомога з проживанням.',wa_guest:'Доброго дня, я гість готелю {hotel}{dept}. Потрібна допомога.',
       wa_title:'Зв\'язатися з відділом',dept_reception:'📞 Рецепція',dept_wellness:'💆 Велнес / Спа',dept_restaurant:'🍽️ Ресторан',dept_sport:'🏊 Спорт'},
 };
-Object.assign(UI_T.cs,{link_stay:'🛎 Propojit můj pobyt',ask_room:'Zadejte číslo pokoje (najdete ho na klíči/dveřích, např. 1.003):',ask_arrival:'Zadejte datum svého příjezdu (např. 5.7.2026):',
-  stay_linked:'✅ Hotovo, váš pobyt je propojený! Teď vám odpovím přímo z vaší rezervace — třeba na přesný čas check-outu. Údaje o účtu z bezpečnostních důvodů takto nesděluji, s těmi pomůže recepce nebo QR kartička na pokoji.',
-  stay_link_failed:'⚠️ Pobyt se nepodařilo ověřit. Zkontrolujte prosím číslo pokoje a datum příjezdu, naskenujte QR kartičku na svém pokoji, nebo se obraťte na recepci.'});
-Object.assign(UI_T.sk,{link_stay:'🛎 Prepojiť môj pobyt',ask_room:'Zadajte číslo izby (napr. 1.003):',ask_arrival:'Zadajte dátum svojho príchodu (napr. 5.7.2026):',
-  stay_linked:'✅ Hotovo, váš pobyt je prepojený! Teraz vám odpoviem priamo z vašej rezervácie. Údaje o účte z bezpečnostných dôvodov takto neposkytujem — pomôže recepcia alebo QR kartička na izbe.',
-  stay_link_failed:'⚠️ Pobyt sa nepodarilo overiť. Skontrolujte číslo izby a dátum príchodu, naskenujte QR kartičku na izbe, alebo sa obráťte na recepciu.'});
-Object.assign(UI_T.en,{link_stay:'🛎 Link my stay',ask_room:'Enter your room number (e.g. 1.003):',ask_arrival:'Enter your arrival date (e.g. 2026-07-05 or 5.7.2026):',
-  stay_linked:'✅ Done — your stay is linked! I can now answer straight from your reservation, like your exact check-out time. For security I don\'t share billing details this way — reception or the QR card in your room can help with that.',
-  stay_link_failed:'⚠️ I couldn\'t verify your stay. Please check your room number and arrival date, scan the QR card in your room, or ask reception.'});
-Object.assign(UI_T.de,{link_stay:'🛎 Aufenthalt verknüpfen',ask_room:'Zimmernummer eingeben (z. B. 1.003):',ask_arrival:'Anreisedatum eingeben (z. B. 5.7.2026):',
-  stay_linked:'✅ Fertig — Ihr Aufenthalt ist verknüpft! Ich antworte jetzt direkt aus Ihrer Reservierung, z. B. mit Ihrer genauen Check-out-Zeit. Rechnungsdetails teile ich aus Sicherheitsgründen so nicht — dabei hilft die Rezeption oder die QR-Karte im Zimmer.',
-  stay_link_failed:'⚠️ Ihr Aufenthalt konnte nicht bestätigt werden. Bitte prüfen Sie Zimmernummer und Anreisedatum, scannen Sie die QR-Karte im Zimmer oder wenden Sie sich an die Rezeption.'});
+Object.assign(UI_T.cs,{link_stay:'🛎 Propojit můj pobyt',ls_title:'Propojit můj pobyt',ls_room_label:'Číslo pokoje (jako na klíči / dveřích)',ls_arrival_label:'Datum příjezdu',ls_submit:'Propojit',ls_cancel:'Zrušit',ls_fill_both:'Vyplňte prosím číslo pokoje i datum příjezdu.',
+  stay_linked:'✅ Hotovo, váš pobyt je propojený! Teď vám odpovím přímo z vaší rezervace — třeba na přesný čas check-outu. Údaje o účtu z bezpečnostních důvodů takto nesděluji, s těmi vám pomůže recepce.',
+  stay_link_failed:'⚠️ Pobyt se nepodařilo ověřit. Zkontrolujte prosím číslo pokoje a datum příjezdu, nebo se obraťte na recepci.'});
+Object.assign(UI_T.sk,{link_stay:'🛎 Prepojiť môj pobyt',ls_title:'Prepojiť môj pobyt',ls_room_label:'Číslo izby (ako na kľúči / dverách)',ls_arrival_label:'Dátum príchodu',ls_submit:'Prepojiť',ls_cancel:'Zrušiť',ls_fill_both:'Vyplňte prosím číslo izby aj dátum príchodu.',
+  stay_linked:'✅ Hotovo, váš pobyt je prepojený! Teraz vám odpoviem priamo z vašej rezervácie. Údaje o účte z bezpečnostných dôvodov takto neposkytujem — pomôže vám recepcia.',
+  stay_link_failed:'⚠️ Pobyt sa nepodarilo overiť. Skontrolujte prosím číslo izby a dátum príchodu, alebo sa obráťte na recepciu.'});
+Object.assign(UI_T.en,{link_stay:'🛎 Link my stay',ls_title:'Link my stay',ls_room_label:'Room number (as on your key / door)',ls_arrival_label:'Arrival date',ls_submit:'Link stay',ls_cancel:'Cancel',ls_fill_both:'Please fill in both your room number and arrival date.',
+  stay_linked:'✅ Done — your stay is linked! I can now answer straight from your reservation, like your exact check-out time. For security I don\'t share billing details this way — reception will be happy to help with those.',
+  stay_link_failed:'⚠️ I couldn\'t verify your stay. Please check your room number and arrival date, or ask reception for help.'});
+Object.assign(UI_T.de,{link_stay:'🛎 Aufenthalt verknüpfen',ls_title:'Aufenthalt verknüpfen',ls_room_label:'Zimmernummer (wie auf Schlüssel / Tür)',ls_arrival_label:'Anreisedatum',ls_submit:'Verknüpfen',ls_cancel:'Abbrechen',ls_fill_both:'Bitte Zimmernummer und Anreisedatum ausfüllen.',
+  stay_linked:'✅ Fertig — Ihr Aufenthalt ist verknüpft! Ich antworte jetzt direkt aus Ihrer Reservierung, z. B. mit Ihrer genauen Check-out-Zeit. Rechnungsdetails teile ich aus Sicherheitsgründen so nicht — dabei hilft Ihnen die Rezeption gerne.',
+  stay_link_failed:'⚠️ Ihr Aufenthalt konnte nicht bestätigt werden. Bitte prüfen Sie Zimmernummer und Anreisedatum, oder wenden Sie sich an die Rezeption.'});
 function uiT(k){ const d=UI_T[guestLang]||UI_T.en; return (d[k]!==undefined)?d[k]:UI_T.en[k]; }
 function applyGuestLangUI(){
   const set=(id,html)=>{const e=document.getElementById(id); if(e) e.innerHTML=html;};
@@ -726,14 +726,38 @@ function hideQuickReplies(){
 
 // Znalostní propojení pobytu: pokoj + datum příjezdu → server ověří proti PMS rezervaci.
 // Úspěch se ukládá (localStorage), personalizace pak platí trvale — bez údajů o účtu.
-async function linkStay(){
-  const room=(prompt(uiT('ask_room'))||'').trim();
-  if(!room) return;
-  const arr=(prompt(uiT('ask_arrival'))||'').trim();
-  if(!arr) return;
-  let iso=arr;
-  const m=arr.match(/^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})/);
-  if(m) iso=m[3]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0');
+// UI: brandovaný formulář přímo v chatu (žádný systémový prompt), datum přes nativní picker.
+function linkStay(){
+  if(document.getElementById('linkstay-form')){ document.getElementById('ls-room').focus(); return; }
+  const msgs=document.getElementById('messages');
+  const inp='width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:15px;padding:11px 12px;outline:none;color-scheme:dark';
+  const d=document.createElement('div');
+  d.id='linkstay-form';
+  d.className='msg bot';
+  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#fff;font-weight:800">✦</div>
+    <div class="msg-body"><div class="msg-bubble" style="min-width:250px;max-width:320px">
+      <div style="font-weight:700;font-size:14px;margin-bottom:12px">🛎 ${uiT('ls_title')}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:5px">${uiT('ls_room_label')}</div>
+      <input id="ls-room" type="text" inputmode="text" autocomplete="off" placeholder="1.003" style="${inp};margin-bottom:12px" onkeydown="if(event.key==='Enter')document.getElementById('ls-arrival').focus()">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:5px">${uiT('ls_arrival_label')}</div>
+      <input id="ls-arrival" type="date" style="${inp};margin-bottom:14px">
+      <div style="display:flex;gap:8px">
+        <button onclick="submitLinkStay()" style="flex:1;background:var(--accent);color:#0a0b0f;border:none;border-radius:10px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font-body,inherit)">${uiT('ls_submit')}</button>
+        <button onclick="document.getElementById('linkstay-form').remove()" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:10px;padding:11px 14px;font-size:13px;cursor:pointer;font-family:var(--font-body,inherit)">${uiT('ls_cancel')}</button>
+      </div>
+      <div id="ls-err" style="display:none;margin-top:10px;font-size:12px;line-height:1.5;color:#ff4f6a"></div>
+    </div></div>`;
+  msgs.appendChild(d);
+  msgs.scrollTop=msgs.scrollHeight;
+  document.getElementById('ls-room').focus();
+}
+async function submitLinkStay(){
+  const room=(document.getElementById('ls-room').value||'').trim();
+  const iso=(document.getElementById('ls-arrival').value||'').trim();  // z pickeru vždy YYYY-MM-DD
+  const err=document.getElementById('ls-err');
+  if(!room || !iso){ err.textContent=uiT('ls_fill_both'); err.style.display='block'; return; }
+  const btns=document.querySelectorAll('#linkstay-form button');
+  btns.forEach(b=>b.disabled=true);
   try{
     const r=await fetch(`${API}/api/guest/verify-stay`,{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({hotel_id:hotelId,room:room,arrival:iso})});
@@ -744,12 +768,19 @@ async function linkStay(){
         localStorage.setItem('sg_stay_'+hotelId, JSON.stringify({room:room,arrival:iso,mode:'verified'}));
         sessionStorage.setItem('sg_room', room);
       }catch(e){}
+      const f=document.getElementById('linkstay-form'); if(f) f.remove();
       addBot(uiT('stay_linked'));
       if(history.length) hideQuickReplies(); else setQuickReplies();
     }else{
-      addBot(uiT('stay_link_failed'));
+      err.textContent=uiT('stay_link_failed');
+      err.style.display='block';
+      btns.forEach(b=>b.disabled=false);
     }
-  }catch(e){ addBot(uiT('stay_link_failed')); }
+  }catch(e){
+    err.textContent=uiT('stay_link_failed');
+    err.style.display='block';
+    btns.forEach(b=>b.disabled=false);
+  }
 }
 
 function quickSend(t){
