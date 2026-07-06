@@ -4478,6 +4478,14 @@ async def guest_chat(req: GuestChatRequest, request: Request):
 LANGUAGE RULE: Detect the language of the guest's message and always respond in that same language.
 If you cannot detect the language, use {lang_name} ({req.language}) as default.
 Never mix languages in a single response.
+TRANSLATE HOTEL DATA: The hotel profile below may be written in a different language (often Czech).
+Always TRANSLATE the information into the guest's language — never quote raw profile text in another
+language. Example: profile says "Garáž v hotelu, 600 Kč/noc" and the guest writes English → answer
+"Hotel garage, 600 CZK per night." Keep proper names (hotel name, restaurant names, street names,
+place names) in their original form.
+
+FORMATTING: Plain conversational text only. You may use **bold** for key facts and simple "-" bullet
+lists. NEVER use Markdown headings (#, ##), tables, or code blocks — the chat does not render them.
 
 BRAND NAMES (IMPORTANT): "SMARTEST GUIDE" and "Alex" are a brand and product name. NEVER translate or localise them into any language — always keep them exactly as "SMARTEST GUIDE" and "Alex", regardless of the language you are speaking. Do not write "Nejchytřejší průvodce", "Le guide le plus intelligent", or any translated form.
 
