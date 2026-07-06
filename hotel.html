@@ -624,10 +624,10 @@ function renderPortal() {
   const subStatus = h.subscription_active
     ? '<span class="status-pill active">● Předplatné aktivní</span>'
     : '<span class="status-pill inactive">○ Předplatné neaktivní</span>';
-  const cancelAffordance = h.subscription_active
-    ? (h.subscription_cancel_requested
-        ? '<span style="font-size:11px;color:var(--warn)">⏳ Zrušení naplánováno ke konci období</span>'
-        : '<button onclick="cancelSubscription()" style="background:transparent;border:1px solid rgba(255,79,106,.35);color:var(--danger);border-radius:8px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:var(--font-body)">Zrušit předplatné</button>')
+  // Zrušení předplatného je záměrně JEN dole v kartě předplatného (ne v hlavičce),
+  // ať na něj nejde klepnout omylem. V hlavičce zůstává jen info o naplánovaném zrušení.
+  const cancelAffordance = (h.subscription_active && h.subscription_cancel_requested)
+    ? '<span style="font-size:11px;color:var(--warn)">⏳ Zrušení naplánováno ke konci období</span>'
     : '';
 
   document.getElementById('main-container').innerHTML = `
@@ -1339,7 +1339,7 @@ async function loadPaymentSection(){
           </div>
         </div>
         <div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(46,204,135,.2);display:flex;justify-content:flex-end">
-          <button onclick="cancelSubscription()" style="background:transparent;border:1px solid rgba(255,79,106,.3);color:var(--danger);border-radius:8px;padding:7px 16px;font-size:12px;cursor:pointer;font-family:var(--font-body)">
+          <button onclick="cancelSubscription()" style="background:transparent;border:none;color:var(--muted);font-size:11px;text-decoration:underline;cursor:pointer;font-family:var(--font-body);padding:4px 2px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--muted)'">
             Zrušit předplatné
           </button>
         </div>
@@ -1578,6 +1578,7 @@ function loadPmsSection(){
   const connected=!!h.pms_type;
   const prop=h.pms_property_id||'';
   if(connected){
+    const discBtn = `<button onclick="disconnectPms()" style="background:transparent;border:none;color:var(--muted);font-size:11px;text-decoration:underline;cursor:pointer;font-family:var(--font-body);white-space:nowrap;padding:4px 2px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--muted)'">Odpojit Apaleo</button>`;
     el.innerHTML=`
       <div style="background:rgba(46,204,135,.08);border:1px solid rgba(46,204,135,.3);border-radius:12px;padding:18px 22px;margin-bottom:24px">
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
@@ -1586,16 +1587,14 @@ function loadPmsSection(){
             <div style="font-family:var(--font-head);font-size:14px;font-weight:700;color:#2ecc87">Hotelový systém připojen (Apaleo)</div>
             <div style="font-size:12px;color:var(--muted);margin-top:3px">${prop?`Property: <b>${prop}</b>. `:''}Alex zná pobyty hostů a odpovídá jim osobně (check-out, balíček, účet).</div>
           </div>
-          ${prop?'':`
+          ${prop?discBtn:`
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <input type="text" id="pms-prop-input" placeholder="Kód property (např. BER)" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;width:180px;outline:none">
             <button onclick="savePmsProperty()" style="background:var(--accent);color:#0a0b0f;border:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Uložit</button>
           </div>`}
         </div>
-        ${prop?'':`<div style="font-size:11px;color:var(--muted);margin-top:10px">Kód property najdete v adresním řádku po přihlášení do Apaleo — např. <b>app.apaleo.com/BER/…</b> → kód je <b>BER</b>.</div>`}
-        <div style="margin-top:10px;text-align:right">
-          <button onclick="disconnectPms()" style="background:transparent;border:1px solid rgba(255,79,106,.3);color:var(--danger);border-radius:8px;padding:5px 12px;font-size:11px;cursor:pointer">Odpojit Apaleo</button>
-        </div>
+        ${prop?'':`<div style="font-size:11px;color:var(--muted);margin-top:10px">Kód property najdete v adresním řádku po přihlášení do Apaleo — např. <b>app.apaleo.com/BER/…</b> → kód je <b>BER</b>.</div>
+        <div style="margin-top:8px;text-align:right">${discBtn}</div>`}
       </div>`;
   }else{
     el.innerHTML=`
