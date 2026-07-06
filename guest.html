@@ -497,7 +497,9 @@ async function loadHotel(){
         pl: `Witaj ponownie, ${guestName}! 👋 Jak mogę pomóc?`,
         it: `Ben tornato, ${guestName}! 👋 Come posso aiutarti?`,
       };
-      addBot(welcomeBack[guestLang] || welcomeBack['en']);
+      let _wb = welcomeBack[guestLang] || welcomeBack['en'];
+      if(!guestName) _wb=_wb.replace(', !','!').replace(' !','!');
+      addBot(_wb);
       showInstallTip();
       setQuickReplies();
       return;
@@ -673,7 +675,7 @@ function showInstallTip(){
 
 function startChat(){
   if(!hotelData)return;
-  guestName=document.getElementById('ob-name').value.trim()||'host';
+  guestName=document.getElementById('ob-name').value.trim();
   document.getElementById('onboarding').style.opacity='0';
   document.getElementById('onboarding').style.transform='scale(.95)';
   document.getElementById('onboarding').style.transition='all .3s ease';
@@ -701,7 +703,9 @@ function startChat(){
     }
   }
   const greetFn=GREETINGS[guestLang]||GREETINGS['en'];
-  addBot(greetFn(guestName, hotelData.name||'hotel'));
+  let _g=greetFn(guestName, hotelData.name||'hotel');
+  if(!guestName) _g=_g.replace(' !','!');   // bez jména: "Hi ! 👋" → "Hi! 👋"
+  addBot(_g);
   showInstallTip();
   setQuickReplies();
   document.getElementById('msg-input').focus();
@@ -834,7 +838,7 @@ function addBot(text){
 function addUser(text){
   const msgs=document.getElementById('messages');
   const time=new Date().toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
-  const init=guestName.slice(0,2).toUpperCase();
+  const init=guestName?esc(guestName.slice(0,2).toUpperCase()):'👤';
   const d=document.createElement('div');
   d.className='msg user';
   d.innerHTML=`<div class="msg-av">${init}</div><div class="msg-body"><div class="msg-bubble">${esc(text)}</div><div class="msg-time">${time}</div></div>`;
@@ -1220,7 +1224,7 @@ async function translateMenu(e){
   // Zobraz náhled zprávy uživatele
   const msgs = document.getElementById('messages');
   const time = new Date().toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
-  const init = guestName.slice(0,2).toUpperCase();
+  const init = guestName?esc(guestName.slice(0,2).toUpperCase()):'👤';
 
   // Zpráva uživatele s foto
   const userDiv = document.createElement('div');
