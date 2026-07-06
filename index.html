@@ -1139,8 +1139,8 @@ function renderHotelsTable(){
     let trialHtml='';
     if(h.subscription_start){
       const diff=Math.ceil((new Date(h.subscription_start).getTime()+14*24*60*60*1000-Date.now())/(24*60*60*1000));
-      if(diff>0&&diff<=14) trialHtml=`<span style="display:block;margin-top:3px;font-size:10px;color:var(--warn)">🎁 Trial: ${diff} dní</span>`;
-      else if(diff<=0&&diff>-3) trialHtml=`<span style="display:block;margin-top:3px;font-size:10px;color:var(--danger)">⚠️ Trial vypršel</span>`;
+      if(diff>0&&diff<=14) trialHtml=`<span style="font-size:10px;color:var(--warn);white-space:nowrap">🎁 Trial: ${diff} dní</span>`;
+      else if(diff<=0&&diff>-3) trialHtml=`<span style="font-size:10px;color:var(--danger);white-space:nowrap">⚠️ Trial vypršel</span>`;
     }
     return`<tr style="border-bottom:1px solid var(--border)">
     <!-- NÁZEV + ZEMĚ + HVĚZDY -->
@@ -1168,13 +1168,18 @@ function renderHotelsTable(){
       ${h.is_free ? '<div style="margin-bottom:6px"><span class="badge badge-green" style="font-size:10px;padding:2px 9px">ZDARMA</span></div>' : ''}
       <button onclick="toggleFree('${h.id}',${!h.is_free})" style="padding:3px 9px;font-size:9px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer" title="Přepnout zdarma / placené">${h.is_free?'× zrušit zdarma':'+ zdarma'}</button>
     </td>
-    <!-- STAV + ORIGIN -->
-    <td style="padding:10px 8px;min-width:110px">
-      <span class="badge ${h.subscription_active?'badge-green':'badge-gray'}" style="cursor:pointer;font-size:10px;display:inline-block;margin-bottom:4px" onclick="toggleSubscription('${h.id}',${!h.subscription_active})" title="Klikni pro změnu">${h.subscription_active?'✓ Aktivní':'○ Neaktivní'}</span>
-      ${h.subscription_cancel_requested?'<span style="display:block;margin-top:2px;font-size:10px;color:var(--warn)">⏳ Zrušení naplánováno</span>':''}
-      ${trialHtml}
-      <div style="margin-top:4px;font-size:10px;color:${h.origin==='automatic'?'var(--accent2)':'var(--muted)'}">${h.origin==='automatic'?'🤖 Auto':'✋ Ruční'}</div>
-      <div style="margin-top:3px">${channelHtml(h)}</div>
+    <!-- STAV + ORIGIN — kompaktní 2 řádky -->
+    <td style="padding:10px 8px;min-width:150px;white-space:nowrap">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+        <span class="badge ${h.subscription_active?'badge-green':'badge-gray'}" style="cursor:pointer;font-size:10px" onclick="toggleSubscription('${h.id}',${!h.subscription_active})" title="Klikni pro změnu">${h.subscription_active?'✓ Aktivní':'○ Neaktivní'}</span>
+        ${trialHtml}
+        ${h.subscription_cancel_requested?'<span style="font-size:10px;color:var(--warn);white-space:nowrap">⏳ Zrušení</span>':''}
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:10px">
+        <span style="color:${h.origin==='automatic'?'var(--accent2)':'var(--muted)'}" title="${h.origin==='automatic'?'Hotel se registroval sám (landing page)':'Přidán ručně v adminu'}">${h.origin==='automatic'?'🤖 Auto':'✋ Ruční'}</span>
+        <span style="color:var(--border)">·</span>
+        ${channelHtml(h)}
+      </div>
     </td>
     <!-- PMS -->
     <td style="padding:10px 8px;min-width:110px;white-space:nowrap">${pmsHtml(h)}</td>
