@@ -8,8 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="theme-color" content="#ffffff"/>
   <title>SMARTEST GUIDE</title>
-  <!-- PWA manifest inline -->
-  <link rel="manifest" href="data:application/json,{}"/>
+  <!-- PWA manifest: link se vytvoří v JS s per-hotel URL (placeholder dělal v konzoli syntax error) -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet"/>
   <style>
     :root {
@@ -335,10 +334,11 @@
 const API = '';
 const hotelId = location.pathname.split('/').pop();
 
-// PWA: nastav per-hotel manifest + ikonu, aby instalace na plochu otevřela Alexe TOHOTO hotelu
+// PWA: vytvoř per-hotel manifest + ikonu, aby instalace na plochu otevřela Alexe TOHOTO hotelu
 try{
-  const _ml=document.querySelector('link[rel="manifest"]');
-  if(_ml) _ml.href='/api/hotels/'+hotelId+'/manifest.webmanifest';
+  let _ml=document.querySelector('link[rel="manifest"]');
+  if(!_ml){ _ml=document.createElement('link'); _ml.rel='manifest'; document.head.appendChild(_ml); }
+  _ml.href='/api/hotels/'+hotelId+'/manifest.webmanifest';
   const _ai=document.createElement('link'); _ai.rel='apple-touch-icon'; _ai.href='/api/app-icon/192';
   document.head.appendChild(_ai);
 }catch(e){}
