@@ -104,8 +104,10 @@
       color:#ffffff;border:none;border-radius:14px;
       font-family:var(--font-body);font-size:16px;font-weight:700;
       padding:18px;cursor:pointer;transition:all .2s;
-      box-shadow:0 4px 24px rgba(255,107,0,.4);
+      box-shadow:0 4px 24px rgba(255,107,0,.4),0 -12px 28px rgba(10,11,15,.55);
       display:flex;align-items:center;justify-content:center;gap:10px;
+      /* Sticky: tlačítko je vidět hned, i když je mřížka jazyků delší než obrazovka */
+      position:sticky;bottom:14px;z-index:5;
     }
     .ob-start-btn:active{transform:scale(.97)}
     .ob-start-btn:disabled{opacity:.5;cursor:not-allowed}
@@ -715,14 +717,8 @@ function setQuickReplies(){
   el.style.display='';
   el.innerHTML=_linkStayBtnHtml() + list.map(q=>`<button class="qr-btn" onclick="quickSend('${q}')">${q}</button>`).join('');
 }
-// Po první zprávě schovej běžné rychlé odpovědi, ale „Propojit pobyt" nech,
-// dokud host pobyt nepropojí (QR kartičkou nebo ověřením v chatu).
-function hideQuickReplies(){
-  const el=document.getElementById('quick-replies');
-  const btn=_linkStayBtnHtml();
-  if(btn){ el.innerHTML=btn; el.style.display=''; }
-  else { el.style.display='none'; }
-}
+// Rychlé odpovědi zůstávají viditelné po celou konverzaci (jednodotykové zkratky).
+// Řádek je horizontálně scrollovatelný, zabírá jediný řádek nad vstupem.
 
 // Znalostní propojení pobytu: pokoj + datum příjezdu → server ověří proti PMS rezervaci.
 // Úspěch se ukládá (localStorage), personalizace pak platí trvale — bez údajů o účtu.
@@ -770,7 +766,7 @@ async function submitLinkStay(){
       }catch(e){}
       const f=document.getElementById('linkstay-form'); if(f) f.remove();
       addBot(uiT('stay_linked'));
-      if(history.length) hideQuickReplies(); else setQuickReplies();
+      setQuickReplies();
     }else{
       err.textContent=uiT('stay_link_failed');
       err.style.display='block';
@@ -903,7 +899,6 @@ async function sendMsg(){
   addUser(text);
   history.push({role:'user',content:text});
   saveHistory();
-  hideQuickReplies();
   showTyping();
 
   // Offline fallback - zkus fetch, pokud selže → offline
@@ -1234,7 +1229,6 @@ async function translateMenu(e){
   msgs.appendChild(userDiv);
   msgs.scrollTop = msgs.scrollHeight;
 
-  hideQuickReplies();
   showTyping();
 
   try{
