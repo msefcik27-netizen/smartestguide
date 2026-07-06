@@ -36,9 +36,11 @@ class Stay:
     status: str = ""                # InHouse / Confirmed / ...
     source: str = ""                # 'apaleo' | 'mews' | ...
 
-def format_stay_block(stay: "Stay") -> str:
+def format_stay_block(stay: "Stay", include_balance: bool = True) -> str:
     """Blok do Alexova system promptu. Alex odpovídá jazykem hosta, blok je česky
-    (stejně jako zbytek interních dat v promptu)."""
+    (stejně jako zbytek interních dat v promptu).
+    include_balance=False → znalostní ověření (pokoj+datum příjezdu v chatu):
+    útratu/zůstatek nesdělujeme, jen přes QR z pokoje nebo recepci."""
     lines = [
         "AKTUÁLNÍ POBYT HOSTA (z hotelového systému — používej pro personalizované odpovědi,",
         "ale NIKDY nesděluj údaje o pobytu, pokud se host nejdřív nezmíní, že bydlí na tomto pokoji):",
@@ -52,7 +54,10 @@ def format_stay_block(stay: "Stay") -> str:
     if stay.adults or stay.children:
         lines.append(f"- Osoby: {stay.adults} dosp." + (f" + {stay.children} děti" if stay.children else ""))
     if stay.rate_plan:  lines.append(f"- Balíček/sazba: {stay.rate_plan}")
-    if stay.balance:    lines.append(f"- Zůstatek na účtu pokoje: {stay.balance} (u dotazů na účet doporuč ověření na recepci)")
+    if include_balance and stay.balance:
+        lines.append(f"- Zůstatek na účtu pokoje: {stay.balance} (u dotazů na účet doporuč ověření na recepci)")
+    if not include_balance:
+        lines.append("POZN.: Údaje o účtu/útratě v tomto režimu NEMÁŠ a nesděluj je — u dotazů na účet odkaž hosta na recepci nebo na QR kartičku na pokoji.")
     lines.append("Pokud jsi dříve v této konverzaci uvedl jiné časy (obecné časy hotelu), tyto údaje z rezervace je NAHRAZUJÍ — odpovídej podle rezervace a případný rozpor krátce vysvětli (obecný čas hotelu vs. čas ve vaší rezervaci).")
     lines.append("PRAVIDLO PŘESNOSTI PRO POBYT: Odpovídej VÝHRADNĚ z údajů uvedených výše. Pokud se host ptá na detail pobytu, který tu není (např. co přesně zahrnuje balíček, cena, platby, změna rezervace), NIKDY ho nedomýšlej — řekni, že tuto informaci nemáš, a odkaž na recepci. Změny rezervace (prodloužení, pozdní check-out) NIKDY nepotvrzuj — jen předej kontakt na recepci.")
     return "\n".join(lines)

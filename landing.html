@@ -579,7 +579,13 @@ document.getElementById('reg-beds').addEventListener('input',function(){
 });
 
 // ── Referral atribuce: ulož ?ref= z URL, ať přežije i po návratu na stránku ──
-try{ const _r=new URLSearchParams(location.search).get('ref'); if(_r) localStorage.setItem('sg_ref', _r); }catch(e){}
+try{
+  const _q=new URLSearchParams(location.search);
+  const _r=_q.get('ref'); if(_r) localStorage.setItem('sg_ref', _r);
+  // Příchod z Apaleo Store: označ kanál a zahoď případný starý partnerský ref
+  // (lead přivedlo Apaleo — partnerská provize nevzniká)
+  if((_q.get('src')||'')==='apaleo'){ localStorage.setItem('sg_src','apaleo'); localStorage.removeItem('sg_ref'); }
+}catch(e){}
 
 // ── ARES autofill: IČO → název firmy + DIČ (oficiální český registr, zdarma) ──
 async function aresAutofill(){
@@ -640,6 +646,7 @@ async function submitForm(){
         ico: ico||null,
         dic: dic||null,
         ref: (new URLSearchParams(location.search).get('ref') || localStorage.getItem('sg_ref') || null),
+        src: (new URLSearchParams(location.search).get('src') || localStorage.getItem('sg_src') || null),
       })
     });
     const d = await r.json();

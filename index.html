@@ -347,7 +347,7 @@
         </div>
       </div>
       <div class="card">
-        <div class="table-wrap"><table><thead><tr><th>Název / URL</th><th>Lůžka</th><th>Cena</th><th>Stav / předplatné</th><th>Akce</th></tr></thead><tbody id="hotels-tbody"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Název / URL</th><th>Lůžka</th><th>Cena</th><th>Stav / předplatné</th><th>PMS</th><th>Akce</th></tr></thead><tbody id="hotels-tbody"></tbody></table></div>
       </div>
     </div>
 
@@ -1107,13 +1107,33 @@ function resetHotelFilter(){
   ['hotel-search','hotel-status','hotel-sort'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   renderHotelsTable();
 }
+// Akviziční kanál — odkud hotel přišel (apaleo_store / partner / direct).
+// Starší hotely pole nemají → odvodí se z acquired_by.
+function channelHtml(h){
+  const ch = h.acquisition_channel || ((h.acquired_by && h.acquired_by !== 'auto') ? 'partner' : 'direct');
+  if(ch === 'apaleo_store')
+    return '<span style="font-size:10px;color:#0a9d86;font-weight:600" title="Hotel přišel z Apaleo Store — partnerská provize nevzniká">🏪 Apaleo Store</span>';
+  if(ch === 'partner')
+    return '<span style="font-size:10px;color:#6c63ff;font-weight:600" title="Přivedl partner (referral) — provize dle pravidel">🤝 Partner'+(h.referral_code ? ' · '+esc(h.referral_code) : '')+'</span>';
+  return '<span style="font-size:10px;color:var(--muted)" title="Přímá registrace bez partnera">🌐 Přímý</span>';
+}
+
+// PMS badge — obecné pro libovolný systém (Apaleo, Mews, …) dle h.pms_type
+function pmsHtml(h){
+  if(!h.pms_type) return '<span style="font-size:11px;color:var(--muted)" title="Hotel nemá připojený hotelový systém (PMS)">–</span>';
+  const name = h.pms_type.charAt(0).toUpperCase()+h.pms_type.slice(1);
+  const prop = h.pms_property_id ? ' · '+esc(h.pms_property_id) : '';
+  const warn = h.pms_property_id ? '' : ' <span style="color:var(--warn)" title="Hotel ještě nezadal kód property">⚠</span>';
+  return `<span class="badge badge-green" style="font-size:10px;padding:2px 8px" title="Připojený hotelový systém — Alex čte rezervace">🔌 ${name}${prop}</span>${warn}`;
+}
+
 function renderHotelsTable(){
   const tb=document.getElementById('hotels-tbody');
   const cnt=document.getElementById('hotel-count');
-  if(!all_hotels.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">Žádné hotely. <a href="#" onclick="showPage(\'scrape\')" style="color:var(--accent)">Přidej první →</a></td></tr>';if(cnt)cnt.textContent='';return;}
+  if(!all_hotels.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Žádné hotely. <a href="#" onclick="showPage(\'scrape\')" style="color:var(--accent)">Přidej první →</a></td></tr>';if(cnt)cnt.textContent='';return;}
   const rows=getFilteredHotels();
   if(cnt)cnt.textContent=`Zobrazeno ${rows.length} z ${all_hotels.length}`;
-  if(!rows.length){tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:32px">Žádný hotel neodpovídá filtru.</td></tr>';return;}
+  if(!rows.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Žádný hotel neodpovídá filtru.</td></tr>';return;}
   tb.innerHTML=rows.map(h=>{
     // Trial badge
     let trialHtml='';
@@ -1154,7 +1174,10 @@ function renderHotelsTable(){
       ${h.subscription_cancel_requested?'<span style="display:block;margin-top:2px;font-size:10px;color:var(--warn)">⏳ Zrušení naplánováno</span>':''}
       ${trialHtml}
       <div style="margin-top:4px;font-size:10px;color:${h.origin==='automatic'?'var(--accent2)':'var(--muted)'}">${h.origin==='automatic'?'🤖 Auto':'✋ Ruční'}</div>
+      <div style="margin-top:3px">${channelHtml(h)}</div>
     </td>
+    <!-- PMS -->
+    <td style="padding:10px 8px;min-width:110px;white-space:nowrap">${pmsHtml(h)}</td>
     <!-- AKCE — 4×2 grid -->
     <td style="padding:8px;min-width:440px">
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px">
@@ -1474,7 +1497,7 @@ function openEdit(id){
         </select>
         <input type="text" id="ef-pms_property_id" value="${esc(h.pms_property_id||'')}" placeholder="Property kód (např. BER)" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:8px 10px;outline:none">
         <input type="text" id="ef-pms_client_id" value="${esc(h.pms_client_id||'')}" placeholder="Client ID" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:8px 10px;outline:none">
-        <input type="password" id="ef-pms_client_secret" value="" placeholder="${h.pms_client_secret?'••••••• (uloženo — vyplňte jen při změně)':'Client Secret'}" autocomplete="new-password" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:8px 10px;outline:none">
+        <input type="password" id="ef-pms_client_secret" value="" placeholder="${(h.pms_client_secret_set||h.pms_client_secret)?'••••••• (uloženo — vyplňte jen při změně)':'Client Secret'}" autocomplete="new-password" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:8px 10px;outline:none">
       </div>
     </div>
 

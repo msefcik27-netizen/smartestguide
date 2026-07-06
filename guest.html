@@ -8,8 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="theme-color" content="#ffffff"/>
   <title>SMARTEST GUIDE</title>
-  <!-- PWA manifest inline -->
-  <link rel="manifest" href="data:application/json,{}"/>
+  <!-- PWA manifest: link se vytvoří v JS s per-hotel URL (placeholder dělal v konzoli syntax error) -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet"/>
   <style>
     :root {
@@ -105,8 +104,10 @@
       color:#ffffff;border:none;border-radius:14px;
       font-family:var(--font-body);font-size:16px;font-weight:700;
       padding:18px;cursor:pointer;transition:all .2s;
-      box-shadow:0 4px 24px rgba(255,107,0,.4);
+      box-shadow:0 4px 24px rgba(255,107,0,.4),0 -12px 28px rgba(10,11,15,.55);
       display:flex;align-items:center;justify-content:center;gap:10px;
+      /* Sticky: tlačítko je vidět hned, i když je mřížka jazyků delší než obrazovka */
+      position:sticky;bottom:14px;z-index:5;
     }
     .ob-start-btn:active{transform:scale(.97)}
     .ob-start-btn:disabled{opacity:.5;cursor:not-allowed}
@@ -265,9 +266,9 @@
       <div class="ob-avatar-ring"></div>
     </div>
     <div class="ob-hotel-name" id="ob-hotel-name">Načítám…</div>
-    <div class="ob-title">Váš osobní<br>concierge Alex</div>
-    <div class="ob-desc">Jsem tu pro vás 24/7. Zeptejte se mě na cokoliv o hotelu, okolí nebo službách.</div>
-    <div class="ob-features">
+    <div class="ob-title" id="ob-title">Váš osobní<br>concierge Alex</div>
+    <div class="ob-desc" id="ob-desc">Jsem tu pro vás 24/7. Zeptejte se mě na cokoliv o hotelu, okolí nebo službách.</div>
+    <div class="ob-features" id="ob-features">
       <span class="ob-feat">💬 Chat</span>
       <span class="ob-feat">🎤 Hlas</span>
       <span class="ob-feat">🌤 Počasí</span>
@@ -277,16 +278,16 @@
   </div>
 
   <div class="ob-form-wrap">
-    <div class="ob-label">Vaše jméno (volitelné)</div>
+    <div class="ob-label" id="ob-label-name">Vaše jméno (volitelné)</div>
     <input class="ob-input" id="ob-name" type="text" placeholder="Jak vám mám říkat?"/>
 
-    <div class="ob-label">Jazyk komunikace</div>
+    <div class="ob-label" id="ob-label-lang">Jazyk komunikace</div>
     <div class="lang-grid" id="lang-grid">
       <!-- Generováno JS -->
     </div>
 
     <button class="ob-start-btn" id="ob-start" onclick="startChat()">
-      <span>Spustit SMARTEST GUIDE</span>
+      <span id="ob-start-label">Spustit SMARTEST GUIDE</span>
       <span style="font-size:20px">→</span>
     </button>
   </div>
@@ -301,8 +302,8 @@
       <div class="hdr-sub" style="font-size:11px;color:var(--accent2)">AI Concierge · SMARTEST GUIDE</div>
     </div>
     <button class="hdr-btn" id="wa-hdr-btn" onclick="openWhatsAppMenu()" title="WhatsApp" style="display:none;background:rgba(37,211,102,.15);border-color:rgba(37,211,102,.3);color:#25d366">💬</button>
-    <button class="hdr-btn" onclick="fetchWeather()" title="Počasí">🌤</button>
-    <button class="hdr-btn" onclick="showInfo()" title="Info o hotelu">ℹ</button>
+    <button class="hdr-btn" id="weather-btn" onclick="fetchWeather()" title="Počasí">🌤</button>
+    <button class="hdr-btn" id="info-btn" onclick="showInfo()" title="Info o hotelu">ℹ</button>
   </div>
 
   <div id="messages"></div>
@@ -335,10 +336,11 @@
 const API = '';
 const hotelId = location.pathname.split('/').pop();
 
-// PWA: nastav per-hotel manifest + ikonu, aby instalace na plochu otevřela Alexe TOHOTO hotelu
+// PWA: vytvoř per-hotel manifest + ikonu, aby instalace na plochu otevřela Alexe TOHOTO hotelu
 try{
-  const _ml=document.querySelector('link[rel="manifest"]');
-  if(_ml) _ml.href='/api/hotels/'+hotelId+'/manifest.webmanifest';
+  let _ml=document.querySelector('link[rel="manifest"]');
+  if(!_ml){ _ml=document.createElement('link'); _ml.rel='manifest'; document.head.appendChild(_ml); }
+  _ml.href='/api/hotels/'+hotelId+'/manifest.webmanifest';
   const _ai=document.createElement('link'); _ai.rel='apple-touch-icon'; _ai.href='/api/app-icon/192';
   document.head.appendChild(_ai);
 }catch(e){}
@@ -354,21 +356,33 @@ try{
   }
 }catch(e){}
 
-// Číslo pokoje z QR na pokoji (?room=214) — drží se v sessionStorage, ať přežije navigaci.
-// Používá se pro PMS lookup pobytu (personalizovaný Alex). Bez PMS nemá žádný efekt.
+// Číslo pokoje — dva režimy personalizace:
+//   'qr'       = pokoj z QR kartičky na pokoji (?room=214) → plná personalizace vč. účtu
+//   'verified' = pokoj + datum příjezdu zadané v chatu (ověřeno serverem) → bez účtu/útraty
+// Ukládá se do localStorage per hotel, ať personalizace přežije i otevření z ikony na ploše.
 let roomNumber = '';
+let roomArrival = '';
+let roomMode = '';
 try{
   const _qRoom = new URLSearchParams(location.search).get('room') || '';
+  let _stored = {};
+  try{ _stored = JSON.parse(localStorage.getItem('sg_stay_'+hotelId)||'{}')||{}; }catch(e){}
   if(_qRoom){
     // Nový/jiný pokoj v URL => začni čistou konverzaci (stará historie bez pobytu
     // by Alexe svazovala — držel by se dřívějších obecných odpovědí)
-    const _prevRoom = sessionStorage.getItem('sg_room') || '';
+    const _prevRoom = _stored.room || sessionStorage.getItem('sg_room') || '';
     if(_qRoom !== _prevRoom){
       try{ localStorage.removeItem('sg_history_'+hotelId); }catch(e){}
     }
     sessionStorage.setItem('sg_room', _qRoom);
+    roomNumber = _qRoom; roomMode = 'qr'; roomArrival = '';
+    localStorage.setItem('sg_stay_'+hotelId, JSON.stringify({room:_qRoom, mode:'qr'}));
+  } else if(_stored.room){
+    roomNumber = _stored.room; roomMode = _stored.mode || 'qr'; roomArrival = _stored.arrival || '';
+  } else {
+    roomNumber = sessionStorage.getItem('sg_room') || '';
+    if(roomNumber) roomMode = 'qr';
   }
-  roomNumber = sessionStorage.getItem('sg_room') || '';
 }catch(e){}
 
 // Beacon "otevření průvodce" — max 1× denně na zařízení a hotel
@@ -429,6 +443,7 @@ function renderLangGrid(){
 function selectLang(code){
   guestLang=code;
   renderLangGrid();
+  applyGuestLangUI();
 }
 
 // ══ OFFLINE ══════════════════════════════════
@@ -455,6 +470,7 @@ async function loadHotel(){
       // Rovnou spusť chat bez onboardingu
       document.getElementById('onboarding').style.display='none';
       document.getElementById('chat-screen').classList.add('show');
+      applyGuestLangUI();
       // Přidej WhatsApp tlačítko do quick replies pokud je nastaveno
   if(hotelData.whatsapp_reception || hotelData.whatsapp_number){
     const waNum = (hotelData.whatsapp_reception || hotelData.whatsapp_number).replace(/\s/g,'');
@@ -462,7 +478,7 @@ async function loadHotel(){
     if(waEl){
       waEl.style.display = 'inline-flex';
       waEl.onclick = () => {
-        const msg = encodeURIComponent('Dobrý den, potřebuji pomoc s ubytováním.');
+        const msg = encodeURIComponent(uiT('wa_help'));
         window.open('https://wa.me/'+waNum.replace('+','')+'?text='+msg, '_blank');
       };
     }
@@ -481,7 +497,9 @@ async function loadHotel(){
         pl: `Witaj ponownie, ${guestName}! 👋 Jak mogę pomóc?`,
         it: `Ben tornato, ${guestName}! 👋 Come posso aiutarti?`,
       };
-      addBot(welcomeBack[guestLang] || welcomeBack['en']);
+      let _wb = welcomeBack[guestLang] || welcomeBack['en'];
+      if(!guestName) _wb=_wb.replace(', !','!').replace(' !','!');
+      addBot(_wb);
       showInstallTip();
       setQuickReplies();
       return;
@@ -508,6 +526,7 @@ async function loadHotel(){
   guestLang=supported.includes(bl)?bl:'en';
 
   renderLangGrid();
+  applyGuestLangUI();
 }
 
 function showError(msg,icon='⚠️'){
@@ -557,13 +576,106 @@ const INSTALL_TIP = {
 function isPwaInstalled(){
   try{ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true; }catch(e){ return false; }
 }
+
+// ══ UI TEXTY DLE JAZYKA (placeholdery, onboarding, tlačítka) ══
+const UI_T={
+  cs:{ob_title:'Váš osobní<br>concierge Alex',ob_desc:'Jsem tu pro vás 24/7. Zeptejte se mě na cokoliv o hotelu, okolí nebo službách.',
+      feats:['💬 Chat','🎤 Hlas','🌤 Počasí','🗺 Okolí','🌍 100+ jazyků'],name_label:'Vaše jméno (volitelné)',name_ph:'Jak vám mám říkat?',
+      lang_label:'Jazyk komunikace',start_btn:'Spustit SMARTEST GUIDE',msg_ph:'Napište zprávu…',
+      offline:'📡 Jste offline — zobrazuji uložené informace o hotelu',t_weather:'Počasí',t_info:'Info o hotelu',t_menu:'Přeložit menu',
+      wa_help:'Dobrý den, potřebuji pomoc s ubytováním.',wa_guest:'Dobrý den, jsem host hotelu {hotel}{dept}. Potřebuji pomoc.',
+      wa_title:'Kontaktovat oddělení',dept_reception:'📞 Recepce',dept_wellness:'💆 Wellness / Spa',dept_restaurant:'🍽️ Restaurace',dept_sport:'🏊 Sport'},
+  sk:{ob_title:'Váš osobný<br>concierge Alex',ob_desc:'Som tu pre vás 24/7. Opýtajte sa ma na čokoľvek o hoteli, okolí alebo službách.',
+      feats:['💬 Chat','🎤 Hlas','🌤 Počasie','🗺 Okolie','🌍 100+ jazykov'],name_label:'Vaše meno (voliteľné)',name_ph:'Ako vám mám hovoriť?',
+      lang_label:'Jazyk komunikácie',start_btn:'Spustiť SMARTEST GUIDE',msg_ph:'Napíšte správu…',
+      offline:'📡 Ste offline — zobrazujem uložené informácie o hoteli',t_weather:'Počasie',t_info:'Info o hoteli',t_menu:'Preložiť menu',
+      wa_help:'Dobrý deň, potrebujem pomoc s ubytovaním.',wa_guest:'Dobrý deň, som hosť hotela {hotel}{dept}. Potrebujem pomoc.',
+      wa_title:'Kontaktovať oddelenie',dept_reception:'📞 Recepcia',dept_wellness:'💆 Wellness / Spa',dept_restaurant:'🍽️ Reštaurácia',dept_sport:'🏊 Šport'},
+  en:{ob_title:'Your personal<br>concierge Alex',ob_desc:'I\'m here for you 24/7. Ask me anything about the hotel, the area or our services.',
+      feats:['💬 Chat','🎤 Voice','🌤 Weather','🗺 Nearby','🌍 100+ languages'],name_label:'Your name (optional)',name_ph:'What should I call you?',
+      lang_label:'Chat language',start_btn:'Start SMARTEST GUIDE',msg_ph:'Type a message…',
+      offline:'📡 You\'re offline — showing saved hotel info',t_weather:'Weather',t_info:'Hotel info',t_menu:'Translate menu',
+      wa_help:'Hello, I need help with my stay.',wa_guest:'Hello, I\'m a guest at {hotel}{dept}. I need assistance.',
+      wa_title:'Contact a department',dept_reception:'📞 Reception',dept_wellness:'💆 Wellness / Spa',dept_restaurant:'🍽️ Restaurant',dept_sport:'🏊 Sport'},
+  de:{ob_title:'Ihr persönlicher<br>Concierge Alex',ob_desc:'Ich bin rund um die Uhr für Sie da. Fragen Sie mich alles über das Hotel, die Umgebung oder unsere Services.',
+      feats:['💬 Chat','🎤 Stimme','🌤 Wetter','🗺 Umgebung','🌍 100+ Sprachen'],name_label:'Ihr Name (optional)',name_ph:'Wie darf ich Sie nennen?',
+      lang_label:'Sprache',start_btn:'SMARTEST GUIDE starten',msg_ph:'Nachricht schreiben…',
+      offline:'📡 Sie sind offline — gespeicherte Hotelinformationen',t_weather:'Wetter',t_info:'Hotelinfo',t_menu:'Menü übersetzen',
+      wa_help:'Guten Tag, ich brauche Hilfe mit meiner Unterkunft.',wa_guest:'Guten Tag, ich bin Gast im {hotel}{dept}. Ich brauche Hilfe.',
+      wa_title:'Abteilung kontaktieren',dept_reception:'📞 Rezeption',dept_wellness:'💆 Wellness / Spa',dept_restaurant:'🍽️ Restaurant',dept_sport:'🏊 Sport'},
+  fr:{ob_title:'Votre concierge<br>personnel Alex',ob_desc:'Je suis là pour vous 24h/24. Demandez-moi tout sur l\'hôtel, les environs ou nos services.',
+      feats:['💬 Chat','🎤 Voix','🌤 Météo','🗺 Alentours','🌍 100+ langues'],name_label:'Votre nom (facultatif)',name_ph:'Comment puis-je vous appeler ?',
+      lang_label:'Langue',start_btn:'Démarrer SMARTEST GUIDE',msg_ph:'Écrivez un message…',
+      offline:'📡 Vous êtes hors ligne — informations enregistrées',t_weather:'Météo',t_info:'Infos hôtel',t_menu:'Traduire le menu',
+      wa_help:'Bonjour, j\'ai besoin d\'aide concernant mon séjour.',wa_guest:'Bonjour, je suis client de {hotel}{dept}. J\'ai besoin d\'aide.',
+      wa_title:'Contacter un service',dept_reception:'📞 Réception',dept_wellness:'💆 Bien-être / Spa',dept_restaurant:'🍽️ Restaurant',dept_sport:'🏊 Sport'},
+  it:{ob_title:'Il vostro concierge<br>personale Alex',ob_desc:'Sono qui per voi 24/7. Chiedetemi qualsiasi cosa sull\'hotel, i dintorni o i servizi.',
+      feats:['💬 Chat','🎤 Voce','🌤 Meteo','🗺 Dintorni','🌍 100+ lingue'],name_label:'Il vostro nome (facoltativo)',name_ph:'Come posso chiamarvi?',
+      lang_label:'Lingua',start_btn:'Avvia SMARTEST GUIDE',msg_ph:'Scrivi un messaggio…',
+      offline:'📡 Sei offline — informazioni salvate',t_weather:'Meteo',t_info:'Info hotel',t_menu:'Traduci il menu',
+      wa_help:'Buongiorno, ho bisogno di aiuto con il soggiorno.',wa_guest:'Buongiorno, sono ospite di {hotel}{dept}. Ho bisogno di aiuto.',
+      wa_title:'Contatta un reparto',dept_reception:'📞 Reception',dept_wellness:'💆 Wellness / Spa',dept_restaurant:'🍽️ Ristorante',dept_sport:'🏊 Sport'},
+  es:{ob_title:'Su concierge<br>personal Alex',ob_desc:'Estoy aquí para usted 24/7. Pregúnteme lo que quiera sobre el hotel, los alrededores o los servicios.',
+      feats:['💬 Chat','🎤 Voz','🌤 Tiempo','🗺 Alrededores','🌍 100+ idiomas'],name_label:'Su nombre (opcional)',name_ph:'¿Cómo puedo llamarle?',
+      lang_label:'Idioma',start_btn:'Iniciar SMARTEST GUIDE',msg_ph:'Escriba un mensaje…',
+      offline:'📡 Sin conexión — mostrando información guardada',t_weather:'Tiempo',t_info:'Info del hotel',t_menu:'Traducir menú',
+      wa_help:'Buenos días, necesito ayuda con mi estancia.',wa_guest:'Buenos días, soy huésped de {hotel}{dept}. Necesito ayuda.',
+      wa_title:'Contactar un departamento',dept_reception:'📞 Recepción',dept_wellness:'💆 Wellness / Spa',dept_restaurant:'🍽️ Restaurante',dept_sport:'🏊 Deporte'},
+  pl:{ob_title:'Twój osobisty<br>concierge Alex',ob_desc:'Jestem tu dla Ciebie 24/7. Zapytaj mnie o cokolwiek — hotel, okolicę lub usługi.',
+      feats:['💬 Chat','🎤 Głos','🌤 Pogoda','🗺 Okolica','🌍 100+ języków'],name_label:'Twoje imię (opcjonalnie)',name_ph:'Jak mam się do Ciebie zwracać?',
+      lang_label:'Język',start_btn:'Uruchom SMARTEST GUIDE',msg_ph:'Napisz wiadomość…',
+      offline:'📡 Jesteś offline — zapisane informacje o hotelu',t_weather:'Pogoda',t_info:'Info o hotelu',t_menu:'Przetłumacz menu',
+      wa_help:'Dzień dobry, potrzebuję pomocy z zakwaterowaniem.',wa_guest:'Dzień dobry, jestem gościem hotelu {hotel}{dept}. Potrzebuję pomocy.',
+      wa_title:'Skontaktuj się z działem',dept_reception:'📞 Recepcja',dept_wellness:'💆 Wellness / Spa',dept_restaurant:'🍽️ Restauracja',dept_sport:'🏊 Sport'},
+  ru:{ob_title:'Ваш персональный<br>консьерж Алекс',ob_desc:'Я к вашим услугам 24/7. Спросите меня о чём угодно — об отеле, окрестностях или услугах.',
+      feats:['💬 Чат','🎤 Голос','🌤 Погода','🗺 Окрестности','🌍 100+ языков'],name_label:'Ваше имя (необязательно)',name_ph:'Как к вам обращаться?',
+      lang_label:'Язык',start_btn:'Запустить SMARTEST GUIDE',msg_ph:'Напишите сообщение…',
+      offline:'📡 Вы офлайн — сохранённая информация об отеле',t_weather:'Погода',t_info:'Об отеле',t_menu:'Перевести меню',
+      wa_help:'Здравствуйте, мне нужна помощь с проживанием.',wa_guest:'Здравствуйте, я гость отеля {hotel}{dept}. Мне нужна помощь.',
+      wa_title:'Связаться с отделом',dept_reception:'📞 Ресепшен',dept_wellness:'💆 Велнес / Спа',dept_restaurant:'🍽️ Ресторан',dept_sport:'🏊 Спорт'},
+  uk:{ob_title:'Ваш персональний<br>консьєрж Алекс',ob_desc:'Я до ваших послуг 24/7. Запитайте мене про будь-що — готель, околиці чи послуги.',
+      feats:['💬 Чат','🎤 Голос','🌤 Погода','🗺 Околиці','🌍 100+ мов'],name_label:'Ваше ім\'я (необов\'язково)',name_ph:'Як до вас звертатися?',
+      lang_label:'Мова',start_btn:'Запустити SMARTEST GUIDE',msg_ph:'Напишіть повідомлення…',
+      offline:'📡 Ви офлайн — збережена інформація про готель',t_weather:'Погода',t_info:'Про готель',t_menu:'Перекласти меню',
+      wa_help:'Доброго дня, мені потрібна допомога з проживанням.',wa_guest:'Доброго дня, я гість готелю {hotel}{dept}. Потрібна допомога.',
+      wa_title:'Зв\'язатися з відділом',dept_reception:'📞 Рецепція',dept_wellness:'💆 Велнес / Спа',dept_restaurant:'🍽️ Ресторан',dept_sport:'🏊 Спорт'},
+};
+Object.assign(UI_T.cs,{link_stay:'🛎 Propojit můj pobyt',ls_title:'Propojit můj pobyt',ls_room_label:'Číslo pokoje (jako na klíči / dveřích)',ls_arrival_label:'Datum příjezdu',ls_submit:'Propojit',ls_cancel:'Zrušit',ls_fill_both:'Vyplňte prosím číslo pokoje i datum příjezdu.',
+  stay_linked:'✅ Hotovo, váš pobyt je propojený! Teď vám odpovím přímo z vaší rezervace — třeba na přesný čas check-outu. Údaje o účtu z bezpečnostních důvodů takto nesděluji, s těmi vám pomůže recepce.',
+  stay_link_failed:'⚠️ Pobyt se nepodařilo ověřit. Zkontrolujte prosím číslo pokoje a datum příjezdu, nebo se obraťte na recepci.'});
+Object.assign(UI_T.sk,{link_stay:'🛎 Prepojiť môj pobyt',ls_title:'Prepojiť môj pobyt',ls_room_label:'Číslo izby (ako na kľúči / dverách)',ls_arrival_label:'Dátum príchodu',ls_submit:'Prepojiť',ls_cancel:'Zrušiť',ls_fill_both:'Vyplňte prosím číslo izby aj dátum príchodu.',
+  stay_linked:'✅ Hotovo, váš pobyt je prepojený! Teraz vám odpoviem priamo z vašej rezervácie. Údaje o účte z bezpečnostných dôvodov takto neposkytujem — pomôže vám recepcia.',
+  stay_link_failed:'⚠️ Pobyt sa nepodarilo overiť. Skontrolujte prosím číslo izby a dátum príchodu, alebo sa obráťte na recepciu.'});
+Object.assign(UI_T.en,{link_stay:'🛎 Link my stay',ls_title:'Link my stay',ls_room_label:'Room number (as on your key / door)',ls_arrival_label:'Arrival date',ls_submit:'Link stay',ls_cancel:'Cancel',ls_fill_both:'Please fill in both your room number and arrival date.',
+  stay_linked:'✅ Done — your stay is linked! I can now answer straight from your reservation, like your exact check-out time. For security I don\'t share billing details this way — reception will be happy to help with those.',
+  stay_link_failed:'⚠️ I couldn\'t verify your stay. Please check your room number and arrival date, or ask reception for help.'});
+Object.assign(UI_T.de,{link_stay:'🛎 Aufenthalt verknüpfen',ls_title:'Aufenthalt verknüpfen',ls_room_label:'Zimmernummer (wie auf Schlüssel / Tür)',ls_arrival_label:'Anreisedatum',ls_submit:'Verknüpfen',ls_cancel:'Abbrechen',ls_fill_both:'Bitte Zimmernummer und Anreisedatum ausfüllen.',
+  stay_linked:'✅ Fertig — Ihr Aufenthalt ist verknüpft! Ich antworte jetzt direkt aus Ihrer Reservierung, z. B. mit Ihrer genauen Check-out-Zeit. Rechnungsdetails teile ich aus Sicherheitsgründen so nicht — dabei hilft Ihnen die Rezeption gerne.',
+  stay_link_failed:'⚠️ Ihr Aufenthalt konnte nicht bestätigt werden. Bitte prüfen Sie Zimmernummer und Anreisedatum, oder wenden Sie sich an die Rezeption.'});
+function uiT(k){ const d=UI_T[guestLang]||UI_T.en; return (d[k]!==undefined)?d[k]:UI_T.en[k]; }
+function applyGuestLangUI(){
+  const set=(id,html)=>{const e=document.getElementById(id); if(e) e.innerHTML=html;};
+  set('ob-title',uiT('ob_title'));
+  set('ob-desc',uiT('ob_desc'));
+  set('ob-label-name',uiT('name_label'));
+  set('ob-label-lang',uiT('lang_label'));
+  set('ob-start-label',uiT('start_btn'));
+  const feats=document.getElementById('ob-features');
+  if(feats) feats.innerHTML=uiT('feats').map(f=>`<span class="ob-feat">${f}</span>`).join('');
+  const on=document.getElementById('ob-name'); if(on) on.placeholder=uiT('name_ph');
+  const mi=document.getElementById('msg-input'); if(mi) mi.placeholder=uiT('msg_ph');
+  const ob=document.getElementById('offline-banner'); if(ob) ob.textContent=uiT('offline');
+  const wb=document.getElementById('weather-btn'); if(wb) wb.title=uiT('t_weather');
+  const ib=document.getElementById('info-btn'); if(ib) ib.title=uiT('t_info');
+  const pb=document.getElementById('photo-btn'); if(pb) pb.title=uiT('t_menu');
+}
 function showInstallTip(){
   if(!isPwaInstalled()) addBot(INSTALL_TIP[guestLang] || INSTALL_TIP['en']);
 }
 
 function startChat(){
   if(!hotelData)return;
-  guestName=document.getElementById('ob-name').value.trim()||'host';
+  guestName=document.getElementById('ob-name').value.trim();
   document.getElementById('onboarding').style.opacity='0';
   document.getElementById('onboarding').style.transform='scale(.95)';
   document.getElementById('onboarding').style.transition='all .3s ease';
@@ -585,22 +697,90 @@ function startChat(){
     if(waEl){
       waEl.style.display = 'inline-flex';
       waEl.onclick = () => {
-        const msg = encodeURIComponent('Dobrý den, potřebuji pomoc s ubytováním.');
+        const msg = encodeURIComponent(uiT('wa_help'));
         window.open('https://wa.me/'+waNum.replace('+','')+'?text='+msg, '_blank');
       };
     }
   }
   const greetFn=GREETINGS[guestLang]||GREETINGS['en'];
-  addBot(greetFn(guestName, hotelData.name||'hotel'));
+  let _g=greetFn(guestName, hotelData.name||'hotel');
+  if(!guestName) _g=_g.replace(' !','!');   // bez jména: "Hi ! 👋" → "Hi! 👋"
+  addBot(_g);
   showInstallTip();
   setQuickReplies();
   document.getElementById('msg-input').focus();
 }
 
+function _linkStayBtnHtml(){
+  return (hotelData&&hotelData.pms_connected&&!roomNumber)
+    ? `<button class="qr-btn" style="border-color:rgba(255,107,0,.5);color:var(--accent);font-weight:600" onclick="linkStay()">${uiT('link_stay')}</button>` : '';
+}
 function setQuickReplies(){
   const list=QUICK[guestLang]||QUICK['en'];
-  document.getElementById('quick-replies').innerHTML=
-    list.map(q=>`<button class="qr-btn" onclick="quickSend('${q}')">${q}</button>`).join('');
+  const el=document.getElementById('quick-replies');
+  el.style.display='';
+  el.innerHTML=_linkStayBtnHtml() + list.map(q=>`<button class="qr-btn" onclick="quickSend('${q}')">${q}</button>`).join('');
+}
+// Rychlé odpovědi zůstávají viditelné po celou konverzaci (jednodotykové zkratky).
+// Řádek je horizontálně scrollovatelný, zabírá jediný řádek nad vstupem.
+
+// Znalostní propojení pobytu: pokoj + datum příjezdu → server ověří proti PMS rezervaci.
+// Úspěch se ukládá (localStorage), personalizace pak platí trvale — bez údajů o účtu.
+// UI: brandovaný formulář přímo v chatu (žádný systémový prompt), datum přes nativní picker.
+function linkStay(){
+  if(document.getElementById('linkstay-form')){ document.getElementById('ls-room').focus(); return; }
+  const msgs=document.getElementById('messages');
+  const inp='width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:15px;padding:11px 12px;outline:none;color-scheme:dark';
+  const d=document.createElement('div');
+  d.id='linkstay-form';
+  d.className='msg bot';
+  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#fff;font-weight:800">✦</div>
+    <div class="msg-body"><div class="msg-bubble" style="min-width:250px;max-width:320px">
+      <div style="font-weight:700;font-size:14px;margin-bottom:12px">🛎 ${uiT('ls_title')}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:5px">${uiT('ls_room_label')}</div>
+      <input id="ls-room" type="text" inputmode="text" autocomplete="off" placeholder="1.003" style="${inp};margin-bottom:12px" onkeydown="if(event.key==='Enter')document.getElementById('ls-arrival').focus()">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:5px">${uiT('ls_arrival_label')}</div>
+      <input id="ls-arrival" type="date" style="${inp};margin-bottom:14px">
+      <div style="display:flex;gap:8px">
+        <button onclick="submitLinkStay()" style="flex:1;background:var(--accent);color:#0a0b0f;border:none;border-radius:10px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font-body,inherit)">${uiT('ls_submit')}</button>
+        <button onclick="document.getElementById('linkstay-form').remove()" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:10px;padding:11px 14px;font-size:13px;cursor:pointer;font-family:var(--font-body,inherit)">${uiT('ls_cancel')}</button>
+      </div>
+      <div id="ls-err" style="display:none;margin-top:10px;font-size:12px;line-height:1.5;color:#ff4f6a"></div>
+    </div></div>`;
+  msgs.appendChild(d);
+  msgs.scrollTop=msgs.scrollHeight;
+  document.getElementById('ls-room').focus();
+}
+async function submitLinkStay(){
+  const room=(document.getElementById('ls-room').value||'').trim();
+  const iso=(document.getElementById('ls-arrival').value||'').trim();  // z pickeru vždy YYYY-MM-DD
+  const err=document.getElementById('ls-err');
+  if(!room || !iso){ err.textContent=uiT('ls_fill_both'); err.style.display='block'; return; }
+  const btns=document.querySelectorAll('#linkstay-form button');
+  btns.forEach(b=>b.disabled=true);
+  try{
+    const r=await fetch(`${API}/api/guest/verify-stay`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({hotel_id:hotelId,room:room,arrival:iso})});
+    const d=await r.json();
+    if(d.verified){
+      roomNumber=room; roomArrival=iso; roomMode='verified';
+      try{
+        localStorage.setItem('sg_stay_'+hotelId, JSON.stringify({room:room,arrival:iso,mode:'verified'}));
+        sessionStorage.setItem('sg_room', room);
+      }catch(e){}
+      const f=document.getElementById('linkstay-form'); if(f) f.remove();
+      addBot(uiT('stay_linked'));
+      setQuickReplies();
+    }else{
+      err.textContent=uiT('stay_link_failed');
+      err.style.display='block';
+      btns.forEach(b=>b.disabled=false);
+    }
+  }catch(e){
+    err.textContent=uiT('stay_link_failed');
+    err.style.display='block';
+    btns.forEach(b=>b.disabled=false);
+  }
 }
 
 function quickSend(t){
@@ -658,7 +838,7 @@ function addBot(text){
 function addUser(text){
   const msgs=document.getElementById('messages');
   const time=new Date().toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
-  const init=guestName.slice(0,2).toUpperCase();
+  const init=guestName?esc(guestName.slice(0,2).toUpperCase()):'👤';
   const d=document.createElement('div');
   d.className='msg user';
   d.innerHTML=`<div class="msg-av">${init}</div><div class="msg-body"><div class="msg-bubble">${esc(text)}</div><div class="msg-time">${time}</div></div>`;
@@ -717,12 +897,12 @@ async function sendMsg(){
   if(detected && detected !== guestLang){
     guestLang = detected;
     localStorage.setItem('sg_lang_' + hotelId, guestLang);
+    applyGuestLangUI();
   }
 
   addUser(text);
   history.push({role:'user',content:text});
   saveHistory();
-  document.getElementById('quick-replies').style.display='none';
   showTyping();
 
   // Offline fallback - zkus fetch, pokud selže → offline
@@ -731,7 +911,7 @@ async function sendMsg(){
   try{
     const r=await fetch(`${API}/api/guest/chat`,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({hotel_id:hotelId,message:text,language:guestLang,guest_name:guestName,history:history.slice(-10),auto_lang:true,device_id:deviceId,room:roomNumber||null})
+      body:JSON.stringify({hotel_id:hotelId,message:text,language:guestLang,guest_name:guestName,history:history.slice(-10),auto_lang:true,device_id:deviceId,room:roomNumber||null,arrival:(roomMode==='verified'&&roomArrival)?roomArrival:null})
     });
     hideTyping();
     if(r.ok){
@@ -767,17 +947,17 @@ function openWhatsApp(dept){
   if(!num) return;
   const clean = num.replace(/[\s\-\(\)]/g,'').replace(/^\+/,'');
   const deptLabel = dept ? ' (' + dept + ')' : '';
-  const msg = encodeURIComponent('Dobrý den, jsem host hotelu ' + (h.name||'') + deptLabel + '. Potřebuji pomoc.');
+  const msg = encodeURIComponent(uiT('wa_guest').replace('{hotel}', h.name||'').replace('{dept}', deptLabel));
   window.open('https://wa.me/' + clean + '?text=' + msg, '_blank');
 }
 
 function openWhatsAppMenu(){
   const h = hotelData || {};
   const depts = [
-    {key:'recepce', label:'📞 Recepce', num: h.whatsapp_number || h.phone},
-    {key:'wellness', label:'💆 Wellness / Spa', num: h.whatsapp_wellness},
-    {key:'restaurace', label:'🍽️ Restaurace', num: h.whatsapp_restaurant},
-    {key:'sport', label:'🏊 Sport', num: h.whatsapp_sport},
+    {key:'recepce', label:uiT('dept_reception'), num: h.whatsapp_number || h.phone},
+    {key:'wellness', label:uiT('dept_wellness'), num: h.whatsapp_wellness},
+    {key:'restaurace', label:uiT('dept_restaurant'), num: h.whatsapp_restaurant},
+    {key:'sport', label:uiT('dept_sport'), num: h.whatsapp_sport},
   ].filter(d => d.num);
   if(depts.length === 0) return;
   if(depts.length === 1){ openWhatsApp(depts[0].key); return; }
@@ -787,7 +967,7 @@ function openWhatsAppMenu(){
   const popup = document.createElement('div');
   popup.id = 'wa-dept-popup';
   popup.style.cssText = 'position:fixed;bottom:80px;right:16px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:8px;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.5);min-width:200px';
-  popup.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:4px 8px 8px;text-transform:uppercase;letter-spacing:.6px">Kontaktovat oddělení</div>'
+  popup.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:4px 8px 8px;text-transform:uppercase;letter-spacing:.6px">'+uiT('wa_title')+'</div>'
     + depts.map(d => `<button onclick="openWhatsApp('${d.key}');document.getElementById('wa-dept-popup').remove()" style="display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;color:var(--text);padding:8px 10px;border-radius:8px;cursor:pointer;font-size:14px;text-align:left" onmouseover="this.style.background='rgba(255,107,0,.1)'" onmouseout="this.style.background='none'">${d.label}</button>`).join('');
   document.body.appendChild(popup);
   setTimeout(() => document.addEventListener('click', function h(e){ if(!popup.contains(e.target)){popup.remove();document.removeEventListener('click',h);} }), 100);
@@ -1044,7 +1224,7 @@ async function translateMenu(e){
   // Zobraz náhled zprávy uživatele
   const msgs = document.getElementById('messages');
   const time = new Date().toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
-  const init = guestName.slice(0,2).toUpperCase();
+  const init = guestName?esc(guestName.slice(0,2).toUpperCase()):'👤';
 
   // Zpráva uživatele s foto
   const userDiv = document.createElement('div');
@@ -1053,7 +1233,6 @@ async function translateMenu(e){
   msgs.appendChild(userDiv);
   msgs.scrollTop = msgs.scrollHeight;
 
-  document.getElementById('quick-replies').style.display='none';
   showTyping();
 
   try{

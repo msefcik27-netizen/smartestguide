@@ -138,6 +138,10 @@ html{color-scheme:light}
     <div class="hotel-name-bar">Hotel AI Concierge: <strong id="hotel-name-bar">–</strong></div>
   </div>
   <div class="save-bar">
+    <span style="display:inline-flex;gap:2px;border:1px solid var(--border);border-radius:7px;padding:2px">
+      <button class="plang-btn" id="plb-cs" onclick="setPortalLang('cs')" title="Česky">CZ</button>
+      <button class="plang-btn" id="plb-en" onclick="setPortalLang('en')" title="English">EN</button>
+    </span>
     <span class="last-saved" id="last-saved"></span>
     <span class="unsaved-dot" id="unsaved-dot"></span>
     <button class="btn btn-secondary" id="save-btn" onclick="saveAll()" title="Ukládá se automaticky — tlačítko je jen pojistka">✓ Uloženo</button>
@@ -176,71 +180,332 @@ const token = new URLSearchParams(location.search).get('token');
 let hotelData = null;
 let hasChanges = false;
 
-// ── Překlady portálu ─────────────────────────
-const PORTAL_T = {
-  cs:{
-    title:"Hotelový portál",save:"Uložit změny",saving:"Ukládám...",saved:"Změny uloženy",
-    cancel_sub:"Zrušit předplatné",cancel_confirm:"Opravdu zrušit předplatné?",
-    pay_btn:"Zaplatit online",pay_active:"Předplatné aktivní",
-    invoices:"Faktury",analytics:"Statistiky chatbota",embed:"Embed widget",
-    no_invoices:"Žádné faktury",pdf:"PDF",logout:"Odhlásit",
-  },
-  en:{
-    title:"Hotel Portal",save:"Save changes",saving:"Saving...",saved:"Changes saved",
-    cancel_sub:"Cancel subscription",cancel_confirm:"Really cancel subscription?",
-    pay_btn:"Pay online",pay_active:"Subscription active",
-    invoices:"Invoices",analytics:"Chatbot statistics",embed:"Embed widget",
-    no_invoices:"No invoices",pdf:"PDF",logout:"Logout",
-  },
-  de:{
-    title:"Hotelportal",save:"Änderungen speichern",saving:"Speichere...",saved:"Änderungen gespeichert",
-    cancel_sub:"Abo kündigen",cancel_confirm:"Abo wirklich kündigen?",
-    pay_btn:"Online bezahlen",pay_active:"Abonnement aktiv",
-    invoices:"Rechnungen",analytics:"Chatbot-Statistiken",embed:"Einbetten",
-    no_invoices:"Keine Rechnungen",pdf:"PDF",logout:"Abmelden",
-  },
-  es:{
-    title:"Portal del hotel",save:"Guardar cambios",saving:"Guardando...",saved:"Cambios guardados",
-    cancel_sub:"Cancelar suscripción",cancel_confirm:"¿Cancelar suscripción?",
-    pay_btn:"Pagar en línea",pay_active:"Suscripción activa",
-    invoices:"Facturas",analytics:"Estadísticas del chatbot",embed:"Insertar widget",
-    no_invoices:"Sin facturas",pdf:"PDF",logout:"Cerrar sesión",
-  },
-  pl:{
-    title:"Portal hotelowy",save:"Zapisz zmiany",saving:"Zapisuję...",saved:"Zmiany zapisane",
-    cancel_sub:"Anuluj subskrypcję",cancel_confirm:"Anulować subskrypcję?",
-    pay_btn:"Zapłać online",pay_active:"Subskrypcja aktywna",
-    invoices:"Faktury",analytics:"Statystyki chatbota",embed:"Osadź widget",
-    no_invoices:"Brak faktur",pdf:"PDF",logout:"Wyloguj",
-  },
-  it:{
-    title:"Portale hotel",save:"Salva modifiche",saving:"Salvataggio...",saved:"Modifiche salvate",
-    cancel_sub:"Annulla abbonamento",cancel_confirm:"Annullare abbonamento?",
-    pay_btn:"Paga online",pay_active:"Abbonamento attivo",
-    invoices:"Fatture",analytics:"Statistiche chatbot",embed:"Incorpora widget",
-    no_invoices:"Nessuna fattura",pdf:"PDF",logout:"Esci",
-  },
+// ── Lokalizace portálu (cs = originál, en = překladová vrstva) ─────────────
+// Princip: české texty zůstávají v šablonách beze změny (nulové riziko pro CZ hotely).
+// Při portalLang === 'en' se po každém renderu přeloží textové uzly + placeholdery
+// přes EN_MAP. Když překlad chybí, zůstane čeština (nikdy nic nespadne).
+const EN_MAP = {
+  // ── Statické UI / topbar / sidebar ──
+  "Sekce":"Sections","Sekce profilu":"Profile sections","⬆ Nahoru":"⬆ Top",
+  "⊞ Rozbalit vše":"⊞ Expand all","⊟ Sbalit vše":"⊟ Collapse all",
+  "Rozbalit všechny sekce":"Expand all sections","Sbalit všechny sekce":"Collapse all sections",
+  "Rozbalit":"Expand","Sbalit":"Collapse",
+  "✓ Uloženo":"✓ Saved","💾 Uložit teď":"💾 Save now","Ukládá se…":"Saving…","✓ Uloženo v":"✓ Saved at",
+  "Ukládá se automaticky — tlačítko je jen pojistka":"Saves automatically — this button is just a backup",
+  "Načítám data hotelu…":"Loading hotel data…","⛔ Přístup odepřen":"⛔ Access denied",
+  "Tento odkaz není platný. Požádej správce SMARTEST GUIDE o nový přístupový odkaz.":"This link is not valid. Ask SMARTEST GUIDE support for a new access link.",
+  "Tento přístupový odkaz není platný nebo byl zrušen.":"This access link is not valid or has been revoked.",
+  "Nelze se připojit k serveru. Ujisti se, že aplikace běží.":"Cannot connect to the server. Please try again later.",
+  // ── Completeness banner ──
+  "⚠️ Profil není kompletní – hosté mohou dostávat neúplné odpovědi!":"⚠️ Profile is incomplete – guests may get incomplete answers!",
+  "Chybí povinná pole:":"Missing required fields:","💡 Tip: Doplňte":"💡 Tip: Add",
+  "pro ještě lepší odpovědi Alexe.":"for even better answers from Alex.",
+  "✅ Skvělé! Profil je kompletně vyplněn.":"✅ Great! Your profile is fully complete.",
+  // popisky polí z backendu (completeness)
+  "Název hotelu":"Hotel name","Adresa":"Address","Telefon":"Phone","E-mail":"E-mail",
+  "Počet lůžek":"Number of beds","Check-in čas":"Check-in time","Check-out čas":"Check-out time",
+  "Popis hotelu":"Hotel description","WiFi síť":"WiFi network","WiFi heslo":"WiFi password",
+  "Hodiny snídaně":"Breakfast hours","Hodiny večeře":"Dinner hours","Název restaurace":"Restaurant name",
+  "Parkování":"Parking","Wellness/Spa":"Wellness/Spa","WhatsApp":"WhatsApp","Místa v okolí":"Nearby places",
+  "Vybavení":"Amenities","Pravidla pro mazlíčky":"Pet policy",
+  // ── Hlavička hotelu ──
+  "Bez názvu":"Untitled","Zatím neupraveno":"Not edited yet",
+  "● Předplatné aktivní":"● Subscription active","○ Předplatné neaktivní":"○ Subscription inactive",
+  "⏳ Zrušení naplánováno ke konci období":"⏳ Cancellation scheduled at period end",
+  "Zrušit předplatné":"Cancel subscription",
+  "Chybí počet lůžek!":"Bed count is missing!",
+  "Doplňte počet lůžek v sekci Základní provozní informace — jinak nelze správně vypočítat cenu předplatného a AI nemá přesné informace o kapacitě hotelu.":"Add the bed count in the Basic operational info section — otherwise the subscription price can't be calculated correctly and the AI lacks exact capacity information.",
+  "Jak to funguje:":"How it works:",
+  "Vyplňte informace o vašem hotelu co nejpřesněji. Tyto informace bude avatar sdělovat vašim hostům. Čím více vyplníte, tím lépe bude avatar sloužit. Po každé úpravě klikněte na":"Fill in your hotel information as precisely as possible. The avatar shares it with your guests. The more you fill in, the better it serves. After each change click",
+  "Uložit změny":"Save changes",
+  // ── Názvy a popisy sekcí ──
+  "Základní provozní informace":"Basic operational info","Check-in, check-out, stravování":"Check-in, check-out, meals",
+  "Kontaktní informace":"Contact information","Jak hosté mohou kontaktovat hotel":"How guests can contact the hotel",
+  "Restaurace":"Restaurants","Restaurace hotelu, jídelníky a jak se k nim dostat":"Hotel restaurants, menus and how to reach them",
+  "Připojení k internetu pro hosty":"Internet access for guests",
+  "Orientace v hotelu":"Finding your way around","Navigace pro hosty — kde co najdou":"Navigation for guests — where to find what",
+  "Služby hotelu & Wellness":"Hotel services & wellness","Fitness, bazén, spa, doprava":"Fitness, pool, spa, transport",
+  "Vybavení hotelu":"Hotel amenities","Co hotel nabízí – hosté se mohou zeptat":"What the hotel offers – guests may ask",
+  "Místa v okolí — turistická":"Nearby places — tourist","Známé památky a místa která doporučujete všem hostům":"Well-known sights and places you recommend to all guests",
+  "Místa v okolí — skrytá tipy":"Nearby places — hidden gems","Kam chodí místní — místa která turisté obvykle neznají":"Where locals go — places tourists usually don’t know",
+  "Popis a další informace":"Description & additional info","Co byste chtěli hostům sdělit navíc":"Anything else you want guests to know",
+  "Embed widget — vložit na web":"Embed widget — add to your website","Přidejte chat tlačítko na web vašeho hotelu":"Add a chat button to your hotel website",
+  "Vyzkoušet Alexe":"Try Alex","Otevřete chat přesně tak, jak ho uvidí váš host":"Open the chat exactly as your guest will see it",
+  "Tiskové materiály":"Print materials","QR plakát a letáky pro hosty — kdykoli ke stažení a tisku":"QR poster and flyers for guests — download and print anytime",
+  "Aktivní nabídka pro hosty":"Active offer for guests","Alex ji zmíní hostům když se ptají na relevantní téma":"Alex mentions it when guests ask about a related topic",
+  "Vlastní informace pro Alexe":"Custom info for Alex","Přidejte cokoliv co hosté chtějí vědět — Alex to použije při odpovědích":"Add anything guests want to know — Alex will use it in answers",
+  "Faktury":"Invoices","Historie plateb a faktury ke stažení":"Payment history and downloadable invoices",
+  "Statistiky chatbota":"Chatbot statistics","Přehled dotazů vašich hostů":"Overview of your guests’ questions",
+  // ── Základní provozní info ──
+  "Hvězdičky ★ (1–5)":"Stars ★ (1–5)","1 až 5":"1 to 5","Check-in od":"Check-in from","Check-out do":"Check-out until",
+  "např. 12:00–14:00 nebo nevyplňovat":"e.g. 12:00–14:00 or leave empty","recepce@hotel.cz":"reception@hotel.com",
+  "Snídaně":"Breakfast","Oběd":"Lunch","Večeře":"Dinner","Počet pokojů":"Number of rooms",
+  "přesný počet lůžek":"exact number of beds",
+  // ── Kontakty ──
+  "Telefon recepce":"Reception phone","Telefon 2 (záložní)":"Phone 2 (backup)",
+  "WhatsApp — Recepce":"WhatsApp — Reception","WhatsApp — Wellness/Spa":"WhatsApp — Wellness/Spa",
+  "WhatsApp — Restaurace":"WhatsApp — Restaurant","WhatsApp — Sport":"WhatsApp — Sport",
+  "Kód země (CZ/SK/AT/DE...)":"Country code (CZ/SK/AT/DE...)",
+  // ── Restaurace ──
+  "💡 Přidejte":"💡 Add","každou restauraci zvlášť":"each restaurant separately",
+  "— u každé rovnou napište, jak se k ní host dostane, a přidejte odkazy na jednotlivé jídelníky (snídaňové, polední, nápojový lístek…). Restaurací i jídelníků může být libovolný počet.":"— for each one, describe how guests get there and add links to individual menus (breakfast, lunch, drinks…). Any number of restaurants and menus.",
+  "+ Přidat restauraci":"+ Add restaurant","Lobby / hotelový bar":"Lobby / hotel bar",
+  "např. Lobby bar, otevřeno 10:00–24:00":"e.g. Lobby bar, open 10:00–24:00",
+  "✕ Odebrat":"✕ Remove","Název":"Name","Typ kuchyně":"Cuisine type","Otevírací doba":"Opening hours",
+  "Dietní možnosti":"Dietary options","Jak se tam dostat":"How to get there",
+  "Jídelníky (odkaz na PDF/web):":"Menus (link to PDF/web):","+ Přidat jídelník":"+ Add menu",
+  "Snídaňové":"Breakfast","Polední":"Lunch","Večerní":"Dinner","Celodenní":"All-day",
+  "Nápojový lístek":"Drinks menu","Vinný lístek":"Wine list","Jiné":"Other",
+  "např. Restaurace U Zlaté hvězdy":"e.g. Golden Star Restaurant",
+  "např. Česká · Italská · À la carte":"e.g. Czech · Italian · À la carte",
+  "vegetariánská · vegan · bezlepková":"vegetarian · vegan · gluten-free",
+  "Krok za krokem: z recepce doprava, v přízemí…":"Step by step: right from reception, ground floor…",
+  // ── WiFi ──
+  "WiFi síť (název)":"WiFi network (name)",
+  // ── Orientace ──
+  "💡 Jak správně vyplnit navigaci pro hosty":"💡 How to write navigation for guests",
+  "Představte si, že jste host který právě přijel. Pište":"Imagine you are a guest who just arrived. Write it",
+  "krok za krokem":"step by step",
+  "jak se dostane na místo — jako kdybyste mu cestu popsali osobně na recepci.":"— how to reach the place, as if you were describing the way in person at reception.",
+  "✅ Dobře:":"✅ Good:","❌ Špatně:":"❌ Bad:","— to hostu nestačí!":"— that’s not enough for a guest!",
+  "\"Jděte chodbou doprava, u výtahu zvolte -1, vyjděte a dejte se doleva. Wellness je na konci chodby, 50 metrů.\"":"\"Go right along the corridor, take the lift to -1, exit and turn left. The wellness is at the end of the corridor, 50 metres.\"",
+  "\"Wellness je v suterénu.\"":"\"The wellness is in the basement.\"",
+  "Tipy:":"Tips:","Tip:":"Tip:",
+  "Uveďte patro nebo číslo poschodí · Zmiňte výtah nebo schodiště · Přidejte orientační body (recepce, bar, restaurace) · Uveďte otevírací dobu":"State the floor number · Mention the lift or stairs · Add landmarks (reception, bar, restaurant) · Include opening hours",
+  "🏊 Bazén & Wellness":"🏊 Pool & wellness","🍽️ Stravování":"🍽️ Dining","🅿️ Parkování & příjezd":"🅿️ Parking & arrival",
+  "🏨 Další prostory":"🏨 Other areas","➕ Vlastní navigační body":"➕ Custom navigation points",
+  "ℹ️ Cestu ke každé restauraci zadejte přímo u dané restaurace v sekci „Restaurace\".":"ℹ️ Enter directions to each restaurant directly on that restaurant in the “Restaurants” section.",
+  "Jak se dostat k bazénu":"How to get to the pool","Jak se dostat do wellness / spa":"How to get to the wellness / spa",
+  "Jak se dostat do fitness":"How to get to the gym","Jak se dostat do baru":"How to get to the bar",
+  "Jak se dostat na parkoviště / do garáže":"How to get to the car park / garage",
+  "Příjezd k hotelu (pro navigaci)":"Arrival at the hotel (for navigation)",
+  "Výtah — kde se nachází":"Lift — where it is","Konferenční sály / Meeting rooms":"Conference halls / meeting rooms",
+  "Jiné důležité místo (volitelné)":"Other important place (optional)",
+  "např. Jděte výtahem na patro -1, vyjděte a dejte se doprava. Bazén je na konci chodby, otevřeno 7:00–21:00.":"e.g. Take the lift to floor -1, exit and turn right. The pool is at the end of the corridor, open 7:00–21:00.",
+  "např. Wellness je vedle bazénu na patře -1. Vstupenky si kupte na recepci.":"e.g. The wellness is next to the pool on floor -1. Buy tickets at reception.",
+  "např. Fitness centrum je v 1. patře, dostanete se tam schodištěm u recepce. Otevřeno nonstop.":"e.g. The gym is on the 1st floor, take the stairs by reception. Open 24/7.",
+  "např. Bar je vedle recepce vlevo, otevřeno 16:00–01:00.":"e.g. The bar is left of reception, open 16:00–01:00.",
+  "např. Podzemní garáž je přístupná z ulice Nádražní. Vjezd je označen cedulí P. Použijte klíčovou kartu z pokoje.":"e.g. The underground garage is accessible from Nádražní street. The entrance is marked P. Use your room key card.",
+  "např. Hlavní vchod je z náměstí. Taxi a Uber zastavují před hotelem. Nejbližší MHD zastávka je 50m vlevo.":"e.g. The main entrance is from the square. Taxis and Uber stop in front of the hotel. The nearest public transport stop is 50 m to the left.",
+  "např. Výtah je uprostřed hlavní chodby naproti recepci. Druhý výtah je v zadní části budovy u schodiště.":"e.g. The lift is in the middle of the main corridor opposite reception. A second lift is at the back of the building by the stairs.",
+  "např. Konferenční sál Morava je v 1. patře, výtahem nebo schodištěm vpravo od recepce.":"e.g. The Morava conference hall is on the 1st floor, by lift or stairs right of reception.",
+  "např. Obchod se suvenýry je v přízemí vlevo od recepce, otevřeno 9:00–20:00.":"e.g. The souvenir shop is on the ground floor left of reception, open 9:00–20:00.",
+  "Přidejte libovolný počet vlastních míst — knihovna, dětský koutek, lyžárna, prodejna…":"Add any number of custom places — library, kids corner, ski room, shop…",
+  "+ Přidat místo":"+ Add place","Název místa (např. Knihovna)":"Place name (e.g. Library)",
+  "Popis cesty krok za krokem…":"Step-by-step directions…",
+  // ── Služby ──
+  "Wellness / Spa info":"Wellness / spa info","Fitness / Gym":"Fitness / gym","Bazén":"Pool",
+  "Spa / Masáže":"Spa / massages","Room service":"Room service","Minibar na pokoji":"In-room minibar",
+  "Prádelna / Čistírna":"Laundry / dry cleaning","Půjčovna kol":"Bike rental","Transfer / Shuttle":"Transfer / shuttle",
+  "Kongresový sál":"Conference hall","Domácí mazlíčci":"Pets","Bezbariérový přístup":"Accessibility",
+  "např. Sauna, bazén, masáže – otevřeno 8–21":"e.g. Sauna, pool, massages – open 8–21",
+  "např. Otevřeno 6:00–22:00, vstup zdarma":"e.g. Open 6:00–22:00, free entry",
+  "např. Krytý bazén, 25m, otevřeno celoročně":"e.g. Indoor pool, 25 m, open year-round",
+  "např. Thajské masáže, rezervace na recepci":"e.g. Thai massages, book at reception",
+  "např. 0–24h, menu na pokoji":"e.g. 24/7, menu in the room","např. Ano, doplňován denně":"e.g. Yes, restocked daily",
+  "např. Bezplatné parkování před hotelem, garáž 200 Kč/noc":"e.g. Free parking in front of the hotel, garage 200 CZK/night",
+  "např. Výdej do 24h, expresní 4h":"e.g. Ready within 24h, express 4h","cena a dostupnost":"price and availability",
+  "např. Shuttle na letiště, taxi":"e.g. Airport shuttle, taxi","kapacita a vybavení":"capacity and equipment",
+  "např. Povoleno, příplatek 200 Kč/noc":"e.g. Allowed, surcharge 200 CZK/night",
+  "výtah, bezbariérové pokoje":"lift, accessible rooms",
+  // ── Vybavení / okolí ──
+  "Přidej položku a stiskni Enter…":"Add an item and press Enter…",
+  "Příklady: WiFi zdarma, Bazén, Sauna, Fitness, Klimatizace, Parkování, Restaurace, Bar, Výtah, Pets allowed…":"Examples: Free WiFi, Pool, Sauna, Gym, Air conditioning, Parking, Restaurant, Bar, Lift, Pets allowed…",
+  "Turistická místa":"Tourist places",
+  "— známé památky, restaurace, výlety. Alex je doporučí každému kdo se ptá na okolí.":"— well-known sights, restaurants, trips. Alex recommends them to anyone asking about the area.",
+  "Přidej místo a stiskni Enter…":"Add a place and press Enter…",
+  "Příklady: Karlův most (20 min), Restaurace U Zlaté hvězdy (5 min), Hrad Veveří (20 km)…":"Examples: Charles Bridge (20 min), Golden Star Restaurant (5 min), Veveří Castle (20 km)…",
+  "Skrytá místa":"Hidden gems",
+  "— kam chodí místní, autentická místa mimo turistické trasy. Alex je představí jako insider tip —":"— where locals go, authentic places off the tourist track. Alex presents them as an insider tip —",
+  "\"tady turisté obvykle nechodí, ale místní to milují\"":"“tourists don’t usually come here, but locals love it”",
+  "Čím konkrétnější, tím lépe. Přidejte proč je místo výjimečné — \"nejlepší svíčková ve městě\", \"klidný park kde se dá v klidu číst\" apod.":"The more specific the better. Add why the place is special — “best steak in town”, “quiet park perfect for reading” etc.",
+  "Přidej tip a stiskni Enter…":"Add a tip and press Enter…",
+  "Příklady: Hospoda U Chvojena (místní oblíbená, 10 min pěšky), Tajný park nad řekou (nikdo ho nezná), Ranní trh v úterý…":"Examples: A local favourite pub (10 min walk), Secret park above the river, Tuesday morning market…",
+  // ── Popis / embed / vyzkoušet / tisk / nabídka / vlastní pole ──
+  "Další informace":"Additional information","Stručný popis hotelu pro hosty…":"A short hotel description for guests…",
+  "Speciální akce, house rules, zajímavosti…":"Special events, house rules, points of interest…",
+  "Vložte tento kód před":"Insert this code before",
+  "na vašem webu. Na stránce se zobrazí plovoucí chat tlačítko pro hosty.":"on your website. A floating chat button will appear for your guests.",
+  "Načítám...":"Loading…","📋 Kopírovat kód":"📋 Copy code","👁 Náhled":"👁 Preview",
+  "Klikněte a vyzkoušejte si Alexe jako host — zeptejte se na WiFi, snídani, parkování nebo tipy na okolí. Uvidíte přesně to, co uvidí vaši hosté po naskenování QR kódu.":"Click and try Alex as a guest — ask about WiFi, breakfast, parking or local tips. You’ll see exactly what your guests see after scanning the QR code.",
+  "💡 Čím víc údajů máte vyplněno výše, tím lépe Alex odpovídá — po každé úpravě si výsledek hned otestujte.":"💡 The more you fill in above, the better Alex answers — test the result after every change.",
+  "🧪 Otevřít Alexe (jako host)":"🧪 Open Alex (as a guest)",
+  "Stejné materiály, které jste dostali v uvítacím e-mailu — QR plakát pro hosty i letáky (A4/A5). Otevřete je kdykoli znovu, vytiskněte nebo uložte jako PDF.":"The same materials you received in the welcome e-mail — the guest QR poster and flyers (A4/A5). Open them anytime, print or save as PDF.",
+  "🔒 QR kód je":"🔒 The QR code is","jedinečný pro váš hotel a neměnný":"unique to your hotel and never changes",
+  "— jednou vytištěný plakát platí napořád, nikdy se nemění.":"— a printed poster stays valid forever.",
+  "🖨️ Otevřít tiskové materiály":"🖨️ Open print materials",
+  "Zadejte aktuální akci nebo slevu. Když se host zeptá na téma které s nabídkou souvisí (wellness, restaurace, aktivity…), Alex ji přirozeně zmíní. Zadejte vždy jen jednu — aktuálně platnou nabídku.":"Enter a current offer or discount. When a guest asks about a related topic (wellness, restaurant, activities…), Alex mentions it naturally. Always enter just one — the currently valid offer.",
+  "Příklady:":"Examples:",
+  "\"Dnes sleva 20% na masáže do 20:00\" · \"Tento týden happy hour v baru 17–19h, všechny drinky −30%\" · \"Volné kapacity v bazénu dopoledne — doporučte hostům přijít před 11h\"":"“20% off massages today until 20:00” · “Happy hour in the bar this week 17–19h, all drinks −30%” · “Pool has free capacity in the morning — recommend guests come before 11h”",
+  "např. Dnes sleva 20% na wellness do 20:00. Stačí zmínit Alexe na recepci.":"e.g. 20% off wellness today until 20:00. Just mention Alex at reception.",
+  "Nechte prázdné pokud žádná akce není aktivní — Alex pak nabídku nezmiňuje.":"Leave empty if no offer is active — Alex then won’t mention any.",
+  "Přidejte libovolné informace — kde je nejlepší zmrzlina, kdy je otevřená recepce, house rules, lokální tipy, speciální služby… Čím více vyplníte, tím lépe Alex poradí!":"Add any information — where the best ice cream is, reception opening hours, house rules, local tips, special services… The more you add, the better Alex advises!",
+  "Název (např. Zmrzlina)":"Name (e.g. Ice cream)","Popis / hodnota…":"Description / value…",
+  "+ Přidat další informaci pro Alexe":"+ Add more info for Alex",
+  // ── Platby ──
+  "Předplatné je aktivní":"Subscription is active",
+  "SMARTEST GUIDE běží pro váš hotel. Platba se automaticky obnovuje každý měsíc.":"SMARTEST GUIDE is running for your hotel. Payment renews automatically every month.",
+  "/měsíc":"/month","⚠️ Nedoplatek – přístup pozastaven":"⚠️ Outstanding balance – access suspended",
+  "Počet lůžek byl zvýšen z":"Bed count was increased from","na":"to",". Nová měsíční cena je":". The new monthly price is",
+  "EUR (původně":"EUR (previously","EUR). Pro obnovení přístupu uhraďte doplatek":"EUR). To restore access, pay the difference of",
+  "QR pro platbu":"QR for payment","Po uhrazení kontaktujte":"After payment, contact","SMARTEST GUIDE podporu":"SMARTEST GUIDE support",
+  "💳 Aktivovat SMARTEST GUIDE":"💳 Activate SMARTEST GUIDE",
+  "Předplatné je neaktivní. Zplaťte pro spuštění avatara pro vaše hosty.":"Subscription is inactive. Pay to launch the concierge for your guests.",
+  "Cena:":"Price:","⚠ Doplňte počet lůžek pro přesnou cenu":"⚠ Add the bed count for an exact price",
+  "💳 Zaplatit online →":"💳 Pay online →","nebo naskenujte QR kód mobilem":"or scan the QR code with your phone",
+  "Platební odkaz není nastaven. Kontaktujte správce.":"Payment link not set. Contact support.",
+  "Naskenujte kamerou telefonu":"Scan with your phone camera","Načítám QR…":"Loading QR…",
+  "Platba je zabezpečena přes":"Payment is secured by",
+  ". Po zaplacení se předplatné aktivuje automaticky do několika minut. Testovací karta:":". After payment your subscription activates automatically within minutes. Test card:",
+  ", datum cokoliv v budoucnu, CVC cokoliv.":", any future date, any CVC.",
+  "⚠️ Uhraďte doplatek":"⚠️ Pay the difference",
+  // ── Faktury ──
+  "Číslo":"Number","Období":"Period","Částka":"Amount","Stav":"Status","Akce":"Action",
+  "⏳ Vystavena":"⏳ Issued","✅ Zaplacena":"✅ Paid","✕ Stornována":"✕ Cancelled",
+  // ── PMS ──
+  "Hotelový systém připojen (Apaleo)":"Hotel system connected (Apaleo)",
+  "Alex zná pobyty hostů a odpovídá jim osobně (check-out, balíček, účet).":"Alex knows your guests’ stays and answers personally (check-out, package, balance).",
+  ". Alex zná pobyty hostů a odpovídá jim osobně (check-out, balíček, účet).":". Alex knows your guests’ stays and answers personally (check-out, package, balance).",
+  "Kód property (např. BER)":"Property code (e.g. BER)","Uložit":"Save",
+  "Kód property najdete v adresním řádku po přihlášení do Apaleo — např.":"You’ll find the property code in the address bar after logging into Apaleo — e.g.",
+  "→ kód je":"→ the code is","Odpojit Apaleo":"Disconnect Apaleo",
+  "Propojte svůj hotelový systém":"Connect your hotel system","Používáte":"Do you use",
+  "? Po propojení bude Alex znát pobyty hostů a odpoví jim osobně (check-out, balíček, účet). Žádné kopírování klíčů — jedno kliknutí a souhlas v Apaleu.":"? Once connected, Alex knows your guests’ stays and answers personally (check-out, package, balance). No copying API keys — one click and consent in Apaleo.",
+  "Propojit s Apaleo →":"Connect to Apaleo →",
+  "Opravdu odpojit hotelový systém (Apaleo)?\n\nAlex přestane znát pobyty hostů a bude odpovídat jen z profilu hotelu. Připojit ho můžete kdykoli znovu jedním kliknutím.":"Really disconnect your hotel system (Apaleo)?\n\nAlex will stop knowing guest stays and answer only from the hotel profile. You can reconnect anytime with one click.",
+  "Zadejte kód property (např. BER)":"Enter the property code (e.g. BER)",
+  "Uložení se nepovedlo: ":"Saving failed: ","Odpojení se nepovedlo: ":"Disconnecting failed: ",
+  // ── Průvodce spuštěním ──
+  "🚀 Průvodce spuštěním":"🚀 Launch guide","krok":"step",
+  "Základ pro hosty":"Guest essentials","Vylepšení":"Enhancements","Lokální tipy":"Local tips",
+  "Na co se host ptá hned po příjezdu. Vyplňte pole a další krok se odemkne sám.":"What guests ask right after arrival. Fill in the fields and the next step unlocks automatically.",
+  "Víc hodnoty pro hosty. Vyplňte pole a další krok se odemkne sám.":"More value for guests. Fill in the fields and the next step unlocks automatically.",
+  "Váš trumf oproti generickým chatbotům. Vyplňte pole a další krok se odemkne sám.":"Your edge over generic chatbots. Fill in the fields and the next step unlocks automatically.",
+  "Skrýt":"Hide","Tento krok:":"This step:","· celkově Alex připraven na":"· overall Alex is ready at",
+  "🎉 Hotovo! Alex je plně připraven":"🎉 Done! Alex is fully ready",
+  "Vyplnil jste všechna doporučená pole. Alex teď hostům odpoví na to nejdůležitější.":"You’ve filled in all recommended fields. Alex can now answer what matters most.",
+  "Snídaně (čas)":"Breakfast (time)","Adresa hotelu":"Hotel address","Telefon na recepci":"Reception phone",
+  "Krátký popis hotelu":"Short hotel description","Wellness / Spa":"Wellness / spa","Restaurace (název)":"Restaurant (name)",
+  "Večeře (čas)":"Dinner (time)","Zajímavá místa v okolí":"Interesting places nearby","Tipy od místních":"Tips from locals",
+  "Fitness":"Fitness","ulice, město":"street, city","2–3 věty o hotelu":"2–3 sentences about the hotel",
+  "např. Sauna a vířivka, 15:00–21:00":"e.g. Sauna and hot tub, 15:00–21:00",
+  "např. Krytý bazén, 7:00–21:00":"e.g. Indoor pool, 7:00–21:00","např. Restaurace U Hvězdy":"e.g. Star Restaurant",
+  "např. Psi vítáni, 300 Kč/noc":"e.g. Dogs welcome, 300 CZK/night","oddělte čárkou":"separate with commas",
+  "kam chodí místní, oddělte čárkou":"where locals go, separate with commas",
+  "např. Posilovna 24/7 v přízemí":"e.g. Gym 24/7 on the ground floor","např. Zdarma před hotelem":"e.g. Free in front of the hotel",
+  "Vyplňte hodnotu":"Enter a value","Uloženo ✅":"Saved ✅","Chyba při ukládání":"Error while saving",
+  // ── Statistiky / analytics ──
+  "Check-in/out":"Check-in/out","Počasí":"Weather","Okolí":"Nearby","Kontakt":"Contact",
+  "📊 Zatím žádné chaty. Data se zobrazí po prvním použití hostem.":"📊 No chats yet. Data appears after the first guest uses it.",
+  "Celkem dotazů":"Total questions","Poslední chat":"Last chat","Nejčastější témata":"Top topics",
+  "⚠️ Ve":"⚠️ In",
+  "případech Alex nejspíš neměl dost informací k odpovědi. Doplňte chybějící údaje v sekcích výše, ať příště odpoví správně.":"cases Alex likely lacked information to answer. Fill in the missing details above so guests always get an answer.",
+  // ── Ukládání / různé ──
+  "⚠️ Počet lůžek zvýšen – vyžadován doplatek!":"⚠️ Bed count increased – a payment difference is required!",
+  "✅ Změny uloženy!":"✅ Changes saved!","Chyba při ukládání: ":"Error while saving: ",
+  "Zrušit předplatné?\n\nSMARTEST GUIDE poběží až do konce aktuálního zaplaceného období — poté se automaticky ukončí a další platba se NESTRHNE. Ve zkušební době vám nic naúčtováno nebude. Znovu se můžete přihlásit kdykoliv.":"Cancel subscription?\n\nSMARTEST GUIDE keeps running until the end of the current paid period — then it ends automatically and NO further payment is taken. Nothing is charged during the trial. You can sign up again anytime.",
+  "Předplatné bude zrušeno na konci období":"Subscription will be cancelled at the end of the period",
+  "Chyba: ":"Error: ","✅ Kód zkopírován!":"✅ Code copied!",
+  "⚠️ Tato URL je dočasná (ngrok). Po nasazení na server použijte produkční URL.":"⚠️ This URL is temporary (ngrok). Use the production URL after deployment.",
+  "✅ Produkční URL — kód je připraven k použití.":"✅ Production URL — the code is ready to use.",
 };
+// Regexová pravidla pro uzly s čísly uvnitř textu
+const EN_REGEX = [
+  [/^(🟢|🟡|🔴) Vyplněnost profilu hotelu$/, "$1 Hotel profile completeness"],
+  [/^🍽️ Restaurace (\d+)$/, "🍽️ Restaurant $1"],
+  [/^(\d+) lůžek$/, "$1 beds"],
+  [/^(\d+) lůžek × ceník SmartestGuide$/, "$1 beds × SmartestGuide pricing"],
+  [/^(\d+(?:[.,]\d+)?) EUR \/ měsíc$/, "$1 EUR / month"],
+  [/^💳 Uhradit doplatek (\d+(?:[.,]\d+)?) EUR →$/, "💳 Pay the difference of $1 EUR →"],
+  [/^Vyplněno (\d+) z (\d+) polí$/, "Filled $1 of $2 fields"],
+  [/^Naposledy upraveno: (.*)$/, "Last edited: $1"],
+  [/^✓ Uloženo v (.*)$/, "✓ Saved at $1"],
+  [/^· krok (\d+)\/(\d+): (.*)$/, (m)=>"· step "+m[1]+"/"+m[2]+": "+(EN_MAP[m[3]]||m[3])],
+  [/^Základní údaje: (\d+)\/(\d+)$/, "Required fields: $1/$2"],
+  [/^Bonusové údaje: (\d+)\/(\d+)$/, "Bonus fields: $1/$2"],
+];
 
-let portalLang = localStorage.getItem('sg_portal_lang') || 'cs';
-
-function setPortalLang(lang){
-  portalLang = lang;
-  localStorage.setItem('sg_portal_lang', lang);
-  document.querySelectorAll('.plang-btn').forEach(b => {
-    b.classList.toggle('active', b.id === 'plb-'+lang);
-  });
-  // Znovu renderuj portál s novým jazykem
-  if(hotelData) renderPortal();
+let portalLang = localStorage.getItem('sg_portal_lang') || '';
+let _langLocked = !!portalLang;
+if(!portalLang){
+  const b=(navigator.language||'').slice(0,2).toLowerCase();
+  portalLang = (b==='cs'||b==='sk') ? 'cs' : 'en';
 }
 
-function t(key){ return (PORTAL_T[portalLang]||PORTAL_T.cs)[key] || key; }
+function tr(s){
+  if(portalLang!=='en') return s;
+  const k = String(s).replace(/\s+/g,' ').trim();
+  if(EN_MAP[k]!==undefined) return EN_MAP[k];
+  if(k.startsWith('např. ')) return 'e.g. ' + k.slice(6);
+  return s;
+}
+function trText(raw){
+  if(portalLang!=='en') return raw;
+  const key = String(raw).replace(/\s+/g,' ').trim();
+  if(!key) return raw;
+  const lead = raw.match(/^\s*/)[0], tail = raw.match(/\s*$/)[0];
+  if(EN_MAP[key]!==undefined) return lead+EN_MAP[key]+tail;
+  for(const [re,rep] of EN_REGEX){
+    const m = key.match(re);
+    if(m) return lead + (typeof rep==='function' ? rep(m) : key.replace(re,rep)) + tail;
+  }
+  if(key.includes(', ')){
+    const parts = key.split(', ');
+    if(parts.every(p=>EN_MAP[p]!==undefined)) return lead+parts.map(p=>EN_MAP[p]).join(', ')+tail;
+  }
+  return raw;
+}
+function translateDom(root){
+  if(portalLang!=='en'||!root) return;
+  try{
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const nodes=[]; while(w.nextNode()) nodes.push(w.currentNode);
+    nodes.forEach(n=>{ const v=n.nodeValue; const t2=trText(v); if(t2!==v) n.nodeValue=t2; });
+    if(root.querySelectorAll){
+      root.querySelectorAll('[placeholder]').forEach(el=>{ el.placeholder = tr(el.placeholder); });
+      root.querySelectorAll('[title]').forEach(el=>{ el.title = trText(el.title); });
+    }
+  }catch(e){}
+}
+
+function applyHotelDefaultLang(){
+  if(_langLocked || !hotelData) return;
+  const c = (hotelData.country||'').toUpperCase().trim();
+  portalLang = (!c || c==='CZ' || c==='SK') ? 'cs' : 'en';
+  updateLangButtons();
+}
+function refreshStaticTexts(){
+  const sh = document.querySelector('#portal-sidebar > div');
+  if(sh) sh.textContent = tr('Sekce');
+  const ex = document.querySelector('button[onclick="setAllSections(true)"]');
+  if(ex) ex.textContent = tr('⊞ Rozbalit vše');
+  const co2 = document.querySelector('button[onclick="setAllSections(false)"]');
+  if(co2) co2.textContent = tr('⊟ Sbalit vše');
+  const sb = document.getElementById('save-btn');
+  if(sb){ sb.innerHTML = hasChanges ? tr('💾 Uložit teď') : tr('✓ Uloženo'); sb.title = tr('Ukládá se automaticky — tlačítko je jen pojistka'); }
+}
+function updateLangButtons(){
+  document.querySelectorAll('.plang-btn').forEach(b => b.classList.toggle('active', b.id === 'plb-'+portalLang));
+  document.documentElement.lang = (portalLang==='en') ? 'en' : 'cs';
+}
+function setPortalLang(lang){
+  if(lang===portalLang) return;
+  portalLang = lang; _langLocked = true;
+  localStorage.setItem('sg_portal_lang', lang);
+  updateLangButtons();
+  refreshStaticTexts();
+  if(hotelData){
+    renderPortal(); renderOnboarding(); loadCompleteness(); loadPaymentSection();
+    loadPmsSection(); loadInvoicesSection(); loadMonthlyReport();
+    setTimeout(initEmbedCode, 100);
+  }
+}
 
 // ── Init ──────────────────────────────────────
-// Nastav výchozí jazyk přepínače
-document.querySelectorAll('.plang-btn').forEach(b => {
-  b.classList.toggle('active', b.id === 'plb-'+portalLang);
-});
+updateLangButtons();
+translateDom(document.getElementById('portal-sidebar'));
+translateDom(document.querySelector('.topbar'));
+document.querySelectorAll('button[onclick^="setAllSections"]').forEach(b=>{ b.textContent = tr(b.textContent.trim()); });
 
 if (!token) {
   document.getElementById('main-container').innerHTML = `
@@ -248,6 +513,7 @@ if (!token) {
       <h2>⛔ Přístup odepřen</h2>
       <p>Tento odkaz není platný. Požádej správce SMARTEST GUIDE o nový přístupový odkaz.</p>
     </div>`;
+  translateDom(document.getElementById('main-container'));
 } else {
   loadHotel();
 }
@@ -258,6 +524,8 @@ async function loadHotel() {
     if (!r.ok) throw new Error('Neplatný token');
     const d = await r.json();
     hotelData = d.hotel;
+    applyHotelDefaultLang();
+    refreshStaticTexts();
     await loadPricing();
     renderPortal();
     renderOnboarding();
@@ -273,6 +541,7 @@ async function loadHotel() {
         <h2>⛔ Přístup odepřen</h2>
         <p>${e.message === 'Neplatný token' ? 'Tento přístupový odkaz není platný nebo byl zrušen.' : 'Nelze se připojit k serveru. Ujisti se, že aplikace běží.'}</p>
       </div>`;
+    translateDom(document.getElementById('main-container'));
   }
 }
 
@@ -324,6 +593,7 @@ function renderCompleteness(d) {
       </div>
       ${motivText}
     </div>`;
+  translateDom(el);
 }
 
 // ── Render ────────────────────────────────────
@@ -341,7 +611,7 @@ function renderPortal() {
       w.style.cssText = 'margin:0 0 16px;padding:14px 18px;background:rgba(255,170,51,.1);border:1px solid rgba(255,170,51,.4);border-radius:12px;font-size:13px;display:flex;align-items:center;gap:12px';
       w.innerHTML = '<span style="font-size:20px">⚠️</span><div><strong style="color:#ffaa33">Chybí počet lůžek!</strong><br><span style="color:var(--muted)">Doplňte počet lůžek v sekci Základní provozní informace — jinak nelze správně vypočítat cenu předplatného a AI nemá přesné informace o kapacitě hotelu.</span></div>';
       const container = document.getElementById('main-container');
-      if (container) container.prepend(w);
+      if (container) { container.prepend(w); translateDom(w); }
     }
   } else if (bedWarn) {
     bedWarn.remove();
@@ -354,10 +624,10 @@ function renderPortal() {
   const subStatus = h.subscription_active
     ? '<span class="status-pill active">● Předplatné aktivní</span>'
     : '<span class="status-pill inactive">○ Předplatné neaktivní</span>';
-  const cancelAffordance = h.subscription_active
-    ? (h.subscription_cancel_requested
-        ? '<span style="font-size:11px;color:var(--warn)">⏳ Zrušení naplánováno ke konci období</span>'
-        : '<button onclick="cancelSubscription()" style="background:transparent;border:1px solid rgba(255,79,106,.35);color:var(--danger);border-radius:8px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:var(--font-body)">Zrušit předplatné</button>')
+  // Zrušení předplatného je záměrně JEN dole v kartě předplatného (ne v hlavičce),
+  // ať na něj nejde klepnout omylem. V hlavičce zůstává jen info o naplánovaném zrušení.
+  const cancelAffordance = (h.subscription_active && h.subscription_cancel_requested)
+    ? '<span style="font-size:11px;color:var(--warn)">⏳ Zrušení naplánováno ke konci období</span>'
     : '';
 
   document.getElementById('main-container').innerHTML = `
@@ -591,6 +861,8 @@ function renderPortal() {
   <div id="monthly-report-section"></div>
   `;
 
+  translateDom(document.getElementById('main-container'));
+
   // Init tag inputs
   initTagInput('amenities');
   initTagInput('nearby_places');
@@ -626,7 +898,7 @@ function renderSection(icon, title, desc, content, fields, defaultOpen) {
         <div class="section-desc">${desc}</div>
       </div>
       ${scorePlaceholder}
-      <span class="section-toggle-lbl">${isOpen ? 'Sbalit' : 'Rozbalit'}</span>
+      <span class="section-toggle-lbl">${isOpen ? tr('Sbalit') : tr('Rozbalit')}</span>
       <span class="section-chevron ${isOpen}">▼</span>
     </div>
     <div class="section-body ${isOpen}">${content}</div>
@@ -662,7 +934,7 @@ function updateSectionScore(id) {
   // Barvy: 100 % zelená · 80–99 % oranžová · pod 80 % červená
   const cls = pct >= 100 ? 'full' : pct >= 80 ? 'partial' : 'empty';
   const emoji = pct >= 100 ? '✓' : pct >= 80 ? '◑' : '○';
-  el.innerHTML = `<span class="score-badge ${cls}" title="Vyplněno ${filled} z ${total} polí">${emoji} ${pct}% <span style="opacity:.65;font-weight:500">(${filled}/${total})</span></span>`;
+  el.innerHTML = `<span class="score-badge ${cls}" title="${trText('Vyplněno '+filled+' z '+total+' polí')}">${emoji} ${pct}% <span style="opacity:.65;font-weight:500">(${filled}/${total})</span></span>`;
 }
 
 function updateAllSectionScores() {
@@ -732,11 +1004,11 @@ function collectRestaurants(){
 }
 function rerenderRestaurants(list){
   const c = document.getElementById('restaurants-list');
-  if (c) c.innerHTML = renderRestaurants(list && list.length ? list : [{}]);
+  if (c) { c.innerHTML = renderRestaurants(list && list.length ? list : [{}]); translateDom(c); }
 }
 function addRestaurant(){ const list=collectRestaurants(); list.push({}); rerenderRestaurants(list); markChanged(); }
 function removeRestaurant(i){ const list=collectRestaurants(); list.splice(i,1); rerenderRestaurants(list.length?list:[{}]); updateAllSectionScores(); markChanged(); }
-function addMenu(btn){ const menus=btn.closest('.resto-card').querySelector('.r-menus'); if(menus){ menus.insertAdjacentHTML('beforeend', menuRow({})); markChanged(); } }
+function addMenu(btn){ const menus=btn.closest('.resto-card').querySelector('.r-menus'); if(menus){ menus.insertAdjacentHTML('beforeend', menuRow({})); translateDom(menus); markChanged(); } }
 
 function buildSidebarNav() {
   const nav = document.getElementById('sidebar-nav');
@@ -744,18 +1016,18 @@ function buildSidebarNav() {
   nav.innerHTML = '';
   // Přidej odkaz na top
   const topLink = document.createElement('a');
-  topLink.textContent = '⬆ Nahoru';
+  topLink.textContent = tr('⬆ Nahoru');
   topLink.onclick = () => window.scrollTo({top: 0, behavior: 'smooth'});
   nav.appendChild(topLink);
   // Rozbalit / sbalit vše
   const ctl = document.createElement('div');
   ctl.style.cssText = 'display:flex;gap:6px;padding:6px 12px';
-  ctl.innerHTML = '<a onclick="setAllSections(true)" title="Rozbalit všechny sekce" style="flex:1;justify-content:center;font-size:11px;padding:6px;border:1px solid var(--border);border-radius:6px">⊞ Rozbalit vše</a><a onclick="setAllSections(false)" title="Sbalit všechny sekce" style="flex:1;justify-content:center;font-size:11px;padding:6px;border:1px solid var(--border);border-radius:6px">⊟ Sbalit vše</a>';
+  ctl.innerHTML = '<a onclick="setAllSections(true)" title="'+tr('Rozbalit všechny sekce')+'" style="flex:1;justify-content:center;font-size:11px;padding:6px;border:1px solid var(--border);border-radius:6px">'+tr('⊞ Rozbalit vše')+'</a><a onclick="setAllSections(false)" title="'+tr('Sbalit všechny sekce')+'" style="flex:1;justify-content:center;font-size:11px;padding:6px;border:1px solid var(--border);border-radius:6px">'+tr('⊟ Sbalit vše')+'</a>';
   nav.appendChild(ctl);
   // Přidej separátor
   const sep = document.createElement('div');
   sep.className = 'sidebar-section';
-  sep.textContent = 'Sekce profilu';
+  sep.textContent = tr('Sekce profilu');
   nav.appendChild(sep);
   // Najdi všechny sekce
   document.querySelectorAll('.section[id^="sec-"]').forEach(sec => {
@@ -808,7 +1080,7 @@ function toggleSection(id) {
   chev.classList.toggle('open', !isOpen);
   sec.classList.toggle('section-open', !isOpen);
   const lbl = sec.querySelector('.section-toggle-lbl');
-  if (lbl) lbl.textContent = !isOpen ? 'Sbalit' : 'Rozbalit';
+  if (lbl) lbl.textContent = !isOpen ? tr('Sbalit') : tr('Rozbalit');
 }
 
 function setAllSections(open){
@@ -821,7 +1093,7 @@ function setAllSections(open){
     if (head) head.classList.toggle('open', open);
     if (chev) chev.classList.toggle('open', open);
     sec.classList.toggle('section-open', open);
-    if (lbl) lbl.textContent = open ? 'Sbalit' : 'Rozbalit';
+    if (lbl) lbl.textContent = open ? tr('Sbalit') : tr('Rozbalit');
   });
 }
 
@@ -895,6 +1167,7 @@ function addNavCustom() {
   const current = getNavCustomItems();
   current.push({name:'', desc:''});
   list.innerHTML = renderNavCustom(current);
+  translateDom(list);
   markChanged();
   const inputs = list.querySelectorAll('input[id^="nav-custom-name-"]');
   if (inputs.length) inputs[inputs.length-1].focus();
@@ -903,7 +1176,9 @@ function addNavCustom() {
 function removeNavCustom(idx) {
   const current = getNavCustomItems();
   current.splice(idx, 1);
-  document.getElementById('nav-custom-list').innerHTML = renderNavCustom(current);
+  const list = document.getElementById('nav-custom-list');
+  list.innerHTML = renderNavCustom(current);
+  translateDom(list);
   markChanged();
 }
 
@@ -952,6 +1227,7 @@ function addCf() {
     <textarea id="cf-value-${cfCount}" placeholder="Popis / hodnota…" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:10px 14px;outline:none;resize:vertical;min-height:42px" oninput="markChanged()"></textarea>
     <button onclick="removeCf(${cfCount})" style="background:rgba(255,79,106,.1);border:1px solid rgba(255,79,106,.3);border-radius:6px;padding:10px 12px;color:var(--danger);cursor:pointer;font-size:12px">✕</button>`;
   container.insertBefore(div, addRow);
+  translateDom(div);
   document.getElementById('cf-label-'+cfCount).focus();
   markChanged();
 }
@@ -1026,8 +1302,8 @@ function scheduleAutoSave(){
 function markChanged() {
   hasChanges = true;
   document.getElementById('unsaved-dot').classList.add('show');
-  document.getElementById('last-saved').textContent = 'Ukládá se…';
-  const b=document.getElementById('save-btn'); if(b) b.innerHTML='💾 Uložit teď';
+  document.getElementById('last-saved').textContent = tr('Ukládá se…');
+  const b=document.getElementById('save-btn'); if(b) b.innerHTML=tr('💾 Uložit teď');
   scheduleAutoSave();
 }
 
@@ -1063,11 +1339,12 @@ async function loadPaymentSection(){
           </div>
         </div>
         <div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(46,204,135,.2);display:flex;justify-content:flex-end">
-          <button onclick="cancelSubscription()" style="background:transparent;border:1px solid rgba(255,79,106,.3);color:var(--danger);border-radius:8px;padding:7px 16px;font-size:12px;cursor:pointer;font-family:var(--font-body)">
+          <button onclick="cancelSubscription()" style="background:transparent;border:none;color:var(--muted);font-size:11px;text-decoration:underline;cursor:pointer;font-family:var(--font-body);padding:4px 2px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--muted)'">
             Zrušit předplatné
           </button>
         </div>
       </div>`;
+    translateDom(el);
     return;
   }
 
@@ -1101,6 +1378,7 @@ async function loadPaymentSection(){
           qrDiv+
         '</div>'+
       '</div>';
+    translateDom(el);
     return;
   }
 
@@ -1142,6 +1420,7 @@ async function loadPaymentSection(){
         Testovací karta: <code style="color:#00d4aa">4242 4242 4242 4242</code>, datum cokoliv v budoucnu, CVC cokoliv.
       </div>
     </div>`;
+  translateDom(el);
 }
 
 // Cena se načítá z API — neměň ručně
@@ -1206,7 +1485,7 @@ async function saveAll(auto) {
 
   const btn = document.getElementById('save-btn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="loader"></span> Ukládám…';
+  btn.innerHTML = '<span class="loader"></span> ' + tr('Ukládá se…');
 
   try {
     const r = await fetch(`${API}/api/hotel-portal/update?token=${token}`, {
@@ -1220,7 +1499,7 @@ async function saveAll(auto) {
     hasChanges = false;
     document.getElementById('unsaved-dot').classList.remove('show');
     const now = new Date().toLocaleTimeString('cs-CZ', {hour:'2-digit',minute:'2-digit'});
-    document.getElementById('last-saved').textContent = `✓ Uloženo v ${now}`;
+    document.getElementById('last-saved').textContent = `${tr('✓ Uloženo v')} ${now}`;
     // Okamžitá aktualizace platební sekce a hlavičky bez refreshe
     await loadPaymentSection();
     // Přepočítej completeness skóre
@@ -1228,15 +1507,15 @@ async function saveAll(auto) {
     const oldBeds = hotelData.subscription_paid_beds || 0;
     const newBeds = hotelData.bed_count || 0;
     if(hotelData.subscription_active && newBeds > oldBeds && oldBeds > 0){
-      toast('⚠️ Počet lůžek zvýšen – vyžadován doplatek!', 'warn');
+      toast(tr('⚠️ Počet lůžek zvýšen – vyžadován doplatek!'), 'warn');
     } else if(!auto){
-      toast('✅ Změny uloženy!');
+      toast(tr('✅ Změny uloženy!'));
     }
   } catch(e) {
-    toast('Chyba při ukládání: ' + e.message, 'err');
+    toast(tr('Chyba při ukládání: ') + e.message, 'err');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = hasChanges ? '💾 Uložit teď' : '✓ Uloženo';
+    btn.innerHTML = hasChanges ? tr('💾 Uložit teď') : tr('✓ Uloženo');
   }
 }
 
@@ -1287,6 +1566,7 @@ async function loadInvoicesSection(){
           <tbody>${rows}</tbody>
         </table>
       </div>`;
+    translateDom(el);
   }catch(e){}
 }
 
@@ -1298,6 +1578,7 @@ function loadPmsSection(){
   const connected=!!h.pms_type;
   const prop=h.pms_property_id||'';
   if(connected){
+    const discBtn = `<button onclick="disconnectPms()" style="background:transparent;border:none;color:var(--muted);font-size:11px;text-decoration:underline;cursor:pointer;font-family:var(--font-body);white-space:nowrap;padding:4px 2px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--muted)'">Odpojit Apaleo</button>`;
     el.innerHTML=`
       <div style="background:rgba(46,204,135,.08);border:1px solid rgba(46,204,135,.3);border-radius:12px;padding:18px 22px;margin-bottom:24px">
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
@@ -1306,16 +1587,14 @@ function loadPmsSection(){
             <div style="font-family:var(--font-head);font-size:14px;font-weight:700;color:#2ecc87">Hotelový systém připojen (Apaleo)</div>
             <div style="font-size:12px;color:var(--muted);margin-top:3px">${prop?`Property: <b>${prop}</b>. `:''}Alex zná pobyty hostů a odpovídá jim osobně (check-out, balíček, účet).</div>
           </div>
-          ${prop?'':`
+          ${prop?discBtn:`
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <input type="text" id="pms-prop-input" placeholder="Kód property (např. BER)" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;width:180px;outline:none">
             <button onclick="savePmsProperty()" style="background:var(--accent);color:#0a0b0f;border:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Uložit</button>
           </div>`}
         </div>
-        ${prop?'':`<div style="font-size:11px;color:var(--muted);margin-top:10px">Kód property najdete v adresním řádku po přihlášení do Apaleo — např. <b>app.apaleo.com/BER/…</b> → kód je <b>BER</b>.</div>`}
-        <div style="margin-top:10px;text-align:right">
-          <button onclick="disconnectPms()" style="background:transparent;border:1px solid rgba(255,79,106,.3);color:var(--danger);border-radius:8px;padding:5px 12px;font-size:11px;cursor:pointer">Odpojit Apaleo</button>
-        </div>
+        ${prop?'':`<div style="font-size:11px;color:var(--muted);margin-top:10px">Kód property najdete v adresním řádku po přihlášení do Apaleo — např. <b>app.apaleo.com/BER/…</b> → kód je <b>BER</b>.</div>
+        <div style="margin-top:8px;text-align:right">${discBtn}</div>`}
       </div>`;
   }else{
     el.innerHTML=`
@@ -1330,30 +1609,31 @@ function loadPmsSection(){
         </div>
       </div>`;
   }
+  translateDom(el);
 }
 
 async function savePmsProperty(){
   const el=document.getElementById('pms-prop-input');
   const val=(el?.value||'').trim().toUpperCase();
-  if(!val){alert('Zadejte kód property (např. BER)');return;}
+  if(!val){alert(tr('Zadejte kód property (např. BER)'));return;}
   try{
     const r=await fetch(`${API}/api/hotel-portal/update?token=${token}`,{method:'PATCH',
       headers:{'Content-Type':'application/json'},body:JSON.stringify({pms_property_id:val})});
     if(!r.ok)throw new Error('HTTP '+r.status);
     hotelData.pms_property_id=val;
     loadPmsSection();
-  }catch(e){alert('Uložení se nepovedlo: '+e.message);}
+  }catch(e){alert(tr('Uložení se nepovedlo: ')+e.message);}
 }
 
 async function disconnectPms(){
-  if(!confirm('Opravdu odpojit hotelový systém (Apaleo)?\n\nAlex přestane znát pobyty hostů a bude odpovídat jen z profilu hotelu. Připojit ho můžete kdykoli znovu jedním kliknutím.'))return;
+  if(!confirm(tr('Opravdu odpojit hotelový systém (Apaleo)?\n\nAlex přestane znát pobyty hostů a bude odpovídat jen z profilu hotelu. Připojit ho můžete kdykoli znovu jedním kliknutím.')))return;
   try{
     const r=await fetch(`${API}/api/pms/apaleo/disconnect?token=${token}`,{method:'POST'});
     if(!r.ok)throw new Error('HTTP '+r.status);
     hotelData.pms_type='';
     hotelData.pms_refresh_token='';
     loadPmsSection();
-  }catch(e){alert('Odpojení se nepovedlo: '+e.message);}
+  }catch(e){alert(tr('Odpojení se nepovedlo: ')+e.message);}
 }
 
 async function downloadMyInvoice(invoiceId){
@@ -1453,6 +1733,7 @@ function renderOnboarding(){
       <div><div style="font-size:16px;font-weight:800">🎉 Hotovo! Alex je plně připraven</div>
       <div style="font-size:12px;opacity:.9;margin-top:2px">Vyplnil jste všechna doporučená pole. Alex teď hostům odpoví na to nejdůležitější.</div></div>
       <button onclick="dismissOnboarding()" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer">Skrýt</button></div>`;
+    translateDom(el);
     return;
   }
   const stage=OB_STAGES[idx];
@@ -1490,11 +1771,12 @@ function renderOnboarding(){
       <div style="font-size:12px;margin-top:8px">Tento krok: <strong style="color:#ff8a3d">${stagePct}%</strong> · celkově Alex připraven na <strong style="color:#ff8a3d">${pctAll}%</strong> (${filledAll}/${all.length})</div>
       <div style="background:#fff;color:#1a1a1a;border-radius:10px;padding:4px 16px 12px;margin-top:14px">${rowsHtml}</div>
     </div>`;
+  translateDom(el);
 }
 async function saveOb(k, auto){
   const inp=document.getElementById('ob-'+k); if(!inp) return;
   const raw=inp.value.trim();
-  if(!raw){ if(!auto){ toast('Vyplňte hodnotu','warn'); inp.focus(); } return; }
+  if(!raw){ if(!auto){ toast(tr('Vyplňte hodnotu'),'warn'); inp.focus(); } return; }
   const f=obField(k);
   const payloadVal = (f && f.arr) ? raw.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean) : raw;
   try{
@@ -1503,11 +1785,11 @@ async function saveOb(k, auto){
     const d=await r.json(); hotelData=d.hotel;
     if(!(f && f.arr)){ const mainInp=document.getElementById('f-'+k); if(mainInp) mainInp.value=raw; } // sync s velkým formulářem
     const now=new Date().toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
-    const ls=document.getElementById('last-saved'); if(ls) ls.textContent=`✓ Uloženo v ${now}`;
-    const b=document.getElementById('save-btn'); if(b) b.innerHTML='✓ Uloženo';
-    if(!auto){ toast('Uloženo ✅'); renderOnboarding(); }  // re-render jen při Enter, ať auto-blur nezruší fokus
+    const ls=document.getElementById('last-saved'); if(ls) ls.textContent=`${tr('✓ Uloženo v')} ${now}`;
+    const b=document.getElementById('save-btn'); if(b) b.innerHTML=tr('✓ Uloženo');
+    if(!auto){ toast(tr('Uloženo ✅')); renderOnboarding(); }  // re-render jen při Enter, ať auto-blur nezruší fokus
     if(typeof loadCompleteness==='function') loadCompleteness();
-  }catch(e){ if(!auto) toast('Chyba při ukládání','error'); }
+  }catch(e){ if(!auto) toast(tr('Chyba při ukládání'),'error'); }
 }
 function dismissOnboarding(){
   if(hotelData) localStorage.setItem('sg_ob_hide_'+hotelData.id,'1');
@@ -1525,7 +1807,7 @@ async function loadMonthlyReport(){
     const d = (rr && rr.ok) ? await rr.json() : {};
     const ad = (ra && ra.ok) ? await ra.json() : {};
     const a = (ad && ad.analytics) || {total:0, topics:{}, last_chat:null, flagged_count:0};
-    const cs = (d.lang !== 'en');
+    const cs = (portalLang !== 'en') && (d.lang !== 'en');
     const rep = d.report || {}, cur = d.current || {};
     const L = cs ? {
       title:'Přehled & statistiky', desc:'Jak Alex sloužil vašim hostům',
@@ -1614,6 +1896,7 @@ async function loadMonthlyReport(){
         <div style="text-align:center;padding:20px 10px;color:var(--muted);font-size:13px">📈 ${L.empty}</div>`))}
         ${allTimeHtml}
       </div>`;
+    translateDom(el);
   }catch(e){}
 }
 
@@ -1685,6 +1968,7 @@ async function loadAnalytics(){
           </div>` : ''}
         ` : noDataHtml}
       </div>`;
+    translateDom(el);
   }catch(e){}
 }
 
@@ -1699,10 +1983,10 @@ function initEmbedCode(){
   const note = document.getElementById('embed-note');
   if(note){
     if(base.includes('ngrok')){
-      note.textContent = '⚠️ Tato URL je dočasná (ngrok). Po nasazení na server použijte produkční URL.';
+      note.textContent = tr('⚠️ Tato URL je dočasná (ngrok). Po nasazení na server použijte produkční URL.');
       note.style.color = 'var(--warn)';
     } else {
-      note.textContent = '✅ Produkční URL — kód je připraven k použití.';
+      note.textContent = tr('✅ Produkční URL — kód je připraven k použití.');
       note.style.color = 'var(--success)';
     }
   }
@@ -1711,7 +1995,7 @@ function initEmbedCode(){
 function copyEmbedCode(){
   const el = document.getElementById('embed-code');
   if(!el) return;
-  navigator.clipboard.writeText(el.textContent).then(()=>toast('✅ Kód zkopírován!'));
+  navigator.clipboard.writeText(el.textContent).then(()=>toast(tr('✅ Kód zkopírován!')));
 }
 
 function previewWidget(){
@@ -1721,16 +2005,16 @@ function previewWidget(){
 
 // ── Zrušení předplatného ─────────────────────
 async function cancelSubscription(){
-  if(!confirm('Zrušit předplatné?\n\nSMARTEST GUIDE poběží až do konce aktuálního zaplaceného období — poté se automaticky ukončí a další platba se NESTRHNE. Ve zkušební době vám nic naúčtováno nebude. Znovu se můžete přihlásit kdykoliv.'))return;
+  if(!confirm(tr('Zrušit předplatné?\n\nSMARTEST GUIDE poběží až do konce aktuálního zaplaceného období — poté se automaticky ukončí a další platba se NESTRHNE. Ve zkušební době vám nic naúčtováno nebude. Znovu se můžete přihlásit kdykoliv.')))return;
   try{
     const r=await fetch(`${API}/api/hotel-portal/cancel?token=${token}`,{method:'POST'});
     if(!r.ok)throw new Error('HTTP '+r.status);
     const d=await r.json();
     if(d.hotel) hotelData=d.hotel;
-    toast(d.message||'Předplatné bude zrušeno na konci období','warn');
+    toast(d.message||tr('Předplatné bude zrušeno na konci období'),'warn');
     // Obnov celý portál, ať se status přepne na „zrušení naplánováno"
     if(typeof loadHotel==='function'){ loadHotel(); } else { renderPortal(); loadPaymentSection(); }
-  }catch(e){toast('Chyba: '+e.message,'err');}
+  }catch(e){toast(tr('Chyba: ')+e.message,'err');}
 }
 
 // ── Blokace editace při nedoplatku ───────────
@@ -1745,7 +2029,7 @@ function blockEditing(){
     el.style.pointerEvents='none';
   });
   const btn=document.getElementById('save-btn');
-  if(btn){btn.disabled=true;btn.textContent='⚠️ Uhraďte doplatek';}
+  if(btn){btn.disabled=true;btn.textContent=tr('⚠️ Uhraďte doplatek');}
 }
 
 // ── Utils ─────────────────────────────────────

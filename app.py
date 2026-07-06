@@ -1485,11 +1485,20 @@ def generate_token(hotel_id: str, request: Request):
     base = get_base_url(request)
     return {"status": "ok", "token": token, "portal_url": f"{base}/portal?token={token}"}
 
+def _admin_safe_hotel(h: dict) -> dict:
+    """Kopie hotelu bez PMS credentials — refresh tokeny nepatří ani do admin API.
+    Místo hodnot vrací jen příznak, že secret existuje (pro placeholder v admin editu)."""
+    out = dict(h)
+    out["pms_client_secret_set"] = bool(h.get("pms_client_secret"))
+    for k in ("pms_refresh_token", "pms_oauth_state", "pms_oauth_state_at", "pms_client_secret"):
+        out.pop(k, None)
+    return out
+
 @app.get("/api/hotels")
 def list_hotels():
     db = db_load()
     hotels = sorted(db["hotels"].values(), key=lambda h: h.get("created_at", ""), reverse=True)
-    return {"status": "ok", "hotels": hotels}
+    return {"status": "ok", "hotels": [_admin_safe_hotel(h) for h in hotels]}
 
 @app.get("/api/hotels/{hotel_id}")
 def get_hotel(hotel_id: str):
@@ -1497,7 +1506,7 @@ def get_hotel(hotel_id: str):
     h = db["hotels"].get(hotel_id)
     if not h:
         raise HTTPException(404, "Hotel nenalezen")
-    return {"status": "ok", "hotel": h}
+    return {"status": "ok", "hotel": _admin_safe_hotel(h)}
 
 @app.patch("/api/hotels/{hotel_id}")
 def update_hotel(hotel_id: str, data: HotelData):
@@ -2425,6 +2434,7 @@ class RegistrationRequest(BaseModel):
     dic: Optional[str] = None            # DIČ / VAT ID
     billing_name: Optional[str] = None   # právní/fakturační název
     ref: Optional[str] = None            # referral kód partnera (atribuce provize)
+    src: Optional[str] = None            # akviziční kanál ("apaleo" = přišel z Apaleo Store — bez provize)
 
 def _norm_ico(x: str) -> str:
     """IČO na porovnání — jen číslice."""
@@ -2513,10 +2523,14 @@ async def register_hotel(req: RegistrationRequest, request: Request):
         "dic": (req.dic or "").strip(),
         "billing_name": (req.billing_name or "").strip(),
     }
-    # Atribuce provize — pouze přes platný referral kód partnera
-    _ref_partner = _partner_by_ref(db, req.ref)
+    # Atribuce provize — pouze přes platný referral kód partnera.
+    # Výjimka: hotel z Apaleo Store (src=apaleo) NIKDY nezakládá provizi — lead přivedlo
+    # Apaleo, ne partner (i kdyby v prohlížeči zůstal starý ref kód z dřívějška).
+    _is_apaleo = (req.src or "").strip().lower() == "apaleo"
+    _ref_partner = None if _is_apaleo else _partner_by_ref(db, req.ref)
     hotel["acquired_by"] = _ref_partner["id"] if _ref_partner else "auto"
     hotel["referral_code"] = _norm_ref(req.ref) if _ref_partner else ""
+    hotel["acquisition_channel"] = "apaleo_store" if _is_apaleo else ("partner" if _ref_partner else "direct")
     hotel["acquired_at"] = now
     _ensure_slug(db, hid, hotel)  # čitelná guest URL /h/{slug}
     db["hotels"][hid] = hotel
@@ -4205,6 +4219,12 @@ def serve_landing():
     with open(html_path, "r", encoding="utf-8") as f:
         return _staging_banner(f.read())
 
+@app.get("/apaleo", response_class=HTMLResponse)
+def serve_apaleo_landing():
+    html_path = os.path.join(os.path.dirname(__file__), "apaleo.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        return _staging_banner(f.read())
+
 @app.get("/admin", response_class=HTMLResponse)
 def serve_frontend():
     html_path = os.path.join(os.path.dirname(__file__), "index.html")
@@ -4308,6 +4328,8 @@ def get_guest_hotel(hotel_id: str):
         "hotel_token", "stripe_customer_id", "stripe_subscription_id",
         "pms_type", "pms_client_id", "pms_client_secret", "pms_property_id",
         "pms_refresh_token", "pms_oauth_state", "pms_oauth_state_at")}
+    # Jen boolean — guest app podle něj nabídne „propojit pobyt" (žádné PMS detaily ven)
+    public["pms_connected"] = bool(h.get("pms_type"))
     return {"status": "ok", "hotel": public}
 
 class GuestVisitRequest(BaseModel):
@@ -4352,6 +4374,65 @@ class GuestChatRequest(BaseModel):
     auto_lang: Optional[bool] = True
     device_id: Optional[str] = None  # anonymní ID zařízení (localStorage) pro počítání unikátních hostů
     room: Optional[str] = None       # číslo pokoje z QR (?room=214) — pro PMS lookup pobytu
+    arrival: Optional[str] = None    # datum příjezdu zadané hostem (znalostní ověření, bez útraty)
+
+def _norm_date(s: str) -> str:
+    """Normalizuje datum na YYYY-MM-DD. Přijímá i DD.MM.YYYY / D.M.YYYY. Jinak vrací ''. """
+    s = (s or "").strip()
+    try:
+        if "." in s:
+            parts = [p.strip() for p in s.rstrip(".").split(".")]
+            if len(parts) == 3:
+                d, m, y = parts
+                return f"{int(y):04d}-{int(m):02d}-{int(d):02d}"
+        from datetime import date as _d
+        return _d.fromisoformat(s[:10]).isoformat()
+    except Exception:
+        return ""
+
+async def _fetch_stay_for_hotel(h: dict, hid: str, room: str, settings: dict):
+    """Načte pobyt z PMS vč. app-level credentials a uložení rotovaného refresh tokenu."""
+    _ph = dict(h)  # kopie — do originálu nezasahujeme
+    if h.get("pms_refresh_token"):  # Connect (OAuth) režim → app-level credentials
+        _ph["_apaleo_app_client_id"] = settings.get("apaleo_client_id", "")
+        _ph["_apaleo_app_client_secret"] = settings.get("apaleo_client_secret", "")
+    stay = await pms_layer.get_stay_for_room(_ph, room)
+    if _ph.get("_new_refresh_token"):
+        try:
+            _db2 = db_load()
+            if hid in _db2["hotels"]:
+                _db2["hotels"][hid]["pms_refresh_token"] = _ph["_new_refresh_token"]
+                db_save(_db2)
+        except Exception as e2:
+            logging.warning("Uložení rotovaného refresh tokenu selhalo: %s", e2)
+    return stay
+
+class VerifyStayRequest(BaseModel):
+    hotel_id: str
+    room: str
+    arrival: str
+
+@app.post("/api/guest/verify-stay")
+async def guest_verify_stay(req: VerifyStayRequest, request: Request):
+    """Znalostní ověření pobytu: pokoj + datum příjezdu musí sedět s In-house rezervací.
+    Vrací jen {verified: bool} — žádné údaje z rezervace neprozrazuje."""
+    if not _rate_limit_ok("verify:" + _client_ip(request), max_hits=10):
+        raise HTTPException(429, "Příliš mnoho pokusů. Zkuste to prosím za chvíli.")
+    db = db_load()
+    _hid, h = _resolve_hotel(db, req.hotel_id)
+    if not h or not h.get("pms_type"):
+        return {"status": "ok", "verified": False}
+    arrival = _norm_date(req.arrival)
+    if not arrival or not (req.room or "").strip():
+        return {"status": "ok", "verified": False}
+    try:
+        settings = db_get_settings()
+        stay = await _fetch_stay_for_hotel(h, _hid, req.room.strip(), settings)
+        verified = bool(stay and stay.arrival == arrival)
+    except Exception as e:
+        logging.warning("Verify-stay selhal: %s", e)
+        verified = False
+    return {"status": "ok", "verified": verified}
 
 @app.post("/api/guest/chat")
 async def guest_chat(req: GuestChatRequest, request: Request):
@@ -4402,6 +4483,14 @@ async def guest_chat(req: GuestChatRequest, request: Request):
 LANGUAGE RULE: Detect the language of the guest's message and always respond in that same language.
 If you cannot detect the language, use {lang_name} ({req.language}) as default.
 Never mix languages in a single response.
+TRANSLATE HOTEL DATA: The hotel profile below may be written in a different language (often Czech).
+Always TRANSLATE the information into the guest's language — never quote raw profile text in another
+language. Example: profile says "Garáž v hotelu, 600 Kč/noc" and the guest writes English → answer
+"Hotel garage, 600 CZK per night." Keep proper names (hotel name, restaurant names, street names,
+place names) in their original form.
+
+FORMATTING: Plain conversational text only. You may use **bold** for key facts and simple "-" bullet
+lists. NEVER use Markdown headings (#, ##), tables, or code blocks — the chat does not render them.
 
 BRAND NAMES (IMPORTANT): "SMARTEST GUIDE" and "Alex" are a brand and product name. NEVER translate or localise them into any language — always keep them exactly as "SMARTEST GUIDE" and "Alex", regardless of the language you are speaking. Do not write "Nejchytřejší průvodce", "Le guide le plus intelligent", or any translated form.
 
@@ -4473,24 +4562,31 @@ Guest name: {req.guest_name or 'Guest'}"""
     stay_block = None
     if req.room and h.get("pms_type"):
         try:
-            _ph = dict(h)  # kopie — do originálu nezasahujeme
-            if h.get("pms_refresh_token"):  # Connect (OAuth) režim → app-level credentials
-                _ph["_apaleo_app_client_id"] = settings.get("apaleo_client_id", "")
-                _ph["_apaleo_app_client_secret"] = settings.get("apaleo_client_secret", "")
-            stay = await pms_layer.get_stay_for_room(_ph, req.room)
-            # Rotace refresh tokenu (Apaleo vrací při každém refreshi nový) — ulož
-            if _ph.get("_new_refresh_token"):
-                try:
-                    _db2 = db_load()
-                    if _hid in _db2["hotels"]:
-                        _db2["hotels"][_hid]["pms_refresh_token"] = _ph["_new_refresh_token"]
-                        db_save(_db2)
-                except Exception as e2:
-                    logging.warning("Uložení rotovaného refresh tokenu selhalo: %s", e2)
-            if stay:
+            stay = await _fetch_stay_for_hotel(h, _hid, req.room, settings)
+            if req.arrival:
+                # Znalostní režim (pokoj + datum příjezdu zadané v chatu): ověř shodu,
+                # personalizace BEZ útraty/zůstatku. Neshoda => žádná data z rezervace.
+                claimed = _norm_date(req.arrival)
+                if stay and claimed and stay.arrival == claimed:
+                    stay_block = pms_layer.format_stay_block(stay, include_balance=False)
+                else:
+                    stay_block = ("OVĚŘENÍ POBYTU SELHALO: Host zadal číslo pokoje a datum příjezdu, "
+                                  "ale neodpovídají žádné aktuální rezervaci. Pokud se ptá na svůj pobyt, "
+                                  "vysvětli, že se pobyt nepodařilo ověřit — ať zkontroluje číslo pokoje "
+                                  "a datum příjezdu, nebo se obrátí na recepci. "
+                                  "NIKDY nesděluj žádné údaje z rezervací.")
+            elif stay:
+                # QR režim (pokoj z kartičky na pokoji) — plná personalizace vč. účtu
                 stay_block = pms_layer.format_stay_block(stay)
         except Exception as e:
             logging.warning("PMS injekce do promptu selhala: %s", e)
+    elif h.get("pms_type") and not req.room:
+        # Hotel má PMS, ale host bez propojeného pobytu — dej Alexovi vědět, jak hosta navést
+        stay_block = ("PMS PROPOJENÍ: Hotel je připojen k hotelovému systému, ale tento host nemá "
+                      "propojený pobyt. Pokud se ptá na SVŮJ pobyt (jeho check-out, rezervaci, účet), "
+                      "odpověz z obecných údajů hotelu a přátelsky dodej, že odpovědi přímo ze své "
+                      "rezervace získá propojením pobytu — tlačítkem pod chatem, kde zadá číslo pokoje "
+                      "a datum příjezdu.")
 
     messages = []
     # Omez historii na posledních 10 zpráv (~5 výměn) — starší kontext jen zbytečně žere vstupní tokeny
@@ -4552,14 +4648,22 @@ def apaleo_connect(token: str, request: Request):
     redirect_uri = f"{get_base_url(request)}/api/pms/apaleo/callback"
     from urllib.parse import urlencode
     q = urlencode({"response_type": "code", "client_id": client_id,
-                   "redirect_uri": redirect_uri, "scope": _APALEO_SCOPES, "state": state})
+                   "redirect_uri": redirect_uri, "scope": _APALEO_SCOPES, "state": state,
+                   "prompt": "consent"})  # vynutí consent obrazovku i při opakovaném připojení
     return RedirectResponse(f"{_APALEO_AUTHORIZE_URL}?{q}")
 
 @app.get("/api/pms/apaleo/callback")
 async def apaleo_callback(request: Request, code: str = "", state: str = "", error: str = ""):
     """Návrat z Apaleo: výměna kódu za tokeny, uložení k hotelu dle state."""
-    def _page(title, body, ok=True):
+    def _page(title, body, ok=True, portal_url=""):
         color = "#2ecc87" if ok else "#ff4f6a"
+        back = (f'<a href="{portal_url}" style="display:inline-block;margin-top:22px;background:#FF6B00;color:#0a0b0f;'
+                f'text-decoration:none;padding:11px 24px;border-radius:9px;font-weight:700;font-size:14px">← Back to your portal</a>'
+                if portal_url else
+                '<p style="margin-top:22px;font-size:13px;color:#6b6f8e">You can close this window and return to your SMARTEST GUIDE portal.</p>')
+        redirect = (f'<p style="margin-top:10px;font-size:12px;color:#6b6f8e">Returning automatically in <span id="cd">6</span> s…</p>'
+                    f'<script>var c=6,e=document.getElementById("cd");setInterval(function(){{c--;if(e)e.textContent=c;'
+                    f'if(c<=0)location.href="{portal_url}";}},1000);</script>' if (portal_url and ok) else "")
         return HTMLResponse(f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title></head>
 <body style="font-family:sans-serif;background:#15161a;color:#e6e4df;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0">
@@ -4568,7 +4672,8 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
 <div style="font-size:40px;margin-bottom:12px">{"✅" if ok else "⚠️"}</div>
 <h2 style="color:{color};margin:0 0 10px">{title}</h2>
 <p style="line-height:1.6;color:#a9adc1">{body}</p>
-<p style="margin-top:22px;font-size:13px;color:#6b6f8e">You can close this window and return to your SMARTEST GUIDE portal.</p>
+{back}
+{redirect}
 </div></body></html>""")
     if error:
         return _page("Connection failed", f"Apaleo returned an error: {error}. Please start the connection again from your portal.", ok=False)
@@ -4583,10 +4688,11 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
             break
     if not h:
         return _page("Invalid state", "Security check failed. Please start the connection again from your portal.", ok=False)
+    portal_url = f"{get_base_url(request)}/portal?token={h.get('hotel_token','')}" if h.get("hotel_token") else ""
     try:
         started = datetime.fromisoformat(h.get("pms_oauth_state_at", "2000-01-01"))
         if (datetime.utcnow() - started).total_seconds() > 900:
-            return _page("Session expired", "The connection took too long. Please start again from your portal.", ok=False)
+            return _page("Session expired", "The connection took too long. Please start again from your portal.", ok=False, portal_url=portal_url)
     except Exception:
         pass
     s = db_get_settings()
@@ -4600,11 +4706,11 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
             data={"grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri})
     if r.status_code != 200:
         logging.warning("Apaleo callback token exchange selhal: %s %s", r.status_code, r.text[:200])
-        return _page("Token exchange failed", "Apaleo did not accept the authorization code. Please try again, or contact support@smartestguide.com.", ok=False)
+        return _page("Token exchange failed", "Apaleo did not accept the authorization code. Please try again, or contact support@smartestguide.com.", ok=False, portal_url=portal_url)
     tok = r.json()
     refresh_token = tok.get("refresh_token", "")
     if not refresh_token:
-        return _page("Missing refresh token", "Apaleo did not grant offline access. Please contact support@smartestguide.com.", ok=False)
+        return _page("Missing refresh token", "Apaleo did not grant offline access. Please contact support@smartestguide.com.", ok=False, portal_url=portal_url)
     db["hotels"][hid]["pms_type"] = "apaleo"
     db["hotels"][hid]["pms_refresh_token"] = refresh_token
     db["hotels"][hid].pop("pms_oauth_state", None)
@@ -4614,7 +4720,7 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
     if not h.get("pms_property_id"):
         prop_note = " One last step: enter your property code (e.g. BER) in the PMS section of your portal."
     logging.info("Apaleo Connect: hotel %s připojen.", hid)
-    return _page("Apaleo connected", f"{h.get('name','Your hotel')} is now connected to SMARTEST GUIDE. Alex, the AI concierge, can answer your guests using their reservation details (check-out time, package, balance).{prop_note}")
+    return _page("Apaleo connected", f"{h.get('name','Your hotel')} is now connected to SMARTEST GUIDE. Alex, the AI concierge, can answer your guests using their reservation details (check-out time, package, balance).{prop_note}", portal_url=portal_url)
 
 @app.post("/api/pms/apaleo/disconnect")
 def apaleo_disconnect(token: str):
