@@ -4225,6 +4225,16 @@ def serve_apaleo_landing():
     with open(html_path, "r", encoding="utf-8") as f:
         return _staging_banner(f.read())
 
+@app.get("/apaleo/guide.pdf")
+def serve_apaleo_guide_pdf():
+    """Onboarding guide (PDF) ke stažení — odkazovaný z /apaleo a z Apaleo Store profilu."""
+    from fastapi.responses import FileResponse
+    p = os.path.join(os.path.dirname(__file__), "SMARTESTGUIDE_Apaleo_Onboarding_Guide.pdf")
+    if not os.path.exists(p):
+        raise HTTPException(404, "Guide not found")
+    return FileResponse(p, media_type="application/pdf",
+                        filename="SMARTEST_GUIDE_Apaleo_Onboarding_Guide.pdf")
+
 @app.get("/admin", response_class=HTMLResponse)
 def serve_frontend():
     html_path = os.path.join(os.path.dirname(__file__), "index.html")
