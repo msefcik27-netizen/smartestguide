@@ -432,7 +432,7 @@ def _rate_limit_ok(key: str, max_hits: int = _RL_MAX_PER_MIN, window: int = _RL_
     return True
 
 def _is_public_api(path: str) -> bool:
-    if path in ("/api/version", "/api/pricing", "/api/pricing-config"):
+    if path in ("/api/version", "/api/pricing", "/api/pricing-config", "/api/contact"):
         return True
     for p in ("/api/guest/", "/api/hotel-portal/", "/api/app-icon/", "/api/docs/",
               "/api/ares/", "/api/stripe/", "/api/register", "/api/admin/",
@@ -2430,9 +2430,11 @@ class ContactRequest(BaseModel):
     message: str
 
 @app.post("/api/contact")
-async def contact_form(req: ContactRequest):
+async def contact_form(req: ContactRequest, request: Request):
     """Odešle zprávu z landing kontaktního formuláře na support e-mail přes Brevo.
     Reply-To = e-mail odesílatele, ať lze rovnou odpovědět."""
+    if not _rate_limit_ok(f"contact:{_client_ip(request)}", max_hits=5, window=3600):
+        raise HTTPException(429, "Příliš mnoho zpráv. Zkuste to prosím později.")
     name = (req.name or "").strip()
     email = (req.email or "").strip()
     message = (req.message or "").strip()
