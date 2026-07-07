@@ -2420,6 +2420,75 @@ def pricing(beds: int):
             "note": "Zaváděcí cena – měsíční předplatné, bez závazku (zrušíte kdykoli)"}
 
 # ─────────────────────────────────────────────
+# Kontaktní formulář z landing page ("Got a question?")
+# ─────────────────────────────────────────────
+CONTACT_TO_EMAIL = os.getenv("CONTACT_TO_EMAIL", "support@smartestguide.com").strip()
+
+class ContactRequest(BaseModel):
+    name: str
+    email: str
+    message: str
+
+@app.post("/api/contact")
+async def contact_form(req: ContactRequest):
+    """Odešle zprávu z landing kontaktního formuláře na support e-mail přes Brevo.
+    Reply-To = e-mail odesílatele, ať lze rovnou odpovědět."""
+    name = (req.name or "").strip()
+    email = (req.email or "").strip()
+    message = (req.message or "").strip()
+    if not name or not email or not message:
+        raise HTTPException(400, "Vyplňte jméno, e-mail i zprávu.")
+    if "@" not in email or "." not in email.split("@")[-1]:
+        raise HTTPException(400, "Neplatný e-mail.")
+    if len(message) > 5000:
+        message = message[:5000]
+
+    brevo_key = os.getenv("BREVO_API_KEY", "")
+    if not brevo_key:
+        logging.error("Kontaktní formulář: BREVO_API_KEY není nastaven — zpráva se neodešle")
+        raise HTTPException(503, "E-mail momentálně nelze odeslat, zkuste to prosím později.")
+
+    import html as _html
+    safe_name = _html.escape(name)
+    safe_email = _html.escape(email)
+    safe_msg = _html.escape(message).replace("\n", "<br>")
+    html_body = (
+        '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a2e">'
+        '<div style="background:#ff6b00;padding:20px 32px;border-radius:12px 12px 0 0;color:#fff">'
+        '<h2 style="margin:0;font-size:18px">📩 Nová zpráva z landing formuláře</h2></div>'
+        '<div style="background:#f8f9ff;padding:32px;border-radius:0 0 12px 12px">'
+        f'<p style="margin:0 0 8px"><strong>Jméno:</strong> {safe_name}</p>'
+        f'<p style="margin:0 0 8px"><strong>E-mail:</strong> <a href="mailto:{safe_email}">{safe_email}</a></p>'
+        f'<p style="margin:16px 0 4px"><strong>Zpráva:</strong></p>'
+        f'<div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px;line-height:1.6">{safe_msg}</div>'
+        '</div></div>'
+    )
+    text_body = f"Nová zpráva z landing formuláře\n\nJméno: {name}\nE-mail: {email}\n\nZpráva:\n{message}"
+    payload = {
+        "sender": {"name": "SMARTEST GUIDE web", "email": "admin@smartestguide.com"},
+        "to": [{"email": CONTACT_TO_EMAIL}],
+        "replyTo": {"email": email, "name": name},
+        "subject": f"Dotaz z webu — {name}",
+        "htmlContent": html_body,
+        "textContent": text_body,
+    }
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            r = await client.post("https://api.brevo.com/v3/smtp/email", json=payload,
+                headers={"api-key": brevo_key, "Content-Type": "application/json"}, timeout=30)
+        if r.status_code in (200, 201):
+            logging.info(f"Kontaktní formulář OK -> {CONTACT_TO_EMAIL} (od {email})")
+            return {"ok": True}
+        logging.error(f"Brevo kontakt CHYBA {r.status_code}: {r.text[:300]}")
+        raise HTTPException(502, "Zprávu se nepodařilo odeslat, zkuste to prosím znovu.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Chyba při odesílání kontaktního e-mailu: {e}")
+        raise HTTPException(502, "Zprávu se nepodařilo odeslat, zkuste to prosím znovu.")
+
+# ─────────────────────────────────────────────
 # Registrace z landing page + Stripe Checkout
 # ─────────────────────────────────────────────
 class RegistrationRequest(BaseModel):
