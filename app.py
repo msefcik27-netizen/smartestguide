@@ -4646,11 +4646,11 @@ Guest name: {req.guest_name or 'Guest'}"""
         try:
             stay = await _fetch_stay_for_hotel(h, _hid, req.room, settings)
             if req.arrival:
-                # Znalostní režim (pokoj + datum příjezdu zadané v chatu): ověř shodu,
-                # personalizace BEZ útraty/zůstatku. Neshoda => žádná data z rezervace.
+                # Znalostní režim (pokoj + datum příjezdu zadané v chatu): ověř shodu.
+                # Neshoda => žádná data z rezervace. (Účet/zůstatek nečteme v žádném režimu.)
                 claimed = _norm_date(req.arrival)
                 if stay and claimed and stay.arrival == claimed:
-                    stay_block = pms_layer.format_stay_block(stay, include_balance=False)
+                    stay_block = pms_layer.format_stay_block(stay)
                 else:
                     stay_block = ("OVĚŘENÍ POBYTU SELHALO: Host zadal číslo pokoje a datum příjezdu, "
                                   "ale neodpovídají žádné aktuální rezervaci. Pokud se ptá na svůj pobyt, "
@@ -4658,7 +4658,7 @@ Guest name: {req.guest_name or 'Guest'}"""
                                   "a datum příjezdu, nebo se obrátí na recepci. "
                                   "NIKDY nesděluj žádné údaje z rezervací.")
             elif stay:
-                # QR režim (pokoj z kartičky na pokoji) — plná personalizace vč. účtu
+                # QR režim (pokoj z kartičky na pokoji) — personalizace z rezervace (bez účtu)
                 stay_block = pms_layer.format_stay_block(stay)
         except Exception as e:
             logging.warning("PMS injekce do promptu selhala: %s", e)
@@ -4802,7 +4802,7 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
     if not h.get("pms_property_id"):
         prop_note = " One last step: enter your property code (e.g. BER) in the PMS section of your portal."
     logging.info("Apaleo Connect: hotel %s připojen.", hid)
-    return _page("Apaleo connected", f"{h.get('name','Your hotel')} is now connected to SMARTEST GUIDE. Alex, the AI concierge, can answer your guests using their reservation details (check-out time, package, balance).{prop_note}", portal_url=portal_url)
+    return _page("Apaleo connected", f"{h.get('name','Your hotel')} is now connected to SMARTEST GUIDE. Alex, the AI concierge, can answer your guests using their reservation details (check-out time, length of stay, package).{prop_note}", portal_url=portal_url)
 
 @app.post("/api/pms/apaleo/disconnect")
 def apaleo_disconnect(token: str):

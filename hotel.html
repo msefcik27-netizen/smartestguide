@@ -364,13 +364,13 @@ const EN_MAP = {
   "⏳ Vystavena":"⏳ Issued","✅ Zaplacena":"✅ Paid","✕ Stornována":"✕ Cancelled",
   // ── PMS ──
   "Hotelový systém připojen (Apaleo)":"Hotel system connected (Apaleo)",
-  "Alex zná pobyty hostů a odpovídá jim osobně (check-out, balíček, účet).":"Alex knows your guests’ stays and answers personally (check-out, package, balance).",
-  ". Alex zná pobyty hostů a odpovídá jim osobně (check-out, balíček, účet).":". Alex knows your guests’ stays and answers personally (check-out, package, balance).",
+  "Alex zná pobyty hostů a odpovídá jim osobně (check-out, balíček, délka pobytu).":"Alex knows your guests’ stays and answers personally (check-out, package, length of stay).",
+  ". Alex zná pobyty hostů a odpovídá jim osobně (check-out, balíček, délka pobytu).":". Alex knows your guests’ stays and answers personally (check-out, package, length of stay).",
   "Kód property (např. BER)":"Property code (e.g. BER)","Uložit":"Save",
   "Kód property najdete v adresním řádku po přihlášení do Apaleo — např.":"You’ll find the property code in the address bar after logging into Apaleo — e.g.",
   "→ kód je":"→ the code is","Odpojit Apaleo":"Disconnect Apaleo",
   "Propojte svůj hotelový systém":"Connect your hotel system","Používáte":"Do you use",
-  "? Po propojení bude Alex znát pobyty hostů a odpoví jim osobně (check-out, balíček, účet). Žádné kopírování klíčů — jedno kliknutí a souhlas v Apaleu.":"? Once connected, Alex knows your guests’ stays and answers personally (check-out, package, balance). No copying API keys — one click and consent in Apaleo.",
+  "? Po propojení bude Alex znát pobyty hostů a odpoví jim osobně (check-out, balíček, délka pobytu). Žádné kopírování klíčů — jedno kliknutí a souhlas v Apaleu.":"? Once connected, Alex knows your guests’ stays and answers personally (check-out, package, length of stay). No copying API keys — one click and consent in Apaleo.",
   "Propojit s Apaleo →":"Connect to Apaleo →",
   "Opravdu odpojit hotelový systém (Apaleo)?\n\nAlex přestane znát pobyty hostů a bude odpovídat jen z profilu hotelu. Připojit ho můžete kdykoli znovu jedním kliknutím.":"Really disconnect your hotel system (Apaleo)?\n\nAlex will stop knowing guest stays and answer only from the hotel profile. You can reconnect anytime with one click.",
   "Zadejte kód property (např. BER)":"Enter the property code (e.g. BER)",
@@ -1587,7 +1587,7 @@ function loadPmsSection(){
           <div style="font-size:26px">🔌</div>
           <div style="flex:1;min-width:220px">
             <div style="font-family:var(--font-head);font-size:14px;font-weight:700;color:#2ecc87">Hotelový systém připojen (Apaleo)</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:3px">${prop?`Property: <b>${prop}</b>. `:''}Alex zná pobyty hostů a odpovídá jim osobně (check-out, balíček, účet).</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px">${prop?`Property: <b>${prop}</b>. `:''}Alex zná pobyty hostů a odpovídá jim osobně (check-out, balíček, délka pobytu).</div>
           </div>
           ${prop?discBtn:`
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1605,7 +1605,7 @@ function loadPmsSection(){
           <div style="font-size:26px">🔌</div>
           <div style="flex:1;min-width:220px">
             <div style="font-family:var(--font-head);font-size:14px;font-weight:700">Propojte svůj hotelový systém</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:3px">Používáte <b>Apaleo</b>? Po propojení bude Alex znát pobyty hostů a odpoví jim osobně (check-out, balíček, účet). Žádné kopírování klíčů — jedno kliknutí a souhlas v Apaleu.</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px">Používáte <b>Apaleo</b>? Po propojení bude Alex znát pobyty hostů a odpoví jim osobně (check-out, balíček, délka pobytu). Žádné kopírování klíčů — jedno kliknutí a souhlas v Apaleu.</div>
           </div>
           <a href="${API}/api/pms/apaleo/connect?token=${token}" style="background:var(--accent);color:#0a0b0f;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;white-space:nowrap">Propojit s Apaleo →</a>
         </div>
