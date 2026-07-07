@@ -671,9 +671,31 @@ async function submitForm(){
   }
 }
 
-function submitContact(e){
+async function submitContact(e){
   e.preventDefault();
-  e.target.innerHTML='<div style="text-align:center;padding:32px;color:var(--teal)"><div style="font-size:40px;margin-bottom:12px">✓</div><div style="font-size:16px;font-weight:600">Message sent!</div><div style="font-size:14px;color:var(--dim);margin-top:8px">We\'ll get back to you within 24 hours.</div></div>';
+  const form=e.target;
+  const cs=(typeof currentLang!=='undefined'&&currentLang==='cs');
+  const name=(document.getElementById('c-in-name').value||'').trim();
+  const email=(document.getElementById('c-in-email').value||'').trim();
+  const message=(document.getElementById('c-in-msg').value||'').trim();
+  if(!name||!email||!message) return;
+  const btn=document.getElementById('c-send');
+  btn.disabled=true;
+  const orig=btn.innerHTML;
+  btn.innerHTML=cs?'Odesílám…':'Sending…';
+  try{
+    const r=await fetch('/api/contact',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name:name,email:email,message:message})});
+    if(!r.ok) throw new Error('send failed');
+    form.innerHTML='<div style="text-align:center;padding:32px;color:var(--teal)"><div style="font-size:40px;margin-bottom:12px">✓</div>'
+      +'<div style="font-size:16px;font-weight:600">'+(cs?'Zpráva odeslána!':'Message sent!')+'</div>'
+      +'<div style="font-size:14px;color:var(--dim);margin-top:8px">'+(cs?'Ozveme se vám do 24 hodin.':'We\'ll get back to you within 24 hours.')+'</div></div>';
+  }catch(err){
+    btn.disabled=false;
+    btn.innerHTML=orig;
+    alert(cs?'Zprávu se nepodařilo odeslat. Zkuste to prosím znovu, nebo napište na support@smartestguide.com.'
+            :'Could not send your message. Please try again, or email support@smartestguide.com.');
+  }
 }
 
 const TRANSLATIONS={
