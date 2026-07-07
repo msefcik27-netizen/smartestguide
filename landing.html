@@ -520,7 +520,7 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
     <a href="/terms">Terms of Service</a>
   </div>
   <div class="footer-copy">
-    Provozovatel: Native Hotel Guide s.r.o. · Korunní 2569/108, 101 00 Praha 10 · IČO 23112905<br>
+    <span id="footer-operator">Operated by: Native Hotel Guide s.r.o. · Korunní 2569/108, 101 00 Prague, Czech Republic · Company ID 23112905</span><br>
     © 2026 SMARTEST GUIDE. All rights reserved.
   </div>
 </footer>
@@ -701,6 +701,7 @@ async function submitContact(e){
 const TRANSLATIONS={
   en:{
     nav_how:"How it works",nav_features:"Features",nav_pricing:"Pricing",nav_about:"About",nav_contact:"Contact",nav_cta:"Get started →",
+    footer_operator:"Operated by: Native Hotel Guide s.r.o. · Korunní 2569/108, 101 00 Prague, Czech Republic · Company ID 23112905",
     hero_badge:"AI-Powered Hotel Concierge",
     hero_h1:"Your guests deserve<br><span class=\"grad-text\">instant answers</span>",
     hero_p:"Your guests ask the same things every day. SMARTEST GUIDE answers for you — fast, convenient and anytime, in 100+ languages, 24/7, from a QR code at reception. No app, no extra staff, no missed questions.",
@@ -759,6 +760,7 @@ const TRANSLATIONS={
   },
   cs:{
     nav_how:"Jak to funguje",nav_features:"Funkce",nav_pricing:"Ceník",nav_about:"O nás",nav_contact:"Kontakt",nav_cta:"Začít →",
+    footer_operator:"Provozovatel: Native Hotel Guide s.r.o. · Korunní 2569/108, 101 00 Praha 10 · IČO 23112905",
     hero_badge:"AI concierge pro hotely",
     hero_h1:"Přestaňte odpovídat<br>na stejné otázky.<br><span class=\"grad-text\">Nechte to na Alexovi.</span>",
     hero_p:"Vaši hosté se každý den ptají na to samé. SMARTEST GUIDE jim odpoví za vás — rychle, pohodlně a kdykoliv, ve 100+ jazycích, 24/7, z QR kódu u recepce. Bez aplikace, bez extra personálu, bez zmeškaných otázek.",
@@ -1024,6 +1026,7 @@ function setLang(lang){
   ['nav_how','nav_features','nav_pricing','nav_about','nav_contact'].forEach((k,i)=>{if(navLinks[i])navLinks[i].textContent=T[k];});
   const set=(id,html)=>{const el=document.getElementById(id);if(el)el.innerHTML=html;};
   const setText=(id,txt)=>{const el=document.getElementById(id);if(el)el.textContent=txt;};
+  setText('footer-operator', T.footer_operator || TRANSLATIONS.en.footer_operator);
   set('hero-h1',T.hero_h1);setText('hero-badge',T.hero_badge);setText('hero-p',T.hero_p);
   setText('hero-btn1',T.hero_btn1);setText('hero-btn2',T.hero_btn2);
   setText('stat1-label',T.stat1_label);setText('stat2-label',T.stat2_label);setText('stat3-label',T.stat3_label);setText('stat4-label',T.stat4_label);

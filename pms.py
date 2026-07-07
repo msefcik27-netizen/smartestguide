@@ -32,15 +32,14 @@ class Stay:
     adults: int = 0
     children: int = 0
     rate_plan: str = ""             # název balíčku/sazby (např. "Wellness balíček")
-    balance: str = ""               # zůstatek na účtu, např. "123.50 EUR" ("" = neznámo)
     status: str = ""                # InHouse / Confirmed / ...
     source: str = ""                # 'apaleo' | 'mews' | ...
 
-def format_stay_block(stay: "Stay", include_balance: bool = True) -> str:
+def format_stay_block(stay: "Stay") -> str:
     """Blok do Alexova system promptu. Alex odpovídá jazykem hosta, blok je česky
     (stejně jako zbytek interních dat v promptu).
-    include_balance=False → znalostní ověření (pokoj+datum příjezdu v chatu):
-    útratu/zůstatek nesdělujeme, jen přes QR z pokoje nebo recepci."""
+    POZN.: Údaje o účtu/útratě/zůstatku z PMS NEČTEME (scope = jen reservations.read).
+    U jakéhokoli dotazu na účet/platby Alex vždy odkáže hosta na recepci."""
     lines = [
         "AKTUÁLNÍ POBYT HOSTA (z hotelového systému — používej pro personalizované odpovědi,",
         "ale NIKDY nesděluj údaje o pobytu, pokud se host nejdřív nezmíní, že bydlí na tomto pokoji):",
@@ -54,10 +53,7 @@ def format_stay_block(stay: "Stay", include_balance: bool = True) -> str:
     if stay.adults or stay.children:
         lines.append(f"- Osoby: {stay.adults} dosp." + (f" + {stay.children} děti" if stay.children else ""))
     if stay.rate_plan:  lines.append(f"- Balíček/sazba: {stay.rate_plan}")
-    if include_balance and stay.balance:
-        lines.append(f"- Zůstatek na účtu pokoje: {stay.balance} (u dotazů na účet doporuč ověření na recepci)")
-    if not include_balance:
-        lines.append("POZN.: Údaje o účtu/útratě v tomto režimu NEMÁŠ a nesděluj je — u dotazů na účet odkaž hosta na recepci nebo na QR kartičku na pokoji.")
+    lines.append("POZN.: Údaje o účtu, útratě, zůstatku a platbách NEMÁŠ k dispozici a nesděluj je — u jakéhokoli dotazu na účet/platby odkaž hosta na recepci.")
     lines.append("Pokud jsi dříve v této konverzaci uvedl jiné časy (obecné časy hotelu), tyto údaje z rezervace je NAHRAZUJÍ — odpovídej podle rezervace a případný rozpor krátce vysvětli (obecný čas hotelu vs. čas ve vaší rezervaci).")
     lines.append("PRAVIDLO PŘESNOSTI PRO POBYT: Odpovídej VÝHRADNĚ z údajů uvedených výše. Pokud se host ptá na detail pobytu, který tu není (např. co přesně zahrnuje balíček, cena, platby, změna rezervace), NIKDY ho nedomýšlej — řekni, že tuto informaci nemáš, a odkaž na recepci. Změny rezervace (prodloužení, pozdní check-out) NIKDY nepotvrzuj — jen předej kontakt na recepci.")
     return "\n".join(lines)
@@ -110,8 +106,6 @@ async def _apaleo_token(client_id: str, client_secret: str) -> Optional[str]:
 def _apaleo_normalize(res: dict) -> Stay:
     guest = res.get("primaryGuest") or {}
     name = " ".join(x for x in (guest.get("firstName"), guest.get("lastName")) if x)
-    bal = res.get("balance") or {}
-    balance = f'{bal.get("amount")} {bal.get("currency")}' if bal.get("amount") is not None else ""
     arrival_raw = res.get("arrival") or ""
     departure_raw = res.get("departure") or ""
     arrival = arrival_raw[:10]
@@ -137,7 +131,6 @@ def _apaleo_normalize(res: dict) -> Stay:
         adults=res.get("adults") or 0,
         children=len(res.get("childrenAges") or []),
         rate_plan=((res.get("ratePlan") or {}).get("name") or ""),
-        balance=balance,
         status=res.get("status") or "",
         source="apaleo",
     )
