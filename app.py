@@ -2423,6 +2423,10 @@ def pricing(beds: int):
 # Kontaktní formulář z landing page ("Got a question?")
 # ─────────────────────────────────────────────
 CONTACT_TO_EMAIL = os.getenv("CONTACT_TO_EMAIL", "support@smartestguide.com").strip()
+# Odesílatel MUSÍ být jiný než cíl: support@ je alias na admin@, a kdyby From=admin@,
+# Gmail bere zprávu jako "od sebe sama" a nezobrazí ji v doručené (self-send). noreply@
+# je na ověřené doméně, takže přes Brevo projde. Reply-To zůstává host.
+CONTACT_FROM_EMAIL = os.getenv("CONTACT_FROM_EMAIL", "noreply@smartestguide.com").strip()
 
 class ContactRequest(BaseModel):
     name: str
@@ -2467,7 +2471,7 @@ async def contact_form(req: ContactRequest, request: Request):
     )
     text_body = f"Nová zpráva z landing formuláře\n\nJméno: {name}\nE-mail: {email}\n\nZpráva:\n{message}"
     payload = {
-        "sender": {"name": "SMARTEST GUIDE web", "email": "admin@smartestguide.com"},
+        "sender": {"name": "SMARTEST GUIDE web", "email": CONTACT_FROM_EMAIL},
         "to": [{"email": CONTACT_TO_EMAIL}],
         "replyTo": {"email": email, "name": name},
         "subject": f"Dotaz z webu — {name}",
