@@ -147,15 +147,12 @@ async def _backup_data():
                 os.remove(old)
             except Exception:
                 pass
-        # Týdenní off-site záloha e-mailem (přežije i ztrátu volume)
-        marker = os.path.join(bdir, ".last_email")
-        last = ""
-        if os.path.exists(marker):
-            try:
-                last = open(marker).read().strip()
-            except Exception:
-                last = ""
+        # Týdenní off-site záloha e-mailem (přežije i ztrátu volume).
+        # Timestamp poslední zálohy držíme v DB (Postgres) — soubor-marker by se
+        # ztratil při každém redeployi (nový kontejner) a záloha by chodila při
+        # každém startu. DB stav redeploy přežije, takže interval 7 dní platí reálně.
         now = datetime.utcnow()
+        last = (db_get_settings().get("last_offsite_backup") or "").strip()
         try:
             last_dt = datetime.fromisoformat(last) if last else None
         except Exception:
@@ -163,9 +160,9 @@ async def _backup_data():
         if last_dt is None or (now - last_dt).days >= 7:
             if await _email_backup(src):
                 try:
-                    open(marker, "w").write(now.isoformat())
-                except Exception:
-                    pass
+                    db_save_settings({"last_offsite_backup": now.isoformat()})
+                except Exception as e:
+                    logging.warning("Nepodařilo se uložit last_offsite_backup: %s", e)
     except Exception as e:
         logging.warning("Záloha selhala: %s", e)
 

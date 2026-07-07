@@ -1424,9 +1424,9 @@ async function loadPaymentSection(){
 }
 
 // Cena se načítá z API — neměň ručně
-let _pricingBase = 200;
+let _pricingBase = 199;
 let _pricingThreshold = 100;
-let _pricingPerBed = 3;
+let _pricingPerBed = 2;
 
 function calcPrice(beds){
   if(!beds) return _pricingBase;
@@ -1435,11 +1435,13 @@ function calcPrice(beds){
 
 async function loadPricing(){
   try {
-    const r = await fetch(`${API}/api/settings`);
+    // POZOR: /api/settings je adminní (portál nemá admin cookie → 401 → vždy fallback).
+    // Veřejný /api/pricing-config vrací stejné ceníkové klíče a projde i pro hotel.
+    const r = await fetch(`${API}/api/pricing-config`);
     const d = await r.json();
-    _pricingBase      = d.pricing_base      || 200;
+    _pricingBase      = d.pricing_base      || 199;
     _pricingThreshold = d.pricing_threshold || 100;
-    _pricingPerBed    = d.pricing_per_bed   || 3;
+    _pricingPerBed    = d.pricing_per_bed   || 2;
   } catch(e) { /* fallback na defaults */ }
 }
 
