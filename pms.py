@@ -76,7 +76,12 @@ async def get_stay_for_room(hotel: dict, room: str) -> Optional[Stay]:
     return None
 
 # ── Apaleo adapter ────────────────────────────────────────────────────────────
-# Docs: https://apaleo.dev — OAuth2 client_credentials, scope reservations.read
+# Docs: https://apaleo.dev — scope: reservations.read (+ offline_access).
+# Dva režimy získání access tokenu (viz _apaleo_get_stay):
+#   1) Connect (Apaleo Store) — Authorization Code Grant + refresh_token s rotací
+#      (apaleo_refresh_access_token). PRIMÁRNÍ režim pro připojené hotely = ten certifikovaný.
+#   2) Custom app — per-hotel client_credentials (_apaleo_token), fallback pro
+#      hotely s ručně zadanými vlastními Apaleo credentials.
 # POZN.: přesné tvary odpovědí ověřit proti sandboxu (fáze testování).
 
 _APALEO_TOKEN_URL = "https://identity.apaleo.com/connect/token"
