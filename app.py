@@ -1778,7 +1778,7 @@ body{{background:#faf9f5;font-family:'Inter',sans-serif;color:#1a1a1a;min-height
 
 <div class="hub">
   <div class="hub-header">
-    <div class="hub-logo">SmartestGuide<span class="hub-dot"></span></div>
+    <div class="hub-logo" translate="no">SmartestGuide<span class="hub-dot"></span></div>
     <div class="hub-hotel">{hotel_name}</div>
     <div class="hub-title">{hub_title}</div>
     {f'<a href="{portal_url}" style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:rgba(255,107,0,.1);border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;color:#FF6B00;text-decoration:none;transition:opacity .15s" onmouseover="this.style.opacity=.8" onmouseout="this.style.opacity=1">⚙️ {portal_label}</a>' if portal_url else ''}
@@ -1972,7 +1972,7 @@ def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark") -> s
   <div style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#FF6B00)"></div>
   <div style="position:absolute;top:300px;left:50%;width:620px;height:620px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(255,107,0,.16),transparent 70%);pointer-events:none"></div>
   <div style="height:100%;display:flex;flex-direction:column;align-items:center;padding:58px 48px 48px;position:relative">
-    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:34px;color:{c_ink};display:flex;align-items:center;gap:4px">SmartestGuide<span style="width:10px;height:10px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:2px;box-shadow:0 0 14px rgba(255,107,0,.9)"></span></div>
+    <div translate="no" style="font-family:'Syne',sans-serif;font-weight:800;font-size:34px;color:{c_ink};display:flex;align-items:center;gap:4px">SmartestGuide<span style="width:10px;height:10px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:2px;box-shadow:0 0 14px rgba(255,107,0,.9)"></span></div>
     <div style="margin-top:10px;font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:{c_teal}">AI Concierge for Hotels</div>
     <div style="margin-top:26px;font-family:'Syne',sans-serif;font-weight:700;font-size:22px;color:{c_ink};text-align:center">{hotel_name}</div>
     <div style="position:relative;margin-top:22px;padding:22px;background:{c_qrcard};border:1px solid rgba(255,107,0,.4);border-radius:20px;box-shadow:0 0 40px rgba(255,107,0,.12)">
@@ -2025,21 +2025,25 @@ def get_flyer_lang_name(lang: str, in_lang: str = None) -> str:
 # 16 reálných vlajek odpovídajících jazykům Alexe (každá právě jednou, žádné duplicity)
 # Pořadí = pořadí jazyků v guest appce.
 _FLAGS_16 = [
-    ("cs", '<rect width="24" height="8" fill="#fff"/><rect y="8" width="24" height="8" fill="#D7141A"/><path d="M0 0 L12 8 L0 16 Z" fill="#11457E"/>'),
-    ("sk", '<rect width="24" height="5.33" fill="#fff"/><rect y="5.33" width="24" height="5.33" fill="#0B4EA2"/><rect y="10.66" width="24" height="5.34" fill="#EE1C25"/>'),
     ("en", '<rect width="24" height="16" fill="#012169"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#fff" stroke-width="3.2"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#C8102E" stroke-width="1.6"/><path d="M12 0 V16 M0 8 H24" stroke="#fff" stroke-width="5"/><path d="M12 0 V16 M0 8 H24" stroke="#C8102E" stroke-width="3"/>'),
     ("de", '<rect width="24" height="5.33" fill="#000"/><rect y="5.33" width="24" height="5.33" fill="#DD0000"/><rect y="10.66" width="24" height="5.34" fill="#FFCE00"/>'),
     ("fr", '<rect width="8" height="16" fill="#002395"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#ED2939"/>'),
     ("it", '<rect width="8" height="16" fill="#009246"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#CE2B37"/>'),
     ("es", '<rect width="24" height="16" fill="#C60B1E"/><rect y="4" width="24" height="8" fill="#FFC400"/>'),
-    ("pl", '<rect width="24" height="8" fill="#fff"/><rect y="8" width="24" height="8" fill="#DC143C"/>'),
-    ("hu", '<rect width="24" height="5.33" fill="#CD2A3E"/><rect y="5.33" width="24" height="5.33" fill="#fff"/><rect y="10.66" width="24" height="5.34" fill="#436F4D"/>'),
-    ("ru", '<rect width="24" height="5.33" fill="#fff"/><rect y="5.33" width="24" height="5.33" fill="#0039A6"/><rect y="10.66" width="24" height="5.34" fill="#D52B1E"/>'),
-    ("uk", '<rect width="24" height="8" fill="#0057B7"/><rect y="8" width="24" height="8" fill="#FFD700"/>'),
-    ("zh", '<rect width="24" height="16" fill="#DE2910"/><polygon points="5,2.6 5.9,5.2 8.6,5.2 6.4,6.9 7.3,9.6 5,7.9 2.7,9.6 3.6,6.9 1.4,5.2 4.1,5.2" fill="#FFDE00"/>'),
-    ("nl", '<rect width="24" height="5.33" fill="#AE1C28"/><rect y="5.33" width="24" height="5.33" fill="#fff"/><rect y="10.66" width="24" height="5.34" fill="#21468B"/>'),
     ("pt", '<rect width="24" height="16" fill="#FF0000"/><rect width="9.6" height="16" fill="#006600"/><circle cx="9.6" cy="8" r="2.3" fill="#FFD700"/>'),
+    ("nl", '<rect width="24" height="5.33" fill="#AE1C28"/><rect y="5.33" width="24" height="5.33" fill="#fff"/><rect y="10.66" width="24" height="5.34" fill="#21468B"/>'),
+    ("hu", '<rect width="24" height="5.33" fill="#CD2A3E"/><rect y="5.33" width="24" height="5.33" fill="#fff"/><rect y="10.66" width="24" height="5.34" fill="#436F4D"/>'),
+    ("pl", '<rect width="24" height="8" fill="#fff"/><rect y="8" width="24" height="8" fill="#DC143C"/>'),
+    ("cs", '<rect width="24" height="8" fill="#fff"/><rect y="8" width="24" height="8" fill="#D7141A"/><path d="M0 0 L12 8 L0 16 Z" fill="#11457E"/>'),
+    ("uk", '<rect width="24" height="8" fill="#0057B7"/><rect y="8" width="24" height="8" fill="#FFD700"/>'),
+    ("se", '<rect width="24" height="16" fill="#006AA7"/><rect x="7" width="2.6" height="16" fill="#FECC00"/><rect y="6.7" width="24" height="2.6" fill="#FECC00"/>'),
+    ("dk", '<rect width="24" height="16" fill="#C60C30"/><rect x="7" width="2.6" height="16" fill="#fff"/><rect y="6.7" width="24" height="2.6" fill="#fff"/>'),
+    ("no", '<rect width="24" height="16" fill="#BA0C2F"/><rect x="6.4" width="3.8" height="16" fill="#fff"/><rect y="6.1" width="24" height="3.8" fill="#fff"/><rect x="7.3" width="2" height="16" fill="#00205B"/><rect y="7" width="24" height="2" fill="#00205B"/>'),
+    ("fi", '<rect width="24" height="16" fill="#fff"/><rect x="7" width="2.6" height="16" fill="#003580"/><rect y="6.7" width="24" height="2.6" fill="#003580"/>'),
+    ("gr", '<rect width="24" height="16" fill="#0D5EAF"/><rect y="1.778" width="24" height="1.778" fill="#fff"/><rect y="5.333" width="24" height="1.778" fill="#fff"/><rect y="8.889" width="24" height="1.778" fill="#fff"/><rect y="12.444" width="24" height="1.778" fill="#fff"/><rect width="8.889" height="8.889" fill="#0D5EAF"/><rect x="3.244" width="2.4" height="8.889" fill="#fff"/><rect y="3.244" width="8.889" height="2.4" fill="#fff"/>'),
+    ("tr", '<rect width="24" height="16" fill="#E30A17"/><circle cx="9.5" cy="8" r="3.8" fill="#fff"/><circle cx="10.8" cy="8" r="3" fill="#E30A17"/><polygon points="16.9,8 15.615,7.553 15.587,6.193 14.765,7.277 13.463,6.883 14.24,8 13.463,9.117 14.765,8.723 15.587,9.807 15.615,8.447" fill="#fff"/>'),
     ("ja", '<rect width="24" height="16" fill="#fff"/><circle cx="12" cy="8" r="4.8" fill="#BC002D"/>'),
+    ("zh", '<rect width="24" height="16" fill="#DE2910"/><polygon points="5,2.6 5.9,5.2 8.6,5.2 6.4,6.9 7.3,9.6 5,7.9 2.7,9.6 3.6,6.9 1.4,5.2 4.1,5.2" fill="#FFDE00"/>'),
     ("ko", '<rect width="24" height="16" fill="#fff"/><path d="M8.4 8 a3.6 3.6 0 0 1 7.2 0 z" fill="#CD2E3A"/><path d="M8.4 8 a3.6 3.6 0 0 0 7.2 0 z" fill="#0047A0"/>'),
 ]
 
@@ -2179,7 +2183,7 @@ body{{margin:0;background:#1b1c22;display:flex;justify-content:center;padding:32
   <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,{c_teal},{c_teal} 60%,{c_orange})"></div>
   <div style="position:absolute;top:80px;left:50%;width:500px;height:500px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(255,107,0,.1),transparent 70%);pointer-events:none"></div>
   <div style="padding:{pad};display:flex;flex-direction:column;align-items:center;text-align:center;min-height:{page_h}">
-    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:{c_ink};display:flex;align-items:center;gap:4px">SmartestGuide<span style="width:8px;height:8px;border-radius:50%;background:{c_orange};display:inline-block;margin-left:2px"></span></div>
+    <div translate="no" style="font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:{c_ink};display:flex;align-items:center;gap:4px">SmartestGuide<span style="width:8px;height:8px;border-radius:50%;background:{c_orange};display:inline-block;margin-left:2px"></span></div>
     <div style="margin-top:6px;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">AI Concierge for Hotels</div>
     <div style="margin-top:8px;font-size:13px;color:{c_dim}">{hotel_name}</div>
     <h1 style="font-family:'Syne',sans-serif;font-weight:800;font-size:{h1_size};line-height:1.05;letter-spacing:-.02em;margin:36px 0 0;color:{c_orange}">{headline}</h1>
@@ -2234,7 +2238,7 @@ body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:3
   <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#FF6B00)"></div>
   <div style="position:absolute;top:120px;left:50%;width:400px;height:400px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(255,107,0,.1),transparent 70%);pointer-events:none"></div>
   <div style="padding:36px 28px;display:flex;flex-direction:column;align-items:center;text-align:center">
-    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:{c_ink};display:flex;align-items:center;gap:3px">SmartestGuide<span style="width:7px;height:7px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:2px;box-shadow:0 0 8px rgba(255,107,0,.9)"></span></div>
+    <div translate="no" style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:{c_ink};display:flex;align-items:center;gap:3px">SmartestGuide<span style="width:7px;height:7px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:2px;box-shadow:0 0 8px rgba(255,107,0,.9)"></span></div>
     <div style="margin-top:5px;font-size:9px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">AI CONCIERGE FOR HOTELS</div>
     <div style="margin-top:6px;font-size:12px;color:{c_dim}">{hotel_name}</div>
     <h1 style="font-family:'Syne',sans-serif;font-weight:800;font-size:36px;line-height:1.05;letter-spacing:-.02em;margin:28px 0 0;color:#FF6B00">Your<br>personal<br>AI<br>concierge</h1>
@@ -2345,7 +2349,7 @@ def rollup(hotel_id: str, request: Request, theme: str = "dark"):
   <div style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#FF6B00)"></div>
   <div style="position:absolute;top:300px;left:50%;width:620px;height:620px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(255,107,0,.16),transparent 70%);pointer-events:none"></div>
   <div style="position:relative;height:100%;display:flex;flex-direction:column;align-items:center;padding:58px 48px 48px">
-    <div style="display:flex;align-items:center;gap:4px;font-family:'Syne',sans-serif;font-weight:800;font-size:34px;letter-spacing:-.02em;color:#f0ece0">SmartestGuide<span style="width:10px;height:10px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:2px;box-shadow:0 0 14px rgba(255,107,0,.9)"></span></div>
+    <div translate="no" style="display:flex;align-items:center;gap:4px;font-family:'Syne',sans-serif;font-weight:800;font-size:34px;letter-spacing:-.02em;color:#f0ece0">SmartestGuide<span style="width:10px;height:10px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:2px;box-shadow:0 0 14px rgba(255,107,0,.9)"></span></div>
     <div style="margin-top:10px;font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:#00d4aa">AI Concierge for Hotels</div>
     <div style="margin-top:26px;font-family:'Syne',sans-serif;font-weight:700;font-size:22px;color:#f0ece0;text-align:center">{hotel_name}</div>
     <div style="position:relative;margin-top:22px;padding:22px;background:#0c0d12;border:1px solid rgba(255,107,0,.4);border-radius:20px;box-shadow:0 0 40px rgba(255,107,0,.12)">
