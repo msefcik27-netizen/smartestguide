@@ -463,8 +463,8 @@ let _lastInputVoice = false;  // host zadal poslední zprávu hlasem? → odpov�
 
 // ══ JAZYKY ══════════════════════════════════
 const LANGS = [
-  {code:'cs', flag:'🇨🇿', name:'Čeština'},
   {code:'en', flag:'🇬🇧', name:'English'},
+  {code:'cs', flag:'🇨🇿', name:'Čeština'},
   {code:'de', flag:'🇩🇪', name:'Deutsch'},
   {code:'fr', flag:'🇫🇷', name:'Français'},
   {code:'it', flag:'🇮🇹', name:'Italiano'},
@@ -650,7 +650,9 @@ const LANG_SEARCH_PH = {cs:'Hledat jazyk…',sk:'Hľadať jazyk…',en:'Search l
 function renderLangSheetList(query){
   const q=(query||'').trim().toLowerCase();
   const list=document.getElementById('lang-sheet-list');
-  const items=EXTRA_LANGS.filter(l=>!q||l.name.toLowerCase().includes(q)||l.code.includes(q));
+  // Bez dotazu: jen jazyky mimo mřížku. S dotazem: hledej ve VŠECH (i portugalštinu z mřížky).
+  const pool=q?ALL_LANGS:EXTRA_LANGS;
+  const items=pool.filter(l=>!q||l.name.toLowerCase().includes(q)||l.code.includes(q));
   list.innerHTML=items.map(l=>`
     <button class="lang-row${l.code===guestLang?' selected':''}" onclick="selectExtraLang('${l.code}')">
       <span class="flag">${flagHtml(l.code)}</span>
