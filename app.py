@@ -4568,8 +4568,8 @@ async def guest_chat(req: GuestChatRequest, request: Request):
 
     hotel_info = f"""You are Alex, a friendly AI concierge for {h.get('name', 'this hotel')}.
 
-LANGUAGE RULE: Detect the language of the guest's message and always respond in that same language.
-If you cannot detect the language, use {lang_name} ({req.language}) as default.
+LANGUAGE RULE (CRITICAL): Detect the language of the guest's LATEST message and always respond in that language — even if the earlier conversation history, the selected interface language, or the hotel data is in a different language. When the guest switches language mid-conversation, switch with them immediately. The latest message ALWAYS wins over history and over the default.
+If you cannot detect the language of the latest message, use {lang_name} ({req.language}) as default.
 Never mix languages in a single response.
 TRANSLATE HOTEL DATA: The hotel profile below may be written in a different language (often Czech).
 Always TRANSLATE the information into the guest's language — never quote raw profile text in another
@@ -4707,6 +4707,54 @@ Guest name: {req.guest_name or 'Guest'}"""
     except Exception as e:
         logging.warning("Log dotazu hosta selhal: %s", e)
     return {"status": "ok", "reply": reply}
+
+# ─────────────────────────────────────────────
+# TTS — Alex čte odpověď nahlas (OpenAI gpt-4o-mini-tts, hlas Coral)
+# Frontend (guest.html) volá po hlasovém dotazu; fallback na Web Speech API řeší klient.
+# ─────────────────────────────────────────────
+_TTS_VOICE = os.getenv("TTS_VOICE", "coral")
+_TTS_MODEL = os.getenv("TTS_MODEL", "gpt-4o-mini-tts")
+_TTS_INSTRUCTIONS = os.getenv(
+    "TTS_INSTRUCTIONS",
+    "Calm, warm and friendly hotel concierge. Natural, brisk pace — slightly faster than normal, not dramatic. Speak in the language of the text.",
+)
+_TTS_MAX_CHARS = 700  # bezpečnostní strop; frontend beztak čte jen krátké odpovědi (~600)
+
+class GuestTTSRequest(BaseModel):
+    text: str
+    language: Optional[str] = None  # informativní; hlas je vícejazyčný
+
+@app.post("/api/guest/tts")
+async def guest_tts(req: GuestTTSRequest, request: Request):
+    """Převede text odpovědi na řeč (MP3). Rate-limit proti zneužití nákladů."""
+    if not _rate_limit_ok("tts:" + _client_ip(request), max_hits=15):
+        raise HTTPException(429, "Příliš mnoho požadavků na hlas. Zkuste to za chvíli.")
+    api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    if not api_key:
+        raise HTTPException(400, "TTS není nakonfigurováno")
+    text = (req.text or "").strip()
+    if not text:
+        raise HTTPException(400, "Prázdný text")
+    if len(text) > _TTS_MAX_CHARS:
+        text = text[:_TTS_MAX_CHARS]
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(
+            "https://api.openai.com/v1/audio/speech",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={
+                "model": _TTS_MODEL,
+                "voice": _TTS_VOICE,
+                "input": text,
+                "instructions": _TTS_INSTRUCTIONS,
+                "response_format": "mp3",
+            },
+        )
+    if r.status_code != 200:
+        logging.warning("TTS chyba %s: %s", r.status_code, r.text[:200])
+        raise HTTPException(502, "TTS selhalo")
+    from fastapi.responses import Response
+    return Response(content=r.content, media_type="audio/mpeg",
+                    headers={"Cache-Control": "no-store"})
 
 # ─────────────────────────────────────────────
 # Apaleo Connect (OAuth) — jednoklikové připojení hotelu (Apaleo Store ready)

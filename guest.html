@@ -98,6 +98,31 @@
     .lang-btn.selected{background:rgba(255,107,0,.15);border-color:var(--accent);color:var(--accent)}
     .lang-btn .flag{font-size:16px}
     .lang-btn .lname{font-size:10px}
+    .lang-btn.lang-more{border-style:dashed}
+
+    /* Skrolovací seznam dalších jazyků */
+    .lang-sheet{
+      position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;
+      display:none;align-items:flex-end;justify-content:center;
+    }
+    .lang-sheet.open{display:flex}
+    .lang-sheet-panel{
+      background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:480px;
+      max-height:70vh;display:flex;flex-direction:column;padding:14px 14px 20px;
+    }
+    .lang-sheet-head{display:flex;align-items:center;justify-content:space-between;padding:0 4px 10px;font-size:20px}
+    .lang-sheet-close{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px 8px}
+    .lang-sheet-list{overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:4px}
+    .lang-row{
+      display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:12px;
+      background:var(--card);border:1px solid var(--border);color:var(--text);
+      font-size:14px;cursor:pointer;text-align:left;
+    }
+    .lang-row:hover{border-color:var(--accent)}
+    .lang-row.selected{background:rgba(255,107,0,.15);border-color:var(--accent);color:var(--accent)}
+    .lang-row .flag{font-size:18px}
+    .lang-row .lrname{flex:1}
+    .lang-row .lcheck{color:var(--accent);font-weight:700}
 
     .ob-start-btn{
       background:linear-gradient(135deg,var(--accent) 0%,#d4a843 100%);
@@ -155,8 +180,17 @@
     }
     .msg.bot .msg-bubble{background:var(--card);border:1px solid var(--border);border-bottom-left-radius:4px}
     .msg.user .msg-bubble{background:var(--accent);color:#ffffff;font-weight:500;border-bottom-right-radius:4px}
-    .msg-time{font-size:10px;color:var(--muted);margin-top:3px}
+    .msg-time{font-size:10px;color:var(--muted)}
     .msg.user .msg-time{text-align:right}
+    .msg-meta{display:flex;align-items:center;gap:8px;margin-top:3px}
+    .speak-btn{
+      background:none;border:none;cursor:pointer;padding:2px;line-height:1;
+      font-size:13px;opacity:.55;transition:opacity .15s,transform .15s;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .speak-btn:hover{opacity:1}
+    .speak-btn.speaking{opacity:1;color:var(--accent);animation:speakPulse 1s ease-in-out infinite}
+    @keyframes speakPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
 
     /* Karta v chatu (počasí, info) */
     .chat-card{
@@ -293,6 +327,17 @@
   </div>
 </div>
 
+<!-- Skrolovací seznam dalších jazyků -->
+<div class="lang-sheet" id="lang-sheet" onclick="if(event.target===this)closeLangSheet()">
+  <div class="lang-sheet-panel">
+    <div class="lang-sheet-head">
+      <span>🌍</span>
+      <button class="lang-sheet-close" onclick="closeLangSheet()" aria-label="Zavřít">✕</button>
+    </div>
+    <div class="lang-sheet-list" id="lang-sheet-list"><!-- Generováno JS --></div>
+  </div>
+</div>
+
 <!-- CHAT -->
 <div id="chat-screen">
   <div class="chat-header">
@@ -408,11 +453,11 @@ function saveHistory(){ try{ localStorage.setItem('sg_history_'+hotelId, JSON.st
 let isTyping = false;
 let recognition = null;
 let isListening = false;
+let _lastInputVoice = false;  // host zadal poslední zprávu hlasem? → odpověď se přečte (když dává smysl)
 
 // ══ JAZYKY ══════════════════════════════════
 const LANGS = [
   {code:'cs', flag:'🇨🇿', name:'Čeština'},
-  {code:'sk', flag:'🇸🇰', name:'Slovenčina'},
   {code:'en', flag:'🇬🇧', name:'English'},
   {code:'de', flag:'🇩🇪', name:'Deutsch'},
   {code:'fr', flag:'🇫🇷', name:'Français'},
@@ -420,25 +465,151 @@ const LANGS = [
   {code:'es', flag:'🇪🇸', name:'Español'},
   {code:'pl', flag:'🇵🇱', name:'Polski'},
   {code:'hu', flag:'🇭🇺', name:'Magyar'},
-  {code:'ru', flag:'🇷🇺', name:'Русский'},
-  {code:'uk', flag:'🇺🇦', name:'Українська'},
-  {code:'zh', flag:'🇨🇳', name:'中文'},
   {code:'nl', flag:'🇳🇱', name:'Nederlands'},
   {code:'pt', flag:'🇵🇹', name:'Português'},
   {code:'ja', flag:'🇯🇵', name:'日本語'},
   {code:'ko', flag:'🇰🇷', name:'한국어'},
 ];
-const LANG_FLAGS = Object.fromEntries(LANGS.map(l=>[l.code,l.flag+' '+l.code.toUpperCase()]));
-const LANG_SR = {cs:'cs-CZ',sk:'sk-SK',en:'en-US',de:'de-DE',fr:'fr-FR',it:'it-IT',es:'es-ES',pl:'pl-PL',hu:'hu-HU',ru:'ru-RU',uk:'uk-UA',zh:'zh-CN',nl:'nl-NL',pt:'pt-PT',ja:'ja-JP',ko:'ko-KR'};
+// Další jazyky ve skrolovacím seznamu (chat je umí všechny — model; UI texty padají na EN, pokud nejsou v UI_T)
+const EXTRA_LANGS = [
+  {code:'sk', flag:'🇸🇰', name:'Slovenčina'},
+  {code:'uk', flag:'🇺🇦', name:'Українська'},
+  {code:'ru', flag:'🇷🇺', name:'Русский'},
+  {code:'zh', flag:'🇨🇳', name:'中文'},
+  {code:'sv', flag:'🇸🇪', name:'Svenska'},
+  {code:'da', flag:'🇩🇰', name:'Dansk'},
+  {code:'no', flag:'🇳🇴', name:'Norsk'},
+  {code:'fi', flag:'🇫🇮', name:'Suomi'},
+  {code:'el', flag:'🇬🇷', name:'Ελληνικά'},
+  {code:'ro', flag:'🇷🇴', name:'Română'},
+  {code:'bg', flag:'🇧🇬', name:'Български'},
+  {code:'hr', flag:'🇭🇷', name:'Hrvatski'},
+  {code:'sl', flag:'🇸🇮', name:'Slovenščina'},
+  {code:'sr', flag:'🇷🇸', name:'Srpski'},
+  {code:'tr', flag:'🇹🇷', name:'Türkçe'},
+  {code:'et', flag:'🇪🇪', name:'Eesti'},
+  {code:'lv', flag:'🇱🇻', name:'Latviešu'},
+  {code:'lt', flag:'🇱🇹', name:'Lietuvių'},
+  {code:'ar', flag:'🇸🇦', name:'العربية'},
+  {code:'he', flag:'🇮🇱', name:'עברית'},
+  {code:'hi', flag:'🇮🇳', name:'हिन्दी'},
+  {code:'th', flag:'🇹🇭', name:'ไทย'},
+  {code:'vi', flag:'🇻🇳', name:'Tiếng Việt'},
+  {code:'id', flag:'🇮🇩', name:'Bahasa Indonesia'},
+];
+const ALL_LANGS = LANGS.concat(EXTRA_LANGS);
+const LANG_FLAGS = Object.fromEntries(ALL_LANGS.map(l=>[l.code,l.flag+' '+l.code.toUpperCase()]));
+const LANG_SR = {cs:'cs-CZ',sk:'sk-SK',en:'en-US',de:'de-DE',fr:'fr-FR',it:'it-IT',es:'es-ES',pl:'pl-PL',hu:'hu-HU',ru:'ru-RU',uk:'uk-UA',zh:'zh-CN',nl:'nl-NL',pt:'pt-PT',ja:'ja-JP',ko:'ko-KR',
+  sv:'sv-SE',da:'da-DK',no:'nb-NO',fi:'fi-FI',el:'el-GR',ro:'ro-RO',bg:'bg-BG',hr:'hr-HR',sl:'sl-SI',sr:'sr-RS',tr:'tr-TR',et:'et-EE',lv:'lv-LV',lt:'lt-LT',ar:'ar-SA',he:'he-IL',hi:'hi-IN',th:'th-TH',vi:'vi-VN',id:'id-ID'};
+// Popisek tlačítka „Další jazyky" (16 UI jazyků, fallback EN)
+const MORE_LANGS_LABEL = {cs:'Další jazyky',sk:'Ďalšie jazyky',en:'More languages',de:'Weitere Sprachen',fr:'Autres langues',it:'Altre lingue',es:'Más idiomas',pl:'Więcej języków',hu:'További nyelvek',ru:'Другие языки',uk:'Інші мови',zh:'更多语言',nl:'Meer talen',pt:'Mais idiomas',ja:'その他の言語',ko:'다른 언어'};
+
+// ══ TEXT-TO-SPEECH (Alex čte odpověď nahlas) ══════════════
+const TTS_OK = ('speechSynthesis' in window);
+const TTS_LABEL = {cs:'Přečíst nahlas',sk:'Prečítať nahlas',en:'Read aloud',de:'Vorlesen',fr:'Lire à voix haute',it:'Leggi ad alta voce',es:'Leer en voz alta',pl:'Przeczytaj na głos',hu:'Felolvasás',ru:'Прочитать вслух',uk:'Прочитати вголос',zh:'朗读',nl:'Voorlezen',pt:'Ler em voz alta',ja:'読み上げ',ko:'소리내어 읽기'};
+let _ttsBtn = null;
+// Předehřátí seznamu hlasů (v některých prohlížečích se načítá asynchronně)
+if(TTS_OK){ try{ speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged=()=>{ try{speechSynthesis.getVoices();}catch(e){} }; }catch(e){} }
+
+function _ttsPickVoice(langCode){
+  const want=(LANG_SR[langCode]||'en-US').toLowerCase();
+  const base=(langCode||'en').toLowerCase();
+  const voices=(speechSynthesis.getVoices()||[]);
+  return voices.find(v=>v.lang&&v.lang.toLowerCase()===want)
+      || voices.find(v=>v.lang&&v.lang.toLowerCase().startsWith(base))
+      || null;
+}
+
+// Očisti text pro řeč: markdown, odkazy, nadbytečné symboly
+function _ttsPlain(text){
+  let t=String(text||'');
+  t=t.replace(/\[([^\]]+)\]\((?:[^)]+)\)/g,'$1'); // [text](url) -> text
+  t=t.replace(/https?:\/\/\S+/g,'');                // holé URL pryč
+  t=t.replace(/[*_`#>|~]/g,'');                       // markdown znaky
+  t=t.replace(/\s{2,}/g,' ');
+  return t.trim();
+}
+
+function _ttsReset(btn){ if(btn){btn.classList.remove('speaking');btn.textContent='🔊';} }
+
+let _ttsAudio=null;  // právě přehrávané serverové MP3
+
+function _ttsStopAll(){
+  if(_ttsAudio){ try{_ttsAudio.pause();}catch(e){} _ttsAudio=null; }
+  if(TTS_OK && (speechSynthesis.speaking||speechSynthesis.pending)) speechSynthesis.cancel();
+  _ttsReset(_ttsBtn); _ttsBtn=null;
+}
+
+// Fallback: systémový hlas prohlížeče (když serverové TTS není dostupné)
+function _speakLocal(say, btn){
+  if(!TTS_OK){ _ttsReset(btn); return; }
+  const u=new SpeechSynthesisUtterance(say);
+  u.lang=LANG_SR[guestLang]||'en-US';
+  const v=_ttsPickVoice(guestLang);
+  if(v) u.voice=v;
+  u.rate=1.1; u.pitch=1;
+  u.onend=()=>{ _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null; };
+  u.onerror=()=>{ _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null; };
+  speechSynthesis.speak(u);
+}
+
+async function speakText(text, btn){
+  const wasPlaying = !!_ttsAudio || (TTS_OK && (speechSynthesis.speaking||speechSynthesis.pending));
+  const sameBtn = (_ttsBtn===btn);
+  _ttsStopAll();
+  if(wasPlaying && sameBtn) return;  // klik na totéž tlačítko = jen zastavit (toggle)
+  const say=_ttsPlain(text);
+  if(!say) return;
+  btn.classList.add('speaking'); btn.textContent='⏹';
+  _ttsBtn=btn;
+  // 1) Serverové TTS (lidský hlas Coral) → 2) fallback na hlas prohlížeče
+  try{
+    const r=await fetch(`${API}/api/guest/tts`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({text:say,language:guestLang})
+    });
+    if(!r.ok) throw new Error('tts '+r.status);
+    const blob=await r.blob();
+    if(_ttsBtn!==btn) return;  // mezitím kliknuto jinam/zastaveno
+    const a=new Audio(URL.createObjectURL(blob));
+    _ttsAudio=a;
+    a.onended=()=>{ URL.revokeObjectURL(a.src); if(_ttsAudio===a)_ttsAudio=null; _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null; };
+    a.onerror=()=>{ URL.revokeObjectURL(a.src); if(_ttsAudio===a)_ttsAudio=null; _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null; };
+    await a.play();
+  }catch(e){
+    if(_ttsBtn!==btn) return;
+    _speakLocal(say, btn);
+  }
+}
 
 function renderLangGrid(){
   const grid=document.getElementById('lang-grid');
+  // Když je vybraný jazyk ze seznamu „Další jazyky", ukaž ho na tlačítku
+  const extra=EXTRA_LANGS.find(l=>l.code===guestLang);
+  const moreLabel=MORE_LANGS_LABEL[guestLang]||MORE_LANGS_LABEL.en;
   grid.innerHTML=LANGS.map(l=>`
     <button class="lang-btn${l.code===guestLang?' selected':''}" onclick="selectLang('${l.code}')">
       <span class="flag">${l.flag}</span>
       <span class="lname">${l.name}</span>
-    </button>`).join('');
+    </button>`).join('')
+  +`<button class="lang-btn lang-more${extra?' selected':''}" onclick="openLangSheet()">
+      <span class="flag">${extra?extra.flag:'🌍'}</span>
+      <span class="lname">${extra?extra.name:moreLabel+' …'}</span>
+    </button>`;
 }
+
+function openLangSheet(){
+  const list=document.getElementById('lang-sheet-list');
+  list.innerHTML=EXTRA_LANGS.map(l=>`
+    <button class="lang-row${l.code===guestLang?' selected':''}" onclick="selectExtraLang('${l.code}')">
+      <span class="flag">${l.flag}</span>
+      <span class="lrname">${l.name}</span>
+      ${l.code===guestLang?'<span class="lcheck">✓</span>':''}
+    </button>`).join('');
+  document.getElementById('lang-sheet').classList.add('open');
+}
+function closeLangSheet(){ document.getElementById('lang-sheet').classList.remove('open'); }
+function selectExtraLang(code){ closeLangSheet(); selectLang(code); }
 
 function selectLang(code){
   guestLang=code;
@@ -522,7 +693,7 @@ async function loadHotel(){
 
   // Auto-detekce jazyka telefonu
   const bl=(navigator.language||'en').slice(0,2).toLowerCase();
-  const supported=LANGS.map(l=>l.code);
+  const supported=ALL_LANGS.map(l=>l.code);  // i jazyky ze seznamu „Další" — Švéd s švédským prohlížečem dostane rovnou sv
   guestLang=supported.includes(bl)?bl:'en';
 
   renderLangGrid();
@@ -642,16 +813,24 @@ const UI_T={
 };
 Object.assign(UI_T.cs,{link_stay:'🛎 Propojit můj pobyt',ls_title:'Propojit můj pobyt',ls_room_label:'Číslo pokoje (jako na klíči / dveřích)',ls_arrival_label:'Datum příjezdu',ls_submit:'Propojit',ls_cancel:'Zrušit',ls_fill_both:'Vyplňte prosím číslo pokoje i datum příjezdu.',
   stay_linked:'✅ Hotovo, váš pobyt je propojený! Teď vám odpovím přímo z vaší rezervace — třeba na přesný čas check-outu. Údaje o účtu z bezpečnostních důvodů takto nesděluji, s těmi vám pomůže recepce.',
-  stay_link_failed:'⚠️ Pobyt se nepodařilo ověřit. Zkontrolujte prosím číslo pokoje a datum příjezdu, nebo se obraťte na recepci.'});
+  stay_link_failed:'⚠️ Pobyt se nepodařilo ověřit. Zkontrolujte prosím číslo pokoje a datum příjezdu, nebo se obraťte na recepci.',
+  unlink_stay:'🔓 Odpojit můj pobyt',
+  stay_unlinked:'🔓 Pobyt byl odpojen. Odpovídám teď jen z obecných informací hotelu — kdykoli ho můžete propojit znovu.'});
 Object.assign(UI_T.sk,{link_stay:'🛎 Prepojiť môj pobyt',ls_title:'Prepojiť môj pobyt',ls_room_label:'Číslo izby (ako na kľúči / dverách)',ls_arrival_label:'Dátum príchodu',ls_submit:'Prepojiť',ls_cancel:'Zrušiť',ls_fill_both:'Vyplňte prosím číslo izby aj dátum príchodu.',
   stay_linked:'✅ Hotovo, váš pobyt je prepojený! Teraz vám odpoviem priamo z vašej rezervácie. Údaje o účte z bezpečnostných dôvodov takto neposkytujem — pomôže vám recepcia.',
-  stay_link_failed:'⚠️ Pobyt sa nepodarilo overiť. Skontrolujte prosím číslo izby a dátum príchodu, alebo sa obráťte na recepciu.'});
+  stay_link_failed:'⚠️ Pobyt sa nepodarilo overiť. Skontrolujte prosím číslo izby a dátum príchodu, alebo sa obráťte na recepciu.',
+  unlink_stay:'🔓 Odpojiť môj pobyt',
+  stay_unlinked:'🔓 Pobyt bol odpojený. Odpovedám teraz len zo všeobecných informácií hotela — kedykoľvek ho môžete prepojiť znova.'});
 Object.assign(UI_T.en,{link_stay:'🛎 Link my stay',ls_title:'Link my stay',ls_room_label:'Room number (as on your key / door)',ls_arrival_label:'Arrival date',ls_submit:'Link stay',ls_cancel:'Cancel',ls_fill_both:'Please fill in both your room number and arrival date.',
   stay_linked:'✅ Done — your stay is linked! I can now answer straight from your reservation, like your exact check-out time. For security I don\'t share billing details this way — reception will be happy to help with those.',
-  stay_link_failed:'⚠️ I couldn\'t verify your stay. Please check your room number and arrival date, or ask reception for help.'});
+  stay_link_failed:'⚠️ I couldn\'t verify your stay. Please check your room number and arrival date, or ask reception for help.',
+  unlink_stay:'🔓 Unlink my stay',
+  stay_unlinked:'🔓 Your stay has been unlinked. I\'ll answer from the hotel\'s general information only — you can link it again anytime.'});
 Object.assign(UI_T.de,{link_stay:'🛎 Aufenthalt verknüpfen',ls_title:'Aufenthalt verknüpfen',ls_room_label:'Zimmernummer (wie auf Schlüssel / Tür)',ls_arrival_label:'Anreisedatum',ls_submit:'Verknüpfen',ls_cancel:'Abbrechen',ls_fill_both:'Bitte Zimmernummer und Anreisedatum ausfüllen.',
   stay_linked:'✅ Fertig — Ihr Aufenthalt ist verknüpft! Ich antworte jetzt direkt aus Ihrer Reservierung, z. B. mit Ihrer genauen Check-out-Zeit. Rechnungsdetails teile ich aus Sicherheitsgründen so nicht — dabei hilft Ihnen die Rezeption gerne.',
-  stay_link_failed:'⚠️ Ihr Aufenthalt konnte nicht bestätigt werden. Bitte prüfen Sie Zimmernummer und Anreisedatum, oder wenden Sie sich an die Rezeption.'});
+  stay_link_failed:'⚠️ Ihr Aufenthalt konnte nicht bestätigt werden. Bitte prüfen Sie Zimmernummer und Anreisedatum, oder wenden Sie sich an die Rezeption.',
+  unlink_stay:'🔓 Aufenthalt trennen',
+  stay_unlinked:'🔓 Ihr Aufenthalt wurde getrennt. Ich antworte jetzt nur aus den allgemeinen Hotelinformationen — Sie können ihn jederzeit wieder verknüpfen.'});
 function uiT(k){ const d=UI_T[guestLang]||UI_T.en; return (d[k]!==undefined)?d[k]:UI_T.en[k]; }
 function applyGuestLangUI(){
   const set=(id,html)=>{const e=document.getElementById(id); if(e) e.innerHTML=html;};
@@ -712,8 +891,23 @@ function startChat(){
 }
 
 function _linkStayBtnHtml(){
-  return (hotelData&&hotelData.pms_connected&&!roomNumber)
-    ? `<button class="qr-btn" style="border-color:rgba(255,107,0,.5);color:var(--accent);font-weight:600" onclick="linkStay()">${uiT('link_stay')}</button>` : '';
+  if(!(hotelData&&hotelData.pms_connected)) return '';
+  if(!roomNumber)
+    return `<button class="qr-btn" style="border-color:rgba(255,107,0,.5);color:var(--accent);font-weight:600" onclick="linkStay()">${uiT('link_stay')}</button>`;
+  // Pobyt je propojený → nabídni odpojení (ochrana soukromí na sdíleném zařízení)
+  return `<button class="qr-btn" style="border-color:rgba(255,255,255,.22);color:var(--dim)" onclick="unlinkStay()">${uiT('unlink_stay')}</button>`;
+}
+// Odpojení pobytu: propojení žije jen v prohlížeči hosta (na serveru neukládáme nic),
+// takže stačí vyčistit lokální úložiště a stav v paměti.
+function unlinkStay(){
+  roomNumber=''; roomArrival=''; roomMode='';
+  try{
+    localStorage.removeItem('sg_stay_'+hotelId);
+    sessionStorage.removeItem('sg_room');
+  }catch(e){}
+  const f=document.getElementById('linkstay-form'); if(f) f.remove();
+  addBot(uiT('stay_unlinked'));
+  setQuickReplies();
 }
 function setQuickReplies(){
   const list=QUICK[guestLang]||QUICK['en'];
@@ -830,9 +1024,31 @@ function addBot(text){
   const html=formatBotText(text);
   const d=document.createElement('div');
   d.className='msg bot';
-  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#ffffff;font-weight:800;font-size:16px">✦</div><div class="msg-body"><div class="msg-bubble">${html}</div><div class="msg-time">${time}</div></div>`;
+  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#ffffff;font-weight:800;font-size:16px">✦</div><div class="msg-body"><div class="msg-bubble">${html}</div><div class="msg-meta"><span class="msg-time">${time}</span></div></div>`;
+  const meta=d.querySelector('.msg-meta');
+  const btn=document.createElement('button');
+  btn.type='button'; btn.className='speak-btn'; btn.textContent='🔊';
+  btn.setAttribute('aria-label', TTS_LABEL[guestLang]||TTS_LABEL.en);
+  btn.title=TTS_LABEL[guestLang]||TTS_LABEL.en;
+  btn.onclick=()=>speakText(text,btn);
+  meta.appendChild(btn);
   msgs.appendChild(d);
   msgs.scrollTop=msgs.scrollHeight;
+  return btn;
+}
+
+// Má smysl odpověď číst nahlas? Krátká konverzační ANO; menu / ceník / dlouhý výčet NE.
+function ttsWorthSpeaking(text){
+  const t=String(text||'').trim();
+  if(!t) return false;
+  if(t.length>600) return false;                              // dlouhé = spíš výčet/menu/návod
+  const lines=t.split('\n').filter(x=>x.trim());
+  if(lines.length>6) return false;                            // hodně řádků = seznam/jídelní lístek
+  const bullets=(t.match(/^\s*(?:[-•*]|\d+[\.\)])\s+/gm)||[]).length;
+  if(bullets>=4) return false;                                // odrážkový/číslovaný seznam
+  const prices=(t.match(/(?:€|Kč|CZK|EUR|USD|\$)\s?\d|\d+\s?(?:€|Kč|CZK|EUR)/gi)||[]).length;
+  if(prices>=4) return false;                                 // ceník / menu s cenami
+  return true;
 }
 
 function addUser(text){
@@ -866,7 +1082,7 @@ function detectLangFromText(text){
   const patterns = {
     cs:/[áčďéěíňóřšťúůýž]/i,
     sk:/[áäčďéíĺľňóôŕšťúýž]/i,
-    de:/[äöüß]|\b(ich|ist|das|und|nicht|haben|sein|werden|mit|auf)\b/i,
+    de:/[äöüß]|\b(ich|ist|das|und|nicht|haben|sein|werden|mit|auf|wo|wann|kann|bitte|danke|zimmer|uhr|heute|morgen|gibt)\b/i,
     fr:/[àâçèêëîïôùûü]|\b(je|est|les|des|une|pas|pour|avec)\b/i,
     es:/[áéíóúüñ]|\b(que|los|las|una|para|por|con|hay)\b/i,
     pl:/[ąćęłńóśźż]/i,
@@ -888,6 +1104,7 @@ async function sendMsg(){
   const inp=document.getElementById('msg-input');
   const text=inp.value.trim();
   if(!text||isTyping)return;
+  const viaVoice=_lastInputVoice; _lastInputVoice=false;  // host mluvil? (přečti si hned, zdroj se resetuje)
   inp.value='';inp.style.height='auto';
   document.getElementById('send-btn').disabled=true;
   isTyping=true;
@@ -916,7 +1133,9 @@ async function sendMsg(){
     hideTyping();
     if(r.ok){
       const d=await r.json();
-      addBot(d.reply);
+      const botBtn=addBot(d.reply);
+      // Host mluvil → Alex odpoví taky hlasem, ale jen když to dává smysl (ne menu/ceník/dlouhý výčet)
+      if(viaVoice && botBtn && ttsWorthSpeaking(d.reply)) speakText(d.reply, botBtn);
       history.push({role:'assistant',content:d.reply});
       saveHistory();
     } else {
@@ -1155,7 +1374,7 @@ function toggleVoice(){
       localStorage.setItem('sg_lang_' + hotelId, guestLang);
     }
   };
-  recognition.onend=()=>{isListening=false;const b=document.getElementById('voice-btn');b.classList.remove('listening');b.textContent='🎤';if(document.getElementById('msg-input').value.trim())sendMsg();};
+  recognition.onend=()=>{isListening=false;const b=document.getElementById('voice-btn');b.classList.remove('listening');b.textContent='🎤';if(document.getElementById('msg-input').value.trim()){_lastInputVoice=true;sendMsg();}};
   recognition.onerror=()=>{isListening=false;document.getElementById('voice-btn').classList.remove('listening');document.getElementById('voice-btn').textContent='🎤';};
   recognition.start();
 }

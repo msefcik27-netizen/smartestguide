@@ -24,178 +24,218 @@
 <meta property="og:image" content="https://smartestguide-production.up.railway.app/static/og-image.png"/>
 <meta name="twitter:card" content="summary_large_image"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
 :root {
-  --ink:#1a1a1a;--ink2:#faf9f5;--ink3:#f7f6f4;--border:#e8e4dc;--muted:#6b6b6b;
-  --text:#1a1a1a;--dim:#6b6b6b;--teal:#00d4aa;--gold:#FF6B00;
-  --purple-glow:rgba(255,107,0,.12);--teal-glow:rgba(0,212,170,.15);
-  --gold-glow:rgba(255,107,0,.18);
-  --grad:linear-gradient(135deg,#FF6B00 0%,#e05e00 100%);
-  --font-display:'Syne',sans-serif;--font-body:'Inter',sans-serif;
+  /* Inntelo-style tokeny (redesign 25.7.2026) — názvy proměnných zachovány kvůli inline stylům */
+  --ink:#0c1b33;--ink2:#f6f8fc;--ink3:#eef3fc;--border:#e3e9f4;--muted:#8093b3;
+  --text:#0c1b33;--dim:#51617e;--teal:#2c5fae;--gold:#2c5fae;--accent:#2c5fae;
+  --purple-glow:rgba(44,95,174,.12);--teal-glow:rgba(88,166,200,.15);
+  --gold-glow:rgba(44,95,174,.14);
+  --grad:linear-gradient(90deg,#2c5fae,#58a6c8);
+  --font-display:'Sora',sans-serif;--font-body:'Manrope',sans-serif;
+  --navy:#0c1b33;--lightblue:#a9cbe8;--cardshadow:0 10px 30px rgba(12,27,51,.07);
 }
+@keyframes sgFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+@keyframes sgDrift{0%{transform:translate(0,0) scale(1)}50%{transform:translate(60px,-40px) scale(1.15)}100%{transform:translate(0,0) scale(1)}}
+@keyframes sgDrift2{0%{transform:translate(0,0) scale(1)}50%{transform:translate(-70px,30px) scale(1.1)}100%{transform:translate(0,0) scale(1)}}
+@keyframes sgPulse{0%,100%{box-shadow:0 0 0 0 rgba(44,95,174,.45)}70%{box-shadow:0 0 0 18px rgba(44,95,174,0)}}
+@keyframes sgDot{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-4px)}}
+@keyframes sgFlow{0%{left:0;opacity:0}10%{opacity:1}90%{opacity:1}100%{left:calc(100% - 12px);opacity:0}}
+@keyframes sgShimmer{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@keyframes sgPhoneMsg{0%,20%{opacity:0;transform:translateY(10px)}35%,80%{opacity:1;transform:translateY(0)}95%,100%{opacity:0}}
+@keyframes sgHeroFade{0%{opacity:0}5%,30%{opacity:1}38%,100%{opacity:0}}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{background:#fff;color:#1a1a1a;font-family:var(--font-body);font-size:16px;line-height:1.6;overflow-x:hidden}
+body{background:#f6f8fc;color:var(--text);font-family:var(--font-body);font-size:16px;line-height:1.6;overflow-x:hidden}
 h1,h2,h3{font-family:var(--font-display);line-height:1.15}
-.eyebrow{font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--teal);margin-bottom:14px;display:block}
-.grad-text{color:var(--gold);background:none;-webkit-text-fill-color:var(--gold)}
-nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 5vw;display:flex;align-items:center;justify-content:space-between;height:64px;background:rgba(10,12,20,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
-.nav-logo{font-family:var(--font-display);font-size:20px;font-weight:800;text-decoration:none}
-.nav-logo .t{color:var(--teal)}
-.nav-links{display:flex;gap:32px;list-style:none}
-.nav-links a{color:var(--dim);text-decoration:none;font-size:14px;font-weight:500;transition:color .15s}
+.eyebrow{font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:12px;display:block}
+.grad-text{background:linear-gradient(90deg,#2c5fae,#58a6c8,#2c5fae);background-size:200%;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;animation:sgShimmer 6s ease infinite}
+.hero .grad-text{background:linear-gradient(90deg,#a9cbe8,#58a6c8,#a9cbe8);background-size:200%;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+nav{position:fixed;top:14px;left:24px;right:24px;z-index:100;padding:0 26px;display:flex;align-items:center;justify-content:space-between;height:60px;background:rgba(255,255,255,.82);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.7);border-radius:99px;box-shadow:0 8px 30px rgba(12,27,51,.10)}
+.nav-logo{font-family:var(--font-display);font-size:17px;font-weight:800;letter-spacing:2px;text-decoration:none;color:var(--text)}
+.nav-logo .t{color:var(--gold)}
+.nav-links{display:flex;gap:28px;list-style:none}
+.nav-links a{color:var(--dim);text-decoration:none;font-size:14px;font-weight:600;transition:color .15s}
 .nav-links a:hover{color:var(--text)}
-.nav-cta{background:var(--gold);color:#0a0b0f;border:none;border-radius:8px;padding:9px 20px;font-family:var(--font-body);font-size:14px;font-weight:700;cursor:pointer;text-decoration:none;transition:opacity .15s}
-.nav-cta:hover{opacity:.88}
-.nav-cta-ghost{background:transparent;color:var(--teal);border:1px solid rgba(0,212,170,.4);border-radius:8px;padding:8px 18px;font-family:var(--font-body);font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;transition:all .15s;margin-right:8px}
-.nav-cta-ghost:hover{border-color:var(--teal);background:rgba(0,212,170,.08)}
+.nav-cta{background:var(--grad);color:#fff;border:none;border-radius:99px;padding:10px 22px;font-family:var(--font-body);font-size:14px;font-weight:700;cursor:pointer;text-decoration:none;transition:opacity .15s;box-shadow:0 8px 20px rgba(44,95,174,.3)}
+.nav-cta:hover{opacity:.9}
+.nav-cta-ghost{background:transparent;color:var(--gold);border:1px solid rgba(44,95,174,.4);border-radius:99px;padding:8px 18px;font-family:var(--font-body);font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;transition:all .15s;margin-right:8px}
+.nav-cta-ghost:hover{border-color:var(--gold);background:rgba(44,95,174,.08)}
 .nav-burger{display:none;background:none;border:none;color:var(--text);font-size:22px;cursor:pointer}
 .lang-switch{position:relative;display:inline-block}
-.lang-trigger{display:flex;align-items:center;gap:6px;background:#f7f6f4;border:1px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:700;color:var(--text);transition:border-color .15s;white-space:nowrap}
+.lang-trigger{display:flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--border);border-radius:99px;padding:7px 12px;cursor:pointer;font-size:12px;font-weight:700;color:var(--text);transition:border-color .15s;white-space:nowrap}
 .lang-trigger:hover{border-color:var(--gold)}
 .lang-trigger .chevron{font-size:10px;color:var(--muted);transition:transform .2s}
 .lang-switch.open .chevron{transform:rotate(180deg)}
-.lang-dropdown{position:absolute;top:calc(100% + 6px);right:0;background:#faf9f5;border:1px solid var(--border);border-radius:10px;padding:4px;min-width:130px;box-shadow:0 8px 24px rgba(0,0,0,.4);opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .15s,transform .15s;z-index:200}
+.lang-dropdown{position:absolute;top:calc(100% + 10px);right:0;background:#fff;border:1px solid var(--border);border-radius:14px;padding:4px;min-width:130px;box-shadow:0 14px 34px rgba(12,27,51,.16);opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .15s,transform .15s;z-index:200}
 .lang-switch.open .lang-dropdown{opacity:1;transform:translateY(0);pointer-events:all}
-.lang-option{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;color:var(--text);font-size:13px;font-weight:600;padding:7px 10px;border-radius:7px;cursor:pointer;text-align:left;transition:background .12s}
-.lang-option:hover{background:#f7f6f4}
+.lang-option{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;color:var(--text);font-size:13px;font-weight:600;padding:7px 10px;border-radius:9px;cursor:pointer;text-align:left;transition:background .12s}
+.lang-option:hover{background:#f1f4fa}
 .lang-option.active{color:var(--gold)}
 .lang-option img{border-radius:2px;flex-shrink:0}
-.hero{min-height:100vh;padding:120px 5vw 80px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;position:relative;overflow:hidden}
-.hero::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(255,107,0,.18) 0%,transparent 70%),radial-gradient(ellipse 50% 40% at 80% 60%,rgba(0,212,170,.08) 0%,transparent 60%);pointer-events:none}
-.hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(0,212,170,.08);border:1px solid rgba(0,212,170,.3);border-radius:20px;padding:6px 16px;font-size:13px;color:var(--teal);font-weight:500;margin-bottom:28px}
+/* Hero — zaoblený fotoblok se slideshow */
+.hero{min-height:780px;margin:0 24px;border-radius:32px;overflow:hidden;position:relative;display:flex;flex-direction:column;justify-content:flex-end;padding:150px 56px 110px;text-align:left;color:#fff}
+.hero-slide{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+.hero-slide.s2{opacity:0;animation:sgHeroFade 18s 6s infinite}
+.hero-slide.s3{opacity:0;animation:sgHeroFade 18s 12s infinite}
+.hero-slide.s4{opacity:0;animation:sgHeroFade 18s 0s infinite}
+.hero-overlay{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(7,16,35,.35) 0%,rgba(7,16,35,.08) 35%,rgba(7,16,35,.5) 100%)}
+.hero-scrim{position:absolute;inset:0;z-index:1;background:linear-gradient(90deg,rgba(7,16,35,.55),rgba(7,16,35,.2) 50%,transparent 75%)}
+.hero>*:not(.hero-slide):not(.hero-overlay):not(.hero-scrim){position:relative;z-index:2}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);backdrop-filter:blur(8px);border-radius:99px;padding:7px 16px;font-size:13px;color:#fff;font-weight:600;margin-bottom:24px;align-self:flex-start}
 .hero-badge::before{content:'●';font-size:8px;animation:blink 2s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-.hero h1{font-size:clamp(32px,4vw,54px);font-weight:800;max-width:1000px;margin-bottom:22px}
-.hero p{font-size:clamp(16px,2vw,19px);color:var(--dim);max-width:560px;margin-bottom:44px;line-height:1.7}
-.hero-btns{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-bottom:64px}
-.btn-primary{background:var(--gold);color:#0a0b0f;border:none;border-radius:10px;padding:14px 28px;font-family:var(--font-body);font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;transition:all .2s;box-shadow:0 4px 24px rgba(255,107,0,.3)}
-.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(255,107,0,.45)}
-.btn-ghost{background:transparent;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:14px 28px;font-family:var(--font-body);font-size:15px;font-weight:500;cursor:pointer;text-decoration:none;transition:all .2s}
-.btn-ghost:hover{border-color:var(--gold);color:var(--gold)}
-.hero-mockup{width:100%;max-width:700px;background:#faf9f5;border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,.5)}
-.mock-bar{background:#f7f6f4;padding:12px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)}
+.hero h1{font-size:clamp(34px,4vw,58px);font-weight:800;max-width:900px;margin-bottom:20px;letter-spacing:-1px;text-shadow:0 4px 30px rgba(0,0,0,.4)}
+.hero p{font-size:clamp(16px,2vw,18px);color:rgba(255,255,255,.92);max-width:520px;margin-bottom:30px;line-height:1.6;text-shadow:0 2px 16px rgba(0,0,0,.4)}
+.hero-btns{display:flex;gap:16px;flex-wrap:wrap;justify-content:flex-start;margin-bottom:28px}
+.btn-primary{background:var(--grad);color:#fff;border:none;border-radius:99px;padding:15px 30px;font-family:var(--font-body);font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;transition:all .2s;box-shadow:0 12px 32px rgba(12,27,51,.35);animation:sgPulse 3s infinite}
+.btn-primary:hover{transform:translateY(-2px)}
+.btn-ghost{background:rgba(255,255,255,.1);backdrop-filter:blur(8px);color:#fff;border:1.5px solid rgba(255,255,255,.6);border-radius:99px;padding:15px 30px;font-family:var(--font-body);font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;transition:all .2s}
+.btn-ghost:hover{background:rgba(255,255,255,.2)}
+/* Chat demo karta (přesunuta do sekce Živá ukázka) */
+.hero-mockup{width:100%;max-width:380px;margin:0 auto;background:#fff;border:none;border-radius:24px;overflow:hidden;box-shadow:0 30px 70px rgba(12,27,51,.18);animation:sgFloat 6s ease-in-out infinite}
+.mock-bar{background:#fff;padding:15px 18px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #eef2f9}
 .mock-dot{width:10px;height:10px;border-radius:50%}
-.mock-bar-title{flex:1;text-align:center;font-size:12px;color:var(--muted);font-weight:500}
-.mock-chat{padding:20px;display:flex;flex-direction:column;gap:12px}
-.mock-msg{display:flex;gap:10px;max-width:80%}
+.mock-bar-title{flex:1;text-align:center;font-size:12px;color:var(--dim);font-weight:600}
+.mock-chat{padding:16px;display:flex;flex-direction:column;gap:10px;background:#fbfcfe;min-height:300px;justify-content:flex-end}
+.mock-msg{display:flex;gap:10px;max-width:82%}
 .mock-msg.bot{align-self:flex-start}
 .mock-msg.user{align-self:flex-end;flex-direction:row-reverse}
 .mock-av{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px}
-.mock-msg.bot .mock-av{background:var(--grad)}
-.mock-msg.user .mock-av{background:#f7f6f4;border:1px solid var(--border);font-size:11px;color:var(--muted)}
-.mock-bubble{padding:9px 13px;border-radius:12px;font-size:13px;line-height:1.5}
-.mock-msg.bot .mock-bubble{background:#f7f6f4;border:1px solid var(--border);color:var(--text)}
-.mock-msg.user .mock-bubble{background:var(--gold);color:#0a0b0f}
-.stats-strip{padding:40px 5vw;border-top:1px solid var(--border);border-bottom:1px solid var(--border);display:flex;justify-content:center;gap:60px;flex-wrap:wrap}
-.stat{text-align:center}
-.stat-num{font-family:var(--font-display);font-size:36px;font-weight:800;color:var(--gold)}
-.stat-label{font-size:13px;color:var(--muted);margin-top:4px}
-section{padding:100px 5vw}
+.mock-msg.bot .mock-av{background:linear-gradient(135deg,#2c5fae,#58a6c8)}
+.mock-msg.user .mock-av{background:#f1f4fa;border:1px solid var(--border);font-size:11px;color:var(--muted)}
+.mock-bubble{padding:10px 14px;border-radius:14px 14px 14px 4px;font-size:13px;line-height:1.5}
+.mock-msg.bot .mock-bubble{background:#eef3fc;border:none;color:var(--text)}
+.mock-msg.user .mock-bubble{background:#2c5fae;color:#fff;border-radius:14px 14px 4px 14px}
+.mock-typing{display:flex;align-self:flex-start}
+.mock-typing .tb{background:#eef3fc;border-radius:14px 14px 14px 4px;padding:10px 14px;display:flex;gap:4px}
+.mock-typing .tb span{width:6px;height:6px;border-radius:50%;background:#8093b3;animation:sgDot 1.2s infinite}
+.mock-typing .tb span:nth-child(2){animation-delay:.2s}
+.mock-typing .tb span:nth-child(3){animation-delay:.4s}
+/* Statistiky — skleněné karty přes hranu hera */
+.stats-strip{position:relative;z-index:6;padding:0 80px;margin-top:-52px;margin-bottom:20px;display:grid;grid-template-columns:repeat(4,1fr);gap:20px;border:none}
+.stat{background:rgba(255,255,255,.8);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.7);border-radius:20px;padding:30px;box-shadow:0 18px 44px rgba(12,27,51,.1);text-align:left}
+.stat-num{font-family:var(--font-display);font-size:38px;font-weight:800;background:linear-gradient(120deg,#2c5fae,#58a6c8);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat-label{font-size:14px;color:var(--dim);margin-top:6px}
+section{padding:80px 5vw}
 .section-inner{max-width:1100px;margin:0 auto}
-.section-header{text-align:center;margin-bottom:64px}
-.section-header h2{font-size:clamp(28px,4vw,44px);font-weight:800;margin-bottom:14px}
-.section-header p{font-size:17px;color:var(--dim);max-width:560px;margin:0 auto;line-height:1.7}
-/* Registrační sekce má tmavé pozadí — nadpis/popis musí být světlé */
-#register .section-header h2{color:#f5f3ee}
-#register .section-header p{color:#c8ccd8}
-#how{background:#faf9f5}
-.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px}
-.step{background:var(--ink);border:1px solid var(--border);border-radius:16px;padding:28px 24px;position:relative;overflow:hidden;transition:border-color .2s}
-.step:hover{border-color:var(--gold)}
-.step::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--gold);opacity:0;transition:opacity .2s}
-.step:hover::after{opacity:1}
-.step-num{font-family:var(--font-display);font-size:42px;font-weight:800;color:var(--border);margin-bottom:14px;line-height:1}
-.step h3{font-size:17px;font-weight:700;margin-bottom:8px;color:#f5f3ee}
-.step p{font-size:14px;color:#c8ccd8;line-height:1.65}
-.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
-.feature{background:#faf9f5;border:1px solid var(--border);border-radius:16px;padding:28px 26px;display:flex;gap:18px;align-items:flex-start;transition:transform .2s,border-color .2s}
-.feature:hover{transform:translateY(-3px);border-color:rgba(255,107,0,.35)}
-.feat-icon{width:44px;height:44px;border-radius:10px;flex-shrink:0;background:var(--gold-glow);border:1px solid rgba(255,107,0,.2);display:flex;align-items:center;justify-content:center;font-size:20px}
-.feat-icon.teal{background:var(--teal-glow);border-color:rgba(0,212,170,.2)}
-.feat-body h3{font-size:16px;font-weight:700;margin-bottom:6px}
-.feat-body p{font-size:14px;color:var(--dim);line-height:1.6}
-.lang-strip{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:32px}
-.lang-pill{background:#faf9f5;border:1px solid var(--border);border-radius:20px;padding:7px 16px;font-size:14px;color:var(--dim)}
-#pricing{background:#faf9f5}
-.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;max-width:800px;margin:0 auto}
-.price-card{background:var(--ink);border:1px solid var(--border);border-radius:20px;padding:36px 32px;text-align:center;position:relative;overflow:hidden}
-.price-card.featured{border-color:var(--gold);background:linear-gradient(160deg,rgba(255,107,0,.07) 0%,var(--ink) 100%)}
-.price-name{font-size:13px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:16px}
-.price-amount{font-family:var(--font-display);font-size:56px;font-weight:800;line-height:1;margin-bottom:6px;display:flex;align-items:flex-start;justify-content:center;gap:2px}
-.price-amount .pre{font-size:14px;font-weight:400;color:var(--muted);align-self:flex-start;margin-top:6px;margin-right:4px}
-.price-amount .currency{font-size:20px;font-weight:600;color:var(--muted);align-self:flex-start;margin-top:8px}
-.price-amount .num{font-size:56px;font-weight:800;color:var(--ink);line-height:1}
-.price-card.featured .price-amount .num{color:#1a1a1a}
-.price-card:not(.featured) .price-amount .num{color:#f0ece0}
-.price-card:not(.featured) .price-amount .currency{color:#f0ece0}
-.price-card:not(.featured) .price-amount .pre{color:rgba(255,255,255,.5)}
-.price-card:not(.featured) .price-amount .suffix{color:rgba(255,255,255,.5)}
-.price-card:not(.featured) .price-desc{color:rgba(255,255,255,.5)}
-.price-card:not(.featured) .price-name{color:rgba(255,255,255,.5)}
-.price-amount .suffix{font-size:16px;font-weight:400;color:var(--muted);align-self:flex-end;margin-bottom:6px}
-.price-desc{font-size:13px;color:var(--dim);margin-bottom:28px}
-.price-features{list-style:none;text-align:left;margin-bottom:32px;display:flex;flex-direction:column;gap:10px}
-.price-features li{font-size:14px;color:var(--dim);display:flex;gap:10px;align-items:flex-start}
-.price-card:not(.featured) .price-features li{color:rgba(255,255,255,.7)}
-.price-card:not(.featured) .price-note{color:var(--teal)}
-.price-features li::before{content:'✓';color:var(--teal);font-weight:700;flex-shrink:0}
+.section-header{text-align:center;margin-bottom:56px}
+.section-header h2{font-size:clamp(28px,4vw,38px);font-weight:800;margin-bottom:14px}
+.section-header p{font-size:16px;color:var(--dim);max-width:640px;margin:0 auto;line-height:1.6}
+/* QR flow */
+.qr-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:0;align-items:center;max-width:1080px;margin:0 auto}
+.qr-card{background:#fff;border:1px solid var(--border);border-radius:20px;padding:34px;text-align:center;box-shadow:0 8px 24px rgba(12,27,51,.05)}
+.qr-card h3{font-family:var(--font-display);font-size:17px;font-weight:700;margin-bottom:6px}
+.qr-card p{font-size:14px;color:var(--dim);line-height:1.5}
+.qr-line{width:90px;height:2px;background:#d7dfee;position:relative;margin:0 6px}
+.qr-line .dot{position:absolute;top:-5px;width:12px;height:12px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px rgba(44,95,174,.6);animation:sgFlow 2.6s linear infinite}
+.qr-line.d2 .dot{animation-delay:1.3s}
+/* Registrační sekce — tmavá navy, světlé nadpisy */
+#register .section-header h2{color:#fff}
+#register .section-header p{color:#9fb0cd}
+#register .eyebrow{color:var(--lightblue)}
+#how{background:#ffffff;border-radius:32px;margin:0 24px}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
+.step{background:#fff;border:1px solid #e9eef7;border-radius:20px;padding:0 0 26px;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s;box-shadow:var(--cardshadow)}
+.step:hover{transform:translateY(-6px);box-shadow:0 22px 44px rgba(12,27,51,.13)}
+.step-photo{position:relative;height:190px;margin-bottom:34px}
+.step-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.step-num{position:absolute;bottom:-22px;left:22px;background:var(--gold);color:#fff;font-family:var(--font-display);font-size:15px;font-weight:800;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;box-shadow:0 8px 18px rgba(44,95,174,.4);margin:0;line-height:1;z-index:2}
+.step h3{font-size:18px;font-weight:700;margin-bottom:8px;color:var(--text);padding:0 22px}
+.step p{font-size:14px;color:var(--dim);line-height:1.6;padding:0 22px}
+/* Funkce — fotomozaika */
+.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.feature{position:relative;overflow:hidden;border-radius:18px;padding:0;display:block;min-height:210px;border:none;background:var(--navy);transition:transform .2s}
+.feature:hover{transform:translateY(-4px)}
+.feature:first-child{grid-row:span 2;min-height:440px}
+.feat-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.feat-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(12,27,51,.15) 20%,rgba(12,27,51,.92))}
+.feature:first-child .feat-shade{background:linear-gradient(180deg,transparent 40%,rgba(12,27,51,.9))}
+.feat-icon{display:none}
+.feat-body{position:absolute;bottom:0;left:0;right:0;padding:24px;color:#fff;z-index:2}
+.feat-body h3{font-size:18px;font-weight:700;margin-bottom:6px;font-family:var(--font-display);color:#fff}
+.feat-body p{font-size:14px;color:#dbe4f5;line-height:1.6}
+.lang-strip{display:none}
+.lang-pill{display:none}
+#pricing{background:transparent}
+.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;max-width:920px;margin:0 auto}
+.price-features{list-style:none;text-align:left;margin-bottom:32px;display:flex;flex-direction:column;gap:12px}
+.price-features li{font-size:15px;color:#3c4c68;display:flex;gap:10px;align-items:flex-start}
+.price-features li::before{content:'✓';color:var(--gold);font-weight:700;flex-shrink:0}
 .price-note{font-size:12px;color:var(--muted);margin-top:12px}
-#register{position:relative;overflow:hidden}
-#register::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 80% at 50% 50%,rgba(255,107,0,.08) 0%,transparent 70%);pointer-events:none}
-.register-wrap{max-width:600px;margin:0 auto;background:#faf9f5;border:1px solid var(--border);border-radius:24px;padding:48px 44px}
+#register{position:relative;overflow:hidden;border-radius:32px;margin:0 24px}
+.reg-orb{position:absolute;border-radius:50%;pointer-events:none}
+.reg-orb.o1{top:-140px;left:-120px;width:520px;height:520px;background:radial-gradient(circle,rgba(44,95,174,.4),transparent 65%);filter:blur(40px);animation:sgDrift 15s ease-in-out infinite}
+.reg-orb.o2{bottom:-160px;right:-120px;width:560px;height:560px;background:radial-gradient(circle,rgba(88,166,200,.25),transparent 65%);filter:blur(50px);animation:sgDrift2 18s ease-in-out infinite}
+.register-wrap{max-width:720px;margin:0 auto;background:#ffffff;border:none;border-radius:22px;padding:40px;position:relative;box-shadow:0 30px 80px rgba(0,0,0,.4)}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .form-group{display:flex;flex-direction:column;gap:6px}
 .form-group.full{grid-column:1/-1}
-label{font-size:12px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
-input,select,textarea{background:#ffffff;border:1.5px solid var(--border);border-radius:10px;color:#1a1a1a;font-family:var(--font-body);font-size:15px;padding:12px 14px;outline:none;width:100%;transition:border-color .15s}
+label{font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--dim)}
+input,select,textarea{background:#f6f8fc;border:1px solid #d7dfee;border-radius:12px;color:var(--text);font-family:var(--font-body);font-size:15px;padding:13px 16px;outline:none;width:100%;transition:border-color .15s}
 input:focus,select:focus,textarea:focus{border-color:var(--gold)}
-select option{background:#ffffff;color:#1a1a1a}
-.form-submit{width:100%;margin-top:8px;background:var(--gold);color:#0a0b0f;border:none;border-radius:12px;font-family:var(--font-body);font-size:16px;font-weight:700;padding:16px;cursor:pointer;transition:all .2s;box-shadow:0 4px 24px rgba(255,107,0,.3)}
-.form-submit:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(255,107,0,.45)}
+select option{background:#ffffff;color:#0c1b33}
+.form-submit{width:100%;margin-top:8px;background:var(--grad);color:#fff;border:none;border-radius:99px;font-family:var(--font-body);font-size:17px;font-weight:700;padding:16px;cursor:pointer;transition:all .2s;box-shadow:0 12px 28px rgba(44,95,174,.35)}
+.form-submit:hover{transform:translateY(-2px)}
 .form-submit:disabled{opacity:.6;cursor:not-allowed;transform:none}
-.form-note{font-size:12px;color:var(--muted);text-align:center;margin-top:14px}
-.about-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
-.about-text h2{font-size:clamp(26px,3.5vw,40px);font-weight:800;margin-bottom:20px}
-.about-text p{color:var(--dim);font-size:16px;line-height:1.8;margin-bottom:16px}
-.about-visual{background:#faf9f5;border:1px solid var(--border);border-radius:20px;padding:32px;display:flex;flex-direction:column;gap:16px}
+.form-note{font-size:13px;color:var(--muted);text-align:center;margin-top:14px}
+.about-grid{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center}
+.about-text h2{font-size:clamp(26px,3.5vw,36px);font-weight:800;margin-bottom:20px}
+.about-text p{color:var(--dim);font-size:16px;line-height:1.7;margin-bottom:16px}
+.about-visual{background:transparent;border:none;border-radius:20px;padding:0;display:flex;flex-direction:column;gap:16px}
+.about-photo{border-radius:20px;overflow:hidden;min-height:420px;position:relative}
+.about-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .about-metric{display:flex;align-items:center;gap:16px}
-.metric-bar-wrap{flex:1;background:var(--border);border-radius:4px;height:8px;overflow:hidden}
-.metric-bar{height:100%;border-radius:4px;background:var(--gold)}
-.metric-label{font-size:13px;color:var(--dim);width:130px;flex-shrink:0}
-.metric-val{font-size:13px;font-weight:600;width:40px;text-align:right;flex-shrink:0}
-#contact{background:#faf9f5}
-.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px}
+.metric-bar-wrap{flex:1;background:#e3e9f4;border-radius:99px;height:8px;overflow:hidden}
+.metric-bar{height:100%;border-radius:99px;background:var(--grad);transition:width 1.4s cubic-bezier(.2,.8,.2,1)}
+.metric-label{font-size:14px;font-weight:600;color:#3c4c68;width:170px;flex-shrink:0}
+.metric-val{font-size:14px;font-weight:700;width:44px;text-align:right;flex-shrink:0;color:#3c4c68}
+#contact{background:#ffffff;border-radius:32px;margin:40px 24px 0}
+.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:60px}
 .contact-info h2{font-size:clamp(24px,3vw,36px);font-weight:800;margin-bottom:20px}
 .contact-info p{color:var(--dim);font-size:15px;line-height:1.8;margin-bottom:28px}
 .contact-item{display:flex;align-items:center;gap:12px;margin-bottom:16px}
-.c-icon{width:36px;height:36px;border-radius:8px;background:var(--gold-glow);border:1px solid rgba(255,107,0,.2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.c-icon{width:36px;height:36px;border-radius:10px;background:var(--gold-glow);border:1px solid rgba(44,95,174,.2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
 .c-text{font-size:14px;color:var(--dim)}
-.c-text a{color:var(--teal);text-decoration:none}
+.c-text a{color:var(--gold);text-decoration:none}
 .contact-form{display:flex;flex-direction:column;gap:14px}
-footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
-.footer-logo{font-family:var(--font-display);font-size:18px;font-weight:800}
-.footer-logo .t{color:var(--teal)}
-.footer-links{display:flex;gap:24px}
+footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 0 32px 32px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.footer-logo{font-family:var(--font-display);font-size:15px;font-weight:800;letter-spacing:2px}
+.footer-logo .t{color:var(--gold)}
+.footer-links{display:flex;gap:22px}
 .footer-links a{font-size:13px;color:var(--muted);text-decoration:none;transition:color .15s}
 .footer-links a:hover{color:var(--text)}
-.footer-copy{font-size:12px;color:var(--muted)}
+.footer-copy{font-size:12px;color:#a5b2c9;line-height:1.7}
+[data-reveal]{opacity:0;transform:translateY(28px);transition:opacity .8s ease,transform .8s ease}
+[data-reveal].revealed{opacity:1;transform:none}
+@media(max-width:900px){
+  .steps{grid-template-columns:1fr 1fr}
+  .features-grid{grid-template-columns:1fr}
+  .feature:first-child{grid-row:auto;min-height:280px}
+  .qr-flow{grid-template-columns:1fr}
+  .qr-line{display:none}
+  .stats-strip{grid-template-columns:1fr 1fr;padding:0 24px}
+}
 @media(max-width:768px){
+  nav{left:12px;right:12px;padding:0 16px}
   .nav-links,.nav-cta{display:none}
   .nav-burger{display:block}
-  .nav-links.open{display:flex;flex-direction:column;position:fixed;top:64px;left:0;right:0;background:#faf9f5;border-bottom:1px solid var(--border);padding:20px 24px;gap:20px}
+  .nav-links.open{display:flex;flex-direction:column;position:fixed;top:80px;left:12px;right:12px;background:#fff;border:1px solid var(--border);border-radius:20px;padding:20px 24px;gap:20px;box-shadow:0 20px 50px rgba(12,27,51,.15);z-index:99}
   .nav-cta.open{display:block;margin-top:8px;text-align:center}
+  .hero{margin:0 12px;padding:120px 24px 90px;min-height:640px}
+  #how,#register,#contact{margin:0 12px}
+  .steps{grid-template-columns:1fr}
   .about-grid,.contact-grid{grid-template-columns:1fr}
   .form-grid{grid-template-columns:1fr}
-  .stats-strip{gap:32px}
-  footer{flex-direction:column;text-align:center}
-  .register-wrap{padding:32px 24px}
+  .stats-strip{grid-template-columns:1fr 1fr;gap:12px;margin-top:-32px}
+  footer{flex-direction:column;text-align:center;margin:0 12px 12px}
+  .register-wrap{padding:28px 20px}
 }
 </style>
 </head>
 <body>
-<div style="position:fixed;top:0;left:0;right:0;height:3px;z-index:200;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#FF6B00);box-shadow:0 0 12px rgba(0,212,170,.4)"></div>
+<div style="position:fixed;top:0;left:0;right:0;height:3px;z-index:200;background:linear-gradient(90deg,#2c5fae,#58a6c8);box-shadow:0 0 12px rgba(44,95,174,.4)"></div>
 
 <nav>
   <a href="#" class="nav-logo">SMARTEST&nbsp;GUIDE<span style="width:7px;height:7px;border-radius:50%;background:var(--gold);display:inline-block;margin-left:4px;margin-bottom:-1px;box-shadow:0 0 8px rgba(255,107,0,.8)"></span></a>
@@ -226,6 +266,12 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
 </nav>
 
 <section class="hero">
+  <img class="hero-slide" src="https://images.pexels.com/photos/6758532/pexels-photo-6758532.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="Moderní hotel — exteriér">
+  <img class="hero-slide s2" src="https://images.pexels.com/photos/9746967/pexels-photo-9746967.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="">
+  <img class="hero-slide s3" src="https://images.pexels.com/photos/13325113/pexels-photo-13325113.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="">
+  <img class="hero-slide s4" src="https://images.pexels.com/photos/6758532/pexels-photo-6758532.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="" aria-hidden="true">
+  <div class="hero-overlay"></div>
+  <div class="hero-scrim"></div>
   <div class="hero-badge" id="hero-badge">✦ AI-Powered Hotel Concierge</div>
   <h1 id="hero-h1">Stop answering the same questions. Let <span class="grad-text">Alex</span> handle it.</h1>
   <p id="hero-p">SMARTEST GUIDE answers your guests' questions 24/7 — in 100+ languages, from a QR code at reception. No app installation required, no extra staff.</p>
@@ -233,9 +279,9 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
     <a href="#register" class="btn-primary" id="hero-btn1">Start 14-day free trial →</a>
     <a href="#how" class="btn-ghost" id="hero-btn2">See how it works</a>
   </div>
-  <div style="margin:0 auto 48px;max-width:620px;text-align:center">
-    <div id="flags-title" style="font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#5a5a6a;margin-bottom:14px">Fluent in 100+ languages</div>
-    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px 7px">
+  <div style="margin:0;max-width:620px;text-align:left">
+    <div id="flags-title" style="font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.75);margin-bottom:14px">Fluent in 100+ languages</div>
+    <div style="display:flex;flex-wrap:wrap;justify-content:flex-start;gap:8px 7px">
       <img src="https://flagcdn.com/w40/cz.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="CZ">
       <img src="https://flagcdn.com/w40/gb.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="EN">
       <img src="https://flagcdn.com/w40/de.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="DE">
@@ -254,31 +300,73 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       <img src="https://flagcdn.com/w40/pt.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="PT">
     </div>
   </div>
-  <div class="hero-mockup">
-    <div class="mock-bar">
-      <div class="mock-dot" style="background:#ff4f6a"></div>
-      <div class="mock-dot" style="background:#ffaa33"></div>
-      <div class="mock-dot" style="background:#2ecc87"></div>
-      <span class="mock-bar-title">Alex — SmartestGuide · Hotel Zlatá hvězda</span>
-    </div>
-    <div class="mock-chat">
-      <div class="mock-msg bot"><div class="mock-av">🤖</div><div class="mock-bubble" id="chat-b1">Hi! I'm Alex, your personal concierge. How can I help you today? 👋</div></div>
-      <div class="mock-msg user"><div class="mock-av">JD</div><div class="mock-bubble" id="chat-u1">What time does breakfast start?</div></div>
-      <div class="mock-msg bot"><div class="mock-av">🤖</div><div class="mock-bubble" id="chat-b2">Breakfast is served from <strong>7:00 to 10:30 AM</strong> in the hotel restaurant on the ground floor. Enjoy! 🍳</div></div>
-      <div class="mock-msg user"><div class="mock-av">JD</div><div class="mock-bubble" id="chat-u2">Is there parking nearby?</div></div>
-      <div class="mock-msg bot"><div class="mock-av">🤖</div><div class="mock-bubble" id="chat-b3">Yes! The hotel has a <strong>private parking lot</strong> right behind the building — free for guests. 🅿️</div></div>
-    </div>
-  </div>
 </section>
 
-<div class="stats-strip">
+<div class="stats-strip" data-reveal>
   <div class="stat"><div class="stat-num">100+</div><div class="stat-label" id="stat1-label">Languages supported</div></div>
   <div class="stat"><div class="stat-num">24/7</div><div class="stat-label" id="stat2-label">Always available</div></div>
   <div class="stat"><div class="stat-num">&lt;2s</div><div class="stat-label" id="stat3-label">Average response time</div></div>
   <div class="stat"><div class="stat-num">0</div><div class="stat-label" id="stat4-label">Apps to install</div></div>
 </div>
 
-<section id="how">
+<section id="qrflow" data-reveal>
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="eyebrow" id="qr-eyebrow">How simple it is</span>
+      <h2 id="qr-h2">From QR code to answer in seconds</h2>
+    </div>
+    <div class="qr-flow">
+      <div class="qr-card">
+        <div style="display:inline-block;background:#f1f4fa;border-radius:12px;padding:12px;margin-bottom:18px">
+          <div style="display:grid;grid-template-columns:repeat(7,7px);gap:2px">
+            <!-- dekorativní QR mřížka -->
+            <i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i>
+            <i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i>
+            <i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i></i>
+            <i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i>
+            <i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i></i><i></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i>
+            <i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i>
+            <i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i>
+          </div>
+        </div>
+        <h3 id="qr1-h">1 · Guest scans the QR</h3><p id="qr1-p">Poster at reception or in the room.</p>
+      </div>
+      <div class="qr-line"><div class="dot"></div></div>
+      <div class="qr-card">
+        <div style="width:64px;height:110px;border:2px solid #2c5fae;border-radius:14px;margin:0 auto 18px;position:relative;background:#fbfcfe"><div style="position:absolute;top:8px;left:8px;right:8px;height:8px;border-radius:4px;background:#2c5fae;opacity:.5"></div><div style="position:absolute;top:24px;left:8px;right:20px;height:8px;border-radius:4px;background:#e3e9f4;animation:sgPhoneMsg 2.6s infinite"></div><div style="position:absolute;top:38px;left:20px;right:8px;height:8px;border-radius:4px;background:#2c5fae;animation:sgPhoneMsg 2.6s 1.2s infinite"></div></div>
+        <h3 id="qr2-h">2 · Chat opens in the browser</h3><p id="qr2-p">No app, no sign-up.</p>
+      </div>
+      <div class="qr-line d2"><div class="dot"></div></div>
+      <div class="qr-card">
+        <div style="height:110px;display:flex;flex-direction:column;gap:8px;justify-content:center;margin-bottom:18px"><div style="align-self:flex-end;background:#2c5fae;color:#fff;border-radius:12px 12px 4px 12px;padding:8px 12px;font-size:12px;font-weight:600" id="qr3-demo-q">Kdy je snídaně?</div><div style="align-self:flex-start;background:#eef3fc;border-radius:12px 12px 12px 4px;padding:8px 12px;font-size:12px;font-weight:600;color:#0c1b33" id="qr3-demo-a">7:00–10:30 v přízemí 🍳</div></div>
+        <h3 id="qr3-h">3 · Alex answers within 2 seconds</h3><p id="qr3-p">In the guest's language, anytime.</p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:22px;margin-top:60px">
+      <div style="text-align:center">
+        <span class="eyebrow" id="demo-eyebrow">Live demo</span>
+        <div style="font-family:var(--font-display);font-size:28px;font-weight:800" id="demo-h2">This is how Alex answers your guests</div>
+      </div>
+      <div class="hero-mockup">
+        <div class="mock-bar">
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#2c5fae,#58a6c8);display:grid;place-items:center;font-size:17px">🤖</div>
+          <span class="mock-bar-title" style="text-align:left"><b style="font-family:var(--font-display);font-size:14px;color:var(--text)">Alex — SmartestGuide</b><br><span style="color:#19b57e;font-size:11px">● online · Hotel Zlatá hvězda</span></span>
+        </div>
+        <div class="mock-chat">
+          <div class="mock-msg bot"><div class="mock-av">🤖</div><div class="mock-bubble" id="chat-b1">Hi! I'm Alex, your personal concierge. How can I help you today? 👋</div></div>
+          <div class="mock-msg user"><div class="mock-av">JD</div><div class="mock-bubble" id="chat-u1">What time does breakfast start?</div></div>
+          <div class="mock-msg bot"><div class="mock-av">🤖</div><div class="mock-bubble" id="chat-b2">Breakfast is served from <strong>7:00 to 10:30 AM</strong> in the hotel restaurant on the ground floor. Enjoy! 🍳</div></div>
+          <div class="mock-msg user"><div class="mock-av">JD</div><div class="mock-bubble" id="chat-u2">Is there parking nearby?</div></div>
+          <div class="mock-msg bot"><div class="mock-av">🤖</div><div class="mock-bubble" id="chat-b3">Yes! The hotel has a <strong>private parking lot</strong> right behind the building — free for guests. 🅿️</div></div>
+          <div class="mock-typing" id="mock-typing" style="display:none"><div class="tb"><span></span><span></span><span></span></div></div>
+        </div>
+        <div style="display:flex;gap:8px;padding:13px 16px;border-top:1px solid #eef2f9;background:#fff"><div style="flex:1;background:#f1f4fa;border-radius:99px;padding:10px 14px;font-size:12px;color:#8093b3" id="mock-input-ph">Napište zprávu…</div><div style="width:36px;height:36px;border-radius:50%;background:#2c5fae;display:grid;place-items:center;color:#fff;font-size:14px">➤</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how" data-reveal>
   <div class="section-inner">
     <div class="section-header">
       <span class="eyebrow" id="how-eyebrow">Process</span>
@@ -286,15 +374,15 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       <p id="how-p">SMARTEST GUIDE trains in one day — and you can keep teaching it new things it will remember.</p>
     </div>
     <div class="steps">
-      <div class="step"><div class="step-num">01</div><h3 id="step1-h">Register</h3><p id="step1-p">Fill in your hotel name, website URL and number of beds. Complete the payment.</p></div>
-      <div class="step"><div class="step-num">02</div><h3 id="step2-h">We import your hotel data</h3><p id="step2-p">We prepare your hotel profile based on the information you provide — quickly and without unnecessary effort on your part.</p></div>
-      <div class="step"><div class="step-num">03</div><h3 id="step3-h">Review & complete</h3><p id="step3-p">Log into your hotel portal and fill in any missing details — hours, services, local tips. Alex will learn it instantly.</p></div>
-      <div class="step"><div class="step-num">04</div><h3 id="step4-h">Print & place</h3><p id="step4-p">Print your QR poster and place it in the lobby or rooms. Guests scan and start chatting instantly.</p></div>
+      <div class="step"><div class="step-photo"><img src="https://images.pexels.com/photos/19893582/pexels-photo-19893582.jpeg?auto=compress&cs=tinysrgb&w=800" alt="" style="object-position:center 60%"><div class="step-num">01</div></div><h3 id="step1-h">Register</h3><p id="step1-p">Fill in your hotel name, website URL and number of beds. Complete the payment.</p></div>
+      <div class="step"><div class="step-photo"><img src="https://images.pexels.com/photos/4050290/pexels-photo-4050290.jpeg?auto=compress&cs=tinysrgb&w=800" alt="" style="object-position:center 35%"><div class="step-num">02</div></div><h3 id="step2-h">We import your hotel data</h3><p id="step2-p">We prepare your hotel profile based on the information you provide — quickly and without unnecessary effort on your part.</p></div>
+      <div class="step"><div class="step-photo"><img src="https://images.pexels.com/photos/3182812/pexels-photo-3182812.jpeg?auto=compress&cs=tinysrgb&w=800" alt="" style="object-position:center 30%"><div class="step-num">03</div></div><h3 id="step3-h">Review & complete</h3><p id="step3-p">Log into your hotel portal and fill in any missing details — hours, services, local tips. Alex will learn it instantly.</p></div>
+      <div class="step"><div class="step-photo"><img src="https://images.pexels.com/photos/7942138/pexels-photo-7942138.jpeg?auto=compress&cs=tinysrgb&w=800" alt="" style="object-position:center 70%"><div class="step-num">04</div></div><h3 id="step4-h">Print & place</h3><p id="step4-p">Print your QR poster and place it in the lobby or rooms. Guests scan and start chatting instantly.</p></div>
     </div>
   </div>
 </section>
 
-<section id="features" style="background:#faf9f5">
+<section id="features" data-reveal>
   <div class="section-inner">
     <div class="section-header">
       <span class="eyebrow" id="feat-eyebrow">Features</span>
@@ -302,12 +390,12 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       <p id="feat-p">Quick answers to their questions — anytime, clearly, in their language.</p>
     </div>
     <div class="features-grid">
-      <div class="feature"><div class="feat-icon">🌍</div><div class="feat-body"><h3 id="feat1-h">In your language</h3><p id="feat1-p">Quick answers in 100+ languages — Alex automatically detects the guest's language and responds naturally.</p></div></div>
-      <div class="feature"><div class="feat-icon teal">🎤</div><div class="feat-body"><h3 id="feat2-h">Voice control</h3><p id="feat2-p">Guests can say their question out loud. Works on Android and Chrome — no typing required.</p></div></div>
-      <div class="feature"><div class="feat-icon">📱</div><div class="feat-body"><h3 id="feat3-h">No app installation needed</h3><p id="feat3-p">Guests scan a QR code and the concierge opens instantly in their browser. No download, no account.</p></div></div>
-      <div class="feature"><div class="feat-icon teal">🌤</div><div class="feat-body"><h3 id="feat4-h">Live weather</h3><p id="feat4-p">Instant local weather for your hotel's location — temperature, wind, humidity — in real time.</p></div></div>
-      <div class="feature"><div class="feat-icon">🗺</div><div class="feat-body"><h3 id="feat5-h">Local tips</h3><p id="feat5-p">Alex knows the neighbourhood: restaurants, sights, activities — all curated by you in the portal.</p></div></div>
-      <div class="feature"><div class="feat-icon teal">✏️</div><div class="feat-body"><h3 id="feat6-h">Always learning</h3><p id="feat6-p">SMARTEST GUIDE trains in one day — and you can keep teaching it new things it will remember.</p></div></div>
+      <div class="feature"><img class="feat-photo" src="https://images.pexels.com/photos/9263510/pexels-photo-9263510.jpeg?auto=compress&cs=tinysrgb&w=1200" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat1-h">🌍 In your language</h3><p id="feat1-p">Quick answers in 100+ languages — Alex automatically detects the guest's language and responds naturally.</p></div></div>
+      <div class="feature"><img class="feat-photo" src="https://images.pexels.com/photos/699122/pexels-photo-699122.jpeg?auto=compress&cs=tinysrgb&w=800" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat2-h">🎤 Voice control</h3><p id="feat2-p">Guests can say their question out loud. Works on Android and Chrome — no typing required.</p></div></div>
+      <div class="feature"><img class="feat-photo" src="https://images.pexels.com/photos/230544/pexels-photo-230544.jpeg?auto=compress&cs=tinysrgb&w=800" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat3-h">📱 No app installation needed</h3><p id="feat3-p">Guests scan a QR code and the concierge opens instantly in their browser. No download, no account.</p></div></div>
+      <div class="feature"><img class="feat-photo" src="https://images.pexels.com/photos/209831/pexels-photo-209831.jpeg?auto=compress&cs=tinysrgb&w=800" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat4-h">🌤 Live weather</h3><p id="feat4-p">Instant local weather for your hotel's location — temperature, wind, humidity — in real time.</p></div></div>
+      <div class="feature"><img class="feat-photo" src="https://images.pexels.com/photos/27524867/pexels-photo-27524867.jpeg?auto=compress&cs=tinysrgb&w=800" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat5-h">🗺 Local tips</h3><p id="feat5-p">Alex knows the neighbourhood: restaurants, sights, activities — all curated by you in the portal.</p></div></div>
+      <div class="feature"><img class="feat-photo" src="https://images.pexels.com/photos/4050290/pexels-photo-4050290.jpeg?auto=compress&cs=tinysrgb&w=800" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat6-h">✏️ Always learning</h3><p id="feat6-p">SMARTEST GUIDE trains in one day — and you can keep teaching it new things it will remember.</p></div></div>
     </div>
     <div class="lang-strip">
       <img src="https://flagcdn.com/w40/cz.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="CZ">
@@ -330,7 +418,7 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
   </div>
 </section>
 
-<section id="pricing">
+<section id="pricing" data-reveal>
   <div class="section-inner">
     <div class="section-header">
       <span class="eyebrow" id="pricing-eyebrow">Pricing</span>
@@ -351,57 +439,59 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
         </ul>
       </div>
       <!-- Kalkulačka s posuvníkem -->
-      <div style="background:#ffffff;border:2px solid var(--gold);border-radius:20px;padding:32px 28px;text-align:center;box-shadow:0 12px 40px rgba(255,107,0,.10);display:flex;flex-direction:column">
-        <div style="font-size:13px;color:#4a4a4a;margin-bottom:6px" id="calc-label">Počet lůžek ve vašem hotelu</div>
+      <div style="background:linear-gradient(160deg,#2c5fae,#1e3a66);border:none;border-radius:20px;padding:32px 28px;text-align:center;box-shadow:0 24px 60px rgba(12,27,51,.25);display:flex;flex-direction:column;color:#fff">
+        <div style="font-size:14px;color:#c9dbff;margin-bottom:6px;font-weight:600" id="calc-label">Počet lůžek ve vašem hotelu</div>
         <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:6px">
-          <input type="number" id="calc-beds-input" min="1" max="3000" value="50" inputmode="numeric" title="Klikněte a zadejte počet lůžek" style="width:96px;font-size:22px;font-weight:800;color:#1a1a1a;text-align:center;border:1.5px solid rgba(255,107,0,.45);border-radius:10px;padding:6px 10px;background:rgba(255,107,0,.06);cursor:text">
-          <span id="calc-beds-unit" style="font-size:22px;font-weight:800;color:#1a1a1a">lůžek</span>
+          <input type="number" id="calc-beds-input" min="1" max="3000" value="50" inputmode="numeric" title="Klikněte a zadejte počet lůžek" style="width:96px;font-size:22px;font-weight:800;color:#fff;text-align:center;border:1px solid rgba(255,255,255,.3);border-radius:12px;padding:6px 10px;background:rgba(255,255,255,.15);cursor:text;font-family:var(--font-display)">
+          <span id="calc-beds-unit" style="font-size:22px;font-weight:800;color:#fff">lůžek</span>
         </div>
-        <div id="calc-beds-hint" style="font-size:11px;color:var(--accent);font-weight:600;margin-bottom:14px">↑ Klikněte a napište přesný počet lůžek</div>
-        <input type="range" id="calc-slider" min="10" max="3000" step="10" value="50" style="width:100%;accent-color:var(--accent);margin-bottom:20px;cursor:pointer">
-        <div style="font-size:44px;font-weight:800;color:var(--accent);line-height:1"><span id="calc-price">199</span> €<span style="font-size:16px;color:#4a4a4a;font-weight:600"> / <span id="calc-per-month">měsíc</span></span></div>
-        <div style="font-size:13px;color:#4a4a4a;margin-top:10px" id="calc-formula"></div>
+        <div id="calc-beds-hint" style="font-size:11px;color:#a9cbe8;font-weight:600;margin-bottom:14px">↑ Klikněte a napište přesný počet lůžek</div>
+        <input type="range" id="calc-slider" min="10" max="3000" step="10" value="50" style="width:100%;accent-color:#a9cbe8;margin-bottom:20px;cursor:pointer">
+        <div style="font-size:44px;font-weight:800;color:#fff;line-height:1;font-family:var(--font-display)"><span id="calc-price">199</span> €<span style="font-size:16px;color:#c9dbff;font-weight:600"> / <span id="calc-per-month">měsíc</span></span></div>
+        <div style="font-size:13px;color:#c9dbff;margin-top:10px" id="calc-formula"></div>
         <div style="flex:1"></div>
-        <a href="#register" class="btn-primary" style="display:inline-block;margin-top:20px;padding:13px 30px" id="calc-cta">Začít →</a>
-        <div style="color:var(--teal);font-weight:600;margin-top:12px;font-size:13px" id="calc-trial">✓ 14 dní zdarma — dnes bez platby</div>
-        <div style="color:#4a4a4a;font-size:11px;margin-top:8px" id="calc-vat">✓ Cena je konečná.</div>
+        <a href="#register" id="calc-cta" style="display:inline-block;margin-top:20px;padding:14px 30px;background:#fff;color:#1e3a66;font-weight:700;font-size:16px;border-radius:99px;text-decoration:none">Začít →</a>
+        <div style="color:#a9cbe8;font-weight:600;margin-top:12px;font-size:13px" id="calc-trial">✓ 14 dní zdarma — dnes bez platby</div>
+        <div style="color:#a9cbe8;font-size:11px;margin-top:8px" id="calc-vat">✓ Cena je konečná.</div>
       </div>
     </div>
   </div>
-    <div style="text-align:center;margin-top:32px;padding:18px 24px;background:rgba(0,212,170,.06);border:1px solid rgba(0,212,170,.2);border-radius:12px;max-width:700px;margin-left:auto;margin-right:auto" id="pricing-compare-box">
+    <div style="text-align:center;margin-top:32px;padding:20px 28px;background:#e8effc;border:none;border-radius:16px;max-width:700px;margin-left:auto;margin-right:auto" id="pricing-compare-box">
       <span style="font-size:14px;color:var(--dim)" id="pricing-compare">💡 <strong style="color:var(--text)">Perspective:</strong> SMARTEST GUIDE works 24/7 for a low monthly fee — always friendly, never sleeps, never needs a holiday or insurance. <strong style="color:var(--teal)">€<span id="price-per-day">7</span>/day</strong> for non-stop service in 100+ languages.</span>
     </div>
 </div>
 </section>
 
-<section>
-  <div class="section-inner">
-    <div class="section-header">
-      <span class="eyebrow" id="reviews-eyebrow">Results</span>
-      <h2 id="reviews-h2">What SMARTEST GUIDE <span class="grad-text">delivers</span></h2>
+<section style="position:relative;overflow:hidden;border-radius:32px;margin:0 24px;padding:100px 56px" data-reveal>
+  <img src="https://images.pexels.com/photos/3124079/pexels-photo-3124079.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+  <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,16,35,.85),rgba(7,16,35,.55))"></div>
+  <div class="section-inner" style="position:relative;color:#fff">
+    <div class="section-header" style="text-align:left;margin-bottom:40px">
+      <span class="eyebrow" style="color:var(--lightblue)" id="reviews-eyebrow">Results</span>
+      <h2 id="reviews-h2" style="color:#fff">What SMARTEST GUIDE <span class="grad-text">delivers</span></h2>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;margin-bottom:40px">
-      <div style="background:#faf9f5;border:1px solid var(--border);border-radius:16px;padding:28px 24px;text-align:center">
-        <div style="font-family:var(--font-display);font-size:42px;font-weight:800;color:var(--gold);line-height:1.1;margin-bottom:8px">24/7</div>
-        <div style="font-size:14px;color:var(--dim);line-height:1.5" id="stat-card1">Always available<br>never sleeps, never on holiday</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px">
+      <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(10px);border-radius:18px;padding:30px;text-align:left">
+        <div style="font-family:var(--font-display);font-size:40px;font-weight:800;color:var(--lightblue);line-height:1.1;margin-bottom:8px">24/7</div>
+        <div style="font-size:14px;color:#dbe4f5;line-height:1.5" id="stat-card1">Always available<br>never sleeps, never on holiday</div>
       </div>
-      <div style="background:#faf9f5;border:1px solid var(--border);border-radius:16px;padding:28px 24px;text-align:center">
-        <div style="font-family:var(--font-display);font-size:42px;font-weight:800;color:var(--gold);line-height:1.1;margin-bottom:8px">100+</div>
-        <div style="font-size:14px;color:var(--dim);line-height:1.5" id="stat-card2">languages — guests get answers<br>in their own language</div>
+      <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(10px);border-radius:18px;padding:30px;text-align:left">
+        <div style="font-family:var(--font-display);font-size:40px;font-weight:800;color:var(--lightblue);line-height:1.1;margin-bottom:8px">100+</div>
+        <div style="font-size:14px;color:#dbe4f5;line-height:1.5" id="stat-card2">languages — guests get answers<br>in their own language</div>
       </div>
-      <div style="background:#faf9f5;border:1px solid var(--border);border-radius:16px;padding:28px 24px;text-align:center">
-        <div style="font-family:var(--font-display);font-size:42px;font-weight:800;color:var(--gold);line-height:1.1;margin-bottom:8px">&lt;2s</div>
-        <div style="font-size:14px;color:var(--dim);line-height:1.5" id="stat-card3">average response time<br>instant reply for every guest</div>
+      <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(10px);border-radius:18px;padding:30px;text-align:left">
+        <div style="font-family:var(--font-display);font-size:40px;font-weight:800;color:var(--lightblue);line-height:1.1;margin-bottom:8px">&lt;2s</div>
+        <div style="font-size:14px;color:#dbe4f5;line-height:1.5" id="stat-card3">average response time<br>instant reply for every guest</div>
       </div>
-      <div style="background:#faf9f5;border:1px solid var(--border);border-radius:16px;padding:28px 24px;text-align:center">
-        <div style="font-family:var(--font-display);font-size:42px;font-weight:800;color:var(--gold);line-height:1.1;margin-bottom:8px">€0</div>
-        <div style="font-size:14px;color:var(--dim);line-height:1.5" id="stat-card4">installation cost<br>no hardware, no IT required</div>
+      <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(10px);border-radius:18px;padding:30px;text-align:left">
+        <div style="font-family:var(--font-display);font-size:40px;font-weight:800;color:var(--lightblue);line-height:1.1;margin-bottom:8px">€0</div>
+        <div style="font-size:14px;color:#dbe4f5;line-height:1.5" id="stat-card4">installation cost<br>no hardware, no IT required</div>
       </div>
     </div>
   </div>
 </section>
 
-<section id="about" style="background:#faf9f5">
+<section id="about" data-reveal>
   <div class="section-inner">
     <div class="about-grid">
       <div class="about-text">
@@ -412,18 +502,21 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
         <p id="about-p3">We're a small team based in the Czech Republic, focused on the European hospitality market.</p>
       </div>
       <div class="about-visual">
-        <div id="satis-title" style="font-size:13px;color:var(--muted);margin-bottom:16px;font-weight:600;text-transform:uppercase;letter-spacing:1px">Guest satisfaction drivers</div>
-        <div class="about-metric"><div class="metric-label" id="m1">Fast answers</div><div class="metric-bar-wrap"><div class="metric-bar" style="width:94%"></div></div><div class="metric-val">94%</div></div>
-        <div class="about-metric"><div class="metric-label" id="m2">Language match</div><div class="metric-bar-wrap"><div class="metric-bar" style="width:88%"></div></div><div class="metric-val">88%</div></div>
-        <div class="about-metric"><div class="metric-label" id="m3">24/7 availability</div><div class="metric-bar-wrap"><div class="metric-bar" style="width:100%"></div></div><div class="metric-val">100%</div></div>
-        <div class="about-metric"><div class="metric-label" id="m4">No-app experience</div><div class="metric-bar-wrap"><div class="metric-bar" style="width:100%"></div></div><div class="metric-val">100%</div></div>
+        <div id="satis-title" style="font-size:13px;color:var(--muted);margin-bottom:4px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Guest satisfaction drivers</div>
+        <div class="about-metric"><div class="metric-label" id="m1">Fast answers</div><div class="metric-bar-wrap"><div class="metric-bar" data-bar="94" style="width:94%"></div></div><div class="metric-val">94%</div></div>
+        <div class="about-metric"><div class="metric-label" id="m2">Language match</div><div class="metric-bar-wrap"><div class="metric-bar" data-bar="88" style="width:88%"></div></div><div class="metric-val">88%</div></div>
+        <div class="about-metric"><div class="metric-label" id="m3">24/7 availability</div><div class="metric-bar-wrap"><div class="metric-bar" data-bar="100" style="width:100%"></div></div><div class="metric-val">100%</div></div>
+        <div class="about-metric"><div class="metric-label" id="m4">No-app experience</div><div class="metric-bar-wrap"><div class="metric-bar" data-bar="100" style="width:100%"></div></div><div class="metric-val">100%</div></div>
+        <div class="about-photo" style="min-height:300px;margin-top:20px"><img src="https://images.pexels.com/photos/7942132/pexels-photo-7942132.jpeg?auto=compress&cs=tinysrgb&w=1200" alt="Hotelový interiér"></div>
       </div>
     </div>
   </div>
 </section>
 
-<section id="register" style="background:#1a1a1a">
-  <div class="section-inner">
+<section id="register" style="background:#0c1b33" data-reveal>
+  <div class="reg-orb o1"></div>
+  <div class="reg-orb o2"></div>
+  <div class="section-inner" style="position:relative">
     <div class="section-header">
       <span class="eyebrow" id="reg-eyebrow">Get started</span>
       <h2 id="reg-h2">Register your hotel <span class="grad-text">today</span></h2>
@@ -466,10 +559,10 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
           </div>
         </div>
 
-        <div id="price-preview" style="background:var(--ink);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-top:16px;display:none">
+        <div id="price-preview" style="background:#e8effc;border:none;border-radius:14px;padding:18px 22px;margin-top:16px;display:none">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <span id="price-sub" style="font-size:14px;color:var(--dim)">Monthly subscription</span>
-            <span id="price-val" style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--teal)"></span>
+            <span id="price-val" style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--gold)"></span>
           </div>
           <div id="price-intro" style="font-size:11px;color:var(--muted);margin-top:4px">Introductory price — locked in for first 3 months</div>
           <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px">
@@ -492,12 +585,13 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
   </div>
 </section>
 
-<section id="contact" style="background:#faf9f5">
+<section id="contact" data-reveal>
   <div class="section-inner">
-    <div style="max-width:560px;margin:0 auto">
-      <div style="text-align:center;margin-bottom:28px">
+    <div class="contact-grid">
+      <div class="contact-info">
         <span class="eyebrow" id="contact-eyebrow">Contact</span>
         <h2 id="contact-h2">Got a question?<br><span class="grad-text">Let's talk.</span></h2>
+        <p id="contact-p">We'll get back to you within one business day.</p>
       </div>
       <div>
         <form class="contact-form" onsubmit="submitContact(event)">
@@ -511,8 +605,8 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
   </div>
 </section>
 
-<footer style="background:#1a1a1a;border-top:1px solid rgba(255,255,255,.06)">
-  <div class="footer-logo">SMARTEST&nbsp;GUIDE<span style="width:6px;height:6px;border-radius:50%;background:var(--gold);display:inline-block;margin-left:3px;margin-bottom:-1px"></span></div>
+<footer>
+  <div class="footer-logo">SMARTEST<span class="t">GUIDE</span></div>
   <div class="footer-links">
     <a href="#how">How it works</a><a href="#pricing">Pricing</a>
     <a href="#about">About</a><a href="#contact">Contact</a>
@@ -700,6 +794,13 @@ async function submitContact(e){
 
 const TRANSLATIONS={
   en:{
+    qr_eyebrow:"How simple it is",qr_h2:"From QR code to answer in seconds",
+    qr1_h:"1 · Guest scans the QR",qr1_p:"Poster at reception or in the room.",
+    qr2_h:"2 · Chat opens in the browser",qr2_p:"No app, no sign-up.",
+    qr3_h:"3 · Alex answers within 2 seconds",qr3_p:"In the guest's language, anytime.",
+    qr_demo_q:"When is breakfast?",qr_demo_a:"7:00–10:30, ground floor 🍳",
+    demo_eyebrow:"Live demo",demo_h2:"This is how Alex answers your guests",mock_ph:"Type a message…",
+    c_intro:"We'll get back to you within one business day.",
     nav_how:"How it works",nav_features:"Features",nav_pricing:"Pricing",nav_about:"About",nav_contact:"Contact",nav_cta:"Get started →",
     footer_operator:"Operated by: Native Hotel Guide s.r.o. · Korunní 2569/108, 101 00 Prague, Czech Republic · Company ID 23112905",
     hero_badge:"AI-Powered Hotel Concierge",
@@ -759,6 +860,13 @@ const TRANSLATIONS={
     calc_label:"Number of beds in your hotel",calc_beds_unit:"beds",calc_per_month:"month",calc_cta:"Get started →",calc_trial:"✓ 14-day free trial — no charge today",calc_beds_hint:"↑ Click and type the exact number of beds",calc_vat:"✓ Final price.",
   },
   cs:{
+    qr_eyebrow:"Jak jednoduché to je",qr_h2:"Od QR kódu k odpovědi za pár vteřin",
+    qr1_h:"1 · Host naskenuje QR",qr1_p:"Plakát na recepci nebo na pokoji.",
+    qr2_h:"2 · Chat se otevře v prohlížeči",qr2_p:"Žádná aplikace, žádná registrace.",
+    qr3_h:"3 · Alex odpoví do 2 vteřin",qr3_p:"V jazyce hosta, kdykoliv.",
+    qr_demo_q:"Kdy je snídaně?",qr_demo_a:"7:00–10:30 v přízemí 🍳",
+    demo_eyebrow:"Živá ukázka",demo_h2:"Takhle Alex odpovídá vašim hostům",mock_ph:"Napište zprávu…",
+    c_intro:"Ozveme se vám do jednoho pracovního dne.",
     nav_how:"Jak to funguje",nav_features:"Funkce",nav_pricing:"Ceník",nav_about:"O nás",nav_contact:"Kontakt",nav_cta:"Začít →",
     footer_operator:"Provozovatel: Native Hotel Guide s.r.o. · Korunní 2569/108, 101 00 Praha 10 · IČO 23112905",
     hero_badge:"AI concierge pro hotely",
@@ -1058,7 +1166,17 @@ function setLang(lang){
   // Hlavička vlajek, demo chat, karty funkcí, „o nás", metriky, kontaktní formulář
   setText('flags-title',FT('flags_title'));
   setText('chat-b1',FT('chat_b1'));setText('chat-u1',FT('chat_u1'));set('chat-b2',FT('chat_b2'));setText('chat-u2',FT('chat_u2'));set('chat-b3',FT('chat_b3'));
-  for(let i=1;i<=6;i++){setText('feat'+i+'-h',FT('feat'+i+'_h'));setText('feat'+i+'-p',FT('feat'+i+'_p'));}
+  // QR flow + živá ukázka (redesign 25.7.2026)
+  setText('qr-eyebrow',FT('qr_eyebrow'));setText('qr-h2',FT('qr_h2'));
+  setText('qr1-h',FT('qr1_h'));setText('qr1-p',FT('qr1_p'));
+  setText('qr2-h',FT('qr2_h'));setText('qr2-p',FT('qr2_p'));
+  setText('qr3-h',FT('qr3_h'));setText('qr3-p',FT('qr3_p'));
+  setText('qr3-demo-q',FT('qr_demo_q'));setText('qr3-demo-a',FT('qr_demo_a'));
+  setText('demo-eyebrow',FT('demo_eyebrow'));setText('demo-h2',FT('demo_h2'));setText('mock-input-ph',FT('mock_ph'));
+  setText('contact-p',FT('c_intro'));
+  // Funkce — fotomozaika má emoji v titulku (I18N texty jsou bez emoji)
+  const FEAT_EMOJI=['🌍','🎤','📱','🌤','🗺','✏️'];
+  for(let i=1;i<=6;i++){setText('feat'+i+'-h',FEAT_EMOJI[i-1]+' '+FT('feat'+i+'_h'));setText('feat'+i+'-p',FT('feat'+i+'_p'));}
   setText('about-p1',FT('about_p1'));setText('about-p2',FT('about_p2'));setText('about-p3',FT('about_p3'));
   setText('satis-title',FT('satis_title'));
   for(let i=1;i<=4;i++){setText('m'+i,FT('m'+i));}
@@ -1091,6 +1209,46 @@ document.querySelectorAll('.step,.feature,.price-card').forEach(el=>{
   observer.observe(el);
 });
 loadLandingPricing();
+</script>
+
+<script>
+// ── Redesign 25.7.2026: scroll reveal + progress bary + chat demo smyčka ──
+(function(){
+  const io=new IntersectionObserver(entries=>{
+    entries.forEach(e=>{
+      if(!e.isIntersecting && e.boundingClientRect.top>=0) return;
+      const el=e.target;
+      if(el.hasAttribute('data-reveal')) el.classList.add('revealed');
+      if(el.hasAttribute('data-bar')){const w=el.getAttribute('data-bar')+'%';el.style.width='0%';requestAnimationFrame(()=>requestAnimationFrame(()=>{el.style.width=w;}));}
+      io.unobserve(el);
+    });
+  },{threshold:0,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('[data-reveal],[data-bar]').forEach(el=>io.observe(el));
+  // Pojistka: co je při načtení/rychlém skoku ve viewportu, odhal hned
+  const sweep=()=>{document.querySelectorAll('[data-reveal]:not(.revealed)').forEach(el=>{if(el.getBoundingClientRect().top<window.innerHeight)el.classList.add('revealed');});};
+  window.addEventListener('scroll',()=>{requestAnimationFrame(sweep);},{passive:true});
+  setTimeout(sweep,300);
+
+  // Chat demo — smyčka: bot píše (typing) → zpráva; host → zpráva; po konci pauza a reset
+  const msgs=[...document.querySelectorAll('.mock-chat .mock-msg')];
+  const typingEl=document.getElementById('mock-typing');
+  if(msgs.length&&typingEl){
+    let shown=1;
+    const render=()=>{msgs.forEach((m,i)=>{m.style.display=i<shown?'flex':'none';});};
+    const step=()=>{
+      if(shown>=msgs.length){setTimeout(()=>{shown=1;typingEl.style.display='none';render();step();},4500);return;}
+      const next=msgs[shown];
+      if(next.classList.contains('bot')){
+        setTimeout(()=>{typingEl.style.display='flex';
+          setTimeout(()=>{typingEl.style.display='none';shown++;render();step();},1300);
+        },500);
+      }else{
+        setTimeout(()=>{shown++;render();step();},1600);
+      }
+    };
+    render();step();
+  }
+})();
 </script>
 
 <!-- GDPR Cookies Banner -->
