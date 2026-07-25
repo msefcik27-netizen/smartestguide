@@ -112,6 +112,11 @@
     }
     .lang-sheet-head{display:flex;align-items:center;justify-content:space-between;padding:0 4px 10px;font-size:20px}
     .lang-sheet-close{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px 8px}
+    .lang-sheet-search{
+      background:var(--card);border:1px solid var(--border);border-radius:12px;
+      color:var(--text);font-size:14px;padding:11px 14px;margin-bottom:10px;outline:none;width:100%;
+    }
+    .lang-sheet-search:focus{border-color:var(--accent)}
     .lang-sheet-list{overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:4px}
     .lang-row{
       display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:12px;
@@ -334,6 +339,7 @@
       <span>🌍</span>
       <button class="lang-sheet-close" onclick="closeLangSheet()" aria-label="Zavřít">✕</button>
     </div>
+    <input type="text" class="lang-sheet-search" id="lang-sheet-search" placeholder="Search language…" oninput="renderLangSheetList(this.value)" autocomplete="off">
     <div class="lang-sheet-list" id="lang-sheet-list"><!-- Generováno JS --></div>
   </div>
 </div>
@@ -468,46 +474,80 @@ const LANGS = [
   {code:'nl', flag:'🇳🇱', name:'Nederlands'},
   {code:'pt', flag:'🇵🇹', name:'Português'},
   {code:'ja', flag:'🇯🇵', name:'日本語'},
-  {code:'ko', flag:'🇰🇷', name:'한국어'},
+  {code:'el', flag:'🇬🇷', name:'Ελληνικά'},
 ];
 // Další jazyky ve skrolovacím seznamu (chat je umí všechny — model; UI texty padají na EN, pokud nejsou v UI_T)
 const EXTRA_LANGS = [
-  {code:'sk', flag:'🇸🇰', name:'Slovenčina'},
-  {code:'uk', flag:'🇺🇦', name:'Українська'},
-  {code:'ru', flag:'🇷🇺', name:'Русский'},
-  {code:'zh', flag:'🇨🇳', name:'中文'},
-  {code:'sv', flag:'🇸🇪', name:'Svenska'},
-  {code:'da', flag:'🇩🇰', name:'Dansk'},
-  {code:'no', flag:'🇳🇴', name:'Norsk'},
-  {code:'fi', flag:'🇫🇮', name:'Suomi'},
-  {code:'el', flag:'🇬🇷', name:'Ελληνικά'},
-  {code:'ro', flag:'🇷🇴', name:'Română'},
-  {code:'bg', flag:'🇧🇬', name:'Български'},
-  {code:'hr', flag:'🇭🇷', name:'Hrvatski'},
-  {code:'sl', flag:'🇸🇮', name:'Slovenščina'},
-  {code:'sr', flag:'🇷🇸', name:'Srpski'},
-  {code:'tr', flag:'🇹🇷', name:'Türkçe'},
-  {code:'et', flag:'🇪🇪', name:'Eesti'},
-  {code:'lv', flag:'🇱🇻', name:'Latviešu'},
-  {code:'lt', flag:'🇱🇹', name:'Lietuvių'},
-  {code:'ar', flag:'🇸🇦', name:'العربية'},
-  {code:'he', flag:'🇮🇱', name:'עברית'},
-  {code:'hi', flag:'🇮🇳', name:'हिन्दी'},
-  {code:'th', flag:'🇹🇭', name:'ไทย'},
-  {code:'vi', flag:'🇻🇳', name:'Tiếng Việt'},
-  {code:'id', flag:'🇮🇩', name:'Bahasa Indonesia'},
+  {code:'sk', name:'Slovenčina'},
+  {code:'ko', name:'한국어'},
+  {code:'uk', name:'Українська'},
+  {code:'ru', name:'Русский'},
+  {code:'zh', name:'中文'},
+  {code:'sv', name:'Svenska'},
+  {code:'da', name:'Dansk'},
+  {code:'no', name:'Norsk'},
+  {code:'fi', name:'Suomi'},
+  {code:'ro', name:'Română'},
+  {code:'bg', name:'Български'},
+  {code:'hr', name:'Hrvatski'},
+  {code:'sl', name:'Slovenščina'},
+  {code:'sr', name:'Srpski'},
+  {code:'tr', name:'Türkçe'},
+  {code:'et', name:'Eesti'},
+  {code:'lv', name:'Latviešu'},
+  {code:'lt', name:'Lietuvių'},
+  {code:'ar', name:'العربية'},
+  {code:'he', name:'עברית'},
+  {code:'hi', name:'हिन्दी'},
+  {code:'th', name:'ไทย'},
+  {code:'vi', name:'Tiếng Việt'},
+  {code:'id', name:'Bahasa Indonesia'},
+  {code:'ms', name:'Bahasa Melayu'},
+  {code:'tl', name:'Filipino'},
+  {code:'bn', name:'বাংলা'},
+  {code:'ur', name:'اردو'},
+  {code:'fa', name:'فارسی'},
+  {code:'ta', name:'தமிழ்'},
+  {code:'te', name:'తెలుగు'},
+  {code:'pa', name:'ਪੰਜਾਬੀ'},
+  {code:'sw', name:'Kiswahili'},
+  {code:'af', name:'Afrikaans'},
+  {code:'sq', name:'Shqip'},
+  {code:'mk', name:'Македонски'},
+  {code:'bs', name:'Bosanski'},
+  {code:'is', name:'Íslenska'},
+  {code:'ga', name:'Gaeilge'},
+  {code:'mt', name:'Malti'},
+  {code:'ca', name:'Català'},
+  {code:'eu', name:'Euskara'},
+  {code:'gl', name:'Galego'},
+  {code:'cy', name:'Cymraeg'},
+  {code:'ka', name:'ქართული'},
+  {code:'hy', name:'Հայերեն'},
+  {code:'az', name:'Azərbaycanca'},
+  {code:'kk', name:'Қазақша'},
+  {code:'uz', name:'Oʻzbekcha'},
+  {code:'mn', name:'Монгол'},
+  {code:'ne', name:'नेपाली'},
+  {code:'si', name:'සිංහල'},
+  {code:'km', name:'ខ្មែរ'},
+  {code:'lo', name:'ລາວ'},
+  {code:'my', name:'မြန်မာ'},
+  {code:'am', name:'አማርኛ'},
 ];
 const ALL_LANGS = LANGS.concat(EXTRA_LANGS);
 // Windows nevykresluje vlajkové emoji → obrázky z flagcdn (stejně jako landing)
 const LANG_CC = {cs:'cz',sk:'sk',en:'gb',de:'de',fr:'fr',it:'it',es:'es',pl:'pl',hu:'hu',ru:'ru',uk:'ua',zh:'cn',nl:'nl',pt:'pt',ja:'jp',ko:'kr',
-  sv:'se',da:'dk',no:'no',fi:'fi',el:'gr',ro:'ro',bg:'bg',hr:'hr',sl:'si',sr:'rs',tr:'tr',et:'ee',lv:'lv',lt:'lt',ar:'sa',he:'il',hi:'in',th:'th',vi:'vn',id:'id'};
+  sv:'se',da:'dk',no:'no',fi:'fi',el:'gr',ro:'ro',bg:'bg',hr:'hr',sl:'si',sr:'rs',tr:'tr',et:'ee',lv:'lv',lt:'lt',ar:'sa',he:'il',hi:'in',th:'th',vi:'vn',id:'id',
+  ms:'my',tl:'ph',bn:'bd',ur:'pk',fa:'ir',ta:'in',te:'in',pa:'in',sw:'ke',af:'za',sq:'al',mk:'mk',bs:'ba',is:'is',ga:'ie',mt:'mt',ca:'ad',eu:'es',gl:'es',cy:'gb-wls',ka:'ge',hy:'am',az:'az',kk:'kz',uz:'uz',mn:'mn',ne:'np',si:'lk',km:'kh',lo:'la',my:'mm',am:'et'};
 function flagHtml(code){
   const cc=LANG_CC[code];
   return cc?`<img src="https://flagcdn.com/w40/${cc}.png" width="24" height="17" alt="" style="border-radius:2px;display:inline-block;vertical-align:middle" loading="lazy">`:'🌍';
 }
 const LANG_FLAGS = Object.fromEntries(ALL_LANGS.map(l=>[l.code,l.flag+' '+l.code.toUpperCase()]));
 const LANG_SR = {cs:'cs-CZ',sk:'sk-SK',en:'en-US',de:'de-DE',fr:'fr-FR',it:'it-IT',es:'es-ES',pl:'pl-PL',hu:'hu-HU',ru:'ru-RU',uk:'uk-UA',zh:'zh-CN',nl:'nl-NL',pt:'pt-PT',ja:'ja-JP',ko:'ko-KR',
-  sv:'sv-SE',da:'da-DK',no:'nb-NO',fi:'fi-FI',el:'el-GR',ro:'ro-RO',bg:'bg-BG',hr:'hr-HR',sl:'sl-SI',sr:'sr-RS',tr:'tr-TR',et:'et-EE',lv:'lv-LV',lt:'lt-LT',ar:'ar-SA',he:'he-IL',hi:'hi-IN',th:'th-TH',vi:'vi-VN',id:'id-ID'};
+  sv:'sv-SE',da:'da-DK',no:'nb-NO',fi:'fi-FI',el:'el-GR',ro:'ro-RO',bg:'bg-BG',hr:'hr-HR',sl:'sl-SI',sr:'sr-RS',tr:'tr-TR',et:'et-EE',lv:'lv-LV',lt:'lt-LT',ar:'ar-SA',he:'he-IL',hi:'hi-IN',th:'th-TH',vi:'vi-VN',id:'id-ID',
+  ms:'ms-MY',tl:'fil-PH',bn:'bn-BD',ur:'ur-PK',fa:'fa-IR',ta:'ta-IN',te:'te-IN',pa:'pa-IN',sw:'sw-KE',af:'af-ZA',sq:'sq-AL',mk:'mk-MK',bs:'bs-BA',is:'is-IS',ga:'ga-IE',mt:'mt-MT',ca:'ca-ES',eu:'eu-ES',gl:'gl-ES',cy:'cy-GB',ka:'ka-GE',hy:'hy-AM',az:'az-AZ',kk:'kk-KZ',uz:'uz-UZ',mn:'mn-MN',ne:'ne-NP',si:'si-LK',km:'km-KH',lo:'lo-LA',my:'my-MM',am:'am-ET'};
 // Popisek tlačítka „Další jazyky" (16 UI jazyků, fallback EN)
 const MORE_LANGS_LABEL = {cs:'Další jazyky',sk:'Ďalšie jazyky',en:'More languages',de:'Weitere Sprachen',fr:'Autres langues',it:'Altre lingue',es:'Más idiomas',pl:'Więcej języków',hu:'További nyelvek',ru:'Другие языки',uk:'Інші мови',zh:'更多语言',nl:'Meer talen',pt:'Mais idiomas',ja:'その他の言語',ko:'다른 언어'};
 
@@ -605,15 +645,27 @@ function renderLangGrid(){
     </button>`;
 }
 
-function openLangSheet(){
+const LANG_SEARCH_PH = {cs:'Hledat jazyk…',sk:'Hľadať jazyk…',en:'Search language…',de:'Sprache suchen…',fr:'Rechercher une langue…',it:'Cerca lingua…',es:'Buscar idioma…',pl:'Szukaj języka…',hu:'Nyelv keresése…',ru:'Поиск языка…',uk:'Пошук мови…',zh:'搜索语言…',nl:'Taal zoeken…',pt:'Pesquisar idioma…',ja:'言語を検索…',el:'Αναζήτηση γλώσσας…'};
+
+function renderLangSheetList(query){
+  const q=(query||'').trim().toLowerCase();
   const list=document.getElementById('lang-sheet-list');
-  list.innerHTML=EXTRA_LANGS.map(l=>`
+  const items=EXTRA_LANGS.filter(l=>!q||l.name.toLowerCase().includes(q)||l.code.includes(q));
+  list.innerHTML=items.map(l=>`
     <button class="lang-row${l.code===guestLang?' selected':''}" onclick="selectExtraLang('${l.code}')">
       <span class="flag">${flagHtml(l.code)}</span>
       <span class="lrname">${l.name}</span>
       ${l.code===guestLang?'<span class="lcheck">✓</span>':''}
-    </button>`).join('');
+    </button>`).join('') || `<div style="text-align:center;color:var(--muted);font-size:13px;padding:16px">🌍 —</div>`;
+}
+
+function openLangSheet(){
+  const inp=document.getElementById('lang-sheet-search');
+  inp.value='';
+  inp.placeholder=LANG_SEARCH_PH[guestLang]||LANG_SEARCH_PH.en;
+  renderLangSheetList('');
   document.getElementById('lang-sheet').classList.add('open');
+  setTimeout(()=>{try{inp.focus({preventScroll:true});}catch(e){}},150);
 }
 function closeLangSheet(){ document.getElementById('lang-sheet').classList.remove('open'); }
 function selectExtraLang(code){ closeLangSheet(); selectLang(code); }
