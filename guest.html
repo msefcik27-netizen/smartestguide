@@ -98,7 +98,7 @@
     .lang-btn.selected{background:rgba(255,107,0,.15);border-color:var(--accent);color:var(--accent)}
     .lang-btn .flag{font-size:16px}
     .lang-btn .lname{font-size:10px}
-    .lang-btn.lang-more{border-style:dashed}
+    .lang-btn.lang-more{border-style:dashed;grid-column:1/-1;flex-direction:row;justify-content:center;gap:8px}
 
     /* Skrolovací seznam dalších jazyků */
     .lang-sheet{
@@ -498,6 +498,13 @@ const EXTRA_LANGS = [
   {code:'id', flag:'🇮🇩', name:'Bahasa Indonesia'},
 ];
 const ALL_LANGS = LANGS.concat(EXTRA_LANGS);
+// Windows nevykresluje vlajkové emoji → obrázky z flagcdn (stejně jako landing)
+const LANG_CC = {cs:'cz',sk:'sk',en:'gb',de:'de',fr:'fr',it:'it',es:'es',pl:'pl',hu:'hu',ru:'ru',uk:'ua',zh:'cn',nl:'nl',pt:'pt',ja:'jp',ko:'kr',
+  sv:'se',da:'dk',no:'no',fi:'fi',el:'gr',ro:'ro',bg:'bg',hr:'hr',sl:'si',sr:'rs',tr:'tr',et:'ee',lv:'lv',lt:'lt',ar:'sa',he:'il',hi:'in',th:'th',vi:'vn',id:'id'};
+function flagHtml(code){
+  const cc=LANG_CC[code];
+  return cc?`<img src="https://flagcdn.com/w40/${cc}.png" width="24" height="17" alt="" style="border-radius:2px;display:inline-block;vertical-align:middle" loading="lazy">`:'🌍';
+}
 const LANG_FLAGS = Object.fromEntries(ALL_LANGS.map(l=>[l.code,l.flag+' '+l.code.toUpperCase()]));
 const LANG_SR = {cs:'cs-CZ',sk:'sk-SK',en:'en-US',de:'de-DE',fr:'fr-FR',it:'it-IT',es:'es-ES',pl:'pl-PL',hu:'hu-HU',ru:'ru-RU',uk:'uk-UA',zh:'zh-CN',nl:'nl-NL',pt:'pt-PT',ja:'ja-JP',ko:'ko-KR',
   sv:'sv-SE',da:'da-DK',no:'nb-NO',fi:'fi-FI',el:'el-GR',ro:'ro-RO',bg:'bg-BG',hr:'hr-HR',sl:'sl-SI',sr:'sr-RS',tr:'tr-TR',et:'et-EE',lv:'lv-LV',lt:'lt-LT',ar:'ar-SA',he:'he-IL',hi:'hi-IN',th:'th-TH',vi:'vi-VN',id:'id-ID'};
@@ -589,11 +596,11 @@ function renderLangGrid(){
   const moreLabel=MORE_LANGS_LABEL[guestLang]||MORE_LANGS_LABEL.en;
   grid.innerHTML=LANGS.map(l=>`
     <button class="lang-btn${l.code===guestLang?' selected':''}" onclick="selectLang('${l.code}')">
-      <span class="flag">${l.flag}</span>
+      <span class="flag">${flagHtml(l.code)}</span>
       <span class="lname">${l.name}</span>
     </button>`).join('')
   +`<button class="lang-btn lang-more${extra?' selected':''}" onclick="openLangSheet()">
-      <span class="flag">${extra?extra.flag:'🌍'}</span>
+      <span class="flag">${extra?flagHtml(extra.code):'🌍'}</span>
       <span class="lname">${extra?extra.name:moreLabel+' …'}</span>
     </button>`;
 }
@@ -602,7 +609,7 @@ function openLangSheet(){
   const list=document.getElementById('lang-sheet-list');
   list.innerHTML=EXTRA_LANGS.map(l=>`
     <button class="lang-row${l.code===guestLang?' selected':''}" onclick="selectExtraLang('${l.code}')">
-      <span class="flag">${l.flag}</span>
+      <span class="flag">${flagHtml(l.code)}</span>
       <span class="lrname">${l.name}</span>
       ${l.code===guestLang?'<span class="lcheck">✓</span>':''}
     </button>`).join('');
