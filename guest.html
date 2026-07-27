@@ -534,12 +534,52 @@ const EXTRA_LANGS = [
   {code:'lo', name:'ລາວ'},
   {code:'my', name:'မြန်မာ'},
   {code:'am', name:'አማርኛ'},
+  {code:'mr', name:'मराठी'},
+  {code:'gu', name:'ગુજરાતી'},
+  {code:'kn', name:'ಕನ್ನಡ'},
+  {code:'ml', name:'മലയാളം'},
+  {code:'or', name:'ଓଡ଼ିଆ'},
+  {code:'as', name:'অসমীয়া'},
+  {code:'sd', name:'سنڌي'},
+  {code:'ps', name:'پښتو'},
+  {code:'tg', name:'Тоҷикӣ'},
+  {code:'tk', name:'Türkmençe'},
+  {code:'ky', name:'Кыргызча'},
+  {code:'yo', name:'Yorùbá'},
+  {code:'ig', name:'Igbo'},
+  {code:'ha', name:'Hausa'},
+  {code:'zu', name:'isiZulu'},
+  {code:'xh', name:'isiXhosa'},
+  {code:'so', name:'Soomaali'},
+  {code:'ti', name:'ትግርኛ'},
+  {code:'om', name:'Afaan Oromoo'},
+  {code:'mg', name:'Malagasy'},
+  {code:'rw', name:'Kinyarwanda'},
+  {code:'ln', name:'Lingála'},
+  {code:'sn', name:'chiShona'},
+  {code:'wo', name:'Wolof'},
+  {code:'lb', name:'Lëtzebuergesch'},
+  {code:'fo', name:'Føroyskt'},
+  {code:'yi', name:'ייִדיש'},
+  {code:'ku', name:'Kurdî'},
+  {code:'jv', name:'Basa Jawa'},
+  {code:'su', name:'Basa Sunda'},
+  {code:'ceb', name:'Cebuano'},
+  {code:'yue', name:'廣東話 (Cantonese)'},
+  {code:'ht', name:'Kreyòl ayisyen'},
+  {code:'qu', name:'Runasimi (Quechua)'},
+  {code:'gn', name:'Avañe\'ẽ (Guaraní)'},
+  {code:'sm', name:'Gagana Sāmoa'},
+  {code:'to', name:'Lea faka-Tonga'},
+  {code:'fj', name:'Na Vosa Vakaviti'},
+  {code:'mi', name:'Te Reo Māori'},
 ];
 const ALL_LANGS = LANGS.concat(EXTRA_LANGS);
 // Windows nevykresluje vlajkové emoji → obrázky z flagcdn (stejně jako landing)
 const LANG_CC = {cs:'cz',sk:'sk',en:'gb',de:'de',fr:'fr',it:'it',es:'es',pl:'pl',hu:'hu',ru:'ru',uk:'ua',zh:'cn',nl:'nl',pt:'pt',ja:'jp',ko:'kr',
   sv:'se',da:'dk',no:'no',fi:'fi',el:'gr',ro:'ro',bg:'bg',hr:'hr',sl:'si',sr:'rs',tr:'tr',et:'ee',lv:'lv',lt:'lt',ar:'sa',he:'il',hi:'in',th:'th',vi:'vn',id:'id',
-  ms:'my',tl:'ph',bn:'bd',ur:'pk',fa:'ir',ta:'in',te:'in',pa:'in',sw:'ke',af:'za',sq:'al',mk:'mk',bs:'ba',is:'is',ga:'ie',mt:'mt',ca:'ad',eu:'es',gl:'es',cy:'gb-wls',ka:'ge',hy:'am',az:'az',kk:'kz',uz:'uz',mn:'mn',ne:'np',si:'lk',km:'kh',lo:'la',my:'mm',am:'et'};
+  ms:'my',tl:'ph',bn:'bd',ur:'pk',fa:'ir',ta:'in',te:'in',pa:'in',sw:'ke',af:'za',sq:'al',mk:'mk',bs:'ba',is:'is',ga:'ie',mt:'mt',ca:'ad',eu:'es',gl:'es',cy:'gb-wls',ka:'ge',hy:'am',az:'az',kk:'kz',uz:'uz',mn:'mn',ne:'np',si:'lk',km:'kh',lo:'la',my:'mm',am:'et',
+  mr:'in',gu:'in',kn:'in',ml:'in',or:'in',as:'in',sd:'pk',ps:'af',tg:'tj',tk:'tm',ky:'kg',yo:'ng',ig:'ng',ha:'ng',zu:'za',xh:'za',so:'so',ti:'er',om:'et',mg:'mg',rw:'rw',ln:'cd',sn:'zw',wo:'sn',lb:'lu',fo:'fo',yi:'il',ku:'iq',jv:'id',su:'id',ceb:'ph',yue:'hk',ht:'ht',qu:'pe',gn:'py',sm:'ws',to:'to',fj:'fj',mi:'nz'};
 function flagHtml(code){
   const cc=LANG_CC[code];
   return cc?`<img src="https://flagcdn.com/w40/${cc}.png" width="24" height="17" alt="" style="border-radius:2px;display:inline-block;vertical-align:middle" loading="lazy">`:'🌍';
@@ -547,7 +587,8 @@ function flagHtml(code){
 const LANG_FLAGS = Object.fromEntries(ALL_LANGS.map(l=>[l.code,l.flag+' '+l.code.toUpperCase()]));
 const LANG_SR = {cs:'cs-CZ',sk:'sk-SK',en:'en-US',de:'de-DE',fr:'fr-FR',it:'it-IT',es:'es-ES',pl:'pl-PL',hu:'hu-HU',ru:'ru-RU',uk:'uk-UA',zh:'zh-CN',nl:'nl-NL',pt:'pt-PT',ja:'ja-JP',ko:'ko-KR',
   sv:'sv-SE',da:'da-DK',no:'nb-NO',fi:'fi-FI',el:'el-GR',ro:'ro-RO',bg:'bg-BG',hr:'hr-HR',sl:'sl-SI',sr:'sr-RS',tr:'tr-TR',et:'et-EE',lv:'lv-LV',lt:'lt-LT',ar:'ar-SA',he:'he-IL',hi:'hi-IN',th:'th-TH',vi:'vi-VN',id:'id-ID',
-  ms:'ms-MY',tl:'fil-PH',bn:'bn-BD',ur:'ur-PK',fa:'fa-IR',ta:'ta-IN',te:'te-IN',pa:'pa-IN',sw:'sw-KE',af:'af-ZA',sq:'sq-AL',mk:'mk-MK',bs:'bs-BA',is:'is-IS',ga:'ga-IE',mt:'mt-MT',ca:'ca-ES',eu:'eu-ES',gl:'gl-ES',cy:'cy-GB',ka:'ka-GE',hy:'hy-AM',az:'az-AZ',kk:'kk-KZ',uz:'uz-UZ',mn:'mn-MN',ne:'ne-NP',si:'si-LK',km:'km-KH',lo:'lo-LA',my:'my-MM',am:'am-ET'};
+  ms:'ms-MY',tl:'fil-PH',bn:'bn-BD',ur:'ur-PK',fa:'fa-IR',ta:'ta-IN',te:'te-IN',pa:'pa-IN',sw:'sw-KE',af:'af-ZA',sq:'sq-AL',mk:'mk-MK',bs:'bs-BA',is:'is-IS',ga:'ga-IE',mt:'mt-MT',ca:'ca-ES',eu:'eu-ES',gl:'gl-ES',cy:'cy-GB',ka:'ka-GE',hy:'hy-AM',az:'az-AZ',kk:'kk-KZ',uz:'uz-UZ',mn:'mn-MN',ne:'ne-NP',si:'si-LK',km:'km-KH',lo:'lo-LA',my:'my-MM',am:'am-ET',
+  mr:'mr-IN',gu:'gu-IN',kn:'kn-IN',ml:'ml-IN',jv:'jv-ID',su:'su-ID',yue:'yue-Hant-HK',zu:'zu-ZA',ps:'ps-AF',ky:'ky-KG'};
 // Popisek tlačítka „Další jazyky" (16 UI jazyků, fallback EN)
 const MORE_LANGS_LABEL = {cs:'Další jazyky',sk:'Ďalšie jazyky',en:'More languages',de:'Weitere Sprachen',fr:'Autres langues',it:'Altre lingue',es:'Más idiomas',pl:'Więcej języków',hu:'További nyelvek',ru:'Другие языки',uk:'Інші мови',zh:'更多语言',nl:'Meer talen',pt:'Mais idiomas',ja:'その他の言語',ko:'다른 언어'};
 
@@ -652,7 +693,8 @@ function renderLangSheetList(query){
   const list=document.getElementById('lang-sheet-list');
   // Bez dotazu: jen jazyky mimo mřížku. S dotazem: hledej ve VŠECH (i portugalštinu z mřížky).
   const pool=q?ALL_LANGS:EXTRA_LANGS;
-  const items=pool.filter(l=>!q||l.name.toLowerCase().includes(q)||l.code.includes(q));
+  const items=pool.filter(l=>!q||l.name.toLowerCase().includes(q)||l.code.includes(q))
+    .slice().sort((a,b)=>a.name.localeCompare(b.name,'en'));
   list.innerHTML=items.map(l=>`
     <button class="lang-row${l.code===guestLang?' selected':''}" onclick="selectExtraLang('${l.code}')">
       <span class="flag">${flagHtml(l.code)}</span>
