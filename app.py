@@ -2107,7 +2107,7 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
 
     if lang == "cs":
         headline = "Váš osobní<br>AI concierge"
-        subline = f'Nechte <span style="color:#FF6B00;font-weight:600">Alexe</span> odpovědět na všechny vaše otázky — okamžitě, ve vašem jazyce, 24/7.'
+        subline = f'Nechte <span style="color:#FF6B00;font-weight:600">Alex</span> odpovědět na všechny vaše otázky — okamžitě, ve vašem jazyce, 24/7.'
         features = ["Snídaně a restaurace", "Tipy na výlety a skrytá místa", "Počasí a doprava", "Služby hotelu a WiFi", "K dispozici 24/7"]
         scan_text = "Naskenujte mě"
         no_app = "Bez instalace aplikace"
@@ -2731,7 +2731,7 @@ def success_page(hotel_id: str = "", request: Request = None):
     <div class="step active"><span class="icon">⚡</span> Importujeme data z vašeho webu…</div>
     <div class="step pending"><span class="icon">📝</span> Doplňte údaje v portálu</div>
     <div class="step pending"><span class="icon">🖨️</span> Vytiskněte QR plakát</div>
-    <div class="step pending"><span class="icon">🏨</span> Hosté začínají chatovat s Alexem</div>
+    <div class="step pending"><span class="icon">🏨</span> Hosté začínají chatovat s Alex</div>
   </div>
 
   {portal_btn}
@@ -4580,7 +4580,7 @@ place names) in their original form.
 FORMATTING: Plain conversational text only. You may use **bold** for key facts and simple "-" bullet
 lists. NEVER use Markdown headings (#, ##), tables, or code blocks — the chat does not render them.
 
-BRAND NAMES (IMPORTANT): "SMARTEST GUIDE" and "Alex" are a brand and product name. NEVER translate or localise them into any language — always keep them exactly as "SMARTEST GUIDE" and "Alex", regardless of the language you are speaking. Do not write "Nejchytřejší průvodce", "Le guide le plus intelligent", or any translated form.
+BRAND NAMES (IMPORTANT): "SMARTEST GUIDE" and "Alex" are a brand and product name. NEVER translate or localise them into any language — always keep them exactly as "SMARTEST GUIDE" and "Alex", regardless of the language you are speaking. NEVER decline or inflect the name "Alex" in languages with grammatical cases — in Czech always write "Alex" (never "Alexovi", "Alexe", "Alexem"; e.g. "zeptejte se Alex", "nechte to na Alex"). Do not write "Nejchytřejší průvodce", "Le guide le plus intelligent", or any translated form.
 
 INPUT TOLERANCE (IMPORTANT): Guests often use voice dictation or type quickly, so words may be misspelled or phonetically garbled — possibly transcribed in the wrong language. If a word looks like a garbled, misheard or misspelled version of a common hotel topic, infer the most likely intended meaning and answer helpfully instead of saying you don't understand. For example: "Spicycarte"/"Spajzekarte" → German "Speisekarte" (menu / jídelní lístek); "checkout"/"chekaut" → check-out; "wai-fai"/"vайфай" → WiFi; "brekfast"/"frpštyk" → breakfast. Only ask the guest to rephrase if you genuinely cannot guess the intent. Never reply that you don't know a word like "Spicycarte" — recognise it as a misheard "Speisekarte" and give the menu info.
 
@@ -4947,6 +4947,8 @@ def terms_of_service(lang: str = "en"):
     return HTMLResponse(content=TERMS_EN)
 
 LEGAL_CSS = """
+<meta name="google" content="notranslate">
+<meta charset="utf-8">
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#0f0f1a;color:#e0e0f0;line-height:1.8;padding:0}
@@ -4991,10 +4993,7 @@ PRIVACY_CS = LEGAL_CSS + """
   <h2>II. Jaké osobní údaje shromažďujeme</h2>
   <h3>Od hostů (koncových uživatelů)</h3>
   <ul>
-    <li><strong>Křestní jméno</strong> — personalizace komunikace s avatarem</li>
-    <li><strong>Pohlaví, věk</strong> — statistické účely a personalizace nabídek</li>
-    <li><strong>E-mail</strong> — komunikace a marketingové účely (se souhlasem)</li>
-    <li><strong>Telefonní číslo</strong> (nepovinné) — přímá komunikace nebo WhatsApp funkce</li>
+    <li><strong>Křestní jméno</strong> (volitelné — pouze pokud ho host sám zadá) — personalizace komunikace</li>
     <li><strong>Datum ubytování</strong> — relevantní poskytování informací</li>
     <li><strong>Obsah komunikace s avatarem</strong> — zlepšování AI, zpravidla anonymizováno</li>
     <li><strong>Informace o zařízení, IP adresa</strong> — technická optimalizace a zabezpečení</li>
@@ -5065,10 +5064,7 @@ PRIVACY_EN = LEGAL_CSS + """
   <h2>II. What personal data we collect</h2>
   <h3>From guests (end users)</h3>
   <ul>
-    <li><strong>First name</strong> — personalisation of avatar communication</li>
-    <li><strong>Gender, age</strong> — statistical purposes and offer personalisation</li>
-    <li><strong>Email address</strong> — communication and marketing (with consent)</li>
-    <li><strong>Phone number</strong> (optional) — direct communication or WhatsApp features</li>
+    <li><strong>First name</strong> (optional — only if the guest chooses to enter it) — personalisation of communication</li>
     <li><strong>Stay dates</strong> — providing relevant information</li>
     <li><strong>Avatar conversation content</strong> — AI improvement, typically anonymised</li>
     <li><strong>Device information, IP address</strong> — technical optimisation and security</li>
