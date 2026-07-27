@@ -85,7 +85,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 5vw;display:flex;a
 .hero-scrim{position:absolute;inset:0;z-index:1;background:linear-gradient(90deg,rgba(7,16,35,.55),rgba(7,16,35,.2) 50%,transparent 75%)}
 .hero>*:not(.hero-slide):not(.hero-overlay):not(.hero-scrim){position:relative;z-index:2}
 .hero-badge{display:inline-flex;align-items:center;gap:10px;background:linear-gradient(90deg,rgba(44,95,174,.92),rgba(88,166,200,.92));border:1px solid rgba(255,255,255,.35);backdrop-filter:blur(8px);border-radius:99px;padding:12px 30px;font-size:17px;color:#fff;font-weight:700;letter-spacing:.5px;margin:0 auto 28px;align-self:center;box-shadow:0 10px 30px rgba(12,27,51,.35)}
-.hero-badge::before{content:'●';font-size:8px;animation:blink 2s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 .hero h1{font-size:clamp(34px,4vw,58px);font-weight:800;max-width:900px;margin-bottom:20px;letter-spacing:-1px;text-shadow:0 4px 30px rgba(0,0,0,.4)}
 .hero p{font-size:clamp(16px,2vw,18px);color:rgba(255,255,255,.92);max-width:520px;margin-bottom:30px;line-height:1.6;text-shadow:0 2px 16px rgba(0,0,0,.4)}
@@ -407,7 +406,7 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
       <p id="how-p">SMARTEST GUIDE trains in one day — and you can keep teaching it new things it will remember.</p>
     </div>
     <div class="steps">
-      <div class="step"><div class="step-photo"><img src="https://images.pexels.com/photos/19893582/pexels-photo-19893582.jpeg?auto=compress&cs=tinysrgb&w=800" alt="" style="object-position:center 60%"><div class="step-num">01</div></div><h3 id="step1-h">Register</h3><p id="step1-p">Fill in your hotel name, website URL and number of beds. Complete the payment.</p></div>
+      <div class="step"><div class="step-photo"><img src="https://images.pexels.com/photos/19893582/pexels-photo-19893582.jpeg?auto=compress&cs=tinysrgb&w=800" alt="" style="object-position:center 60%"><div class="step-num">01</div></div><h3 id="step1-h">Register & try 14 days free</h3><p id="step1-p">Answer a few quick questions about your hotel and complete the registration.</p></div>
       <div class="step"><div class="step-photo"><img src="https://images.pexels.com/photos/4050290/pexels-photo-4050290.jpeg?auto=compress&cs=tinysrgb&w=800" alt="" style="object-position:center 35%"><div class="step-num">02</div></div><h3 id="step2-h">We import your hotel data</h3><p id="step2-p">We prepare your hotel profile based on the information you provide — quickly and without unnecessary effort on your part.</p></div>
       <div class="step"><div class="step-photo"><img src="https://images.pexels.com/photos/3182812/pexels-photo-3182812.jpeg?auto=compress&cs=tinysrgb&w=800" alt="" style="object-position:center 30%"><div class="step-num">03</div></div><h3 id="step3-h">Review & complete</h3><p id="step3-p">Log into your hotel portal and fill in any missing details — hours, services, local tips. Alex will learn it instantly.</p></div>
       <div class="step"><div class="step-photo"><img src="https://images.pexels.com/photos/7942138/pexels-photo-7942138.jpeg?auto=compress&cs=tinysrgb&w=800" alt="" style="object-position:center 70%"><div class="step-num">04</div></div><h3 id="step4-h">Print & place</h3><p id="step4-p">Print your QR poster and place it in the lobby or rooms. Guests scan and start chatting instantly.</p></div>
@@ -1068,8 +1067,8 @@ const TRANSLATIONS={
     hero_btn1:"14-day free trial →",hero_btn2:"See how it works",
     stat1_label:"Languages supported",stat2_label:"Always available",stat3_label:"Average response time",stat4_label:"Apps to install",
     how_eyebrow:"Process",how_h2:"How long does it take to <span class=\"grad-text\">train your staff?</span>",how_p:"We automatically fill in the initial data about your hotel. You review the data, add any missing details, print the QR poster or roll-up banner and place it at reception — done. You can also print a smaller version for guest rooms.",
-    step1_h:"Register & pay",step1_p:"Answer a few quick questions about your hotel and complete the payment.",
-    step2_h:"We import your hotel data",step2_p:"We prepare your hotel profile based on the information you provide — quickly and without unnecessary effort on your part.",
+    step1_h:"Register & try 14 days free",step1_p:"Answer a few quick questions about your hotel and complete the registration.",
+    step2_h:"We import your hotel data",step2_p:"We prepare your hotel profile according to your wishes — quickly and without unnecessary effort on your part.",
     step3_h:"Review & complete",step3_p:"Log into your hotel portal and fill in any missing details — hours, services, local tips. Think like your guest: authentic experiences, hidden local gems, the best local food.",
     step4_h:"Print & place",step4_p:"Download your QR poster and place it in the lobby or on the room. Guests scan it and instantly get answers in their own language.",
     feat_eyebrow:"Features",feat_h2:"What guests <span class=\"grad-text\">appreciate</span>",feat_p:"Quick answers to their questions — anytime, clearly, in their language.",
@@ -1134,8 +1133,8 @@ const TRANSLATIONS={
     hero_btn1:"14 dní zdarma →",hero_btn2:"Jak to funguje",
     stat1_label:"Podporovaných jazyků",stat2_label:"Vždy dostupný",stat3_label:"Průměrná doba odpovědi",stat4_label:"Instalace aplikací",
     how_eyebrow:"Postup",how_h2:"Jak dlouho trvá <span class=\"grad-text\">zaškolení personálu?</span>",how_p:"SMARTEST GUIDE vyškolíte během jednoho dne — a neustále ho můžete učit novým věcem, které si pamatuje.",
-    step1_h:"Zaregistrujte se a zaplaťte",step1_p:"Odpovězte na pár otázek o vašem hotelu a dokončete platbu.",
-    step2_h:"Doplníme data vašeho hotelu",step2_p:"Na základě vašich informací připravíme profil hotelu — rychle a bez zbytečné práce z vaší strany.",
+    step1_h:"Zaregistrujte se a vyzkoušejte 14 dní zdarma",step1_p:"Odpovězte na pár otázek o vašem hotelu a dokončete registraci.",
+    step2_h:"Doplníme data vašeho hotelu",step2_p:"Na základě vašeho přání připravíme profil vašeho hotelu — rychle a bez zbytečné práce z vaší strany.",
     step3_h:"Zkontrolujte a doplňte",step3_p:"Přihlašte se do portálu a doplňte chybějící informace — hodiny, služby, tipy z okolí. Myslete jako váš host: autentické zážitky, skrytá místní místa, nejlepší místní jídlo.",
     step4_h:"Vytiskněte a umístěte",step4_p:"Stáhněte QR plakát a umístěte ho v lobby nebo pokoji. Hosté ho naskenují a okamžitě dostanou odpovědi ve svém jazyce.",
     feat_eyebrow:"Funkce",feat_h2:"Co hosté <span class=\"grad-text\">ocení</span>",feat_p:"Rychlé odpovědi na jejich otázky — kdykoliv, srozumitelně, ve jejich jazyce.",
@@ -1193,8 +1192,8 @@ const TRANSLATIONS={
     hero_btn1:"14 Tage kostenlos →",hero_btn2:"So funktioniert's",
     stat1_label:"Unterstützte Sprachen",stat2_label:"Immer verfügbar",stat3_label:"Durchschnittliche Antwortzeit",stat4_label:"App-Installationen",
     how_eyebrow:"Prozess",how_h2:"Wie lange dauert die <span class=\"grad-text\">Einarbeitung?</span>",how_p:"SMARTEST GUIDE ist in einem Tag einsatzbereit — und lernt ständig neue Dinge, die er sich merkt.",
-    step1_h:"Registrierung",step1_p:"Beantworten Sie ein paar kurze Fragen zu Ihrem Hotel und schließen Sie die Zahlung ab.",
-    step2_h:"Wir importieren Ihre Hoteldaten",step2_p:"Wir bereiten Ihr Hotelprofil anhand Ihrer Angaben vor — schnell und ohne unnötigen Aufwand.",
+    step1_h:"Registrieren & 14 Tage gratis testen",step1_p:"Beantworten Sie ein paar kurze Fragen zu Ihrem Hotel und schließen Sie die Registrierung ab.",
+    step2_h:"Wir importieren Ihre Hoteldaten",step2_p:"Wir bereiten Ihr Hotelprofil nach Ihren Wünschen vor — schnell und ohne unnötigen Aufwand.",
     step3_h:"Prüfen & ergänzen",step3_p:"Melden Sie sich im Portal an und ergänzen Sie fehlende Details — Öffnungszeiten, Services, lokale Tipps.",
     step4_h:"Drucken & aufstellen",step4_p:"Drucken Sie das QR-Plakat und stellen Sie es in der Lobby oder in Zimmern auf.",
     feat_eyebrow:"Funktionen",feat_h2:"Was Gäste <span class=\"grad-text\">schätzen</span>",feat_p:"Schnelle Antworten auf ihre Fragen — jederzeit, klar, in ihrer Sprache.",
@@ -1230,8 +1229,8 @@ const TRANSLATIONS={
     hero_btn1:"14 días gratis →",hero_btn2:"Cómo funciona",
     stat1_label:"Idiomas disponibles",stat2_label:"Siempre disponible",stat3_label:"Tiempo medio de respuesta",stat4_label:"Apps a instalar",
     how_eyebrow:"Proceso",how_h2:"¿Cuánto tarda <span class=\"grad-text\">la formación?</span>",how_p:"SMARTEST GUIDE se forma en un día — y puede seguir aprendiendo cosas nuevas que recordará.",
-    step1_h:"Registro",step1_p:"Responda unas breves preguntas sobre su hotel y complete el pago.",
-    step2_h:"Importamos sus datos",step2_p:"Preparamos el perfil de su hotel con la información que nos proporcione — rápido y sin esfuerzo.",
+    step1_h:"Regístrese y pruebe 14 días gratis",step1_p:"Responda unas breves preguntas sobre su hotel y complete el registro.",
+    step2_h:"Importamos sus datos",step2_p:"Preparamos el perfil de su hotel según sus deseos — rápido y sin esfuerzo.",
     step3_h:"Revisar y completar",step3_p:"Inicie sesión en el portal y complete los detalles que falten — horarios, servicios, consejos locales.",
     step4_h:"Imprimir y colocar",step4_p:"Imprima el cartel QR y colóquelo en el vestíbulo o en las habitaciones.",
     feat_eyebrow:"Funciones",feat_h2:"Lo que los huéspedes <span class=\"grad-text\">aprecian</span>",feat_p:"Respuestas rápidas a sus preguntas — siempre, claramente, en su idioma.",
@@ -1267,7 +1266,7 @@ const TRANSLATIONS={
     hero_btn1:"免费试用 14 天 →",hero_btn2:"了解更多",
     stat1_label:"支持的语言",stat2_label:"全天候可用",stat3_label:"平均响应时间",stat4_label:"需安装的应用",
     how_eyebrow:"流程",how_h2:"培训需要<span class=\"grad-text\">多长时间？</span>",how_p:"SMARTEST GUIDE 一天内即可上线——并且可以不断学习您输入的新内容。",
-    step1_h:"注册",step1_p:"回答几个关于酒店的简短问题，完成付款。",
+    step1_h:"注册并免费试用14天",step1_p:"回答几个关于酒店的简短问题，完成注册。",
     step2_h:"我们导入您的酒店数据",step2_p:"我们根据您提供的信息快速准备酒店资料，无需您花费额外精力。",
     step3_h:"审核并完善",step3_p:"登录酒店门户，补充缺失的详细信息——营业时间、服务、本地推荐。",
     step4_h:"打印并放置",step4_p:"打印二维码海报，放置在大堂或房间内。客人扫描后即可立即获得帮助。",
@@ -1304,7 +1303,7 @@ const TRANSLATIONS={
     hero_btn1:"14 日間無料 →",hero_btn2:"仕組みを見る",
     stat1_label:"対応言語数",stat2_label:"常時利用可能",stat3_label:"平均応答時間",stat4_label:"インストール不要",
     how_eyebrow:"プロセス",how_h2:"研修には<span class=\"grad-text\">どのくらいかかりますか？</span>",how_p:"SMARTEST GUIDE は 1 日でセットアップ完了——新しい情報を追加すれば、すぐに覚えてくれます。",
-    step1_h:"登録",step1_p:"ホテルに関するいくつかの簡単な質問に答えて、支払いを完了してください。",
+    step1_h:"登録して14日間無料でお試し",step1_p:"ホテルに関するいくつかの簡単な質問に答えて、登録を完了してください。",
     step2_h:"ホテルデータをインポート",step2_p:"ご提供いただいた情報を基に、ホテルプロファイルを迅速に作成します。",
     step3_h:"確認・補完",step3_p:"ポータルにログインして、営業時間やサービス、地元のおすすめ情報などを追加してください。",
     step4_h:"印刷・設置",step4_p:"QR ポスターを印刷してロビーや客室に設置してください。ゲストがスキャンするとすぐに利用できます。",
