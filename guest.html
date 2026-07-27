@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="google" content="notranslate">
   <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -573,13 +574,28 @@ const EXTRA_LANGS = [
   {code:'to', name:'Lea faka-Tonga'},
   {code:'fj', name:'Na Vosa Vakaviti'},
   {code:'mi', name:'Te Reo Māori'},
+  // Jazykové varianty podle států (jako u velkých aplikací)
+  {code:'en-us', name:'English (USA)'},
+  {code:'en-ca', name:'English (Canada)'},
+  {code:'en-au', name:'English (Australia)'},
+  {code:'en-nz', name:'English (New Zealand)'},
+  {code:'en-ie', name:'English (Ireland)'},
+  {code:'en-in', name:'English (India)'},
+  {code:'en-za', name:'English (South Africa)'},
+  {code:'es-mx', name:'Español (México)'},
+  {code:'es-ar', name:'Español (Argentina)'},
+  {code:'pt-br', name:'Português (Brasil)'},
+  {code:'fr-ca', name:'Français (Canada)'},
+  {code:'de-at', name:'Deutsch (Österreich)'},
+  {code:'de-ch', name:'Deutsch (Schweiz)'},
 ];
 const ALL_LANGS = LANGS.concat(EXTRA_LANGS);
 // Windows nevykresluje vlajkové emoji → obrázky z flagcdn (stejně jako landing)
 const LANG_CC = {cs:'cz',sk:'sk',en:'gb',de:'de',fr:'fr',it:'it',es:'es',pl:'pl',hu:'hu',ru:'ru',uk:'ua',zh:'cn',nl:'nl',pt:'pt',ja:'jp',ko:'kr',
   sv:'se',da:'dk',no:'no',fi:'fi',el:'gr',ro:'ro',bg:'bg',hr:'hr',sl:'si',sr:'rs',tr:'tr',et:'ee',lv:'lv',lt:'lt',ar:'sa',he:'il',hi:'in',th:'th',vi:'vn',id:'id',
   ms:'my',tl:'ph',bn:'bd',ur:'pk',fa:'ir',ta:'in',te:'in',pa:'in',sw:'ke',af:'za',sq:'al',mk:'mk',bs:'ba',is:'is',ga:'ie',mt:'mt',ca:'ad',eu:'es',gl:'es',cy:'gb-wls',ka:'ge',hy:'am',az:'az',kk:'kz',uz:'uz',mn:'mn',ne:'np',si:'lk',km:'kh',lo:'la',my:'mm',am:'et',
-  mr:'in',gu:'in',kn:'in',ml:'in',or:'in',as:'in',sd:'pk',ps:'af',tg:'tj',tk:'tm',ky:'kg',yo:'ng',ig:'ng',ha:'ng',zu:'za',xh:'za',so:'so',ti:'er',om:'et',mg:'mg',rw:'rw',ln:'cd',sn:'zw',wo:'sn',lb:'lu',fo:'fo',yi:'il',ku:'iq',jv:'id',su:'id',ceb:'ph',yue:'hk',ht:'ht',qu:'pe',gn:'py',sm:'ws',to:'to',fj:'fj',mi:'nz'};
+  mr:'in',gu:'in',kn:'in',ml:'in',or:'in',as:'in',sd:'pk',ps:'af',tg:'tj',tk:'tm',ky:'kg',yo:'ng',ig:'ng',ha:'ng',zu:'za',xh:'za',so:'so',ti:'er',om:'et',mg:'mg',rw:'rw',ln:'cd',sn:'zw',wo:'sn',lb:'lu',fo:'fo',yi:'il',ku:'iq',jv:'id',su:'id',ceb:'ph',yue:'hk',ht:'ht',qu:'pe',gn:'py',sm:'ws',to:'to',fj:'fj',mi:'nz',
+  'en-us':'us','en-ca':'ca','en-au':'au','en-nz':'nz','en-ie':'ie','en-in':'in','en-za':'za','es-mx':'mx','es-ar':'ar','pt-br':'br','fr-ca':'ca','de-at':'at','de-ch':'ch'};
 function flagHtml(code){
   const cc=LANG_CC[code];
   return cc?`<img src="https://flagcdn.com/w40/${cc}.png" width="24" height="17" alt="" style="border-radius:2px;display:inline-block;vertical-align:middle" loading="lazy">`:'🌍';
@@ -588,7 +604,8 @@ const LANG_FLAGS = Object.fromEntries(ALL_LANGS.map(l=>[l.code,l.flag+' '+l.code
 const LANG_SR = {cs:'cs-CZ',sk:'sk-SK',en:'en-US',de:'de-DE',fr:'fr-FR',it:'it-IT',es:'es-ES',pl:'pl-PL',hu:'hu-HU',ru:'ru-RU',uk:'uk-UA',zh:'zh-CN',nl:'nl-NL',pt:'pt-PT',ja:'ja-JP',ko:'ko-KR',
   sv:'sv-SE',da:'da-DK',no:'nb-NO',fi:'fi-FI',el:'el-GR',ro:'ro-RO',bg:'bg-BG',hr:'hr-HR',sl:'sl-SI',sr:'sr-RS',tr:'tr-TR',et:'et-EE',lv:'lv-LV',lt:'lt-LT',ar:'ar-SA',he:'he-IL',hi:'hi-IN',th:'th-TH',vi:'vi-VN',id:'id-ID',
   ms:'ms-MY',tl:'fil-PH',bn:'bn-BD',ur:'ur-PK',fa:'fa-IR',ta:'ta-IN',te:'te-IN',pa:'pa-IN',sw:'sw-KE',af:'af-ZA',sq:'sq-AL',mk:'mk-MK',bs:'bs-BA',is:'is-IS',ga:'ga-IE',mt:'mt-MT',ca:'ca-ES',eu:'eu-ES',gl:'gl-ES',cy:'cy-GB',ka:'ka-GE',hy:'hy-AM',az:'az-AZ',kk:'kk-KZ',uz:'uz-UZ',mn:'mn-MN',ne:'ne-NP',si:'si-LK',km:'km-KH',lo:'lo-LA',my:'my-MM',am:'am-ET',
-  mr:'mr-IN',gu:'gu-IN',kn:'kn-IN',ml:'ml-IN',jv:'jv-ID',su:'su-ID',yue:'yue-Hant-HK',zu:'zu-ZA',ps:'ps-AF',ky:'ky-KG'};
+  mr:'mr-IN',gu:'gu-IN',kn:'kn-IN',ml:'ml-IN',jv:'jv-ID',su:'su-ID',yue:'yue-Hant-HK',zu:'zu-ZA',ps:'ps-AF',ky:'ky-KG',
+  'en-us':'en-US','en-ca':'en-CA','en-au':'en-AU','en-nz':'en-NZ','en-ie':'en-IE','en-in':'en-IN','en-za':'en-ZA','es-mx':'es-MX','es-ar':'es-AR','pt-br':'pt-BR','fr-ca':'fr-CA','de-at':'de-AT','de-ch':'de-CH'};
 // Popisek tlačítka „Další jazyky" (16 UI jazyků, fallback EN)
 const MORE_LANGS_LABEL = {cs:'Další jazyky',sk:'Ďalšie jazyky',en:'More languages',de:'Weitere Sprachen',fr:'Autres langues',it:'Altre lingue',es:'Más idiomas',pl:'Więcej języków',hu:'További nyelvek',ru:'Другие языки',uk:'Інші мови',zh:'更多语言',nl:'Meer talen',pt:'Mais idiomas',ja:'その他の言語',ko:'다른 언어'};
 
@@ -1621,24 +1638,24 @@ if('serviceWorker' in navigator){
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; });
 
 const MANUAL_INSTALL_IOS = {
-  cs:'📲 Přidání na plochu (iPhone / iPad, Safari): klepněte dole na ikonu Sdílet ⬆️ a vyberte „Přidat na plochu".',
-  en:'📲 Add to Home Screen (iPhone / iPad, Safari): tap the Share icon ⬆️ at the bottom, then choose "Add to Home Screen".',
-  de:'📲 Zum Startbildschirm (iPhone / iPad, Safari): Tippen Sie unten auf das Teilen-Symbol ⬆️ und wählen Sie „Zum Startbildschirm".',
-  fr:'📲 Ajouter à l\'écran d\'accueil (iPhone / iPad, Safari) : touchez l\'icône Partager ⬆️ en bas, puis « Ajouter à l\'écran d\'accueil ».',
-  es:'📲 Añadir a pantalla de inicio (iPhone / iPad, Safari): toca el icono Compartir ⬆️ abajo y elige "Añadir a pantalla de inicio".',
-  it:'📲 Aggiungi a Home (iPhone / iPad, Safari): tocca l\'icona Condividi ⬆️ in basso e scegli "Aggiungi a Home".',
-  pl:'📲 Dodaj do ekranu głównego (iPhone / iPad, Safari): dotknij ikony Udostępnij ⬆️ na dole i wybierz „Dodaj do ekranu głównego".',
-  sk:'📲 Pridať na plochu (iPhone / iPad, Safari): klepnite dole na ikonu Zdieľať ⬆️ a vyberte „Pridať na plochu".',
+  cs:'📲 Přidání na plochu (iPhone / iPad, Safari): klepněte na ikonu Sdílet ⬆️ (iPhone dole, iPad nahoře) a vyberte „Přidat na plochu".',
+  en:'📲 Add to Home Screen (iPhone / iPad, Safari): tap the Share icon ⬆️ (bottom on iPhone, top on iPad), then choose "Add to Home Screen".',
+  de:'📲 Zum Startbildschirm (iPhone / iPad, Safari): Tippen Sie auf das Teilen-Symbol ⬆️ (iPhone unten, iPad oben) und wählen Sie „Zum Startbildschirm".',
+  fr:'📲 Ajouter à l\'écran d\'accueil (iPhone / iPad, Safari) : touchez l\'icône Partager ⬆️ (en bas sur iPhone, en haut sur iPad), puis « Ajouter à l\'écran d\'accueil ».',
+  es:'📲 Añadir a pantalla de inicio (iPhone / iPad, Safari): toca el icono Compartir ⬆️ (abajo en iPhone, arriba en iPad) y elige "Añadir a pantalla de inicio".',
+  it:'📲 Aggiungi a Home (iPhone / iPad, Safari): tocca l\'icona Condividi ⬆️ (in basso su iPhone, in alto su iPad) e scegli "Aggiungi a Home".',
+  pl:'📲 Dodaj do ekranu głównego (iPhone / iPad, Safari): dotknij ikony Udostępnij ⬆️ (na dole na iPhonie, u góry na iPadzie) i wybierz „Dodaj do ekranu głównego".',
+  sk:'📲 Pridať na plochu (iPhone / iPad, Safari): klepnite na ikonu Zdieľať ⬆️ (iPhone dole, iPad hore) a vyberte „Pridať na plochu".',
 };
 const MANUAL_INSTALL_ANDROID = {
-  cs:'📲 Přidání na plochu (Android, Chrome): klepněte vpravo nahoře na menu ⋮ a vyberte „Přidat na plochu" / „Nainstalovat aplikaci".',
-  en:'📲 Add to Home Screen (Android, Chrome): tap the menu ⋮ at the top right, then choose "Add to Home screen" / "Install app".',
-  de:'📲 Zum Startbildschirm (Android, Chrome): Tippen Sie oben rechts auf das Menü ⋮ und wählen Sie „Zum Startbildschirm" / „App installieren".',
-  fr:'📲 Ajouter à l\'écran d\'accueil (Android, Chrome) : touchez le menu ⋮ en haut à droite, puis « Ajouter à l\'écran d\'accueil » / « Installer l\'application ».',
-  es:'📲 Añadir a pantalla de inicio (Android, Chrome): toca el menú ⋮ arriba a la derecha y elige "Añadir a pantalla de inicio" / "Instalar aplicación".',
-  it:'📲 Aggiungi a Home (Android, Chrome): tocca il menu ⋮ in alto a destra e scegli "Aggiungi a Home" / "Installa app".',
-  pl:'📲 Dodaj do ekranu głównego (Android, Chrome): dotknij menu ⋮ w prawym górnym rogu i wybierz „Dodaj do ekranu głównego" / „Zainstaluj aplikację".',
-  sk:'📲 Pridať na plochu (Android, Chrome): klepnite vpravo hore na menu ⋮ a vyberte „Pridať na plochu" / „Inštalovať aplikáciu".',
+  cs:'📲 Přidání na plochu (Android, Chrome): otevřete menu prohlížeče (ikona ⋮ nebo ☰ — bývá nahoře či dole) a vyberte „Přidat na plochu" / „Nainstalovat aplikaci".',
+  en:'📲 Add to Home Screen (Android, Chrome): open the browser menu (⋮ or ☰ icon — top or bottom of the screen), then choose "Add to Home screen" / "Install app".',
+  de:'📲 Zum Startbildschirm (Android, Chrome): öffnen Sie das Browsermenü (Symbol ⋮ oder ☰ — oben oder unten) und wählen Sie „Zum Startbildschirm" / „App installieren".',
+  fr:'📲 Ajouter à l\'écran d\'accueil (Android, Chrome) : ouvrez le menu du navigateur (icône ⋮ ou ☰ — en haut ou en bas), puis « Ajouter à l\'écran d\'accueil » / « Installer l\'application ».',
+  es:'📲 Añadir a pantalla de inicio (Android, Chrome): abre el menú del navegador (icono ⋮ o ☰ — arriba o abajo) y elige "Añadir a pantalla de inicio" / "Instalar aplicación".',
+  it:'📲 Aggiungi a Home (Android, Chrome): apri il menu del browser (icona ⋮ o ☰ — in alto o in basso) e scegli "Aggiungi a Home" / "Installa app".',
+  pl:'📲 Dodaj do ekranu głównego (Android, Chrome): otwórz menu przeglądarki (ikona ⋮ lub ☰ — u góry lub u dołu) i wybierz „Dodaj do ekranu głównego" / „Zainstaluj aplikację".',
+  sk:'📲 Pridať na plochu (Android, Chrome): otvorte menu prehliadača (ikona ⋮ alebo ☰ — býva hore či dole) a vyberte „Pridať na plochu" / „Inštalovať aplikáciu".',
 };
 // Uklidnění pro Android — kdyby přesto přišla Googlí hláška Play Protect
 const INSTALL_REASSURE_ANDROID = {
@@ -1651,24 +1668,64 @@ const INSTALL_REASSURE_ANDROID = {
   pl:'Jeśli telefon pokaże ostrzeżenie bezpieczeństwa, jest nieszkodliwe — albo po prostu korzystaj z konsjerża w przeglądarce.',
   sk:'Ak telefón ukáže bezpečnostné upozornenie, je neškodné — alebo concierge pokojne používajte priamo v prehliadači.',
 };
-// Ukáže nenásilný NÁVOD na přidání na plochu (Android i iOS) přímo v banneru.
-// Nespouští žádnou nativní instalaci — jen vysvětlí kroky přes menu prohlížeče.
+// HYBRID (zapnuto 25. 7. 2026): Android s dostupným nativním promptem → tlačítko „Přidat"
+// (jeden klik, Chrome dialog). Jinak (iOS, ostatní prohlížeče) → nenásilný NÁVOD.
+// Pozn.: na starších Androidech může WebAPK vyvolat Play Protect hlášku — proto zůstává
+// „uklidňovací" text a návod jako fallback. Viz STAV_A_UKOLY.md.
 function showInstallGuide(){
   const ua = navigator.userAgent || '';
   const isIOS = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const isAndroid = /Android/i.test(ua);
   if(!isIOS && !isAndroid) return; // desktop: instalaci na plochu nenabízíme
   const t = PWA_BANNER[guestLang] || PWA_BANNER['en'];
-  const stepsMap = isIOS ? MANUAL_INSTALL_IOS : MANUAL_INSTALL_ANDROID;
-  const steps = stepsMap[guestLang] || stepsMap['en'];
-  const reassure = isAndroid ? (INSTALL_REASSURE_ANDROID[guestLang] || INSTALL_REASSURE_ANDROID['en']) : '';
   const banner = document.getElementById('pwa-banner');
   const box = banner ? banner.querySelector('.pwa-banner-text') : null;
   if(!banner || !box) return;
-  box.innerHTML = '<strong>'+t.title+'</strong>'
-    + '<span style="display:block;margin-top:3px;font-size:12px;line-height:1.5;opacity:.9">'+steps+'</span>'
-    + (reassure ? '<span style="display:block;margin-top:4px;font-size:11px;line-height:1.45;opacity:.6">'+reassure+'</span>' : '');
+  const reassure = isAndroid ? (INSTALL_REASSURE_ANDROID[guestLang] || INSTALL_REASSURE_ANDROID['en']) : '';
+  if(isAndroid && deferredPrompt){
+    // Jeden klik: nadpis + podtitulek + tlačítko Přidat
+    box.innerHTML = '<strong>'+t.title+'</strong>'
+      + '<span style="display:block;margin-top:3px;font-size:12px;line-height:1.5;opacity:.9">'+t.sub+'</span>'
+      + (reassure ? '<span style="display:block;margin-top:4px;font-size:11px;line-height:1.45;opacity:.6">'+reassure+'</span>' : '');
+    let addBtn = document.getElementById('pwa-btn-add');
+    if(!addBtn){
+      addBtn = document.createElement('button');
+      addBtn.id='pwa-btn-add'; addBtn.className='pwa-btn';
+      banner.insertBefore(addBtn, banner.querySelector('.pwa-btn-dismiss'));
+    }
+    addBtn.textContent = t.btn;
+    addBtn.onclick = installPwaNow;
+    addBtn.style.display='';
+  }else{
+    // Návod (iOS vždy; Android bez nativního promptu)
+    const stepsMap = isIOS ? MANUAL_INSTALL_IOS : MANUAL_INSTALL_ANDROID;
+    const steps = stepsMap[guestLang] || stepsMap['en'];
+    box.innerHTML = '<strong>'+t.title+'</strong>'
+      + '<span style="display:block;margin-top:3px;font-size:12px;line-height:1.5;opacity:.9">'+steps+'</span>'
+      + (reassure ? '<span style="display:block;margin-top:4px;font-size:11px;line-height:1.45;opacity:.6">'+reassure+'</span>' : '');
+    const addBtn = document.getElementById('pwa-btn-add');
+    if(addBtn) addBtn.style.display='none';
+  }
   banner.classList.add('show');
+}
+
+// Spustí nativní instalační dialog Chromu (jen když je deferredPrompt k dispozici)
+async function installPwaNow(){
+  if(!deferredPrompt){ showInstallGuide(); return; }
+  const p = deferredPrompt;
+  deferredPrompt = null;
+  try{
+    p.prompt();
+    const choice = await p.userChoice;
+    document.getElementById('pwa-banner').classList.remove('show');
+    if(choice && choice.outcome !== 'accepted'){
+      // Odmítl → snooze jako u zavření křížkem
+      localStorage.setItem('sg_pwa_snooze', String(Date.now() + 3*24*3600*1000));
+    }
+  }catch(e){
+    // Prompt selhal → ukaž aspoň návod
+    showInstallGuide();
+  }
 }
 
 // Texty instalačního banneru podle jazyka hosta
@@ -1699,6 +1756,15 @@ function pwaShouldRemind(){
   if(isMobile && pwaShouldRemind()){
     setTimeout(showInstallGuide, 4000);
   }
+})();
+
+// ══ Jazykové varianty (en-us, de-ch…) → UI texty základního jazyka ══
+// Mapy překladů dostanou alias: en-us ukáže totéž co en, de-ch totéž co de atd.
+(function(){
+  const VARIANT_BASE={'en-us':'en','en-ca':'en','en-au':'en','en-nz':'en','en-ie':'en','en-in':'en','en-za':'en','es-mx':'es','es-ar':'es','pt-br':'pt','fr-ca':'fr','de-at':'de','de-ch':'de'};
+  const maps=[];
+  try{maps.push(UI_T,GREETINGS,QUICK,INSTALL_TIP,TTS_LABEL,MORE_LANGS_LABEL,LANG_SEARCH_PH,PWA_BANNER,MANUAL_INSTALL_IOS,MANUAL_INSTALL_ANDROID,INSTALL_REASSURE_ANDROID);}catch(e){}
+  maps.forEach(m=>{ if(!m) return; for(const v in VARIANT_BASE){ const b=VARIANT_BASE[v]; if(!m[v]&&m[b]) m[v]=m[b]; } });
 })();
 
 // ══ INIT ══════════════════════════════════════
