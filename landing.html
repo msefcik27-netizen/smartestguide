@@ -29,7 +29,7 @@
 <style>
 :root {
   /* Inntelo-style tokeny (redesign 25.7.2026) — názvy proměnných zachovány kvůli inline stylům */
-  --ink:#0c1b33;--ink2:#f6f8fc;--ink3:#eef3fc;--border:#e3e9f4;--muted:#8093b3;
+  --ink:#0c1b33;--ink2:#f6f8fc;--ink3:#eef3fc;--border:#e3e9f4;--muted:#6a7d9e;
   --text:#0c1b33;--dim:#51617e;--teal:#2c5fae;--gold:#2c5fae;--accent:#2c5fae;
   --purple-glow:rgba(44,95,174,.12);--teal-glow:rgba(88,166,200,.15);
   --gold-glow:rgba(44,95,174,.14);
@@ -99,7 +99,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 5vw;display:flex;a
 .mock-bar{background:#fff;padding:15px 18px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #eef2f9}
 .mock-dot{width:10px;height:10px;border-radius:50%}
 .mock-bar-title{flex:1;text-align:center;font-size:12px;color:var(--dim);font-weight:600}
-.mock-chat{padding:16px;display:flex;flex-direction:column;gap:10px;background:#fbfcfe;min-height:300px;justify-content:flex-end}
+.mock-chat{padding:16px;display:flex;flex-direction:column;gap:10px;background:#fbfcfe;height:320px;overflow:hidden;justify-content:flex-end}
 .mock-msg{display:flex;gap:10px;max-width:82%}
 .mock-msg.bot{align-self:flex-start}
 .mock-msg.user{align-self:flex-end;flex-direction:row-reverse}
@@ -233,6 +233,10 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
   footer{flex-direction:column;text-align:center;margin:0 12px 12px}
   .register-wrap{padding:28px 20px}
 }
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+  .hero-slide.s2,.hero-slide.s3,.hero-slide.s4{display:none}
+}
 </style>
 </head>
 <body>
@@ -267,10 +271,10 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
 </nav>
 
 <section class="hero">
-  <img class="hero-slide" src="https://images.pexels.com/photos/6758532/pexels-photo-6758532.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="Moderní hotel — exteriér">
-  <img class="hero-slide s2" src="https://images.pexels.com/photos/9746967/pexels-photo-9746967.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="">
-  <img class="hero-slide s3" src="https://images.pexels.com/photos/13325113/pexels-photo-13325113.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="">
-  <img class="hero-slide s4" src="https://images.pexels.com/photos/6758532/pexels-photo-6758532.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="" aria-hidden="true">
+  <img class="hero-slide" fetchpriority="high" src="https://images.pexels.com/photos/6758532/pexels-photo-6758532.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="Moderní hotel — exteriér">
+  <img class="hero-slide s2" loading="lazy" src="https://images.pexels.com/photos/9746967/pexels-photo-9746967.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="">
+  <img class="hero-slide s3" loading="lazy" src="https://images.pexels.com/photos/13325113/pexels-photo-13325113.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="">
+  <img class="hero-slide s4" loading="lazy" src="https://images.pexels.com/photos/6758532/pexels-photo-6758532.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="" aria-hidden="true">
   <div class="hero-overlay"></div>
   <div class="hero-scrim"></div>
   <div class="hero-badge" id="hero-badge">✦ AI-Powered Hotel Concierge</div>
@@ -455,14 +459,14 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
           <input type="number" id="calc-beds-input" min="1" max="3000" value="50" inputmode="numeric" title="Klikněte a zadejte počet lůžek" style="width:96px;font-size:22px;font-weight:800;color:#fff;text-align:center;border:1px solid rgba(255,255,255,.3);border-radius:12px;padding:6px 10px;background:rgba(255,255,255,.15);cursor:text;font-family:var(--font-display)">
           <span id="calc-beds-unit" style="font-size:22px;font-weight:800;color:#fff">lůžek</span>
         </div>
-        <div id="calc-beds-hint" style="font-size:11px;color:#a9cbe8;font-weight:600;margin-bottom:14px">↑ Klikněte a napište přesný počet lůžek</div>
+        <div id="calc-beds-hint" style="font-size:11px;color:rgba(255,255,255,.92);font-weight:600;margin-bottom:14px">↑ Klikněte a napište přesný počet lůžek</div>
         <input type="range" id="calc-slider" min="10" max="3000" step="10" value="50" style="width:100%;accent-color:#a9cbe8;margin-bottom:20px;cursor:pointer">
         <div style="font-size:44px;font-weight:800;color:#fff;line-height:1;font-family:var(--font-display)"><span id="calc-price">199</span> €<span style="font-size:16px;color:#c9dbff;font-weight:600"> / <span id="calc-per-month">měsíc</span></span></div>
         <div style="font-size:13px;color:#c9dbff;margin-top:10px" id="calc-formula"></div>
         <div style="flex:1"></div>
         <a href="#register" id="calc-cta" style="display:inline-block;margin-top:20px;padding:14px 30px;background:#fff;color:#1e3a66;font-weight:700;font-size:16px;border-radius:99px;text-decoration:none">Začít →</a>
-        <div style="color:#a9cbe8;font-weight:600;margin-top:12px;font-size:13px" id="calc-trial">✓ 14 dní zdarma — dnes bez platby</div>
-        <div style="color:#a9cbe8;font-size:11px;margin-top:8px" id="calc-vat">✓ Cena je konečná.</div>
+        <div style="color:rgba(255,255,255,.95);font-weight:600;margin-top:12px;font-size:13px" id="calc-trial">✓ 14 dní zdarma — dnes bez platby</div>
+        <div style="color:rgba(255,255,255,.85);font-size:11px;margin-top:8px" id="calc-vat">✓ Cena je konečná.</div>
       </div>
     </div>
   </div>
