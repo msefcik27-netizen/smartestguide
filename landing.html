@@ -84,7 +84,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 5vw;display:flex;a
 .hero-overlay{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(7,16,35,.35) 0%,rgba(7,16,35,.08) 35%,rgba(7,16,35,.5) 100%)}
 .hero-scrim{position:absolute;inset:0;z-index:1;background:linear-gradient(90deg,rgba(7,16,35,.55),rgba(7,16,35,.2) 50%,transparent 75%)}
 .hero>*:not(.hero-slide):not(.hero-overlay):not(.hero-scrim){position:relative;z-index:2}
-.hero-badge{display:inline-flex;align-items:center;gap:10px;background:linear-gradient(90deg,rgba(44,95,174,.92),rgba(88,166,200,.92));border:1px solid rgba(255,255,255,.35);backdrop-filter:blur(8px);border-radius:99px;padding:12px 30px;font-size:17px;color:#fff;font-weight:700;letter-spacing:.5px;margin:0 auto 28px;align-self:center;box-shadow:0 10px 30px rgba(12,27,51,.35)}
+.hero-badge{display:block;width:100%;background:none;border:none;backdrop-filter:none;border-radius:0;padding:0;font-family:var(--font-display);font-size:clamp(20px,2.4vw,32px);color:#fff;font-weight:800;letter-spacing:2px;text-transform:uppercase;text-align:center;margin:0 auto 34px;align-self:center;text-shadow:0 4px 24px rgba(0,0,0,.45)}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 .hero h1{font-size:clamp(34px,4vw,58px);font-weight:800;max-width:900px;margin-bottom:20px;letter-spacing:-1px;text-shadow:0 4px 30px rgba(0,0,0,.4)}
 .hero p{font-size:clamp(16px,2vw,18px);color:rgba(255,255,255,.92);max-width:520px;margin-bottom:30px;line-height:1.6;text-shadow:0 2px 16px rgba(0,0,0,.4)}
@@ -1131,7 +1131,7 @@ const TRANSLATIONS={
     nav_how:"Jak to funguje",nav_features:"Funkce",nav_pricing:"Ceník",nav_about:"O nás",nav_contact:"Kontakt",nav_cta:"Začít →",
     footer_operator:"Provozovatel: Native Hotel Guide s.r.o. · Korunní 2569/108, 101 00 Praha 10 · IČO 23112905",
     hero_badge:"AI concierge pro hotely",
-    hero_h1:"Přestaňte odpovídat<br>na stejné otázky.<br><span class=\"grad-text\">Nechte to na Alexovi.</span>",
+    hero_h1:"Přestaňte odpovídat<br>na stejné otázky.<br><span class=\"grad-text\">Nechte to na Alex.</span>",
     hero_p:"Vaši hosté se každý den ptají na to samé. SMARTEST GUIDE jim odpoví za vás — rychle, pohodlně a kdykoliv, ve 100+ jazycích, 24/7, z QR kódu u recepce. Bez aplikace, bez extra personálu, bez zmeškaných otázek.",
     hero_btn1:"14 dní zdarma →",hero_btn2:"Jak to funguje",
     stat1_label:"Podporovaných jazyků",stat2_label:"Vždy dostupný",stat3_label:"Průměrná doba odpovědi",stat4_label:"Instalace aplikací",
@@ -1177,7 +1177,7 @@ const TRANSLATIONS={
     feat6_h:"Neustále se učí",feat6_p:"SMARTEST GUIDE zaškolíte za jeden den — a můžete ho dál učit nové věci, které si pamatuje.",
     about_p1:"SMARTEST GUIDE vznikl z jednoduché potřeby: hosté se pořád ptají na to samé — kdy končí snídaně, kde je parkoviště nebo co v okolí stojí za vidění. Chtěli jsme život usnadnit jim i vám.",
     about_p2:"Vytvořili jsme systém, který vám ulehčí práci a hostům přinese lepší zážitky. Alex je hostům k dispozici během pár vteřin — přes QR kód, v jakémkoli prohlížeči a jazyce.",
-    about_p3:"Alexe si navíc „vychováte“ a uděláte z ní opravdu SMARTEST. Zaškolíte ji během jednoho dne a vy sami ovlivňujete, jak skvělá bude — máte to ve svých rukou, využijte to. Jsme tým z Prahy, který pro vás vytvořil systém, který vám ušetří čas a vašim hostům zpříjemní pobyt.",
+    about_p3:"Alex si navíc „vychováte“ a uděláte z ní opravdu SMARTEST. Zaškolíte ji během jednoho dne a vy sami ovlivňujete, jak skvělá bude — máte to ve svých rukou, využijte to. Jsme tým z Prahy, který pro vás vytvořil systém, který vám ušetří čas a vašim hostům zpříjemní pobyt.",
     satis_title:"Co zvyšuje spokojenost hostů",
     m1:"Rychlé odpovědi",m2:"Shoda jazyka",m3:"Dostupnost 24/7",m4:"Bez aplikace",m5:"Doba nasazení",
     c_name:"Vaše jméno",c_email:"E-mail",c_msg:"Zpráva",c_send:"Odeslat zprávu →",c_location:"Praha, Česká republika",
