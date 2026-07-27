@@ -5137,7 +5137,7 @@ TERMS_CS = LEGAL_CSS + """
 
   <h2>II. Cena a platební podmínky</h2>
   <ul>
-    <li>Měsíční poplatek: <strong>200 EUR</strong> pro hotely do 100 lůžek; nad 100 lůžek +3 EUR/lůžko/měsíc</li>
+    <li>Měsíční poplatek: <strong>199 EUR</strong> pro hotely do 100 lůžek; nad 100 lůžek +2 EUR/lůžko/měsíc</li>
     <li>Platby probíhají automaticky kartou nebo převodem prostřednictvím platební brány</li>
     <li>Prvních <strong>14 dní zdarma</strong> — zkušební doba bez poplatku</li>
     <li>Zaváděcí cena je zachována po celou dobu nepřetržitého předplatného</li>
@@ -5164,7 +5164,9 @@ TERMS_CS = LEGAL_CSS + """
 
   <h2>VI. Ukončení smlouvy</h2>
   <ul>
-    <li><strong>Klient:</strong> výpovědní doba 1 měsíc (od prvního dne následujícího měsíce)</li>
+    <li><strong>Klient může předplatné zrušit kdykoliv</strong> — v hotelovém portálu nebo e-mailem Poskytovateli</li>
+    <li><strong>Zrušení ve zkušební době</strong> (prvních 14 dní): zdarma, Klientovi není účtována žádná platba</li>
+    <li><strong>Zrušení po zkušební době:</strong> předplatné končí uplynutím již započatého fakturačního měsíce. Poplatek za započatý měsíc se nevrací (ani poměrnou částí); služba zůstává Klientovi plně funkční do konce tohoto měsíce a žádné další platby již nejsou účtovány</li>
     <li><strong>Poskytovatel:</strong> může okamžitě ukončit při závažném porušení podmínek nebo prodlení s platbou delším než 14 dní</li>
   </ul>
 
@@ -5201,7 +5203,7 @@ TERMS_EN = LEGAL_CSS + """
 
   <h2>II. Pricing and payment</h2>
   <ul>
-    <li>Monthly fee: <strong>€200</strong> for hotels up to 100 beds; above 100 beds +€3/bed/month</li>
+    <li>Monthly fee: <strong>€199</strong> for hotels up to 100 beds; above 100 beds +€2/bed/month</li>
     <li>Payments are processed automatically by card or bank transfer via the payment gateway</li>
     <li>First <strong>14 days free</strong> — trial period with no charge</li>
     <li>Introductory pricing is maintained for the duration of continuous subscription</li>
@@ -5228,7 +5230,9 @@ TERMS_EN = LEGAL_CSS + """
 
   <h2>VI. Termination</h2>
   <ul>
-    <li><strong>Client:</strong> 1-month notice period (from the first day of the following month)</li>
+    <li><strong>The Client may cancel the subscription at any time</strong> — in the hotel portal or by email to the Provider</li>
+    <li><strong>Cancellation during the trial period</strong> (first 14 days): free of charge, nothing is billed</li>
+    <li><strong>Cancellation after the trial period:</strong> the subscription ends at the end of the current billing month. The fee for the started month is non-refundable (including pro-rata); the service remains fully available to the Client until the end of that month, and no further payments are charged</li>
     <li><strong>Provider:</strong> may terminate immediately upon material breach or payment default exceeding 14 days</li>
   </ul>
 
