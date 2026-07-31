@@ -285,7 +285,7 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
   </div>
   <div style="margin:0;max-width:100%;text-align:left">
     <div id="flags-title" style="font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.75);margin-bottom:14px">Fluent in 100+ languages</div>
-    <div style="display:flex;flex-wrap:wrap;justify-content:flex-start;gap:8px 7px">
+    <div id="flags-row" style="display:flex;flex-wrap:nowrap;overflow:hidden;justify-content:flex-start;align-items:center;gap:8px 7px">
       <img src="https://flagcdn.com/w40/gb.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="EN">
       <img src="https://flagcdn.com/w40/cz.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="CS">
       <img src="https://flagcdn.com/w40/de.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="DE">
@@ -330,6 +330,8 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
       <img src="https://flagcdn.com/w40/th.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="TH">
       <img src="https://flagcdn.com/w40/za.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="ZU">
       <img src="https://flagcdn.com/w40/ro.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="RO">
+    
+      <span id="flags-more" style="flex-shrink:0;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);backdrop-filter:blur(6px);border-radius:99px;padding:4px 12px;font-size:12px;font-weight:700;color:#fff;white-space:nowrap"></span>
     </div>
   </div>
 </section>
@@ -1055,6 +1057,7 @@ async function submitContact(e){
 
 const TRANSLATIONS={
   en:{
+    flags_more:"+{n} more languages",
     demo_hotel:"Your hotel",
     chat_u3:"Can I see the menu?",chat_b4:"Of course! 🍽 <strong>Today's menu:</strong><br>🥣 Beef broth<br>🍗 Roast chicken, potatoes<br>🍰 Apple strudel",
     about_p4:"Your new concierge brings your guests brand-new experiences and advice as if from a true local — someone who has lived in your area for years and knows it inside out. Their stay with you becomes even more authentic and unforgettable.",
@@ -1124,6 +1127,7 @@ const TRANSLATIONS={
     calc_label:"Number of beds in your hotel",calc_beds_unit:"beds",calc_per_month:"month",calc_cta:"Get started →",calc_trial:"✓ 14-day free trial — no charge today",calc_beds_hint:"↑ Enter the exact number — it affects the accuracy and capabilities of your AI concierge",calc_vat:"✓ Final price.",
   },
   cs:{
+    flags_more:"+{n} dalších jazyků",
     demo_hotel:"Váš hotel",
     chat_u3:"Ukažte mi jídelní lístek",chat_b4:"Jistě! 🍽 <strong>Dnešní menu:</strong><br>🥣 Hovězí vývar<br>🍗 Pečené kuře, brambory<br>🍰 Jablečný štrúdl",
     about_p4:"Váš nový concierge přinese vašim hostům zcela nové zážitky a rady jako od místních, po kterých často touží. Jejich pobyt u vás se tak stane ještě více autentickým a nezapomenutelným.",
@@ -1193,6 +1197,7 @@ const TRANSLATIONS={
     calc_label:"Počet lůžek ve vašem hotelu",calc_beds_unit:"lůžek",calc_per_month:"měsíc",calc_cta:"Začít →",calc_trial:"✓ 14 dní zdarma — dnes bez platby",calc_beds_hint:"↑ Vyplňte přesně — počet lůžek má vliv na přesnost a možnosti vašeho AI concierge",calc_vat:"✓ Cena je konečná.",
   },
   de:{
+    flags_more:"+{n} weitere Sprachen",
     demo_hotel:"Ihr Hotel",
     chat_u3:"Kann ich die Speisekarte sehen?",chat_b4:"Gern! 🍽 <strong>Heutiges Menü:</strong><br>🥣 Rinderbrühe<br>🍗 Brathähnchen, Kartoffeln<br>🍰 Apfelstrudel",
     about_p4:"Ihr neuer Concierge bringt Ihren Gästen ganz neue Erlebnisse und Ratschläge wie von einem echten Einheimischen — jemandem, der seit Jahren vor Ort lebt und die Gegend in- und auswendig kennt. Ihr Aufenthalt wird dadurch noch authentischer und unvergesslicher.",
@@ -1233,6 +1238,7 @@ const TRANSLATIONS={
     f_gdpr:'Ich stimme der <a href="/privacy" target="_blank" style="color:var(--teal)">Datenschutzerklärung</a> und den <a href="/terms" target="_blank" style="color:var(--teal)">Nutzungsbedingungen</a> zu. Ich verstehe, dass meine Hoteldaten zur Bereitstellung des Dienstes SMARTEST GUIDE verarbeitet werden.',
   },
   es:{
+    flags_more:"+{n} idiomas más",
     demo_hotel:"Su hotel",
     chat_u3:"¿Puedo ver el menú?",chat_b4:"¡Claro! 🍽 <strong>Menú de hoy:</strong><br>🥣 Caldo de ternera<br>🍗 Pollo asado con patatas<br>🍰 Strudel de manzana",
     about_p4:"Su nuevo conserje ofrece a sus huéspedes experiencias completamente nuevas y consejos como de un auténtico local — alguien que vive en su zona desde hace años y la conoce a la perfección. Su estancia será aún más auténtica e inolvidable.",
@@ -1273,6 +1279,7 @@ const TRANSLATIONS={
     f_gdpr:'Acepto la <a href="/privacy" target="_blank" style="color:var(--teal)">Política de Privacidad</a> y los <a href="/terms" target="_blank" style="color:var(--teal)">Términos de Servicio</a>. Entiendo que los datos de mi hotel se procesarán para prestar el servicio SMARTEST GUIDE.',
   },
   zh:{
+    flags_more:"还有{n}种语言",
     demo_hotel:"您的酒店",
     chat_u3:"可以看看菜单吗？",chat_b4:"当然！🍽 <strong>今日菜单：</strong><br>🥣 牛肉清汤<br>🍗 烤鸡配土豆<br>🍰 苹果卷",
     about_p4:"您的新礼宾将为客人带来全新的体验和建议——就像来自一位在当地生活多年、对周边了如指掌的本地人。客人的住宿因此更加地道、更加难忘。",
@@ -1313,6 +1320,7 @@ const TRANSLATIONS={
     f_gdpr:'我同意<a href="/privacy" target="_blank" style="color:var(--teal)">隐私政策</a>和<a href="/terms" target="_blank" style="color:var(--teal)">服务条款</a>。我了解我的酒店数据将用于提供 SMARTEST GUIDE 服务。',
   },
   ja:{
+    flags_more:"他{n}言語",
     demo_hotel:"あなたのホテル",
     chat_u3:"メニューを見せてもらえますか？",chat_b4:"もちろん！🍽 <strong>本日のメニュー：</strong><br>🥣 ビーフブロス<br>🍗 ローストチキンとポテト<br>🍰 アップルシュトゥルーデル",
     about_p4:"新しいコンシェルジュは、長年その土地に住み、隅々まで知り尽くした地元の人のような体験とアドバイスをゲストに届けます。滞在はより本物らしく、忘れられないものになります。",
@@ -1471,6 +1479,7 @@ function setLang(lang){
   for(let i=1;i<=6;i++){setText('pf'+i,FT('pf'+i));}
   setText('calc-label',FT('calc_label'));setText('calc-beds-unit',FT('calc_beds_unit'));setText('calc-per-month',FT('calc_per_month'));setText('calc-cta',FT('calc_cta'));setText('calc-trial',FT('calc_trial'));setText('calc-beds-hint',FT('calc_beds_hint'));setText('calc-vat',FT('calc_vat'));
   if(typeof updCalcFormula==='function') updCalcFormula();
+  if(typeof window.updateFlagsRow==='function') window.updateFlagsRow();
   setText('contact-eyebrow',T.contact_eyebrow);set('contact-h2',T.contact_h2);setText('contact-p',T.contact_p);
 }
 
@@ -1495,6 +1504,29 @@ loadLandingPricing();
 </script>
 
 <script>
+
+// ── Vlajky v jedne rade: schovej pretekajici, zbytek shrn chipem „+N dalších jazyků" ──
+const TOTAL_APP_LANGS=107;
+window.updateFlagsRow=function(){
+  const row=document.getElementById('flags-row');
+  const chip=document.getElementById('flags-more');
+  if(!row||!chip) return;
+  const imgs=[...row.querySelectorAll('img')];
+  imgs.forEach(i=>i.style.display='');
+  let visible=imgs.length;
+  // schovavej od konce, dokud se rada (vc. chipu) nevejde
+  let guard=0;
+  const tpl=(TRANSLATIONS[currentLang]&&TRANSLATIONS[currentLang].flags_more)||TRANSLATIONS.en.flags_more;
+  chip.textContent=tpl.replace('{n}',TOTAL_APP_LANGS-visible);
+  while(row.scrollWidth>row.clientWidth+1 && visible>6 && guard<100){
+    guard++; visible--;
+    imgs[visible].style.display='none';
+    chip.textContent=tpl.replace('{n}',TOTAL_APP_LANGS-visible);
+  }
+};
+window.addEventListener('resize',()=>{clearTimeout(window._frT);window._frT=setTimeout(window.updateFlagsRow,150);});
+setTimeout(window.updateFlagsRow,100);
+
 // ── Redesign 25.7.2026: scroll reveal + progress bary + chat demo smyčka ──
 (function(){
   const io=new IntersectionObserver(entries=>{
