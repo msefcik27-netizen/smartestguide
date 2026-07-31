@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="google" content="notranslate"/>
 <title>SmartestGuide — AI Concierge for Hotels</title>
 <link rel="icon" type="image/png" href="/api/app-icon/64"/>
 <meta name="description" content="SmartestGuide gives every hotel a personal AI concierge that answers guest questions 24/7 in 100+ languages — via QR code, no app needed."/>
@@ -24,181 +25,224 @@
 <meta property="og:image" content="https://smartestguide-production.up.railway.app/static/og-image.png"/>
 <meta name="twitter:card" content="summary_large_image"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
 :root {
-  --ink:#1a1a1a;--ink2:#faf9f5;--ink3:#f7f6f4;--border:#e8e4dc;--muted:#6b6b6b;
-  --text:#1a1a1a;--dim:#6b6b6b;--teal:#00d4aa;--gold:#FF6B00;
-  --purple-glow:rgba(255,107,0,.12);--teal-glow:rgba(0,212,170,.15);
-  --gold-glow:rgba(255,107,0,.18);
-  --grad:linear-gradient(135deg,#FF6B00 0%,#e05e00 100%);
-  --font-display:'Syne',sans-serif;--font-body:'Inter',sans-serif;
+  /* Inntelo-style tokeny (redesign 25.7.2026) — názvy proměnných zachovány kvůli inline stylům */
+  --ink:#0c1b33;--ink2:#f6f8fc;--ink3:#eef3fc;--border:#e3e9f4;--muted:#6a7d9e;
+  --text:#0c1b33;--dim:#51617e;--teal:#2c5fae;--gold:#2c5fae;--accent:#2c5fae;
+  --purple-glow:rgba(44,95,174,.12);--teal-glow:rgba(88,166,200,.15);
+  --gold-glow:rgba(44,95,174,.14);
+  --grad:linear-gradient(90deg,#2c5fae,#58a6c8);
+  --font-display:'Sora',sans-serif;--font-body:'Manrope',sans-serif;
+  --navy:#0c1b33;--lightblue:#a9cbe8;--cardshadow:0 10px 30px rgba(12,27,51,.07);
 }
+@keyframes sgFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+@keyframes sgDrift{0%{transform:translate(0,0) scale(1)}50%{transform:translate(60px,-40px) scale(1.15)}100%{transform:translate(0,0) scale(1)}}
+@keyframes sgDrift2{0%{transform:translate(0,0) scale(1)}50%{transform:translate(-70px,30px) scale(1.1)}100%{transform:translate(0,0) scale(1)}}
+@keyframes sgPulse{0%,100%{box-shadow:0 0 0 0 rgba(44,95,174,.45)}70%{box-shadow:0 0 0 18px rgba(44,95,174,0)}}
+@keyframes sgDot{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-4px)}}
+@keyframes sgFlow{0%{left:0;opacity:0}10%{opacity:1}90%{opacity:1}100%{left:calc(100% - 12px);opacity:0}}
+@keyframes sgShimmer{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@keyframes sgPhoneMsg{0%,20%{opacity:0;transform:translateY(10px)}35%,80%{opacity:1;transform:translateY(0)}95%,100%{opacity:0}}
+@keyframes sgHeroFade{0%{opacity:0}5%,30%{opacity:1}38%,100%{opacity:0}}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{background:#fff;color:#1a1a1a;font-family:var(--font-body);font-size:16px;line-height:1.6;overflow-x:hidden}
+body{background:#f6f8fc;color:var(--text);font-family:var(--font-body);font-size:16px;line-height:1.6;overflow-x:hidden}
 h1,h2,h3{font-family:var(--font-display);line-height:1.15}
-.eyebrow{font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--teal);margin-bottom:14px;display:block}
-.grad-text{color:var(--gold);background:none;-webkit-text-fill-color:var(--gold)}
-nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 5vw;display:flex;align-items:center;justify-content:space-between;height:64px;background:rgba(10,12,20,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
-.nav-logo{font-family:var(--font-display);font-size:20px;font-weight:800;text-decoration:none}
-.nav-logo .t{color:var(--teal)}
-.nav-links{display:flex;gap:32px;list-style:none}
-.nav-links a{color:var(--dim);text-decoration:none;font-size:14px;font-weight:500;transition:color .15s}
+.eyebrow{font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:12px;display:block}
+.grad-text{background:linear-gradient(90deg,#2c5fae,#58a6c8,#2c5fae);background-size:200%;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;animation:sgShimmer 6s ease infinite}
+.hero .grad-text{background:linear-gradient(90deg,#a9cbe8,#58a6c8,#a9cbe8);background-size:200%;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 5vw;display:flex;align-items:center;justify-content:space-between;height:64px;background:rgba(255,255,255,.85);backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,.7);border-radius:0;box-shadow:0 8px 30px rgba(12,27,51,.08)}
+.nav-logo{font-family:var(--font-display);font-size:17px;font-weight:800;letter-spacing:2px;text-decoration:none;color:var(--text)}
+.nav-logo .t{color:var(--gold)}
+.nav-links{display:flex;gap:28px;list-style:none}
+.nav-links a{color:var(--dim);text-decoration:none;font-size:14px;font-weight:600;transition:color .15s}
 .nav-links a:hover{color:var(--text)}
-.nav-cta{background:var(--gold);color:#0a0b0f;border:none;border-radius:8px;padding:9px 20px;font-family:var(--font-body);font-size:14px;font-weight:700;cursor:pointer;text-decoration:none;transition:opacity .15s}
-.nav-cta:hover{opacity:.88}
-.nav-cta-ghost{background:transparent;color:var(--teal);border:1px solid rgba(0,212,170,.4);border-radius:8px;padding:8px 18px;font-family:var(--font-body);font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;transition:all .15s;margin-right:8px}
-.nav-cta-ghost:hover{border-color:var(--teal);background:rgba(0,212,170,.08)}
+.nav-cta{background:var(--grad);color:#fff;border:none;border-radius:99px;padding:10px 22px;font-family:var(--font-body);font-size:14px;font-weight:700;cursor:pointer;text-decoration:none;transition:opacity .15s;box-shadow:0 8px 20px rgba(44,95,174,.3)}
+.nav-cta:hover{opacity:.9}
+.nav-cta-ghost{background:transparent;color:var(--gold);border:1px solid rgba(44,95,174,.4);border-radius:99px;padding:8px 18px;font-family:var(--font-body);font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;transition:all .15s;margin-right:8px}
+.nav-cta-ghost:hover{border-color:var(--gold);background:rgba(44,95,174,.08)}
 .nav-burger{display:none;background:none;border:none;color:var(--text);font-size:22px;cursor:pointer}
 .lang-switch{position:relative;display:inline-block}
-.lang-trigger{display:flex;align-items:center;gap:6px;background:#f7f6f4;border:1px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:700;color:var(--text);transition:border-color .15s;white-space:nowrap}
+.lang-trigger{display:flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--border);border-radius:99px;padding:7px 12px;cursor:pointer;font-size:12px;font-weight:700;color:var(--text);transition:border-color .15s;white-space:nowrap}
 .lang-trigger:hover{border-color:var(--gold)}
 .lang-trigger .chevron{font-size:10px;color:var(--muted);transition:transform .2s}
 .lang-switch.open .chevron{transform:rotate(180deg)}
-.lang-dropdown{position:absolute;top:calc(100% + 6px);right:0;background:#faf9f5;border:1px solid var(--border);border-radius:10px;padding:4px;min-width:130px;box-shadow:0 8px 24px rgba(0,0,0,.4);opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .15s,transform .15s;z-index:200}
+.lang-dropdown{position:absolute;top:calc(100% + 10px);right:0;background:#fff;border:1px solid var(--border);border-radius:14px;padding:4px;min-width:130px;box-shadow:0 14px 34px rgba(12,27,51,.16);opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .15s,transform .15s;z-index:200}
 .lang-switch.open .lang-dropdown{opacity:1;transform:translateY(0);pointer-events:all}
-.lang-option{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;color:var(--text);font-size:13px;font-weight:600;padding:7px 10px;border-radius:7px;cursor:pointer;text-align:left;transition:background .12s}
-.lang-option:hover{background:#f7f6f4}
+.lang-option{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;color:var(--text);font-size:13px;font-weight:600;padding:7px 10px;border-radius:9px;cursor:pointer;text-align:left;transition:background .12s}
+.lang-option:hover{background:#f1f4fa}
 .lang-option.active{color:var(--gold)}
 .lang-option img{border-radius:2px;flex-shrink:0}
-.hero{min-height:100vh;padding:120px 5vw 80px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;position:relative;overflow:hidden}
-.hero::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(255,107,0,.18) 0%,transparent 70%),radial-gradient(ellipse 50% 40% at 80% 60%,rgba(0,212,170,.08) 0%,transparent 60%);pointer-events:none}
-.hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(0,212,170,.08);border:1px solid rgba(0,212,170,.3);border-radius:20px;padding:6px 16px;font-size:13px;color:var(--teal);font-weight:500;margin-bottom:28px}
-.hero-badge::before{content:'●';font-size:8px;animation:blink 2s infinite}
+/* Hero — zaoblený fotoblok se slideshow */
+.hero{min-height:720px;margin:76px 24px 0;border-radius:32px;overflow:hidden;position:relative;display:flex;flex-direction:column;justify-content:flex-end;padding:90px 56px 110px;text-align:left;color:#fff}
+.hero-slide{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+.hero-slide.s2{opacity:0;animation:sgHeroFade 18s 6s infinite}
+.hero-slide.s3{opacity:0;animation:sgHeroFade 18s 12s infinite}
+.hero-slide.s4{opacity:0;animation:sgHeroFade 18s 0s infinite}
+.hero-overlay{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(7,16,35,.35) 0%,rgba(7,16,35,.08) 35%,rgba(7,16,35,.5) 100%)}
+.hero-scrim{position:absolute;inset:0;z-index:1;background:linear-gradient(90deg,rgba(7,16,35,.55),rgba(7,16,35,.2) 50%,transparent 75%)}
+.hero>*:not(.hero-slide):not(.hero-overlay):not(.hero-scrim){position:relative;z-index:2}
+.hero-badge{display:block;width:100%;background:none;border:none;backdrop-filter:none;border-radius:0;padding:0;font-family:var(--font-display);font-size:clamp(20px,2.4vw,32px);color:#fff;font-weight:800;letter-spacing:2px;text-transform:uppercase;text-align:center;margin:0 auto 34px;align-self:center;text-shadow:0 4px 24px rgba(0,0,0,.45)}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-.hero h1{font-size:clamp(32px,4vw,54px);font-weight:800;max-width:1000px;margin-bottom:22px}
-.hero p{font-size:clamp(16px,2vw,19px);color:var(--dim);max-width:560px;margin-bottom:44px;line-height:1.7}
-.hero-btns{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-bottom:64px}
-.btn-primary{background:var(--gold);color:#0a0b0f;border:none;border-radius:10px;padding:14px 28px;font-family:var(--font-body);font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;transition:all .2s;box-shadow:0 4px 24px rgba(255,107,0,.3)}
-.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(255,107,0,.45)}
-.btn-ghost{background:transparent;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:14px 28px;font-family:var(--font-body);font-size:15px;font-weight:500;cursor:pointer;text-decoration:none;transition:all .2s}
-.btn-ghost:hover{border-color:var(--gold);color:var(--gold)}
-.hero-mockup{width:100%;max-width:700px;background:#faf9f5;border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,.5)}
-.mock-bar{background:#f7f6f4;padding:12px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)}
+.hero h1{font-size:clamp(34px,4vw,58px);font-weight:800;max-width:900px;margin-bottom:20px;letter-spacing:-1px;text-shadow:0 4px 30px rgba(0,0,0,.4)}
+.hero p{font-size:clamp(16px,2vw,18px);color:rgba(255,255,255,.92);max-width:520px;margin-bottom:30px;line-height:1.6;text-shadow:0 2px 16px rgba(0,0,0,.4)}
+.hero-btns{display:flex;gap:16px;flex-wrap:wrap;justify-content:flex-start;margin-bottom:28px}
+.btn-primary{background:var(--grad);color:#fff;border:none;border-radius:99px;padding:15px 30px;font-family:var(--font-body);font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;transition:all .2s;box-shadow:0 12px 32px rgba(12,27,51,.35);animation:sgPulse 3s infinite}
+.btn-primary:hover{transform:translateY(-2px)}
+.btn-ghost{background:rgba(255,255,255,.1);backdrop-filter:blur(8px);color:#fff;border:1.5px solid rgba(255,255,255,.6);border-radius:99px;padding:15px 30px;font-family:var(--font-body);font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;transition:all .2s}
+.btn-ghost:hover{background:rgba(255,255,255,.2)}
+/* Chat demo karta (přesunuta do sekce Živá ukázka) */
+.hero-mockup{width:100%;max-width:380px;margin:0 auto;background:#fff;border:none;border-radius:24px;overflow:hidden;box-shadow:0 30px 70px rgba(12,27,51,.18)}
+.mock-bar{background:#fff;padding:15px 18px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #eef2f9}
 .mock-dot{width:10px;height:10px;border-radius:50%}
-.mock-bar-title{flex:1;text-align:center;font-size:12px;color:var(--muted);font-weight:500}
-.mock-chat{padding:20px;display:flex;flex-direction:column;gap:12px}
-.mock-msg{display:flex;gap:10px;max-width:80%}
+.mock-bar-title{flex:1;text-align:center;font-size:12px;color:var(--dim);font-weight:600}
+.mock-chat{padding:16px;display:flex;flex-direction:column;gap:10px;background:#fbfcfe;height:600px;overflow:hidden;justify-content:flex-start}
+.mock-msg{display:flex;gap:10px;max-width:82%}
 .mock-msg.bot{align-self:flex-start}
 .mock-msg.user{align-self:flex-end;flex-direction:row-reverse}
 .mock-av{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px}
-.mock-msg.bot .mock-av{background:var(--grad)}
-.mock-msg.user .mock-av{background:#f7f6f4;border:1px solid var(--border);font-size:11px;color:var(--muted)}
-.mock-bubble{padding:9px 13px;border-radius:12px;font-size:13px;line-height:1.5}
-.mock-msg.bot .mock-bubble{background:#f7f6f4;border:1px solid var(--border);color:var(--text)}
-.mock-msg.user .mock-bubble{background:var(--gold);color:#0a0b0f}
-.stats-strip{padding:40px 5vw;border-top:1px solid var(--border);border-bottom:1px solid var(--border);display:flex;justify-content:center;gap:60px;flex-wrap:wrap}
-.stat{text-align:center}
-.stat-num{font-family:var(--font-display);font-size:36px;font-weight:800;color:var(--gold)}
-.stat-label{font-size:13px;color:var(--muted);margin-top:4px}
-section{padding:100px 5vw}
+.mock-msg.bot .mock-av{background:linear-gradient(135deg,#2c5fae,#58a6c8)}
+.mock-msg.user .mock-av{background:#f1f4fa;border:1px solid var(--border);font-size:11px;color:var(--muted)}
+.mock-bubble{padding:10px 14px;border-radius:14px 14px 14px 4px;font-size:13px;line-height:1.5}
+.mock-msg.bot .mock-bubble{background:#eef3fc;border:none;color:var(--text)}
+.mock-msg.user .mock-bubble{background:#2c5fae;color:#fff;border-radius:14px 14px 4px 14px}
+.mock-typing{display:flex;align-self:flex-start}
+.mock-typing .tb{background:#eef3fc;border-radius:14px 14px 14px 4px;padding:10px 14px;display:flex;gap:4px}
+.mock-typing .tb span{width:6px;height:6px;border-radius:50%;background:#8093b3;animation:sgDot 1.2s infinite}
+.mock-typing .tb span:nth-child(2){animation-delay:.2s}
+.mock-typing .tb span:nth-child(3){animation-delay:.4s}
+/* Statistiky — skleněné karty přes hranu hera */
+.stats-strip{position:relative;z-index:6;padding:0 80px;margin-top:-52px;margin-bottom:20px;display:grid;grid-template-columns:repeat(4,1fr);gap:20px;border:none}
+.stat{background:rgba(255,255,255,.8);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.7);border-radius:20px;padding:30px;box-shadow:0 18px 44px rgba(12,27,51,.1);text-align:left}
+.stat-num{font-family:var(--font-display);font-size:38px;font-weight:800;background:linear-gradient(120deg,#2c5fae,#58a6c8);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat-label{font-size:14px;color:var(--dim);margin-top:6px}
+section{padding:80px 5vw}
 .section-inner{max-width:1100px;margin:0 auto}
-.section-header{text-align:center;margin-bottom:64px}
-.section-header h2{font-size:clamp(28px,4vw,44px);font-weight:800;margin-bottom:14px}
-.section-header p{font-size:17px;color:var(--dim);max-width:560px;margin:0 auto;line-height:1.7}
-/* Registrační sekce má tmavé pozadí — nadpis/popis musí být světlé */
-#register .section-header h2{color:#f5f3ee}
-#register .section-header p{color:#c8ccd8}
-#how{background:#faf9f5}
-.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px}
-.step{background:var(--ink);border:1px solid var(--border);border-radius:16px;padding:28px 24px;position:relative;overflow:hidden;transition:border-color .2s}
-.step:hover{border-color:var(--gold)}
-.step::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--gold);opacity:0;transition:opacity .2s}
-.step:hover::after{opacity:1}
-.step-num{font-family:var(--font-display);font-size:42px;font-weight:800;color:var(--border);margin-bottom:14px;line-height:1}
-.step h3{font-size:17px;font-weight:700;margin-bottom:8px;color:#f5f3ee}
-.step p{font-size:14px;color:#c8ccd8;line-height:1.65}
-.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
-.feature{background:#faf9f5;border:1px solid var(--border);border-radius:16px;padding:28px 26px;display:flex;gap:18px;align-items:flex-start;transition:transform .2s,border-color .2s}
-.feature:hover{transform:translateY(-3px);border-color:rgba(255,107,0,.35)}
-.feat-icon{width:44px;height:44px;border-radius:10px;flex-shrink:0;background:var(--gold-glow);border:1px solid rgba(255,107,0,.2);display:flex;align-items:center;justify-content:center;font-size:20px}
-.feat-icon.teal{background:var(--teal-glow);border-color:rgba(0,212,170,.2)}
-.feat-body h3{font-size:16px;font-weight:700;margin-bottom:6px}
-.feat-body p{font-size:14px;color:var(--dim);line-height:1.6}
-.lang-strip{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:32px}
-.lang-pill{background:#faf9f5;border:1px solid var(--border);border-radius:20px;padding:7px 16px;font-size:14px;color:var(--dim)}
-#pricing{background:#faf9f5}
-.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;max-width:800px;margin:0 auto}
-.price-card{background:var(--ink);border:1px solid var(--border);border-radius:20px;padding:36px 32px;text-align:center;position:relative;overflow:hidden}
-.price-card.featured{border-color:var(--gold);background:linear-gradient(160deg,rgba(255,107,0,.07) 0%,var(--ink) 100%)}
-.price-name{font-size:13px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:16px}
-.price-amount{font-family:var(--font-display);font-size:56px;font-weight:800;line-height:1;margin-bottom:6px;display:flex;align-items:flex-start;justify-content:center;gap:2px}
-.price-amount .pre{font-size:14px;font-weight:400;color:var(--muted);align-self:flex-start;margin-top:6px;margin-right:4px}
-.price-amount .currency{font-size:20px;font-weight:600;color:var(--muted);align-self:flex-start;margin-top:8px}
-.price-amount .num{font-size:56px;font-weight:800;color:var(--ink);line-height:1}
-.price-card.featured .price-amount .num{color:#1a1a1a}
-.price-card:not(.featured) .price-amount .num{color:#f0ece0}
-.price-card:not(.featured) .price-amount .currency{color:#f0ece0}
-.price-card:not(.featured) .price-amount .pre{color:rgba(255,255,255,.5)}
-.price-card:not(.featured) .price-amount .suffix{color:rgba(255,255,255,.5)}
-.price-card:not(.featured) .price-desc{color:rgba(255,255,255,.5)}
-.price-card:not(.featured) .price-name{color:rgba(255,255,255,.5)}
-.price-amount .suffix{font-size:16px;font-weight:400;color:var(--muted);align-self:flex-end;margin-bottom:6px}
-.price-desc{font-size:13px;color:var(--dim);margin-bottom:28px}
-.price-features{list-style:none;text-align:left;margin-bottom:32px;display:flex;flex-direction:column;gap:10px}
-.price-features li{font-size:14px;color:var(--dim);display:flex;gap:10px;align-items:flex-start}
-.price-card:not(.featured) .price-features li{color:rgba(255,255,255,.7)}
-.price-card:not(.featured) .price-note{color:var(--teal)}
-.price-features li::before{content:'✓';color:var(--teal);font-weight:700;flex-shrink:0}
+.section-header{text-align:center;margin-bottom:56px}
+.section-header h2{font-size:clamp(28px,4vw,38px);font-weight:800;margin-bottom:14px}
+.section-header p{font-size:16px;color:var(--dim);max-width:640px;margin:0 auto;line-height:1.6}
+/* QR flow */
+.qr-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:0;align-items:center;max-width:1080px;margin:0 auto}
+.qr-card{background:#fff;border:1px solid var(--border);border-radius:20px;padding:34px;text-align:center;box-shadow:0 8px 24px rgba(12,27,51,.05)}
+.qr-card h3{font-family:var(--font-display);font-size:17px;font-weight:700;margin-bottom:6px}
+.qr-card p{font-size:14px;color:var(--dim);line-height:1.5}
+.qr-line{width:90px;height:2px;background:#d7dfee;position:relative;margin:0 6px}
+.qr-line .dot{position:absolute;top:-5px;width:12px;height:12px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px rgba(44,95,174,.6);animation:sgFlow 2.6s linear infinite}
+.qr-line.d2 .dot{animation-delay:1.3s}
+/* Registrační sekce — tmavá navy, světlé nadpisy */
+#register .section-header h2{color:#fff}
+#register .section-header p{color:#9fb0cd}
+#register .eyebrow{color:var(--lightblue)}
+#how{background:#ffffff;border-radius:32px;margin:0 24px}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
+.step{background:#fff;border:1px solid #e9eef7;border-radius:20px;padding:0 0 26px;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s;box-shadow:var(--cardshadow)}
+.step:hover{transform:translateY(-6px);box-shadow:0 22px 44px rgba(12,27,51,.13)}
+.step-photo{position:relative;height:190px;margin-bottom:34px}
+.step-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.step-num{position:absolute;bottom:-22px;left:22px;background:var(--gold);color:#fff;font-family:var(--font-display);font-size:15px;font-weight:800;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;box-shadow:0 8px 18px rgba(44,95,174,.4);margin:0;line-height:1;z-index:2}
+.step h3{font-size:18px;font-weight:700;margin-bottom:8px;color:var(--text);padding:0 22px}
+.step p{font-size:14px;color:var(--dim);line-height:1.6;padding:0 22px}
+/* Funkce — fotomozaika */
+.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.feature{position:relative;overflow:hidden;border-radius:18px;padding:0;display:block;min-height:210px;border:none;background:var(--navy);transition:transform .2s}
+.feature:hover{transform:translateY(-4px)}
+.feature:first-child{grid-row:span 2;min-height:440px}
+.feat-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.feat-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(12,27,51,.15) 20%,rgba(12,27,51,.92))}
+.feature:first-child .feat-shade{background:linear-gradient(180deg,transparent 40%,rgba(12,27,51,.9))}
+.feat-icon{display:none}
+.feat-body{position:absolute;bottom:0;left:0;right:0;padding:24px;color:#fff;z-index:2}
+.feat-body h3{font-size:18px;font-weight:700;margin-bottom:6px;font-family:var(--font-display);color:#fff}
+.feat-body p{font-size:14px;color:#dbe4f5;line-height:1.6}
+.lang-strip{display:none}
+.lang-pill{display:none}
+#pricing{background:transparent}
+.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;max-width:920px;margin:0 auto}
+.price-features{list-style:none;text-align:left;margin-bottom:32px;display:flex;flex-direction:column;gap:12px}
+.price-features li{font-size:15px;color:#3c4c68;display:flex;gap:10px;align-items:flex-start}
+.price-features li::before{content:'✓';color:var(--gold);font-weight:700;flex-shrink:0}
 .price-note{font-size:12px;color:var(--muted);margin-top:12px}
-#register{position:relative;overflow:hidden}
-#register::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 80% at 50% 50%,rgba(255,107,0,.08) 0%,transparent 70%);pointer-events:none}
-.register-wrap{max-width:600px;margin:0 auto;background:#faf9f5;border:1px solid var(--border);border-radius:24px;padding:48px 44px}
+#register{position:relative;overflow:hidden;border-radius:32px;margin:0 24px}
+.reg-orb{position:absolute;border-radius:50%;pointer-events:none}
+.reg-orb.o1{top:-140px;left:-120px;width:520px;height:520px;background:radial-gradient(circle,rgba(44,95,174,.4),transparent 65%);filter:blur(40px);animation:sgDrift 15s ease-in-out infinite}
+.reg-orb.o2{bottom:-160px;right:-120px;width:560px;height:560px;background:radial-gradient(circle,rgba(88,166,200,.25),transparent 65%);filter:blur(50px);animation:sgDrift2 18s ease-in-out infinite}
+.register-wrap{max-width:720px;margin:0 auto;background:#ffffff;border:none;border-radius:22px;padding:40px;position:relative;box-shadow:0 30px 80px rgba(0,0,0,.4)}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .form-group{display:flex;flex-direction:column;gap:6px}
 .form-group.full{grid-column:1/-1}
-label{font-size:12px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
-input,select,textarea{background:#ffffff;border:1.5px solid var(--border);border-radius:10px;color:#1a1a1a;font-family:var(--font-body);font-size:15px;padding:12px 14px;outline:none;width:100%;transition:border-color .15s}
+label{font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--dim)}
+input,select,textarea{background:#f6f8fc;border:1px solid #d7dfee;border-radius:12px;color:var(--text);font-family:var(--font-body);font-size:15px;padding:13px 16px;outline:none;width:100%;transition:border-color .15s}
 input:focus,select:focus,textarea:focus{border-color:var(--gold)}
-select option{background:#ffffff;color:#1a1a1a}
-.form-submit{width:100%;margin-top:8px;background:var(--gold);color:#0a0b0f;border:none;border-radius:12px;font-family:var(--font-body);font-size:16px;font-weight:700;padding:16px;cursor:pointer;transition:all .2s;box-shadow:0 4px 24px rgba(255,107,0,.3)}
-.form-submit:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(255,107,0,.45)}
+select option{background:#ffffff;color:#0c1b33}
+.form-submit{width:100%;margin-top:8px;background:var(--grad);color:#fff;border:none;border-radius:99px;font-family:var(--font-body);font-size:17px;font-weight:700;padding:16px;cursor:pointer;transition:all .2s;box-shadow:0 12px 28px rgba(44,95,174,.35)}
+.form-submit:hover{transform:translateY(-2px)}
 .form-submit:disabled{opacity:.6;cursor:not-allowed;transform:none}
-.form-note{font-size:12px;color:var(--muted);text-align:center;margin-top:14px}
-.about-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
-.about-text h2{font-size:clamp(26px,3.5vw,40px);font-weight:800;margin-bottom:20px}
-.about-text p{color:var(--dim);font-size:16px;line-height:1.8;margin-bottom:16px}
-.about-visual{background:#faf9f5;border:1px solid var(--border);border-radius:20px;padding:32px;display:flex;flex-direction:column;gap:16px}
+.form-note{font-size:13px;color:var(--muted);text-align:center;margin-top:14px}
+.about-grid{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center}
+.about-text h2{font-size:clamp(26px,3.5vw,36px);font-weight:800;margin-bottom:20px}
+.about-text p{color:var(--dim);font-size:16px;line-height:1.7;margin-bottom:16px}
+.about-visual{background:transparent;border:none;border-radius:20px;padding:0;display:flex;flex-direction:column;gap:16px}
+.about-photo{border-radius:20px;overflow:hidden;min-height:420px;position:relative}
+.about-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .about-metric{display:flex;align-items:center;gap:16px}
-.metric-bar-wrap{flex:1;background:var(--border);border-radius:4px;height:8px;overflow:hidden}
-.metric-bar{height:100%;border-radius:4px;background:var(--gold)}
-.metric-label{font-size:13px;color:var(--dim);width:130px;flex-shrink:0}
-.metric-val{font-size:13px;font-weight:600;width:40px;text-align:right;flex-shrink:0}
-#contact{background:#faf9f5}
-.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px}
+.metric-bar-wrap{flex:1;background:#e3e9f4;border-radius:99px;height:8px;overflow:hidden}
+.metric-bar{height:100%;border-radius:99px;background:var(--grad);transition:width 1.4s cubic-bezier(.2,.8,.2,1)}
+.metric-label{font-size:14px;font-weight:600;color:#3c4c68;width:170px;flex-shrink:0}
+.metric-val{font-size:14px;font-weight:700;width:44px;text-align:right;flex-shrink:0;color:#3c4c68}
+#contact{background:#ffffff;border-radius:32px;margin:40px 24px 0}
+.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:60px}
 .contact-info h2{font-size:clamp(24px,3vw,36px);font-weight:800;margin-bottom:20px}
 .contact-info p{color:var(--dim);font-size:15px;line-height:1.8;margin-bottom:28px}
 .contact-item{display:flex;align-items:center;gap:12px;margin-bottom:16px}
-.c-icon{width:36px;height:36px;border-radius:8px;background:var(--gold-glow);border:1px solid rgba(255,107,0,.2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.c-icon{width:36px;height:36px;border-radius:10px;background:var(--gold-glow);border:1px solid rgba(44,95,174,.2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
 .c-text{font-size:14px;color:var(--dim)}
-.c-text a{color:var(--teal);text-decoration:none}
+.c-text a{color:var(--gold);text-decoration:none}
 .contact-form{display:flex;flex-direction:column;gap:14px}
-footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
-.footer-logo{font-family:var(--font-display);font-size:18px;font-weight:800}
-.footer-logo .t{color:var(--teal)}
-.footer-links{display:flex;gap:24px}
+footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 0 32px 32px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.footer-logo{font-family:var(--font-display);font-size:15px;font-weight:800;letter-spacing:2px}
+.footer-logo .t{color:var(--gold)}
+.footer-links{display:flex;gap:22px}
 .footer-links a{font-size:13px;color:var(--muted);text-decoration:none;transition:color .15s}
 .footer-links a:hover{color:var(--text)}
-.footer-copy{font-size:12px;color:var(--muted)}
+.footer-copy{font-size:12px;color:#a5b2c9;line-height:1.7}
+[data-reveal]{opacity:0;transform:translateY(28px);transition:opacity .8s ease,transform .8s ease}
+[data-reveal].revealed{opacity:1;transform:none}
+@media(max-width:900px){
+  .steps{grid-template-columns:1fr 1fr}
+  .features-grid{grid-template-columns:1fr}
+  .feature:first-child{grid-row:auto;min-height:280px}
+  .qr-flow{grid-template-columns:1fr}
+  .qr-line{display:none}
+  .stats-strip{grid-template-columns:1fr 1fr;padding:0 24px}
+}
 @media(max-width:768px){
+  nav{padding:0 16px}
   .nav-links,.nav-cta{display:none}
   .nav-burger{display:block}
-  .nav-links.open{display:flex;flex-direction:column;position:fixed;top:64px;left:0;right:0;background:#faf9f5;border-bottom:1px solid var(--border);padding:20px 24px;gap:20px}
+  .nav-links.open{display:flex;flex-direction:column;position:fixed;top:68px;left:12px;right:12px;background:#fff;border:1px solid var(--border);border-radius:20px;padding:20px 24px;gap:20px;box-shadow:0 20px 50px rgba(12,27,51,.15);z-index:99}
   .nav-cta.open{display:block;margin-top:8px;text-align:center}
+  .hero{margin:72px 12px 0;padding:60px 24px 90px;min-height:600px}
+  #how,#register,#contact{margin:0 12px}
+  .steps{grid-template-columns:1fr}
   .about-grid,.contact-grid{grid-template-columns:1fr}
   .form-grid{grid-template-columns:1fr}
-  .stats-strip{gap:32px}
-  footer{flex-direction:column;text-align:center}
-  .register-wrap{padding:32px 24px}
+  .stats-strip{grid-template-columns:1fr 1fr;gap:12px;margin-top:-32px}
+  footer{flex-direction:column;text-align:center;margin:0 12px 12px}
+  .register-wrap{padding:28px 20px}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+  .hero-slide.s2,.hero-slide.s3,.hero-slide.s4{display:none}
 }
 </style>
 </head>
 <body>
-<div style="position:fixed;top:0;left:0;right:0;height:3px;z-index:200;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#FF6B00);box-shadow:0 0 12px rgba(0,212,170,.4)"></div>
+<div style="position:fixed;top:0;left:0;right:0;height:3px;z-index:200;background:linear-gradient(90deg,#2c5fae,#58a6c8);box-shadow:0 0 12px rgba(44,95,174,.4)"></div>
 
 <nav>
-  <a href="#" class="nav-logo">SMARTEST&nbsp;GUIDE<span style="width:7px;height:7px;border-radius:50%;background:var(--gold);display:inline-block;margin-left:4px;margin-bottom:-1px;box-shadow:0 0 8px rgba(255,107,0,.8)"></span></a>
+  <a href="#" class="nav-logo" translate="no">SMARTEST&nbsp;GUIDE<span style="width:7px;height:7px;border-radius:50%;background:var(--gold);display:inline-block;margin-left:4px;margin-bottom:-1px;box-shadow:0 0 8px rgba(255,107,0,.8)"></span></a>
   <ul class="nav-links" id="nav-links">
     <li><a href="#how">How it works</a></li>
     <li><a href="#features">Features</a></li>
@@ -226,6 +270,12 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
 </nav>
 
 <section class="hero">
+  <img class="hero-slide" fetchpriority="high" src="https://images.pexels.com/photos/6758532/pexels-photo-6758532.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="Moderní hotel — exteriér">
+  <img class="hero-slide s2" loading="lazy" src="https://images.pexels.com/photos/9746967/pexels-photo-9746967.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="">
+  <img class="hero-slide s3" loading="lazy" src="https://images.pexels.com/photos/13325113/pexels-photo-13325113.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="">
+  <img class="hero-slide s4" loading="lazy" src="https://images.pexels.com/photos/6758532/pexels-photo-6758532.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="" aria-hidden="true">
+  <div class="hero-overlay"></div>
+  <div class="hero-scrim"></div>
   <div class="hero-badge" id="hero-badge">✦ AI-Powered Hotel Concierge</div>
   <h1 id="hero-h1">Stop answering the same questions. Let <span class="grad-text">Alex</span> handle it.</h1>
   <p id="hero-p">SMARTEST GUIDE answers your guests' questions 24/7 — in 100+ languages, from a QR code at reception. No app installation required, no extra staff.</p>
@@ -233,52 +283,126 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
     <a href="#register" class="btn-primary" id="hero-btn1">Start 14-day free trial →</a>
     <a href="#how" class="btn-ghost" id="hero-btn2">See how it works</a>
   </div>
-  <div style="margin:0 auto 48px;max-width:620px;text-align:center">
-    <div id="flags-title" style="font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#5a5a6a;margin-bottom:14px">Fluent in 100+ languages</div>
-    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px 7px">
-      <img src="https://flagcdn.com/w40/cz.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="CZ">
+  <div style="margin:0;max-width:100%;text-align:left">
+    <div id="flags-title" style="font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.75);margin-bottom:14px">Fluent in 100+ languages</div>
+    <div id="flags-row" style="display:flex;flex-wrap:nowrap;overflow:hidden;justify-content:flex-start;align-items:center;gap:8px 7px">
       <img src="https://flagcdn.com/w40/gb.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="EN">
+      <img src="https://flagcdn.com/w40/cz.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="CS">
       <img src="https://flagcdn.com/w40/de.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="DE">
       <img src="https://flagcdn.com/w40/fr.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="FR">
       <img src="https://flagcdn.com/w40/it.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="IT">
       <img src="https://flagcdn.com/w40/es.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="ES">
       <img src="https://flagcdn.com/w40/pl.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="PL">
-      <img src="https://flagcdn.com/w40/sk.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="SK">
       <img src="https://flagcdn.com/w40/hu.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="HU">
-      <img src="https://flagcdn.com/w40/ru.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="RU">
-      <img src="https://flagcdn.com/w40/ua.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="UA">
-      <img src="https://flagcdn.com/w40/cn.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="ZH">
-      <img src="https://flagcdn.com/w40/jp.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="JP">
-      <img src="https://flagcdn.com/w40/sa.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="AR">
       <img src="https://flagcdn.com/w40/nl.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="NL">
       <img src="https://flagcdn.com/w40/pt.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="PT">
-    </div>
-  </div>
-  <div class="hero-mockup">
-    <div class="mock-bar">
-      <div class="mock-dot" style="background:#ff4f6a"></div>
-      <div class="mock-dot" style="background:#ffaa33"></div>
-      <div class="mock-dot" style="background:#2ecc87"></div>
-      <span class="mock-bar-title">Alex — SmartestGuide · Hotel Zlatá hvězda</span>
-    </div>
-    <div class="mock-chat">
-      <div class="mock-msg bot"><div class="mock-av">🤖</div><div class="mock-bubble" id="chat-b1">Hi! I'm Alex, your personal concierge. How can I help you today? 👋</div></div>
-      <div class="mock-msg user"><div class="mock-av">JD</div><div class="mock-bubble" id="chat-u1">What time does breakfast start?</div></div>
-      <div class="mock-msg bot"><div class="mock-av">🤖</div><div class="mock-bubble" id="chat-b2">Breakfast is served from <strong>7:00 to 10:30 AM</strong> in the hotel restaurant on the ground floor. Enjoy! 🍳</div></div>
-      <div class="mock-msg user"><div class="mock-av">JD</div><div class="mock-bubble" id="chat-u2">Is there parking nearby?</div></div>
-      <div class="mock-msg bot"><div class="mock-av">🤖</div><div class="mock-bubble" id="chat-b3">Yes! The hotel has a <strong>private parking lot</strong> right behind the building — free for guests. 🅿️</div></div>
+      <img src="https://flagcdn.com/w40/jp.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="JA">
+      <img src="https://flagcdn.com/w40/gr.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="EL">
+      <img src="https://flagcdn.com/w40/us.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="EN-US">
+      <img src="https://flagcdn.com/w40/ca.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="EN-CA">
+      <img src="https://flagcdn.com/w40/au.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="EN-AU">
+      <img src="https://flagcdn.com/w40/mx.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="ES-MX">
+      <img src="https://flagcdn.com/w40/ar.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="ES-AR">
+      <img src="https://flagcdn.com/w40/br.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="PT-BR">
+      <img src="https://flagcdn.com/w40/ch.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="DE-CH">
+      <img src="https://flagcdn.com/w40/at.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="DE-AT">
+      <img src="https://flagcdn.com/w40/sk.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="SK">
+      <img src="https://flagcdn.com/w40/ie.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="EN-IE">
+      <img src="https://flagcdn.com/w40/be.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="NL-BE">
+      <img src="https://flagcdn.com/w40/dk.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="DA">
+      <img src="https://flagcdn.com/w40/se.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="SV">
+      <img src="https://flagcdn.com/w40/no.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="NO">
+      <img src="https://flagcdn.com/w40/fi.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="FI">
+      <img src="https://flagcdn.com/w40/il.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="HE">
+      <img src="https://flagcdn.com/w40/ae.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="AR-AE">
+      <img src="https://flagcdn.com/w40/sg.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="EN-SG">
+      <img src="https://flagcdn.com/w40/nz.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="EN-NZ">
+      <img src="https://flagcdn.com/w40/eg.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="AR-EG">
+      <img src="https://flagcdn.com/w40/cn.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="ZH">
+      <img src="https://flagcdn.com/w40/in.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="HI">
+      <img src="https://flagcdn.com/w40/sa.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="AR">
+      <img src="https://flagcdn.com/w40/id.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="ID">
+      <img src="https://flagcdn.com/w40/tr.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="TR">
+      <img src="https://flagcdn.com/w40/hk.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="YUE">
+      <img src="https://flagcdn.com/w40/ph.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="TL">
+      <img src="https://flagcdn.com/w40/vn.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="VI">
+      <img src="https://flagcdn.com/w40/kr.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="KO">
+      <img src="https://flagcdn.com/w40/th.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="TH">
+      <img src="https://flagcdn.com/w40/za.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="ZU">
+      <img src="https://flagcdn.com/w40/ro.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="RO">
+    
+      <span id="flags-more" style="flex-shrink:0;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);backdrop-filter:blur(6px);border-radius:99px;padding:4px 12px;font-size:12px;font-weight:700;color:#fff;white-space:nowrap"></span>
     </div>
   </div>
 </section>
 
-<div class="stats-strip">
+<div class="stats-strip" data-reveal>
   <div class="stat"><div class="stat-num">100+</div><div class="stat-label" id="stat1-label">Languages supported</div></div>
   <div class="stat"><div class="stat-num">24/7</div><div class="stat-label" id="stat2-label">Always available</div></div>
   <div class="stat"><div class="stat-num">&lt;2s</div><div class="stat-label" id="stat3-label">Average response time</div></div>
   <div class="stat"><div class="stat-num">0</div><div class="stat-label" id="stat4-label">Apps to install</div></div>
 </div>
 
-<section id="how">
+<section id="qrflow" data-reveal>
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="eyebrow" id="qr-eyebrow">How simple it is</span>
+      <h2 id="qr-h2">From QR code to answer in seconds</h2>
+    </div>
+    <div class="qr-flow">
+      <div class="qr-card">
+        <div style="display:inline-block;background:#f1f4fa;border-radius:12px;padding:12px;margin-bottom:18px">
+          <div style="display:grid;grid-template-columns:repeat(7,7px);gap:2px">
+            <!-- dekorativní QR mřížka -->
+            <i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i>
+            <i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i>
+            <i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i></i>
+            <i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i>
+            <i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i></i><i></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i>
+            <i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i>
+            <i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i><i style="background:#0c1b33;width:7px;height:7px;border-radius:1px"></i>
+          </div>
+        </div>
+        <h3 id="qr1-h">1 · Guest scans the QR</h3><p id="qr1-p">Poster at reception or in the room.</p>
+      </div>
+      <div class="qr-line"><div class="dot"></div></div>
+      <div class="qr-card">
+        <div style="width:64px;height:110px;border:2px solid #2c5fae;border-radius:14px;margin:0 auto 18px;position:relative;background:#fbfcfe"><div style="position:absolute;top:8px;left:8px;right:8px;height:8px;border-radius:4px;background:#2c5fae;opacity:.5"></div><div style="position:absolute;top:24px;left:8px;right:20px;height:8px;border-radius:4px;background:#e3e9f4;animation:sgPhoneMsg 2.6s infinite"></div><div style="position:absolute;top:38px;left:20px;right:8px;height:8px;border-radius:4px;background:#2c5fae;animation:sgPhoneMsg 2.6s 1.2s infinite"></div></div>
+        <h3 id="qr2-h">2 · Chat opens in the browser</h3><p id="qr2-p">No app, no sign-up.</p>
+      </div>
+      <div class="qr-line d2"><div class="dot"></div></div>
+      <div class="qr-card">
+        <div style="height:110px;display:flex;flex-direction:column;gap:8px;justify-content:center;margin-bottom:18px"><div style="align-self:flex-end;background:#2c5fae;color:#fff;border-radius:12px 12px 4px 12px;padding:8px 12px;font-size:12px;font-weight:600" id="qr3-demo-q">Kdy je snídaně?</div><div style="align-self:flex-start;background:#eef3fc;border-radius:12px 12px 12px 4px;padding:8px 12px;font-size:12px;font-weight:600;color:#0c1b33" id="qr3-demo-a">7:00–10:30 v přízemí 🍳</div></div>
+        <h3 id="qr3-h">3 · Alex answers within 2 seconds</h3><p id="qr3-p">In the guest's language, anytime.</p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:22px;margin-top:60px">
+      <div style="text-align:center">
+        <span class="eyebrow" id="demo-eyebrow">Live demo</span>
+        <div style="font-family:var(--font-display);font-size:28px;font-weight:800" id="demo-h2">This is how Alex answers your guests</div>
+      </div>
+      <div class="hero-mockup">
+        <div class="mock-bar">
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#2c5fae,#58a6c8);display:grid;place-items:center;font-size:17px;color:#fff;font-weight:800">✦</div>
+          <span class="mock-bar-title" style="text-align:left"><b style="font-family:var(--font-display);font-size:14px;color:var(--text)">Alex — SmartestGuide</b><br><span style="color:#19b57e;font-size:11px">● online · <span id="demo-hotel">Your hotel</span></span></span>
+        </div>
+        <div class="mock-chat">
+          <div class="mock-msg bot"><div class="mock-av" style="color:#fff;font-weight:800">✦</div><div class="mock-bubble" id="chat-b1">Hi! I'm Alex, your personal concierge. How can I help you today? 👋</div></div>
+          <div class="mock-msg user"><div class="mock-av">JD</div><div class="mock-bubble" id="chat-u1">What time does breakfast start?</div></div>
+          <div class="mock-msg bot"><div class="mock-av" style="color:#fff;font-weight:800">✦</div><div class="mock-bubble" id="chat-b2">Breakfast is served from <strong>7:00 to 10:30 AM</strong> in the hotel restaurant on the ground floor. Enjoy! 🍳</div></div>
+          <div class="mock-msg user"><div class="mock-av">JD</div><div class="mock-bubble" id="chat-u2">Is there parking nearby?</div></div>
+          <div class="mock-msg bot"><div class="mock-av" style="color:#fff;font-weight:800">✦</div><div class="mock-bubble" id="chat-b3">Yes! The hotel has a <strong>private parking lot</strong> right behind the building — free for guests. 🅿️</div></div>
+          <div class="mock-msg user"><div class="mock-av">JD</div><div class="mock-bubble" id="chat-u3">Can I see the menu?</div></div>
+          <div class="mock-msg bot"><div class="mock-av" style="color:#fff;font-weight:800">✦</div><div class="mock-bubble" id="chat-b4">Of course! 🍽 <strong>Today's menu:</strong><br>🥣 Beef broth<br>🍗 Roast chicken, potatoes<br>🍰 Apple strudel</div></div>
+          <div class="mock-typing" id="mock-typing" style="display:none"><div class="tb"><span></span><span></span><span></span></div></div>
+        </div>
+        <div style="display:flex;gap:8px;padding:13px 16px;border-top:1px solid #eef2f9;background:#fff"><div style="flex:1;background:#f1f4fa;border-radius:99px;padding:10px 14px;font-size:12px;color:#8093b3" id="mock-input-ph">Napište zprávu…</div><div style="width:36px;height:36px;border-radius:50%;background:#f1f4fa;display:grid;place-items:center;font-size:15px" title="Voice input">🎤</div><div style="width:36px;height:36px;border-radius:50%;background:#2c5fae;display:grid;place-items:center;color:#fff;font-size:14px">➤</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how" data-reveal>
   <div class="section-inner">
     <div class="section-header">
       <span class="eyebrow" id="how-eyebrow">Process</span>
@@ -286,15 +410,15 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       <p id="how-p">SMARTEST GUIDE trains in one day — and you can keep teaching it new things it will remember.</p>
     </div>
     <div class="steps">
-      <div class="step"><div class="step-num">01</div><h3 id="step1-h">Register</h3><p id="step1-p">Fill in your hotel name, website URL and number of beds. Complete the payment.</p></div>
-      <div class="step"><div class="step-num">02</div><h3 id="step2-h">We import your hotel data</h3><p id="step2-p">We prepare your hotel profile based on the information you provide — quickly and without unnecessary effort on your part.</p></div>
-      <div class="step"><div class="step-num">03</div><h3 id="step3-h">Review & complete</h3><p id="step3-p">Log into your hotel portal and fill in any missing details — hours, services, local tips. Alex will learn it instantly.</p></div>
-      <div class="step"><div class="step-num">04</div><h3 id="step4-h">Print & place</h3><p id="step4-p">Print your QR poster and place it in the lobby or rooms. Guests scan and start chatting instantly.</p></div>
+      <div class="step"><div class="step-photo"><img src="https://images.pexels.com/photos/19893582/pexels-photo-19893582.jpeg?auto=compress&cs=tinysrgb&w=800" alt="" style="object-position:center 60%"><div class="step-num">01</div></div><h3 id="step1-h">Register & try 14 days free</h3><p id="step1-p">Answer a few quick questions about your hotel and complete the registration.</p></div>
+      <div class="step"><div class="step-photo"><img src="https://images.pexels.com/photos/4050290/pexels-photo-4050290.jpeg?auto=compress&cs=tinysrgb&w=800" alt="" style="object-position:center 35%"><div class="step-num">02</div></div><h3 id="step2-h">We import your hotel data</h3><p id="step2-p">We prepare your hotel profile based on the information you provide — quickly and without unnecessary effort on your part.</p></div>
+      <div class="step"><div class="step-photo"><img src="https://images.pexels.com/photos/3182812/pexels-photo-3182812.jpeg?auto=compress&cs=tinysrgb&w=800" alt="" style="object-position:center 30%"><div class="step-num">03</div></div><h3 id="step3-h">Review & complete</h3><p id="step3-p">Log in to the portal and fill in the missing details — think like your guest. They often crave authentic experiences, hidden local spots and the specialities of your region. They always appreciate advice from someone who lives there and knows it best — and that is exactly what you can now give them — without limits.</p></div>
+      <div class="step"><div class="step-photo"><img src="https://images.pexels.com/photos/7942138/pexels-photo-7942138.jpeg?auto=compress&cs=tinysrgb&w=800" alt="" style="object-position:center 70%"><div class="step-num">04</div></div><h3 id="step4-h">Print & place</h3><p id="step4-p">Download the QR poster and place it in the lobby (by reception) or in the rooms. Guests scan it and get instant access to relevant information in their language — information you have full control over, so it is always accurate.</p></div>
     </div>
   </div>
 </section>
 
-<section id="features" style="background:#faf9f5">
+<section id="features" data-reveal>
   <div class="section-inner">
     <div class="section-header">
       <span class="eyebrow" id="feat-eyebrow">Features</span>
@@ -302,35 +426,16 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
       <p id="feat-p">Quick answers to their questions — anytime, clearly, in their language.</p>
     </div>
     <div class="features-grid">
-      <div class="feature"><div class="feat-icon">🌍</div><div class="feat-body"><h3 id="feat1-h">In your language</h3><p id="feat1-p">Quick answers in 100+ languages — Alex automatically detects the guest's language and responds naturally.</p></div></div>
-      <div class="feature"><div class="feat-icon teal">🎤</div><div class="feat-body"><h3 id="feat2-h">Voice control</h3><p id="feat2-p">Guests can say their question out loud. Works on Android and Chrome — no typing required.</p></div></div>
-      <div class="feature"><div class="feat-icon">📱</div><div class="feat-body"><h3 id="feat3-h">No app installation needed</h3><p id="feat3-p">Guests scan a QR code and the concierge opens instantly in their browser. No download, no account.</p></div></div>
-      <div class="feature"><div class="feat-icon teal">🌤</div><div class="feat-body"><h3 id="feat4-h">Live weather</h3><p id="feat4-p">Instant local weather for your hotel's location — temperature, wind, humidity — in real time.</p></div></div>
-      <div class="feature"><div class="feat-icon">🗺</div><div class="feat-body"><h3 id="feat5-h">Local tips</h3><p id="feat5-p">Alex knows the neighbourhood: restaurants, sights, activities — all curated by you in the portal.</p></div></div>
-      <div class="feature"><div class="feat-icon teal">✏️</div><div class="feat-body"><h3 id="feat6-h">Always learning</h3><p id="feat6-p">SMARTEST GUIDE trains in one day — and you can keep teaching it new things it will remember.</p></div></div>
-    </div>
-    <div class="lang-strip">
-      <img src="https://flagcdn.com/w40/cz.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="CZ">
-      <img src="https://flagcdn.com/w40/gb.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="EN">
-      <img src="https://flagcdn.com/w40/de.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="DE">
-      <img src="https://flagcdn.com/w40/fr.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="FR">
-      <img src="https://flagcdn.com/w40/it.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="IT">
-      <img src="https://flagcdn.com/w40/es.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="ES">
-      <img src="https://flagcdn.com/w40/pl.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="PL">
-      <img src="https://flagcdn.com/w40/sk.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="SK">
-      <img src="https://flagcdn.com/w40/hu.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="HU">
-      <img src="https://flagcdn.com/w40/ru.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="RU">
-      <img src="https://flagcdn.com/w40/ua.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="UA">
-      <img src="https://flagcdn.com/w40/cn.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="ZH">
-      <img src="https://flagcdn.com/w40/jp.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="JP">
-      <img src="https://flagcdn.com/w40/sa.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="AR">
-      <img src="https://flagcdn.com/w40/nl.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="NL">
-      <img src="https://flagcdn.com/w40/pt.png" width="28" height="19" style="border-radius:3px;outline:1px solid rgba(255,255,255,.12);outline-offset:-1px;box-shadow:0 1px 4px rgba(0,0,0,.5)" alt="PT">
+      <div class="feature"><img class="feat-photo" src="https://images.pexels.com/photos/9263510/pexels-photo-9263510.jpeg?auto=compress&cs=tinysrgb&w=1200" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat1-h">🌍 Communication in their language</h3><p id="feat1-p">Quick answers in 100+ languages — Alex automatically detects the guest's language and responds naturally.</p></div></div>
+      <div class="feature"><img class="feat-photo" src="https://images.pexels.com/photos/699122/pexels-photo-699122.jpeg?auto=compress&cs=tinysrgb&w=800" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat2-h">🎤 Voice control</h3><p id="feat2-p">Guests can say their question out loud. Works on Android and Chrome — no typing required.</p></div></div>
+      <div class="feature"><img class="feat-photo" src="https://images.pexels.com/photos/230544/pexels-photo-230544.jpeg?auto=compress&cs=tinysrgb&w=800" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat3-h">📱 No app installation needed</h3><p id="feat3-p">Guests scan a QR code and the concierge opens instantly in their browser. No download, no account.</p></div></div>
+      <div class="feature"><img class="feat-photo" src="https://images.pexels.com/photos/209831/pexels-photo-209831.jpeg?auto=compress&cs=tinysrgb&w=800" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat4-h">🌤 Live weather</h3><p id="feat4-p">Instant local weather for your hotel's location — temperature, wind, humidity — in real time.</p></div></div>
+      <div class="feature"><img class="feat-photo" src="https://images.pexels.com/photos/460621/pexels-photo-460621.jpeg?auto=compress&cs=tinysrgb&w=800" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat5-h">🗺 Local tips</h3><p id="feat5-p">Thanks to you, Alex knows the area like a local — so it gives guests the best advice on activities, sights and local specialities.</p></div></div>
     </div>
   </div>
 </section>
 
-<section id="pricing">
+<section id="pricing" data-reveal>
   <div class="section-inner">
     <div class="section-header">
       <span class="eyebrow" id="pricing-eyebrow">Pricing</span>
@@ -351,57 +456,59 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
         </ul>
       </div>
       <!-- Kalkulačka s posuvníkem -->
-      <div style="background:#ffffff;border:2px solid var(--gold);border-radius:20px;padding:32px 28px;text-align:center;box-shadow:0 12px 40px rgba(255,107,0,.10);display:flex;flex-direction:column">
-        <div style="font-size:13px;color:#4a4a4a;margin-bottom:6px" id="calc-label">Počet lůžek ve vašem hotelu</div>
+      <div style="background:linear-gradient(160deg,#2c5fae,#1e3a66);border:none;border-radius:20px;padding:32px 28px;text-align:center;box-shadow:0 24px 60px rgba(12,27,51,.25);display:flex;flex-direction:column;color:#fff">
+        <div style="font-size:14px;color:#c9dbff;margin-bottom:6px;font-weight:600" id="calc-label">Počet lůžek ve vašem hotelu</div>
         <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:6px">
-          <input type="number" id="calc-beds-input" min="1" max="3000" value="50" inputmode="numeric" title="Klikněte a zadejte počet lůžek" style="width:96px;font-size:22px;font-weight:800;color:#1a1a1a;text-align:center;border:1.5px solid rgba(255,107,0,.45);border-radius:10px;padding:6px 10px;background:rgba(255,107,0,.06);cursor:text">
-          <span id="calc-beds-unit" style="font-size:22px;font-weight:800;color:#1a1a1a">lůžek</span>
+          <input type="number" id="calc-beds-input" min="1" max="3000" value="50" inputmode="numeric" title="Klikněte a zadejte počet lůžek" style="width:96px;font-size:22px;font-weight:800;color:#fff;text-align:center;border:1px solid rgba(255,255,255,.3);border-radius:12px;padding:6px 10px;background:rgba(255,255,255,.15);cursor:text;font-family:var(--font-display)">
+          <span id="calc-beds-unit" style="font-size:22px;font-weight:800;color:#fff">lůžek</span>
         </div>
-        <div id="calc-beds-hint" style="font-size:11px;color:var(--accent);font-weight:600;margin-bottom:14px">↑ Klikněte a napište přesný počet lůžek</div>
-        <input type="range" id="calc-slider" min="10" max="3000" step="10" value="50" style="width:100%;accent-color:var(--accent);margin-bottom:20px;cursor:pointer">
-        <div style="font-size:44px;font-weight:800;color:var(--accent);line-height:1"><span id="calc-price">199</span> €<span style="font-size:16px;color:#4a4a4a;font-weight:600"> / <span id="calc-per-month">měsíc</span></span></div>
-        <div style="font-size:13px;color:#4a4a4a;margin-top:10px" id="calc-formula"></div>
+        <div id="calc-beds-hint" style="font-size:11px;color:rgba(255,255,255,.92);font-weight:600;margin-bottom:14px">↑ Vyplňte přesně — počet lůžek má vliv na přesnost a možnosti vašeho AI concierge</div>
+        <input type="range" id="calc-slider" min="10" max="3000" step="10" value="50" style="width:100%;accent-color:#a9cbe8;margin-bottom:20px;cursor:pointer">
+        <div style="font-size:44px;font-weight:800;color:#fff;line-height:1;font-family:var(--font-display)"><span id="calc-price">199</span> €<span style="font-size:16px;color:#c9dbff;font-weight:600"> / <span id="calc-per-month">měsíc</span></span></div>
+        <div style="font-size:13px;color:#c9dbff;margin-top:10px" id="calc-formula"></div>
         <div style="flex:1"></div>
-        <a href="#register" class="btn-primary" style="display:inline-block;margin-top:20px;padding:13px 30px" id="calc-cta">Začít →</a>
-        <div style="color:var(--teal);font-weight:600;margin-top:12px;font-size:13px" id="calc-trial">✓ 14 dní zdarma — dnes bez platby</div>
-        <div style="color:#4a4a4a;font-size:11px;margin-top:8px" id="calc-vat">✓ Cena je konečná.</div>
+        <a href="#register" id="calc-cta" style="display:inline-block;margin-top:20px;padding:14px 30px;background:#fff;color:#1e3a66;font-weight:700;font-size:16px;border-radius:99px;text-decoration:none">Začít →</a>
+        <div style="color:rgba(255,255,255,.95);font-weight:600;margin-top:12px;font-size:13px" id="calc-trial">✓ 14 dní zdarma — dnes bez platby</div>
+        <div style="color:rgba(255,255,255,.85);font-size:11px;margin-top:8px" id="calc-vat">✓ Cena je konečná.</div>
       </div>
     </div>
   </div>
-    <div style="text-align:center;margin-top:32px;padding:18px 24px;background:rgba(0,212,170,.06);border:1px solid rgba(0,212,170,.2);border-radius:12px;max-width:700px;margin-left:auto;margin-right:auto" id="pricing-compare-box">
-      <span style="font-size:14px;color:var(--dim)" id="pricing-compare">💡 <strong style="color:var(--text)">Perspective:</strong> SMARTEST GUIDE works 24/7 for a low monthly fee — always friendly, never sleeps, never needs a holiday or insurance. <strong style="color:var(--teal)">€<span id="price-per-day">7</span>/day</strong> for non-stop service in 100+ languages.</span>
+    <div style="text-align:center;margin-top:32px;padding:20px 28px;background:#e8effc;border:none;border-radius:16px;max-width:700px;margin-left:auto;margin-right:auto" id="pricing-compare-box">
+      <span style="font-size:14px;color:var(--dim)" id="pricing-compare">💡 <strong style="color:var(--text)">Perspective:</strong> SMARTEST GUIDE works 24/7 for a low monthly fee — always friendly, never sleeps, never needs a holiday or insurance. <strong style="color:var(--teal)">€<span id="price-per-day">7</span>/day</strong> for non-stop service in 100+ languages — serving many guests at once, in real time, with no waiting.</span>
     </div>
 </div>
 </section>
 
-<section>
-  <div class="section-inner">
-    <div class="section-header">
-      <span class="eyebrow" id="reviews-eyebrow">Results</span>
-      <h2 id="reviews-h2">What SMARTEST GUIDE <span class="grad-text">delivers</span></h2>
+<section style="position:relative;overflow:hidden;border-radius:32px;margin:0 24px;padding:100px 56px" data-reveal>
+  <img src="https://images.pexels.com/photos/3124079/pexels-photo-3124079.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+  <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,16,35,.85),rgba(7,16,35,.55))"></div>
+  <div class="section-inner" style="position:relative;color:#fff">
+    <div class="section-header" style="text-align:left;margin-bottom:40px">
+      <span class="eyebrow" style="color:var(--lightblue)" id="reviews-eyebrow">Results</span>
+      <h2 id="reviews-h2" style="color:#fff">What SMARTEST GUIDE <span class="grad-text">delivers</span></h2>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;margin-bottom:40px">
-      <div style="background:#faf9f5;border:1px solid var(--border);border-radius:16px;padding:28px 24px;text-align:center">
-        <div style="font-family:var(--font-display);font-size:42px;font-weight:800;color:var(--gold);line-height:1.1;margin-bottom:8px">24/7</div>
-        <div style="font-size:14px;color:var(--dim);line-height:1.5" id="stat-card1">Always available<br>never sleeps, never on holiday</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px">
+      <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(10px);border-radius:18px;padding:30px;text-align:left">
+        <div style="font-family:var(--font-display);font-size:40px;font-weight:800;color:var(--lightblue);line-height:1.1;margin-bottom:8px">24/7</div>
+        <div style="font-size:14px;color:#dbe4f5;line-height:1.5" id="stat-card1">Always available<br>never sleeps, never on holiday</div>
       </div>
-      <div style="background:#faf9f5;border:1px solid var(--border);border-radius:16px;padding:28px 24px;text-align:center">
-        <div style="font-family:var(--font-display);font-size:42px;font-weight:800;color:var(--gold);line-height:1.1;margin-bottom:8px">100+</div>
-        <div style="font-size:14px;color:var(--dim);line-height:1.5" id="stat-card2">languages — guests get answers<br>in their own language</div>
+      <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(10px);border-radius:18px;padding:30px;text-align:left">
+        <div style="font-family:var(--font-display);font-size:40px;font-weight:800;color:var(--lightblue);line-height:1.1;margin-bottom:8px">100+</div>
+        <div style="font-size:14px;color:#dbe4f5;line-height:1.5" id="stat-card2">languages — guests get answers<br>in their own language</div>
       </div>
-      <div style="background:#faf9f5;border:1px solid var(--border);border-radius:16px;padding:28px 24px;text-align:center">
-        <div style="font-family:var(--font-display);font-size:42px;font-weight:800;color:var(--gold);line-height:1.1;margin-bottom:8px">&lt;2s</div>
-        <div style="font-size:14px;color:var(--dim);line-height:1.5" id="stat-card3">average response time<br>instant reply for every guest</div>
+      <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(10px);border-radius:18px;padding:30px;text-align:left">
+        <div style="font-family:var(--font-display);font-size:40px;font-weight:800;color:var(--lightblue);line-height:1.1;margin-bottom:8px">&lt;2s</div>
+        <div style="font-size:14px;color:#dbe4f5;line-height:1.5" id="stat-card3">average response time<br>instant reply for every guest</div>
       </div>
-      <div style="background:#faf9f5;border:1px solid var(--border);border-radius:16px;padding:28px 24px;text-align:center">
-        <div style="font-family:var(--font-display);font-size:42px;font-weight:800;color:var(--gold);line-height:1.1;margin-bottom:8px">€0</div>
-        <div style="font-size:14px;color:var(--dim);line-height:1.5" id="stat-card4">installation cost<br>no hardware, no IT required</div>
+      <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(10px);border-radius:18px;padding:30px;text-align:left">
+        <div style="font-family:var(--font-display);font-size:40px;font-weight:800;color:var(--lightblue);line-height:1.1;margin-bottom:8px">€0</div>
+        <div style="font-size:14px;color:#dbe4f5;line-height:1.5" id="stat-card4">installation cost<br>no hardware, no IT required</div>
       </div>
     </div>
   </div>
 </section>
 
-<section id="about" style="background:#faf9f5">
+<section id="about" data-reveal>
   <div class="section-inner">
     <div class="about-grid">
       <div class="about-text">
@@ -410,48 +517,290 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
         <p id="about-p1">SMARTEST GUIDE was born from a simple frustration: why do guests still have to call reception to ask when breakfast ends, where the parking is, or what's worth seeing nearby?</p>
         <p id="about-p2">We built a system that reads your website, learns your hotel, and becomes available to guests in seconds — via a QR code that works in any browser, in any language.</p>
         <p id="about-p3">We're a small team based in the Czech Republic, focused on the European hospitality market.</p>
+        <p id="about-p4">Your new concierge brings your guests brand-new experiences and advice as if from a true local — someone who has lived in your area for years and knows it inside out. Their stay with you becomes even more authentic and unforgettable.</p>
       </div>
       <div class="about-visual">
-        <div id="satis-title" style="font-size:13px;color:var(--muted);margin-bottom:16px;font-weight:600;text-transform:uppercase;letter-spacing:1px">Guest satisfaction drivers</div>
-        <div class="about-metric"><div class="metric-label" id="m1">Fast answers</div><div class="metric-bar-wrap"><div class="metric-bar" style="width:94%"></div></div><div class="metric-val">94%</div></div>
-        <div class="about-metric"><div class="metric-label" id="m2">Language match</div><div class="metric-bar-wrap"><div class="metric-bar" style="width:88%"></div></div><div class="metric-val">88%</div></div>
-        <div class="about-metric"><div class="metric-label" id="m3">24/7 availability</div><div class="metric-bar-wrap"><div class="metric-bar" style="width:100%"></div></div><div class="metric-val">100%</div></div>
-        <div class="about-metric"><div class="metric-label" id="m4">No-app experience</div><div class="metric-bar-wrap"><div class="metric-bar" style="width:100%"></div></div><div class="metric-val">100%</div></div>
+        <div id="satis-title" style="font-size:13px;color:var(--muted);margin-bottom:4px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Guest satisfaction drivers</div>
+        <div class="about-metric"><div class="metric-label" id="m1">Fast answers</div><div class="metric-bar-wrap"><div class="metric-bar" data-bar="94" style="width:94%"></div></div><div class="metric-val">94%</div></div>
+        <div class="about-metric"><div class="metric-label" id="m2">Language match</div><div class="metric-bar-wrap"><div class="metric-bar" data-bar="88" style="width:88%"></div></div><div class="metric-val">88%</div></div>
+        <div class="about-metric"><div class="metric-label" id="m3">24/7 availability</div><div class="metric-bar-wrap"><div class="metric-bar" data-bar="100" style="width:100%"></div></div><div class="metric-val">100%</div></div>
+        <div class="about-metric"><div class="metric-label" id="m4">No-app experience</div><div class="metric-bar-wrap"><div class="metric-bar" data-bar="100" style="width:100%"></div></div><div class="metric-val">100%</div></div>
+        <div class="about-photo" style="min-height:300px;margin-top:20px"><img src="https://images.pexels.com/photos/7942132/pexels-photo-7942132.jpeg?auto=compress&cs=tinysrgb&w=1200" alt="Hotelový interiér"></div>
       </div>
     </div>
   </div>
 </section>
 
-<section id="register" style="background:#1a1a1a">
-  <div class="section-inner">
+<section id="register" style="background:#0c1b33" data-reveal>
+  <div class="reg-orb o1"></div>
+  <div class="reg-orb o2"></div>
+  <div class="section-inner" style="position:relative">
     <div class="section-header">
       <span class="eyebrow" id="reg-eyebrow">Get started</span>
       <h2 id="reg-h2">Register your hotel <span class="grad-text">today</span></h2>
-      <p id="reg-p">Fill in your details below. After payment, we'll import your hotel data and send you access to your hotel portal within minutes.</p>
+      <p id="reg-p">Fill in your details below. After registration, we'll import your hotel data and send you access to your hotel portal within minutes.</p>
     </div>
     <div class="register-wrap">
       <form id="reg-form" onsubmit="return false;">
         <div class="form-grid">
-          <div class="form-group"><label id="reg-l-name">Hotel name *</label><input type="text" id="reg-name" placeholder="Grand Hotel Praha" required/><span style="font-size:11px;color:var(--muted);margin-top:2px" id="reg-name-hint">⚠️ This name will appear on all print materials and QR posters — enter it exactly as you want it printed.</span></div>
-          <div class="form-group"><label id="reg-l-url">Hotel website *</label><input type="text" id="reg-url" placeholder="https://www.yourhotel.com" required/></div>
+          <div class="form-group"><label id="reg-l-name">Hotel name *</label><input type="text" id="reg-name" placeholder="Grand Hotel" required/><span style="font-size:11px;color:var(--muted);margin-top:2px" id="reg-name-hint">⚠️ This name will appear on all print materials and QR posters — enter it exactly as you want it printed.</span></div>
+          <div class="form-group"><label id="reg-l-url">Hotel website *</label><input type="text" id="reg-url" placeholder="www.yourhotel.com" required/></div>
           <div class="form-group"><label id="reg-l-email">Contact email *</label><input type="email" id="reg-email" placeholder="reception@yourhotel.com" required/></div>
           <div class="form-group"><label id="reg-l-phone">Phone number</label><input type="tel" id="reg-phone" placeholder="+420 123 456 789"/></div>
-          <div class="form-group"><label id="reg-l-beds">Number of beds *</label><input type="number" id="reg-beds" min="1" placeholder="e.g. 80" required/></div>
+          <div class="form-group"><label id="reg-l-beds">Exact total number of beds (hotel / resort) *</label><input type="number" id="reg-beds" min="1" placeholder="e.g. 80" required/></div>
           <div class="form-group">
             <label id="reg-l-country">Country *</label>
             <select id="reg-country" required>
               <option value="" id="reg-opt-country">Select country</option>
-              <option value="AT">Austria</option><option value="BE">Belgium</option>
-              <option value="CZ">Czech Republic</option><option value="DE">Germany</option>
-              <option value="ES">Spain</option><option value="FR">France</option>
-              <option value="GB">United Kingdom</option><option value="GR">Greece</option>
-              <option value="HR">Croatia</option><option value="HU">Hungary</option>
-              <option value="IT">Italy</option><option value="NL">Netherlands</option>
-              <option value="PL">Poland</option><option value="PT">Portugal</option>
-              <option value="SK">Slovakia</option><option value="TR">Turkey</option>
-              <option value="AE">UAE</option><option value="JP">Japan</option>
-              <option value="TH">Thailand</option><option value="US">USA</option>
-              <option value="AU">Australia</option><option value="OTHER">Other</option>
+              <option value="AF">Afghanistan</option>
+              <option value="AX">Åland Islands</option>
+              <option value="AL">Albania</option>
+              <option value="DZ">Algeria</option>
+              <option value="AS">American Samoa</option>
+              <option value="AD">Andorra</option>
+              <option value="AO">Angola</option>
+              <option value="AI">Anguilla</option>
+              <option value="AQ">Antarctica</option>
+              <option value="AG">Antigua and Barbuda</option>
+              <option value="AR">Argentina</option>
+              <option value="AM">Armenia</option>
+              <option value="AW">Aruba</option>
+              <option value="AU">Australia</option>
+              <option value="AT">Austria</option>
+              <option value="AZ">Azerbaijan</option>
+              <option value="BS">Bahamas</option>
+              <option value="BH">Bahrain</option>
+              <option value="BD">Bangladesh</option>
+              <option value="BB">Barbados</option>
+              <option value="BY">Belarus</option>
+              <option value="BE">Belgium</option>
+              <option value="BZ">Belize</option>
+              <option value="BJ">Benin</option>
+              <option value="BM">Bermuda</option>
+              <option value="BT">Bhutan</option>
+              <option value="BO">Bolivia</option>
+              <option value="BQ">Bonaire, Sint Eustatius and Saba</option>
+              <option value="BA">Bosnia and Herzegovina</option>
+              <option value="BW">Botswana</option>
+              <option value="BV">Bouvet Island</option>
+              <option value="BR">Brazil</option>
+              <option value="IO">British Indian Ocean Territory</option>
+              <option value="VG">British Virgin Islands</option>
+              <option value="BN">Brunei</option>
+              <option value="BG">Bulgaria</option>
+              <option value="BF">Burkina Faso</option>
+              <option value="BI">Burundi</option>
+              <option value="CV">Cabo Verde</option>
+              <option value="KH">Cambodia</option>
+              <option value="CM">Cameroon</option>
+              <option value="CA">Canada</option>
+              <option value="KY">Cayman Islands</option>
+              <option value="CF">Central African Republic</option>
+              <option value="TD">Chad</option>
+              <option value="CL">Chile</option>
+              <option value="CN">China</option>
+              <option value="CX">Christmas Island</option>
+              <option value="CC">Cocos (Keeling) Islands</option>
+              <option value="CO">Colombia</option>
+              <option value="KM">Comoros</option>
+              <option value="CG">Congo</option>
+              <option value="CK">Cook Islands</option>
+              <option value="CR">Costa Rica</option>
+              <option value="CI">Côte d'Ivoire</option>
+              <option value="HR">Croatia</option>
+              <option value="CU">Cuba</option>
+              <option value="CW">Curaçao</option>
+              <option value="CY">Cyprus</option>
+              <option value="CZ">Czech Republic</option>
+              <option value="DK">Denmark</option>
+              <option value="DJ">Djibouti</option>
+              <option value="DM">Dominica</option>
+              <option value="DO">Dominican Republic</option>
+              <option value="CD">DR Congo</option>
+              <option value="EC">Ecuador</option>
+              <option value="EG">Egypt</option>
+              <option value="SV">El Salvador</option>
+              <option value="GQ">Equatorial Guinea</option>
+              <option value="ER">Eritrea</option>
+              <option value="EE">Estonia</option>
+              <option value="SZ">Eswatini</option>
+              <option value="ET">Ethiopia</option>
+              <option value="FK">Falkland Islands (Malvinas)</option>
+              <option value="FO">Faroe Islands</option>
+              <option value="FJ">Fiji</option>
+              <option value="FI">Finland</option>
+              <option value="FR">France</option>
+              <option value="GF">French Guiana</option>
+              <option value="PF">French Polynesia</option>
+              <option value="TF">French Southern Territories</option>
+              <option value="GA">Gabon</option>
+              <option value="GM">Gambia</option>
+              <option value="GE">Georgia</option>
+              <option value="DE">Germany</option>
+              <option value="GH">Ghana</option>
+              <option value="GI">Gibraltar</option>
+              <option value="GR">Greece</option>
+              <option value="GL">Greenland</option>
+              <option value="GD">Grenada</option>
+              <option value="GP">Guadeloupe</option>
+              <option value="GU">Guam</option>
+              <option value="GT">Guatemala</option>
+              <option value="GG">Guernsey</option>
+              <option value="GN">Guinea</option>
+              <option value="GW">Guinea-Bissau</option>
+              <option value="GY">Guyana</option>
+              <option value="HT">Haiti</option>
+              <option value="HM">Heard Island and McDonald Islands</option>
+              <option value="VA">Holy See (Vatican City State)</option>
+              <option value="HN">Honduras</option>
+              <option value="HK">Hong Kong</option>
+              <option value="HU">Hungary</option>
+              <option value="IS">Iceland</option>
+              <option value="IN">India</option>
+              <option value="ID">Indonesia</option>
+              <option value="IR">Iran</option>
+              <option value="IQ">Iraq</option>
+              <option value="IE">Ireland</option>
+              <option value="IM">Isle of Man</option>
+              <option value="IL">Israel</option>
+              <option value="IT">Italy</option>
+              <option value="JM">Jamaica</option>
+              <option value="JP">Japan</option>
+              <option value="JE">Jersey</option>
+              <option value="JO">Jordan</option>
+              <option value="KZ">Kazakhstan</option>
+              <option value="KE">Kenya</option>
+              <option value="KI">Kiribati</option>
+              <option value="KW">Kuwait</option>
+              <option value="KG">Kyrgyzstan</option>
+              <option value="LA">Laos</option>
+              <option value="LV">Latvia</option>
+              <option value="LB">Lebanon</option>
+              <option value="LS">Lesotho</option>
+              <option value="LR">Liberia</option>
+              <option value="LY">Libya</option>
+              <option value="LI">Liechtenstein</option>
+              <option value="LT">Lithuania</option>
+              <option value="LU">Luxembourg</option>
+              <option value="MO">Macao</option>
+              <option value="MG">Madagascar</option>
+              <option value="MW">Malawi</option>
+              <option value="MY">Malaysia</option>
+              <option value="MV">Maldives</option>
+              <option value="ML">Mali</option>
+              <option value="MT">Malta</option>
+              <option value="MH">Marshall Islands</option>
+              <option value="MQ">Martinique</option>
+              <option value="MR">Mauritania</option>
+              <option value="MU">Mauritius</option>
+              <option value="YT">Mayotte</option>
+              <option value="MX">Mexico</option>
+              <option value="FM">Micronesia</option>
+              <option value="MD">Moldova</option>
+              <option value="MC">Monaco</option>
+              <option value="MN">Mongolia</option>
+              <option value="ME">Montenegro</option>
+              <option value="MS">Montserrat</option>
+              <option value="MA">Morocco</option>
+              <option value="MZ">Mozambique</option>
+              <option value="MM">Myanmar</option>
+              <option value="NA">Namibia</option>
+              <option value="NR">Nauru</option>
+              <option value="NP">Nepal</option>
+              <option value="NL">Netherlands</option>
+              <option value="NC">New Caledonia</option>
+              <option value="NZ">New Zealand</option>
+              <option value="NI">Nicaragua</option>
+              <option value="NE">Niger</option>
+              <option value="NG">Nigeria</option>
+              <option value="NU">Niue</option>
+              <option value="NF">Norfolk Island</option>
+              <option value="KP">North Korea</option>
+              <option value="MK">North Macedonia</option>
+              <option value="MP">Northern Mariana Islands</option>
+              <option value="NO">Norway</option>
+              <option value="OM">Oman</option>
+              <option value="PK">Pakistan</option>
+              <option value="PW">Palau</option>
+              <option value="PS">Palestine</option>
+              <option value="PA">Panama</option>
+              <option value="PG">Papua New Guinea</option>
+              <option value="PY">Paraguay</option>
+              <option value="PE">Peru</option>
+              <option value="PH">Philippines</option>
+              <option value="PN">Pitcairn</option>
+              <option value="PL">Poland</option>
+              <option value="PT">Portugal</option>
+              <option value="PR">Puerto Rico</option>
+              <option value="QA">Qatar</option>
+              <option value="RE">Réunion</option>
+              <option value="RO">Romania</option>
+              <option value="RU">Russia</option>
+              <option value="RW">Rwanda</option>
+              <option value="BL">Saint Barthélemy</option>
+              <option value="SH">Saint Helena, Ascension and Tristan da Cunha</option>
+              <option value="KN">Saint Kitts and Nevis</option>
+              <option value="LC">Saint Lucia</option>
+              <option value="MF">Saint Martin</option>
+              <option value="PM">Saint Pierre and Miquelon</option>
+              <option value="VC">Saint Vincent and the Grenadines</option>
+              <option value="WS">Samoa</option>
+              <option value="SM">San Marino</option>
+              <option value="ST">Sao Tome and Principe</option>
+              <option value="SA">Saudi Arabia</option>
+              <option value="SN">Senegal</option>
+              <option value="RS">Serbia</option>
+              <option value="SC">Seychelles</option>
+              <option value="SL">Sierra Leone</option>
+              <option value="SG">Singapore</option>
+              <option value="SX">Sint Maarten</option>
+              <option value="SK">Slovakia</option>
+              <option value="SI">Slovenia</option>
+              <option value="SB">Solomon Islands</option>
+              <option value="SO">Somalia</option>
+              <option value="ZA">South Africa</option>
+              <option value="GS">South Georgia and the South Sandwich Islands</option>
+              <option value="KR">South Korea</option>
+              <option value="SS">South Sudan</option>
+              <option value="ES">Spain</option>
+              <option value="LK">Sri Lanka</option>
+              <option value="SD">Sudan</option>
+              <option value="SR">Suriname</option>
+              <option value="SJ">Svalbard and Jan Mayen</option>
+              <option value="SE">Sweden</option>
+              <option value="CH">Switzerland</option>
+              <option value="SY">Syria</option>
+              <option value="TW">Taiwan</option>
+              <option value="TJ">Tajikistan</option>
+              <option value="TZ">Tanzania</option>
+              <option value="TH">Thailand</option>
+              <option value="TL">Timor-Leste</option>
+              <option value="TG">Togo</option>
+              <option value="TK">Tokelau</option>
+              <option value="TO">Tonga</option>
+              <option value="TT">Trinidad and Tobago</option>
+              <option value="TN">Tunisia</option>
+              <option value="TR">Türkiye</option>
+              <option value="TM">Turkmenistan</option>
+              <option value="TC">Turks and Caicos Islands</option>
+              <option value="TV">Tuvalu</option>
+              <option value="VI">U.S. Virgin Islands</option>
+              <option value="UG">Uganda</option>
+              <option value="UA">Ukraine</option>
+              <option value="AE">United Arab Emirates</option>
+              <option value="GB">United Kingdom</option>
+              <option value="US">United States</option>
+              <option value="UM">United States Minor Outlying Islands</option>
+              <option value="UY">Uruguay</option>
+              <option value="UZ">Uzbekistan</option>
+              <option value="VU">Vanuatu</option>
+              <option value="VE">Venezuela</option>
+              <option value="VN">Vietnam</option>
+              <option value="WF">Wallis and Futuna</option>
+              <option value="EH">Western Sahara</option>
+              <option value="YE">Yemen</option>
+              <option value="ZM">Zambia</option>
+              <option value="ZW">Zimbabwe</option>
             </select>
           </div>
           <div class="form-group"><label id="reg-l-ico">IČO <small style="color:var(--muted)">(for invoicing)</small></label><input type="text" id="reg-ico" placeholder="12345678" inputmode="numeric" onblur="aresAutofill()"/><span id="reg-ico-hint" style="font-size:11px;color:var(--muted);margin-top:2px;display:block"></span></div>
@@ -460,16 +809,16 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
             <label id="reg-l-source">How did you hear about us?</label>
             <select id="reg-source">
               <option value="" id="reg-opt-source">Select...</option>
-              <option id="reg-src-google">Google search</option><option id="reg-src-social">Social media</option>
+              <option id="reg-src-google">Internet search</option><option id="reg-src-social">LinkedIn</option>
               <option id="reg-src-rec">Recommendation</option><option id="reg-src-fair">Trade fair / event</option><option id="reg-src-other">Other</option>
             </select>
           </div>
         </div>
 
-        <div id="price-preview" style="background:var(--ink);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-top:16px;display:none">
+        <div id="price-preview" style="background:#e8effc;border:none;border-radius:14px;padding:18px 22px;margin-top:16px;display:none">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <span id="price-sub" style="font-size:14px;color:var(--dim)">Monthly subscription</span>
-            <span id="price-val" style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--teal)"></span>
+            <span id="price-val" style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--gold)"></span>
           </div>
           <div id="price-intro" style="font-size:11px;color:var(--muted);margin-top:4px">Introductory price — locked in for first 3 months</div>
           <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px">
@@ -485,19 +834,20 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
               <span id="reg-gdpr-text">I agree to the <a href="/privacy" target="_blank" style="color:var(--teal)">Privacy Policy</a> and <a href="/terms" target="_blank" style="color:var(--teal)">Terms of Service</a>. I understand my hotel data will be processed to provide the SMARTEST GUIDE service.</span>
             </label>
           </div>
-          <button type="button" class="form-submit" id="reg-btn" style="margin-top:20px" onclick="submitForm()">Continue to payment →</button>
+          <button type="button" class="form-submit" id="reg-btn" style="margin-top:20px" onclick="submitForm()">Continue to registration & payment →</button>
         <div class="form-note" id="reg-note">14-day free trial · Card required, no charge today · Cancel anytime</div>
       </form>
     </div>
   </div>
 </section>
 
-<section id="contact" style="background:#faf9f5">
+<section id="contact" data-reveal>
   <div class="section-inner">
-    <div style="max-width:560px;margin:0 auto">
-      <div style="text-align:center;margin-bottom:28px">
+    <div class="contact-grid">
+      <div class="contact-info">
         <span class="eyebrow" id="contact-eyebrow">Contact</span>
         <h2 id="contact-h2">Got a question?<br><span class="grad-text">Let's talk.</span></h2>
+        <p id="contact-p">We'll get back to you within one business day.</p>
       </div>
       <div>
         <form class="contact-form" onsubmit="submitContact(event)">
@@ -511,8 +861,8 @@ footer{padding:40px 5vw;border-top:1px solid var(--border);display:flex;align-it
   </div>
 </section>
 
-<footer style="background:#1a1a1a;border-top:1px solid rgba(255,255,255,.06)">
-  <div class="footer-logo">SMARTEST&nbsp;GUIDE<span style="width:6px;height:6px;border-radius:50%;background:var(--gold);display:inline-block;margin-left:3px;margin-bottom:-1px"></span></div>
+<footer>
+  <div class="footer-logo" translate="no">SMARTEST<span class="t">GUIDE</span></div>
   <div class="footer-links">
     <a href="#how">How it works</a><a href="#pricing">Pricing</a>
     <a href="#about">About</a><a href="#contact">Contact</a>
@@ -560,6 +910,12 @@ function sgSetBeds(beds){
   const bEl=document.getElementById('calc-beds'); if(bEl) bEl.textContent=beds;
   const pEl=document.getElementById('calc-price'); if(pEl) pEl.textContent=calcSgPrice(beds);
   updCalcFormula();
+  // Předvyplň počet lůžek v registračním formuláři podle kalkulačky —
+  // dokud ho hotel ručně nepřepíše (pak už do něj nesaháme).
+  if(!window._regBedsTouched){
+    const rb=document.getElementById('reg-beds');
+    if(rb && document.activeElement!==rb){ rb.value=beds; rb.dispatchEvent(new Event('input')); }
+  }
 }
 function updCalc(){ const s=document.getElementById('calc-slider'); if(s) sgSetBeds(s.value); }
 function updCalcFromInput(){ const inp=document.getElementById('calc-beds-input'); if(inp) sgSetBeds(inp.value); }
@@ -571,7 +927,8 @@ function updCalcFromInput(){ const inp=document.getElementById('calc-beds-input'
   sgSetBeds(50);
 })();
 
-document.getElementById('reg-beds').addEventListener('input',function(){
+document.getElementById('reg-beds').addEventListener('input',function(e){
+  if(e.isTrusted) window._regBedsTouched=true;  // ručně přepsáno hotelem → kalkulačka už nepřepisuje
   const beds=parseInt(this.value)||0;
   if(beds<1){document.getElementById('price-preview').style.display='none';return;}
   document.getElementById('price-val').textContent='€'+calcSgPrice(beds)+'/month';
@@ -700,6 +1057,17 @@ async function submitContact(e){
 
 const TRANSLATIONS={
   en:{
+    flags_more:"+{n} more languages",
+    demo_hotel:"Your hotel",
+    chat_u3:"Can I see the menu?",chat_b4:"Of course! 🍽 <strong>Today's menu:</strong><br>🥣 Beef broth<br>🍗 Roast chicken, potatoes<br>🍰 Apple strudel",
+    about_p4:"Your new concierge brings your guests brand-new experiences and advice as if from a true local — someone who has lived in your area for years and knows it inside out. Their stay with you becomes even more authentic and unforgettable.",
+    qr_eyebrow:"How simple it is",qr_h2:"From QR code to answer in seconds",
+    qr1_h:"1 · Guest scans the QR",qr1_p:"Poster at reception or in the room.",
+    qr2_h:"2 · Chat opens in the browser",qr2_p:"No app, no sign-up.",
+    qr3_h:"3 · Alex answers within 2 seconds",qr3_p:"In the guest's language, anytime.",
+    qr_demo_q:"When is breakfast?",qr_demo_a:"7:00–10:30, ground floor 🍳",
+    demo_eyebrow:"Live demo",demo_h2:"This is how Alex answers your guests",mock_ph:"Type a message…",
+    c_intro:"We'll get back to you within one business day.",
     nav_how:"How it works",nav_features:"Features",nav_pricing:"Pricing",nav_about:"About",nav_contact:"Contact",nav_cta:"Get started →",
     footer_operator:"Operated by: Native Hotel Guide s.r.o. · Korunní 2569/108, 101 00 Prague, Czech Republic · Company ID 23112905",
     hero_badge:"AI-Powered Hotel Concierge",
@@ -708,13 +1076,13 @@ const TRANSLATIONS={
     hero_btn1:"14-day free trial →",hero_btn2:"See how it works",
     stat1_label:"Languages supported",stat2_label:"Always available",stat3_label:"Average response time",stat4_label:"Apps to install",
     how_eyebrow:"Process",how_h2:"How long does it take to <span class=\"grad-text\">train your staff?</span>",how_p:"We automatically fill in the initial data about your hotel. You review the data, add any missing details, print the QR poster or roll-up banner and place it at reception — done. You can also print a smaller version for guest rooms.",
-    step1_h:"Register & pay",step1_p:"Answer a few quick questions about your hotel and complete the payment.",
-    step2_h:"We import your hotel data",step2_p:"We prepare your hotel profile based on the information you provide — quickly and without unnecessary effort on your part.",
-    step3_h:"Review & complete",step3_p:"Log into your hotel portal and fill in any missing details — hours, services, local tips. Think like your guest: authentic experiences, hidden local gems, the best local food.",
-    step4_h:"Print & place",step4_p:"Download your QR poster and place it in the lobby or on the room. Guests scan it and instantly get answers in their own language.",
+    step1_h:"Register & try 14 days free",step1_p:"Answer a few quick questions about your hotel and complete the registration.",
+    step2_h:"We import your hotel data",step2_p:"We prepare your hotel profile according to your wishes — quickly and without unnecessary effort on your part.",
+    step3_h:"Review & complete",step3_p:"Log in to the portal and fill in the missing details — think like your guest. They often crave authentic experiences, hidden local spots and the specialities of your region. They always appreciate advice from someone who lives there and knows it best — and that is exactly what you can now give them — without limits.",
+    step4_h:"Print & place",step4_p:"Download the QR poster and place it in the lobby (by reception) or in the rooms. Guests scan it and get instant access to relevant information in their language — information you have full control over, so it is always accurate.",
     feat_eyebrow:"Features",feat_h2:"What guests <span class=\"grad-text\">appreciate</span>",feat_p:"Quick answers to their questions — anytime, clearly, in their language.",
     pricing_eyebrow:"Pricing",pricing_h2:"Simple, transparent <span class=\"grad-text\">pricing</span>",pricing_p:"No hidden fees, no long-term contracts. Cancel anytime.",
-    pricing_compare:"💡 <strong style=\"color:var(--text)\">Perspective:</strong> SMARTEST GUIDE works 24/7 for a low monthly fee — always friendly, never sleeps, never needs a holiday or insurance. <strong style=\"color:var(--teal)\">€PERDAY/day</strong> for non-stop service in 100+ languages.",
+    pricing_compare:"💡 <strong style=\"color:var(--text)\">Perspective:</strong> SMARTEST GUIDE works 24/7 for a low monthly fee — always friendly, never sleeps, never needs a holiday or insurance. <strong style=\"color:var(--teal)\">€PERDAY/day</strong> for non-stop service in 100+ languages — serving many guests at once, in real time, with no waiting.",
     reviews_eyebrow:"Results",reviews_h2:"What SMARTEST GUIDE <span class=\"grad-text\">delivers</span>",
     stat_card1:"Always available<br>never sleeps, never on holiday",
     stat_card2:"languages — guests get answers<br>in their own language",
@@ -722,16 +1090,16 @@ const TRANSLATIONS={
     stat_card4:"installation cost<br>no hardware, no IT required",
     about_eyebrow:"About us",about_h2:"Built for hoteliers,<br><span class=\"grad-text\">by people who travel</span>",
     about_p:"SMARTEST GUIDE was born from our own frustration: why do guests still have to call reception to ask what time breakfast starts, where the parking is, or where the best local ice cream is? Every hotel has this information — it just is not available 24/7 from a guest phone. We are a small team based in Prague, focused exclusively on the European hospitality market.",
-    reg_eyebrow:"Get started",reg_h2:"Register your hotel <span class=\"grad-text\">today</span>",reg_p:"Fill in your details below. After payment, we will prepare your hotel profile and send you access to your hotel portal.",
-    reg_btn:"Continue to payment →",reg_note:"14-day free trial · Secure payment via Stripe · Cancel anytime",
+    reg_eyebrow:"Get started",reg_h2:"Register your hotel <span class=\"grad-text\">today</span>",reg_p:"Fill in your details below. After registration, we will prepare your hotel profile and send you access to your hotel portal.",
+    reg_btn:"Continue to registration & payment →",reg_note:"14-day free trial · Secure payment via Stripe · Cancel anytime",
     contact_eyebrow:"Contact",contact_h2:"Got a question?<br><span class=\"grad-text\">Let us talk.</span>",contact_p:"We are a small team and we respond to every message personally.",
     reg_name_hint:"⚠️ This name will appear on all print materials and QR posters — enter it exactly as you want it printed.",
-    f_name:"Hotel name *",f_url:"Hotel website *",f_email:"Contact email *",f_phone:"Phone number",f_beds:"Number of beds *",
+    f_name:"Hotel name *",f_url:"Hotel website *",f_email:"Contact email *",f_phone:"Phone number",f_beds:"Exact total number of beds (hotel / resort) *",
     f_country:"Country *",f_country_opt:"Select country",
     f_ico:'Company ID <small style="color:var(--muted)">(for invoicing)</small>',
     f_dic:'VAT ID <small style="color:var(--muted)">(optional)</small>',
     f_source:"How did you hear about us?",f_source_opt:"Select...",
-    f_src_google:"Google search",f_src_social:"Social media",f_src_rec:"Recommendation",f_src_fair:"Trade fair / event",f_src_other:"Other",
+    f_src_google:"Internet search",f_src_social:"LinkedIn",f_src_rec:"Recommendation",f_src_fair:"Trade fair / event",f_src_other:"Other",
     f_price_sub:"Monthly subscription",f_price_intro:"Introductory price — no commitment, cancel anytime",
     f_price_trial:"14-day free trial — your card won't be charged until day 15",
     f_gdpr:'I agree to the <a href="/privacy" target="_blank" style="color:var(--teal)">Privacy Policy</a> and <a href="/terms" target="_blank" style="color:var(--teal)">Terms of Service</a>. I understand my hotel data will be processed to provide the SMARTEST GUIDE service.',
@@ -741,14 +1109,14 @@ const TRANSLATIONS={
     chat_b2:"Breakfast is served from <strong>7:00 to 10:30 AM</strong> in the hotel restaurant on the ground floor. Enjoy! 🍳",
     chat_u2:"Is there parking nearby?",
     chat_b3:"Yes! The hotel has a <strong>private parking lot</strong> right behind the building — free for guests. 🅿️",
-    feat1_h:"In your language",feat1_p:"Quick answers in 100+ languages — Alex automatically detects the guest's language and responds naturally.",
+    feat1_h:"Communication in their language",feat1_p:"Quick answers in 100+ languages — Alex automatically detects the guest's language and responds naturally.",
     feat2_h:"Voice control",feat2_p:"Guests can say their question out loud. Works on Android and Chrome — no typing required.",
     feat3_h:"No app installation needed",feat3_p:"Guests scan a QR code and the concierge opens instantly in their browser. No download, no account.",
     feat4_h:"Live weather",feat4_p:"Instant local weather for your hotel's location — temperature, wind, humidity — in real time.",
-    feat5_h:"Local tips",feat5_p:"Alex knows the neighbourhood: restaurants, sights, activities — all curated by you in the portal.",
+    feat5_h:"Local tips",feat5_p:"Thanks to you, Alex knows the area like a local — so it gives guests the best advice on activities, sights and local specialities.",
     feat6_h:"Always learning",feat6_p:"SMARTEST GUIDE trains in one day — and you can keep teaching it new things it will remember.",
     about_p1:"SMARTEST GUIDE started from a simple need: guests keep asking the same things — when breakfast ends, where the parking is, what's worth seeing nearby. We wanted to make life easier for them and for you.",
-    about_p2:"We built a system that lightens your workload and gives guests a better experience. Alex is available to guests in seconds — via a QR code, in any browser and any language. It can serve 200 guests at once, in real time, in their own language.",
+    about_p2:"We built a system that lightens your workload and gives guests a better experience. Alex is available to guests in seconds — via a QR code, in any browser and any language.",
     about_p3:"You also \"train\" Alex to become truly SMARTEST. You set it up in a single day, and you decide how great it becomes — it's in your hands, so make the most of it. We're a team from Prague that built a system to save you time and give your guests a better stay.",
     satis_title:"Guest satisfaction drivers",
     m1:"Fast answers",m2:"Language match",m3:"24/7 availability",m4:"No-app experience",m5:"Setup time",
@@ -756,41 +1124,52 @@ const TRANSLATIONS={
     c_ph_name:"John Smith",c_ph_email:"john@hotel.com",c_ph_msg:"Tell us about your hotel or ask a question…",
     price_incl_title:"Everything included",
     pf1:"AI concierge in 100+ languages",pf2:"Voice control",pf3:"Live weather & local tips",pf4:"QR poster & flyers (print-ready PDF)",pf5:"Hotel management portal",pf6:"Monthly invoice PDF",
-    calc_label:"Number of beds in your hotel",calc_beds_unit:"beds",calc_per_month:"month",calc_cta:"Get started →",calc_trial:"✓ 14-day free trial — no charge today",calc_beds_hint:"↑ Click and type the exact number of beds",calc_vat:"✓ Final price.",
+    calc_label:"Number of beds in your hotel",calc_beds_unit:"beds",calc_per_month:"month",calc_cta:"Get started →",calc_trial:"✓ 14-day free trial — no charge today",calc_beds_hint:"↑ Enter the exact number — it affects the accuracy and capabilities of your AI concierge",calc_vat:"✓ Final price.",
   },
   cs:{
+    flags_more:"+{n} dalších jazyků",
+    demo_hotel:"Váš hotel",
+    chat_u3:"Ukažte mi jídelní lístek",chat_b4:"Jistě! 🍽 <strong>Dnešní menu:</strong><br>🥣 Hovězí vývar<br>🍗 Pečené kuře, brambory<br>🍰 Jablečný štrúdl",
+    about_p4:"Váš nový concierge přinese vašim hostům zcela nové zážitky a rady jako od místních, po kterých často touží. Jejich pobyt u vás se tak stane ještě více autentickým a nezapomenutelným.",
+    qr_eyebrow:"Jak jednoduché to je",qr_h2:"Od QR kódu k odpovědi za pár vteřin",
+    qr1_h:"1 · Host naskenuje QR",qr1_p:"Plakát na recepci nebo na pokoji.",
+    qr2_h:"2 · Chat se otevře v prohlížeči",qr2_p:"Žádná aplikace, žádná registrace.",
+    qr3_h:"3 · Alex odpoví do 2 vteřin",qr3_p:"V jazyce hosta, kdykoliv.",
+    qr_demo_q:"Kdy je snídaně?",qr_demo_a:"7:00–10:30 v přízemí 🍳",
+    demo_eyebrow:"Živá ukázka",demo_h2:"Takhle Alex odpovídá vašim hostům",mock_ph:"Napište zprávu…",
+    c_intro:"Ozveme se vám do jednoho pracovního dne.",
     nav_how:"Jak to funguje",nav_features:"Funkce",nav_pricing:"Ceník",nav_about:"O nás",nav_contact:"Kontakt",nav_cta:"Začít →",
     footer_operator:"Provozovatel: Native Hotel Guide s.r.o. · Korunní 2569/108, 101 00 Praha 10 · IČO 23112905",
     hero_badge:"AI concierge pro hotely",
-    hero_h1:"Přestaňte odpovídat<br>na stejné otázky.<br><span class=\"grad-text\">Nechte to na Alexovi.</span>",
+    hero_h1:"Přestaňte odpovídat<br>na stejné otázky.<br><span class=\"grad-text\">Nechte to na Alex.</span>",
     hero_p:"Vaši hosté se každý den ptají na to samé. SMARTEST GUIDE jim odpoví za vás — rychle, pohodlně a kdykoliv, ve 100+ jazycích, 24/7, z QR kódu u recepce. Bez aplikace, bez extra personálu, bez zmeškaných otázek.",
     hero_btn1:"14 dní zdarma →",hero_btn2:"Jak to funguje",
     stat1_label:"Podporovaných jazyků",stat2_label:"Vždy dostupný",stat3_label:"Průměrná doba odpovědi",stat4_label:"Instalace aplikací",
     how_eyebrow:"Postup",how_h2:"Jak dlouho trvá <span class=\"grad-text\">zaškolení personálu?</span>",how_p:"SMARTEST GUIDE vyškolíte během jednoho dne — a neustále ho můžete učit novým věcem, které si pamatuje.",
-    step1_h:"Zaregistrujte se a zaplaťte",step1_p:"Odpovězte na pár otázek o vašem hotelu a dokončete platbu.",
-    step2_h:"Doplníme data vašeho hotelu",step2_p:"Na základě vašich informací připravíme profil hotelu — rychle a bez zbytečné práce z vaší strany.",
-    step3_h:"Zkontrolujte a doplňte",step3_p:"Přihlašte se do portálu a doplňte chybějící informace — hodiny, služby, tipy z okolí. Myslete jako váš host: autentické zážitky, skrytá místní místa, nejlepší místní jídlo.",
-    step4_h:"Vytiskněte a umístěte",step4_p:"Stáhněte QR plakát a umístěte ho v lobby nebo pokoji. Hosté ho naskenují a okamžitě dostanou odpovědi ve svém jazyce.",
-    feat_eyebrow:"Funkce",feat_h2:"Co hosté <span class=\"grad-text\">ocení</span>",feat_p:"Rychlé odpovědi na jejich otázky — kdykoliv, srozumitelně, ve jejich jazyce.",
+    step1_h:"Zaregistrujte se a vyzkoušejte 14 dní zdarma",step1_p:"Odpovězte na pár otázek o vašem hotelu a dokončete registraci.",
+    step2_h:"Doplníme data vašeho hotelu",step2_p:"Na základě vašeho přání připravíme profil vašeho hotelu — rychle a bez zbytečné práce z vaší strany.",
+    step3_h:"Zkontrolujte a doplňte",step3_p:"Přihlaste se do portálu a doplňte chybějící informace — myslete jako váš host. Ten chce často autentické zážitky, poznat skrytá místa v okolí, ochutnat speciality vašeho regionu. Vždy ocení rady od někoho, kdo tu žije a dokáže mu tak poradit nejlépe. A to mu nyní můžete dát — bez omezení.",
+    step4_h:"Vytiskněte a umístěte",step4_p:"Stáhněte QR plakát a umístěte ho do lobby (k recepci) nebo na pokoje. Hosté si ho naskenují a mají okamžitý přístup k relevantním informacím ve svém jazyce, nad kterými máte vy absolutní kontrolu. Proto jsou vždy přesné.",
+    feat_eyebrow:"Funkce",feat_h2:"Co hosté <span class=\"grad-text\">ocení</span>",feat_p:"Rychlé odpovědi na jejich otázky — kdykoliv, srozumitelně, v jejich jazyce.",
     pricing_eyebrow:"Ceník",pricing_h2:"Jednoduché, transparentní <span class=\"grad-text\">ceny</span>",pricing_p:"Bez skrytých poplatků, bez dlouhodobých smluv. Zrušení kdykoliv.",
-    pricing_compare:"💡 <strong style=\"color:var(--text)\">Srovnání:</strong> SMARTEST GUIDE pracuje 24/7 za nízký měsíční paušál — je vždy příjemný, nikdy nespí, nepotřebuje dovolenou ani pojištění. <strong style=\"color:var(--teal)\">€PERDAY/den</strong> za nepřetržitý servis ve 100+ jazycích.",
+    pricing_compare:"💡 <strong style=\"color:var(--text)\">Srovnání:</strong> SMARTEST GUIDE pracuje 24/7 za nízký měsíční paušál — je vždy příjemný, nikdy nespí, nepotřebuje dovolenou ani pojištění. <strong style=\"color:var(--teal)\">€PERDAY/den</strong> za nepřetržitý servis ve 100+ jazycích — obslouží mnoho hostů najednou, v reálném čase a bez čekání.",
     reviews_eyebrow:"Výsledky",reviews_h2:"Co SMARTEST GUIDE <span class=\"grad-text\">přináší</span>",
     stat_card1:"Vždy dostupný<br>nikdy nespí, nepotřebuje dovolenou",
     stat_card2:"jazyků — hosté dostanou odpověď<br>ve svém jazyce",
     stat_card3:"průměrná doba odpovědi<br>okamžitá reakce hostem",
     stat_card4:"náklady na instalaci<br>žádný hardware, žádné IT",
-    about_eyebrow:"O nás",about_h2:"Vytvořeno pro hoteliéry,<br><span class=\"grad-text\">lidmi, kteří cestují</span>",
+    about_eyebrow:"O nás",about_h2:"Vytvořeno pro hoteliéry<br><span class=\"grad-text\">lidmi, kteří cestují</span>",
     about_p:"SMARTEST GUIDE vznikl z naší vlastní frustrace: proč hosté stále musí volat na recepci, aby se zeptali, v kolik hodin začíná snídaně, kde je parkoviště nebo kde je nejlepší místní zmrzlina? Každý hotel tuto informaci má — jen není 24/7 dostupná z telefonu hosta. Jsme malý tým se sídlem v Praze, zaměřený výhradně na evropský trh pohostinství.",
-    reg_eyebrow:"Začít",reg_h2:"Zaregistrujte svůj hotel <span class=\"grad-text\">dnes</span>",reg_p:"Vyplňte údaje níže. Po zaplacení připravíme profil vašeho hotelu a zašleme vám přístup do portálu.",
-    reg_btn:"Pokračovat k platbě →",reg_note:"Bezpečná platba přes Stripe · Bez dlouhodobé smlouvy · Zrušení kdykoliv",
+    reg_eyebrow:"Začít",reg_h2:"Zaregistrujte svůj hotel <span class=\"grad-text\">dnes</span>",reg_p:"Vyplňte údaje níže. Po registraci připravíme profil vašeho hotelu a zašleme vám přístup do portálu.",
+    reg_btn:"Pokračovat k registraci a platbě →",reg_note:"Bezpečná platba přes Stripe · Bez dlouhodobé smlouvy · Zrušení kdykoliv",
     reg_name_hint:"⚠️ Tento název se zobrazí na všech tiskových materiálech a QR plakátech — zadejte ho přesně tak, jak chcete mít vytištěno.",
     contact_eyebrow:"Kontakt",contact_h2:"Máte dotaz?<br><span class=\"grad-text\">Napište nám.</span>",contact_p:"Jsme malý tým a odpovídáme na každou zprávu osobně.",
-    f_name:"Název hotelu *",f_url:"Web hotelu *",f_email:"Kontaktní e-mail *",f_phone:"Telefon",f_beds:"Počet lůžek *",
+    f_name:"Název hotelu *",f_url:"Web hotelu *",f_email:"Kontaktní e-mail *",f_phone:"Telefon",f_beds:"Přesný a celkový počet lůžek hotelu / resortu *",
     f_country:"Země *",f_country_opt:"Vyberte zemi",
     f_ico:'IČO <small style="color:var(--muted)">(pro fakturaci)</small>',
     f_dic:'DIČ <small style="color:var(--muted)">(nepovinné)</small>',
     f_source:"Jak jste se o nás dozvěděli?",f_source_opt:"Vyberte…",
-    f_src_google:"Vyhledávání Google",f_src_social:"Sociální sítě",f_src_rec:"Doporučení",f_src_fair:"Veletrh / akce",f_src_other:"Jiné",
+    f_src_google:"Vyhledávání na internetu",f_src_social:"LinkedIn",f_src_rec:"Doporučení",f_src_fair:"Veletrh / akce",f_src_other:"Jiné",
     f_price_sub:"Měsíční předplatné",f_price_intro:"Zaváděcí cena — bez závazku, zrušíte kdykoli",
     f_price_trial:"14 dní zdarma — karta se nestrhne dříve než 15. den",
     f_gdpr:'Souhlasím se <a href="/privacy" target="_blank" style="color:var(--teal)">zásadami ochrany osobních údajů</a> a <a href="/terms" target="_blank" style="color:var(--teal)">obchodními podmínkami</a>. Beru na vědomí, že údaje mého hotelu budou zpracovány pro poskytování služby SMARTEST GUIDE.',
@@ -800,24 +1179,29 @@ const TRANSLATIONS={
     chat_b2:"Snídaně se podává od <strong>7:00 do 10:30</strong> v hotelové restauraci v přízemí. Dobrou chuť! 🍳",
     chat_u2:"Je poblíž parkování?",
     chat_b3:"Ano! Hotel má <strong>vlastní parkoviště</strong> hned za budovou — pro hosty zdarma. 🅿️",
-    feat1_h:"Ve vašem jazyce",feat1_p:"Rychlé odpovědi v 100+ jazycích — Alex sám rozpozná jazyk hosta a odpoví přirozeně.",
+    feat1_h:"Komunikaci v jejich jazyce",feat1_p:"Rychlé odpovědi v 100+ jazycích — Alex sám rozpozná jazyk hosta a odpoví přirozeně.",
     feat2_h:"Hlasové ovládání",feat2_p:"Host může otázku vyslovit nahlas. Funguje na Androidu i v Chrome — bez psaní.",
     feat3_h:"Bez instalace aplikace",feat3_p:"Host naskenuje QR kód a concierge se hned otevře v prohlížeči. Žádné stahování, žádný účet.",
     feat4_h:"Počasí naživo",feat4_p:"Okamžité místní počasí pro lokalitu hotelu — teplota, vítr, vlhkost — v reálném čase.",
-    feat5_h:"Místní tipy",feat5_p:"Alex zná okolí: restaurace, památky, aktivity — vše zadáváte vy v portálu.",
+    feat5_h:"Místní tipy",feat5_p:"Alex zná díky vám okolí jako místní obyvatel, proto dokáže hostům poradit nejlépe — aktivity, památky, speciality.",
     feat6_h:"Neustále se učí",feat6_p:"SMARTEST GUIDE zaškolíte za jeden den — a můžete ho dál učit nové věci, které si pamatuje.",
-    about_p1:"SMARTEST GUIDE vznikl z jednoduché potřeby: hosté se pořád ptají na to samé — kdy končí snídaně, kde je parkoviště nebo co v okolí stojí za vidění. Chtěli jsme život usnadnit jim i vám.",
-    about_p2:"Vytvořili jsme systém, který vám ulehčí práci a hostům přinese lepší zážitky. Alex je hostům k dispozici během pár vteřin — přes QR kód, v jakémkoli prohlížeči a jazyce. Obslouží třeba 200 hostů najednou, v reálném čase a v jejich jazyce.",
-    about_p3:"Alexe si navíc „vychováte“ a uděláte z ní opravdu SMARTEST. Zaškolíte ji během jednoho dne a vy sami ovlivňujete, jak skvělá bude — máte to ve svých rukou, využijte to. Jsme tým z Prahy, který pro vás vytvořil systém, který vám ušetří čas a vašim hostům zpříjemní pobyt.",
+    about_p1:"SMARTEST GUIDE vznikl z jednoduché potřeby: hosté se pořád ptají na to samé — kdy končí snídaně, kde je parkoviště, nebo co v okolí stojí za vidění. Chtěli jsme život usnadnit jim i vám.",
+    about_p2:"Vytvořili jsme systém, který vám ulehčí práci a hostům přinese lepší zážitky. Alex je hostům k dispozici během pár vteřin — přes QR kód, v jakémkoli prohlížeči a jazyce.",
+    about_p3:"Alex si navíc „vychováte“ a uděláte z ní opravdu SMARTEST. Zaškolíte ji během jednoho dne a vy sami ovlivňujete, jak skvělá bude — máte to ve svých rukou, využijte to. Jsme tým z Prahy, který pro vás vytvořil systém, který vám ušetří čas a vašim hostům zpříjemní pobyt.",
     satis_title:"Co zvyšuje spokojenost hostů",
     m1:"Rychlé odpovědi",m2:"Shoda jazyka",m3:"Dostupnost 24/7",m4:"Bez aplikace",m5:"Doba nasazení",
     c_name:"Vaše jméno",c_email:"E-mail",c_msg:"Zpráva",c_send:"Odeslat zprávu →",c_location:"Praha, Česká republika",
     c_ph_name:"Jan Novák",c_ph_email:"jan@hotel.cz",c_ph_msg:"Napište nám o svém hotelu nebo se zeptejte…",
     price_incl_title:"Vše v ceně",
     pf1:"AI concierge v 100+ jazycích",pf2:"Hlasové ovládání",pf3:"Počasí naživo a místní tipy",pf4:"QR plakát a letáky (PDF k tisku)",pf5:"Portál pro správu hotelu",pf6:"Měsíční faktura (PDF)",
-    calc_label:"Počet lůžek ve vašem hotelu",calc_beds_unit:"lůžek",calc_per_month:"měsíc",calc_cta:"Začít →",calc_trial:"✓ 14 dní zdarma — dnes bez platby",calc_beds_hint:"↑ Klikněte a napište přesný počet lůžek",calc_vat:"✓ Cena je konečná.",
+    calc_label:"Počet lůžek ve vašem hotelu",calc_beds_unit:"lůžek",calc_per_month:"měsíc",calc_cta:"Začít →",calc_trial:"✓ 14 dní zdarma — dnes bez platby",calc_beds_hint:"↑ Vyplňte přesně — počet lůžek má vliv na přesnost a možnosti vašeho AI concierge",calc_vat:"✓ Cena je konečná.",
   },
   de:{
+    flags_more:"+{n} weitere Sprachen",
+    demo_hotel:"Ihr Hotel",
+    chat_u3:"Kann ich die Speisekarte sehen?",chat_b4:"Gern! 🍽 <strong>Heutiges Menü:</strong><br>🥣 Rinderbrühe<br>🍗 Brathähnchen, Kartoffeln<br>🍰 Apfelstrudel",
+    about_p4:"Ihr neuer Concierge bringt Ihren Gästen ganz neue Erlebnisse und Ratschläge wie von einem echten Einheimischen — jemandem, der seit Jahren vor Ort lebt und die Gegend in- und auswendig kennt. Ihr Aufenthalt wird dadurch noch authentischer und unvergesslicher.",
+    flags_title:"Fließend in 100+ Sprachen",chat_b1:"Hallo! Ich bin Alex, Ihr persönlicher Concierge. Wie kann ich helfen? 👋",chat_u1:"Ab wann gibt es Frühstück?",chat_b2:"Frühstück gibt es von <strong>7:00 bis 10:30 Uhr</strong> im Restaurant im Erdgeschoss. Guten Appetit! 🍳",chat_u2:"Gibt es Parkplätze in der Nähe?",chat_b3:"Ja! Das Hotel hat einen <strong>eigenen Parkplatz</strong> direkt hinter dem Gebäude — für Gäste kostenlos. 🅿️",qr_eyebrow:"So einfach ist es",qr_h2:"Vom QR-Code zur Antwort in Sekunden",qr1_h:"1 · Gast scannt den QR-Code",qr1_p:"Poster an der Rezeption oder im Zimmer.",qr2_h:"2 · Chat öffnet sich im Browser",qr2_p:"Keine App, keine Registrierung.",qr3_h:"3 · Alex antwortet in 2 Sekunden",qr3_p:"In der Sprache des Gastes, jederzeit.",qr_demo_q:"Wann gibt es Frühstück?",qr_demo_a:"7:00–10:30, Erdgeschoss 🍳",demo_eyebrow:"Live-Demo",demo_h2:"So antwortet Alex Ihren Gästen",mock_ph:"Nachricht schreiben…",c_intro:"Wir melden uns innerhalb eines Werktags.",feat1_h:"Kommunikation in ihrer Sprache",feat1_p:"Schnelle Antworten in 100+ Sprachen — Alex erkennt die Sprache des Gastes automatisch.",feat2_h:"Sprachsteuerung",feat2_p:"Gäste können ihre Frage einfach aussprechen. Ohne Tippen.",feat3_h:"Keine App nötig",feat3_p:"QR-Code scannen und der Concierge öffnet sich direkt im Browser. Kein Download, kein Konto.",feat4_h:"Wetter live",feat4_p:"Aktuelles Wetter am Standort Ihres Hotels — Temperatur, Wind, Luftfeuchtigkeit.",feat5_h:"Lokale Tipps",feat5_p:"Dank Ihnen kennt Alex die Umgebung wie ein Einheimischer — und gibt Gästen die besten Tipps zu Aktivitäten, Sehenswürdigkeiten und Spezialitäten.",price_incl_title:"Alles inklusive",pf1:"AI-Concierge in 100+ Sprachen",pf2:"Sprachsteuerung",pf3:"Wetter live & lokale Tipps",pf4:"QR-Poster & Flyer (Druck-PDF)",pf5:"Hotel-Verwaltungsportal",pf6:"Monatliche Rechnung (PDF)",calc_label:"Anzahl der Betten in Ihrem Hotel",calc_beds_unit:"Betten",calc_beds_hint:"↑ Genau angeben — die Bettenzahl beeinflusst Genauigkeit und Fähigkeiten Ihres AI-Concierge",calc_per_month:"Monat",calc_cta:"Loslegen →",calc_trial:"✓ 14 Tage kostenlos — heute keine Zahlung",calc_vat:"✓ Endpreis.",about_p1:"SMARTEST GUIDE entstand aus einem einfachen Bedürfnis: Gäste fragen immer wieder dasselbe — wann das Frühstück endet, wo geparkt wird, was sich in der Nähe lohnt.",about_p2:"Wir haben ein System gebaut, das Sie entlastet und Gästen ein besseres Erlebnis gibt. Alex ist in Sekunden verfügbar — per QR-Code, in jedem Browser, in jeder Sprache.",about_p3:"Sie „trainieren\" Alex selbst — eingerichtet an einem Tag. Wir sind ein Team aus Prag.",satis_title:"Was Gäste schätzen",m1:"Schnelle Antworten",m2:"Antwort in der eigenen Sprache",m3:"24/7 verfügbar",m4:"Ohne App",c_name:"Ihr Name",c_email:"E-Mail",c_msg:"Nachricht",c_send:"Nachricht senden →",c_ph_name:"Max Mustermann",c_ph_email:"max@hotel.de",c_ph_msg:"Erzählen Sie uns von Ihrem Hotel oder stellen Sie eine Frage…",footer_operator:"Betrieben von: Native Hotel Guide s.r.o. · Korunní 2569/108, 101 00 Prag, Tschechien · ID 23112905",
     nav_how:"So funktioniert's",nav_features:"Funktionen",nav_pricing:"Preise",nav_about:"Über uns",nav_contact:"Kontakt",nav_cta:"Jetzt starten →",
     hero_badge:"KI-Concierge für Hotels",
     hero_h1:"Ihre Gäste verdienen <span class=\"grad-text\">sofortige Antworten</span>",
@@ -825,13 +1209,13 @@ const TRANSLATIONS={
     hero_btn1:"14 Tage kostenlos →",hero_btn2:"So funktioniert's",
     stat1_label:"Unterstützte Sprachen",stat2_label:"Immer verfügbar",stat3_label:"Durchschnittliche Antwortzeit",stat4_label:"App-Installationen",
     how_eyebrow:"Prozess",how_h2:"Wie lange dauert die <span class=\"grad-text\">Einarbeitung?</span>",how_p:"SMARTEST GUIDE ist in einem Tag einsatzbereit — und lernt ständig neue Dinge, die er sich merkt.",
-    step1_h:"Registrierung",step1_p:"Beantworten Sie ein paar kurze Fragen zu Ihrem Hotel und schließen Sie die Zahlung ab.",
-    step2_h:"Wir importieren Ihre Hoteldaten",step2_p:"Wir bereiten Ihr Hotelprofil anhand Ihrer Angaben vor — schnell und ohne unnötigen Aufwand.",
-    step3_h:"Prüfen & ergänzen",step3_p:"Melden Sie sich im Portal an und ergänzen Sie fehlende Details — Öffnungszeiten, Services, lokale Tipps.",
-    step4_h:"Drucken & aufstellen",step4_p:"Drucken Sie das QR-Plakat und stellen Sie es in der Lobby oder in Zimmern auf.",
+    step1_h:"Registrieren & 14 Tage gratis testen",step1_p:"Beantworten Sie ein paar kurze Fragen zu Ihrem Hotel und schließen Sie die Registrierung ab.",
+    step2_h:"Wir importieren Ihre Hoteldaten",step2_p:"Wir bereiten Ihr Hotelprofil nach Ihren Wünschen vor — schnell und ohne unnötigen Aufwand.",
+    step3_h:"Prüfen & ergänzen",step3_p:"Melden Sie sich im Portal an und ergänzen Sie fehlende Informationen — denken Sie wie Ihr Gast. Er sucht authentische Erlebnisse, versteckte Orte der Umgebung und die Spezialitäten Ihrer Region. Ratschläge von jemandem, der hier lebt, schätzt er am meisten — und genau das können Sie ihm jetzt geben — ohne Einschränkungen.",
+    step4_h:"Drucken & aufstellen",step4_p:"Laden Sie das QR-Plakat herunter und platzieren Sie es in der Lobby (an der Rezeption) oder in den Zimmern. Gäste scannen es und erhalten sofort relevante Informationen in ihrer Sprache — Informationen, über die Sie die volle Kontrolle haben. Deshalb sind sie immer korrekt.",
     feat_eyebrow:"Funktionen",feat_h2:"Was Gäste <span class=\"grad-text\">schätzen</span>",feat_p:"Schnelle Antworten auf ihre Fragen — jederzeit, klar, in ihrer Sprache.",
     pricing_eyebrow:"Preise",pricing_h2:"Einfache, transparente <span class=\"grad-text\">Preise</span>",pricing_p:"Keine versteckten Gebühren, keine Langzeitverträge. Jederzeit kündbar.",
-    pricing_compare:"💡 <strong style=\"color:var(--text)\">Perspektive:</strong> SMARTEST GUIDE arbeitet 24/7 für eine niedrige monatliche Pauschale — immer freundlich, schläft nie, braucht keinen Urlaub. <strong style=\"color:var(--teal)\">€PERDAY/Tag</strong> für ununterbrochenen Service in 100+ Sprachen.",
+    pricing_compare:"💡 <strong style=\"color:var(--text)\">Perspektive:</strong> SMARTEST GUIDE arbeitet 24/7 für eine niedrige monatliche Pauschale — immer freundlich, schläft nie, braucht keinen Urlaub. <strong style=\"color:var(--teal)\">€PERDAY/Tag</strong> für ununterbrochenen Service in 100+ Sprachen — bedient viele Gäste gleichzeitig, in Echtzeit, ohne Wartezeit.",
     reviews_eyebrow:"Ergebnisse",reviews_h2:"Was SMARTEST GUIDE <span class=\"grad-text\">leistet</span>",
     stat_card1:"Immer verfügbar<br>schläft nie, braucht keinen Urlaub",
     stat_card2:"Sprachen — Gäste bekommen Antworten<br>in ihrer eigenen Sprache",
@@ -839,21 +1223,26 @@ const TRANSLATIONS={
     stat_card4:"Installationskosten<br>keine Hardware, keine IT nötig",
     about_eyebrow:"Über uns",about_h2:"Entwickelt für Hoteliers,<br><span class=\"grad-text\">von Menschen die reisen</span>",
     about_p:"SMARTEST GUIDE entstand aus unserer eigenen Frustration: Warum müssen Gäste noch immer die Rezeption anrufen, um zu fragen, wann das Frühstück endet oder wo der Parkplatz ist? Wir sind ein kleines Team in Prag, das sich ausschließlich auf den europäischen Hotelmarkt konzentriert.",
-    reg_eyebrow:"Loslegen",reg_h2:"Registrieren Sie Ihr Hotel <span class=\"grad-text\">heute</span>",reg_p:"Füllen Sie das Formular aus. Nach der Zahlung bereiten wir Ihr Hotelprofil vor und senden Ihnen Zugang zum Portal.",
-    reg_btn:"Weiter zur Zahlung →",reg_note:"14 Tage kostenlos · Sichere Zahlung via Stripe · Jederzeit kündbar",
+    reg_eyebrow:"Loslegen",reg_h2:"Registrieren Sie Ihr Hotel <span class=\"grad-text\">heute</span>",reg_p:"Füllen Sie das Formular aus. Nach der Registrierung bereiten wir Ihr Hotelprofil vor und senden Ihnen Zugang zum Portal.",
+    reg_btn:"Weiter zu Registrierung & Zahlung →",reg_note:"14 Tage kostenlos · Sichere Zahlung via Stripe · Jederzeit kündbar",
     contact_eyebrow:"Kontakt",contact_h2:"Haben Sie eine Frage?<br><span class=\"grad-text\">Schreiben Sie uns.</span>",contact_p:"Wir sind ein kleines Team und antworten auf jede Nachricht persönlich.",
     reg_name_hint:"⚠️ Dieser Name erscheint auf allen Druckmaterialien und QR-Postern — geben Sie ihn genau so ein, wie er gedruckt werden soll.",
-    f_name:"Hotelname *",f_url:"Hotel-Website *",f_email:"Kontakt-E-Mail *",f_phone:"Telefonnummer",f_beds:"Anzahl der Betten *",
+    f_name:"Hotelname *",f_url:"Hotel-Website *",f_email:"Kontakt-E-Mail *",f_phone:"Telefonnummer",f_beds:"Genaue Gesamtzahl der Betten (Hotel / Resort) *",
     f_country:"Land *",f_country_opt:"Land auswählen",
     f_ico:'Firmen-ID <small style="color:var(--muted)">(für Rechnung)</small>',
     f_dic:'USt-IdNr. <small style="color:var(--muted)">(optional)</small>',
     f_source:"Wie haben Sie von uns erfahren?",f_source_opt:"Auswählen...",
-    f_src_google:"Google-Suche",f_src_social:"Soziale Medien",f_src_rec:"Empfehlung",f_src_fair:"Messe / Veranstaltung",f_src_other:"Sonstiges",
+    f_src_google:"Internetsuche",f_src_social:"LinkedIn",f_src_rec:"Empfehlung",f_src_fair:"Messe / Veranstaltung",f_src_other:"Sonstiges",
     f_price_sub:"Monatliches Abonnement",f_price_intro:"Einführungspreis — ohne Bindung, jederzeit kündbar",
     f_price_trial:"14 Tage kostenlos — Ihre Karte wird erst ab Tag 15 belastet",
     f_gdpr:'Ich stimme der <a href="/privacy" target="_blank" style="color:var(--teal)">Datenschutzerklärung</a> und den <a href="/terms" target="_blank" style="color:var(--teal)">Nutzungsbedingungen</a> zu. Ich verstehe, dass meine Hoteldaten zur Bereitstellung des Dienstes SMARTEST GUIDE verarbeitet werden.',
   },
   es:{
+    flags_more:"+{n} idiomas más",
+    demo_hotel:"Su hotel",
+    chat_u3:"¿Puedo ver el menú?",chat_b4:"¡Claro! 🍽 <strong>Menú de hoy:</strong><br>🥣 Caldo de ternera<br>🍗 Pollo asado con patatas<br>🍰 Strudel de manzana",
+    about_p4:"Su nuevo conserje ofrece a sus huéspedes experiencias completamente nuevas y consejos como de un auténtico local — alguien que vive en su zona desde hace años y la conoce a la perfección. Su estancia será aún más auténtica e inolvidable.",
+    flags_title:"Fluido en más de 100 idiomas",chat_b1:"¡Hola! Soy Alex, su conserje personal. ¿En qué puedo ayudarle? 👋",chat_u1:"¿A qué hora empieza el desayuno?",chat_b2:"El desayuno se sirve de <strong>7:00 a 10:30</strong> en el restaurante de la planta baja. ¡Buen provecho! 🍳",chat_u2:"¿Hay aparcamiento cerca?",chat_b3:"¡Sí! El hotel tiene <strong>aparcamiento propio</strong> justo detrás del edificio — gratis para huéspedes. 🅿️",qr_eyebrow:"Así de simple",qr_h2:"Del código QR a la respuesta en segundos",qr1_h:"1 · El huésped escanea el QR",qr1_p:"Póster en recepción o en la habitación.",qr2_h:"2 · El chat se abre en el navegador",qr2_p:"Sin app, sin registro.",qr3_h:"3 · Alex responde en 2 segundos",qr3_p:"En el idioma del huésped, a cualquier hora.",qr_demo_q:"¿Cuándo es el desayuno?",qr_demo_a:"7:00–10:30, planta baja 🍳",demo_eyebrow:"Demo en vivo",demo_h2:"Así responde Alex a sus huéspedes",mock_ph:"Escriba un mensaje…",c_intro:"Le responderemos en un día laborable.",feat1_h:"Comunicación en su idioma",feat1_p:"Respuestas rápidas en más de 100 idiomas — Alex detecta automáticamente el idioma del huésped.",feat2_h:"Control por voz",feat2_p:"Los huéspedes pueden decir su pregunta en voz alta. Sin escribir.",feat3_h:"Sin instalar apps",feat3_p:"Escanean un QR y el conserje se abre al instante en su navegador. Sin descargas, sin cuenta.",feat4_h:"Tiempo en directo",feat4_p:"El tiempo actual en la ubicación de su hotel — temperatura, viento, humedad.",feat5_h:"Consejos locales",feat5_p:"Gracias a usted, Alex conoce la zona como un local — y da a los huéspedes los mejores consejos sobre actividades, monumentos y especialidades.",price_incl_title:"Todo incluido",pf1:"Conserje AI en 100+ idiomas",pf2:"Control por voz",pf3:"Tiempo en directo y consejos locales",pf4:"Póster QR y folletos (PDF)",pf5:"Portal de gestión del hotel",pf6:"Factura mensual (PDF)",calc_label:"Número de camas de su hotel",calc_beds_unit:"camas",calc_beds_hint:"↑ Indique el número exacto — influye en la precisión y capacidades de su conserje AI",calc_per_month:"mes",calc_cta:"Empezar →",calc_trial:"✓ 14 días gratis — hoy sin cargo",calc_vat:"✓ Precio final.",about_p1:"SMARTEST GUIDE nació de una necesidad simple: los huéspedes preguntan siempre lo mismo — cuándo termina el desayuno, dónde aparcar, qué ver cerca.",about_p2:"Creamos un sistema que le quita trabajo y da a los huéspedes una mejor experiencia. Alex está disponible en segundos — vía QR, en cualquier navegador e idioma.",about_p3:"Usted mismo «entrena» a Alex — configurado en un solo día. Somos un equipo de Praga.",satis_title:"Lo que valoran los huéspedes",m1:"Respuestas rápidas",m2:"Respuesta en su idioma",m3:"Disponibilidad 24/7",m4:"Sin app",c_name:"Su nombre",c_email:"Email",c_msg:"Mensaje",c_send:"Enviar mensaje →",c_ph_name:"Juan García",c_ph_email:"juan@hotel.es",c_ph_msg:"Cuéntenos sobre su hotel o haga una pregunta…",footer_operator:"Operado por: Native Hotel Guide s.r.o. · Korunní 2569/108, 101 00 Praga, Chequia · ID 23112905",
     nav_how:"Cómo funciona",nav_features:"Funciones",nav_pricing:"Precios",nav_about:"Nosotros",nav_contact:"Contacto",nav_cta:"Empezar →",
     hero_badge:"Concierge IA para hoteles",
     hero_h1:"Sus huéspedes merecen <span class=\"grad-text\">respuestas inmediatas</span>",
@@ -861,13 +1250,13 @@ const TRANSLATIONS={
     hero_btn1:"14 días gratis →",hero_btn2:"Cómo funciona",
     stat1_label:"Idiomas disponibles",stat2_label:"Siempre disponible",stat3_label:"Tiempo medio de respuesta",stat4_label:"Apps a instalar",
     how_eyebrow:"Proceso",how_h2:"¿Cuánto tarda <span class=\"grad-text\">la formación?</span>",how_p:"SMARTEST GUIDE se forma en un día — y puede seguir aprendiendo cosas nuevas que recordará.",
-    step1_h:"Registro",step1_p:"Responda unas breves preguntas sobre su hotel y complete el pago.",
-    step2_h:"Importamos sus datos",step2_p:"Preparamos el perfil de su hotel con la información que nos proporcione — rápido y sin esfuerzo.",
-    step3_h:"Revisar y completar",step3_p:"Inicie sesión en el portal y complete los detalles que falten — horarios, servicios, consejos locales.",
-    step4_h:"Imprimir y colocar",step4_p:"Imprima el cartel QR y colóquelo en el vestíbulo o en las habitaciones.",
+    step1_h:"Regístrese y pruebe 14 días gratis",step1_p:"Responda unas breves preguntas sobre su hotel y complete el registro.",
+    step2_h:"Importamos sus datos",step2_p:"Preparamos el perfil de su hotel según sus deseos — rápido y sin esfuerzo.",
+    step3_h:"Revisar y completar",step3_p:"Inicie sesión en el portal y complete la información que falte — piense como su huésped. A menudo busca experiencias auténticas, rincones ocultos y las especialidades de su región. Siempre valora los consejos de alguien que vive allí y conoce el lugar mejor que nadie — y eso es justo lo que ahora puede ofrecerle — sin límites.",
+    step4_h:"Imprimir y colocar",step4_p:"Descargue el póster QR y colóquelo en el vestíbulo (junto a recepción) o en las habitaciones. Los huéspedes lo escanean y acceden al instante a información relevante en su idioma — información sobre la que usted tiene control absoluto. Por eso siempre es precisa.",
     feat_eyebrow:"Funciones",feat_h2:"Lo que los huéspedes <span class=\"grad-text\">aprecian</span>",feat_p:"Respuestas rápidas a sus preguntas — siempre, claramente, en su idioma.",
     pricing_eyebrow:"Precios",pricing_h2:"Precios simples y <span class=\"grad-text\">transparentes</span>",pricing_p:"Sin cargos ocultos, sin contratos a largo plazo. Cancelación en cualquier momento.",
-    pricing_compare:"💡 <strong style=\"color:var(--text)\">Perspectiva:</strong> SMARTEST GUIDE trabaja 24/7 por una baja cuota mensual — siempre amable, nunca duerme, no necesita vacaciones. <strong style=\"color:var(--teal)\">€PERDAY/día</strong> de servicio ininterrumpido en 100+ idiomas.",
+    pricing_compare:"💡 <strong style=\"color:var(--text)\">Perspectiva:</strong> SMARTEST GUIDE trabaja 24/7 por una baja cuota mensual — siempre amable, nunca duerme, no necesita vacaciones. <strong style=\"color:var(--teal)\">€PERDAY/día</strong> de servicio ininterrumpido en 100+ idiomas — atiende a muchos huéspedes a la vez, en tiempo real y sin esperas.",
     reviews_eyebrow:"Resultados",reviews_h2:"Lo que SMARTEST GUIDE <span class=\"grad-text\">aporta</span>",
     stat_card1:"Siempre disponible<br>nunca duerme, nunca de vacaciones",
     stat_card2:"idiomas — los huéspedes reciben respuestas<br>en su propio idioma",
@@ -875,21 +1264,26 @@ const TRANSLATIONS={
     stat_card4:"coste de instalación<br>sin hardware, sin IT",
     about_eyebrow:"Nosotros",about_h2:"Creado para hoteleros,<br><span class=\"grad-text\">por personas que viajan</span>",
     about_p:"SMARTEST GUIDE nació de nuestra propia frustración: ¿por qué los huéspedes siguen teniendo que llamar a recepción para preguntar cuándo termina el desayuno? Somos un pequeño equipo en Praga, centrado exclusivamente en el mercado hotelero europeo.",
-    reg_eyebrow:"Empezar",reg_h2:"Registre su hotel <span class=\"grad-text\">hoy</span>",reg_p:"Complete el formulario. Tras el pago, prepararemos su perfil y le enviaremos acceso al portal.",
-    reg_btn:"Continuar al pago →",reg_note:"14 días gratis · Pago seguro via Stripe · Cancelación cuando quiera",
+    reg_eyebrow:"Empezar",reg_h2:"Registre su hotel <span class=\"grad-text\">hoy</span>",reg_p:"Complete el formulario. Tras el registro, prepararemos su perfil y le enviaremos acceso al portal.",
+    reg_btn:"Continuar al registro y pago →",reg_note:"14 días gratis · Pago seguro via Stripe · Cancelación cuando quiera",
     contact_eyebrow:"Contacto",contact_h2:"¿Tiene alguna pregunta?<br><span class=\"grad-text\">Escríbanos.</span>",contact_p:"Somos un equipo pequeño y respondemos a cada mensaje personalmente.",
     reg_name_hint:"⚠️ Este nombre aparecerá en todos los materiales impresos y carteles QR — introdúzcalo exactamente como quiere que se imprima.",
-    f_name:"Nombre del hotel *",f_url:"Sitio web del hotel *",f_email:"Correo de contacto *",f_phone:"Número de teléfono",f_beds:"Número de camas *",
+    f_name:"Nombre del hotel *",f_url:"Sitio web del hotel *",f_email:"Correo de contacto *",f_phone:"Número de teléfono",f_beds:"Número exacto y total de camas (hotel / resort) *",
     f_country:"País *",f_country_opt:"Seleccione país",
     f_ico:'ID de empresa <small style="color:var(--muted)">(para facturación)</small>',
     f_dic:'NIF-IVA <small style="color:var(--muted)">(opcional)</small>',
     f_source:"¿Cómo nos conoció?",f_source_opt:"Seleccione...",
-    f_src_google:"Búsqueda en Google",f_src_social:"Redes sociales",f_src_rec:"Recomendación",f_src_fair:"Feria / evento",f_src_other:"Otro",
+    f_src_google:"Búsqueda en internet",f_src_social:"LinkedIn",f_src_rec:"Recomendación",f_src_fair:"Feria / evento",f_src_other:"Otro",
     f_price_sub:"Suscripción mensual",f_price_intro:"Precio de lanzamiento — sin compromiso, cancela cuando quieras",
     f_price_trial:"14 días gratis — no se cobrará su tarjeta hasta el día 15",
     f_gdpr:'Acepto la <a href="/privacy" target="_blank" style="color:var(--teal)">Política de Privacidad</a> y los <a href="/terms" target="_blank" style="color:var(--teal)">Términos de Servicio</a>. Entiendo que los datos de mi hotel se procesarán para prestar el servicio SMARTEST GUIDE.',
   },
   zh:{
+    flags_more:"还有{n}种语言",
+    demo_hotel:"您的酒店",
+    chat_u3:"可以看看菜单吗？",chat_b4:"当然！🍽 <strong>今日菜单：</strong><br>🥣 牛肉清汤<br>🍗 烤鸡配土豆<br>🍰 苹果卷",
+    about_p4:"您的新礼宾将为客人带来全新的体验和建议——就像来自一位在当地生活多年、对周边了如指掌的本地人。客人的住宿因此更加地道、更加难忘。",
+    flags_title:"流利使用100多种语言",chat_b1:"您好！我是Alex，您的私人礼宾。有什么可以帮您？👋",chat_u1:"早餐几点开始？",chat_b2:"早餐时间为<strong>7:00至10:30</strong>，在一楼餐厅供应。祝您用餐愉快！🍳",chat_u2:"附近有停车场吗？",chat_b3:"有！酒店楼后设有<strong>专用停车场</strong>——住客免费。🅿️",qr_eyebrow:"就是这么简单",qr_h2:"从二维码到答案只需几秒",qr1_h:"1 · 客人扫描二维码",qr1_p:"海报位于前台或客房。",qr2_h:"2 · 聊天在浏览器中打开",qr2_p:"无需App，无需注册。",qr3_h:"3 · Alex两秒内回复",qr3_p:"随时以客人的语言回答。",qr_demo_q:"早餐几点？",qr_demo_a:"7:00–10:30，一楼 🍳",demo_eyebrow:"实时演示",demo_h2:"Alex这样回答您的客人",mock_ph:"输入消息…",c_intro:"我们将在一个工作日内回复您。",feat1_h:"用客人的语言交流",feat1_p:"100多种语言的快速回答——Alex自动识别客人的语言。",feat2_h:"语音控制",feat2_p:"客人可以直接说出问题，无需打字。",feat3_h:"无需安装App",feat3_p:"扫描二维码，礼宾服务即刻在浏览器中打开。无需下载和注册。",feat4_h:"实时天气",feat4_p:"酒店所在地的实时天气——温度、风力、湿度。",feat5_h:"本地推荐",feat5_p:"有了您的信息，Alex像当地人一样了解周边——为客人提供最好的活动、景点和特色美食建议。",price_incl_title:"全部包含",pf1:"100+种语言的AI礼宾",pf2:"语音控制",pf3:"实时天气和本地推荐",pf4:"二维码海报和传单（PDF）",pf5:"酒店管理门户",pf6:"月度发票（PDF）",calc_label:"您酒店的床位数",calc_beds_unit:"床位",calc_beds_hint:"↑ 请填写准确数字——床位数会影响AI礼宾的准确性和能力",calc_per_month:"月",calc_cta:"开始 →",calc_trial:"✓ 14天免费试用——今日不扣款",calc_vat:"✓ 最终价格。",about_p1:"SMARTEST GUIDE源于一个简单的需求：客人总是问同样的问题——早餐几点结束、在哪停车、附近有什么值得看。",about_p2:"我们打造了一个减轻您工作量、提升客人体验的系统。Alex几秒即可使用——通过二维码，任何浏览器，任何语言。",about_p3:"您可以亲自\"训练\"Alex——一天即可完成设置。我们是来自布拉格的团队。",satis_title:"客人满意度因素",m1:"快速回答",m2:"语言匹配",m3:"24/7全天候",m4:"无需App",c_name:"您的姓名",c_email:"电子邮箱",c_msg:"留言",c_send:"发送留言 →",c_ph_name:"王先生",c_ph_email:"wang@hotel.com",c_ph_msg:"介绍您的酒店或提出问题…",footer_operator:"运营方：Native Hotel Guide s.r.o. · Korunní 2569/108, 101 00 布拉格，捷克 · ID 23112905",
     nav_how:"工作原理",nav_features:"功能",nav_pricing:"价格",nav_about:"关于我们",nav_contact:"联系我们",nav_cta:"立即开始 →",
     hero_badge:"酒店 AI 礼宾服务",
     hero_h1:"您的客人值得<span class=\"grad-text\">即时回答</span>",
@@ -897,13 +1291,13 @@ const TRANSLATIONS={
     hero_btn1:"免费试用 14 天 →",hero_btn2:"了解更多",
     stat1_label:"支持的语言",stat2_label:"全天候可用",stat3_label:"平均响应时间",stat4_label:"需安装的应用",
     how_eyebrow:"流程",how_h2:"培训需要<span class=\"grad-text\">多长时间？</span>",how_p:"SMARTEST GUIDE 一天内即可上线——并且可以不断学习您输入的新内容。",
-    step1_h:"注册",step1_p:"回答几个关于酒店的简短问题，完成付款。",
+    step1_h:"注册并免费试用14天",step1_p:"回答几个关于酒店的简短问题，完成注册。",
     step2_h:"我们导入您的酒店数据",step2_p:"我们根据您提供的信息快速准备酒店资料，无需您花费额外精力。",
-    step3_h:"审核并完善",step3_p:"登录酒店门户，补充缺失的详细信息——营业时间、服务、本地推荐。",
-    step4_h:"打印并放置",step4_p:"打印二维码海报，放置在大堂或房间内。客人扫描后即可立即获得帮助。",
+    step3_h:"审核并完善",step3_p:"登录门户，补充缺失的信息——像您的客人一样思考。他们渴望地道的体验、周边的隐秘去处和您所在地区的特色美食。他们最珍视本地人的建议——而这正是您现在可以无限制地给予的。",
+    step4_h:"打印并放置",step4_p:"下载二维码海报，放置在大堂（前台旁）或客房。客人扫码即可立即获取自己语言的相关信息——这些信息完全由您掌控，因此始终准确。",
     feat_eyebrow:"功能",feat_h2:"客人<span class=\"grad-text\">喜爱的</span>",feat_p:"随时用他们自己的语言清晰地回答问题。",
     pricing_eyebrow:"价格",pricing_h2:"简单透明的<span class=\"grad-text\">定价</span>",pricing_p:"无隐藏费用，无长期合同，随时可取消。",
-    pricing_compare:"💡 <strong style=\"color:var(--text)\">对比：</strong> SMARTEST GUIDE 以低廉的月费全天候工作——始终友好，永不休眠，不需要假期。<strong style=\"color:var(--teal)\">每天 €PERDAY</strong>，16 种语言不间断服务。",
+    pricing_compare:"💡 <strong style=\"color:var(--text)\">对比：</strong> SMARTEST GUIDE 以低廉的月费全天候工作——始终友好，永不休眠，不需要假期。<strong style=\"color:var(--teal)\">每天 €PERDAY</strong>，100多种语言不间断服务——实时同时服务多位客人，无需等待。",
     reviews_eyebrow:"成果",reviews_h2:"SMARTEST GUIDE <span class=\"grad-text\">带来什么</span>",
     stat_card1:"全天候可用<br>永不休眠，不需要假期",
     stat_card2:"种语言——客人用<br>自己的语言获得回答",
@@ -911,21 +1305,26 @@ const TRANSLATIONS={
     stat_card4:"安装成本<br>无需硬件，无需 IT",
     about_eyebrow:"关于我们",about_h2:"为酒店经营者打造，<br><span class=\"grad-text\">由旅行者创建</span>",
     about_p:"SMARTEST GUIDE 源于我们自身的困惑：为什么客人还需要打电话到前台询问早餐时间或停车场在哪里？我们是一个总部位于布拉格的小团队，专注于欧洲酒店市场。",
-    reg_eyebrow:"开始使用",reg_h2:"立即<span class=\"grad-text\">注册您的酒店</span>",reg_p:"填写以下表格。付款后，我们将准备您的酒店资料并发送门户访问权限。",
-    reg_btn:"继续付款 →",reg_note:"14 天免费试用 · Stripe 安全支付 · 随时取消",
+    reg_eyebrow:"开始使用",reg_h2:"立即<span class=\"grad-text\">注册您的酒店</span>",reg_p:"填写以下表格。注册后，我们将准备您的酒店资料并发送门户访问权限。",
+    reg_btn:"继续注册并付款 →",reg_note:"14 天免费试用 · Stripe 安全支付 · 随时取消",
     contact_eyebrow:"联系我们",contact_h2:"有问题？<br><span class=\"grad-text\">给我们留言。</span>",contact_p:"我们是一个小团队，会亲自回复每一条消息。",
     reg_name_hint:"⚠️ 此名称将出现在所有印刷材料和二维码海报上 — 请按照您希望打印的样子准确输入。",
-    f_name:"酒店名称 *",f_url:"酒店网站 *",f_email:"联系邮箱 *",f_phone:"电话号码",f_beds:"床位数量 *",
+    f_name:"酒店名称 *",f_url:"酒店网站 *",f_email:"联系邮箱 *",f_phone:"电话号码",f_beds:"酒店/度假村的准确总床位数 *",
     f_country:"国家 *",f_country_opt:"选择国家",
     f_ico:'公司识别号 <small style="color:var(--muted)">(用于开票)</small>',
     f_dic:'税号 <small style="color:var(--muted)">(选填)</small>',
     f_source:"您是如何了解到我们的？",f_source_opt:"请选择...",
-    f_src_google:"谷歌搜索",f_src_social:"社交媒体",f_src_rec:"推荐",f_src_fair:"展会 / 活动",f_src_other:"其他",
+    f_src_google:"网络搜索",f_src_social:"LinkedIn",f_src_rec:"推荐",f_src_fair:"展会 / 活动",f_src_other:"其他",
     f_price_sub:"每月订阅",f_price_intro:"推广价 — 无需承诺，随时取消",
     f_price_trial:"14 天免费试用 — 第 15 天前不会扣款",
     f_gdpr:'我同意<a href="/privacy" target="_blank" style="color:var(--teal)">隐私政策</a>和<a href="/terms" target="_blank" style="color:var(--teal)">服务条款</a>。我了解我的酒店数据将用于提供 SMARTEST GUIDE 服务。',
   },
   ja:{
+    flags_more:"他{n}言語",
+    demo_hotel:"あなたのホテル",
+    chat_u3:"メニューを見せてもらえますか？",chat_b4:"もちろん！🍽 <strong>本日のメニュー：</strong><br>🥣 ビーフブロス<br>🍗 ローストチキンとポテト<br>🍰 アップルシュトゥルーデル",
+    about_p4:"新しいコンシェルジュは、長年その土地に住み、隅々まで知り尽くした地元の人のような体験とアドバイスをゲストに届けます。滞在はより本物らしく、忘れられないものになります。",
+    flags_title:"100以上の言語に対応",chat_b1:"こんにちは！パーソナルコンシェルジュのAlexです。ご用件をどうぞ 👋",chat_u1:"朝食は何時からですか？",chat_b2:"朝食は<strong>7:00〜10:30</strong>、1階レストランにてご用意しております。🍳",chat_u2:"近くに駐車場はありますか？",chat_b3:"はい！ホテル裏に<strong>専用駐車場</strong>がございます——宿泊者は無料です。🅿️",qr_eyebrow:"とても簡単",qr_h2:"QRコードから数秒で回答へ",qr1_h:"1 · ゲストがQRをスキャン",qr1_p:"フロントまたは客室のポスター。",qr2_h:"2 · ブラウザでチャットが開く",qr2_p:"アプリ不要、登録不要。",qr3_h:"3 · Alexが2秒で回答",qr3_p:"ゲストの言語で、いつでも。",qr_demo_q:"朝食は何時？",qr_demo_a:"7:00–10:30、1階 🍳",demo_eyebrow:"ライブデモ",demo_h2:"Alexはこうしてゲストに答えます",mock_ph:"メッセージを入力…",c_intro:"1営業日以内にご返信いたします。",feat1_h:"ゲストの言語でコミュニケーション",feat1_p:"100以上の言語で迅速に回答——Alexがゲストの言語を自動検出します。",feat2_h:"音声操作",feat2_p:"ゲストは質問を話すだけ。入力不要です。",feat3_h:"アプリ不要",feat3_p:"QRをスキャンすればブラウザでコンシェルジュが即座に開きます。ダウンロードもアカウントも不要。",feat4_h:"リアルタイム天気",feat4_p:"ホテル所在地の現在の天気——気温、風、湿度。",feat5_h:"ローカル情報",feat5_p:"あなたのおかげで、Alexは地元の人のように周辺を熟知——アクティビティ、観光地、名物を最適にご案内します。",price_incl_title:"すべて込み",pf1:"100以上の言語のAIコンシェルジュ",pf2:"音声操作",pf3:"リアルタイム天気とローカル情報",pf4:"QRポスターとチラシ（PDF）",pf5:"ホテル管理ポータル",pf6:"月次請求書（PDF）",calc_label:"ホテルのベッド数",calc_beds_unit:"床",calc_beds_hint:"↑ 正確な数を入力してください——AIコンシェルジュの精度と機能に影響します",calc_per_month:"月",calc_cta:"始める →",calc_trial:"✓ 14日間無料——本日のお支払いなし",calc_vat:"✓ 最終価格。",about_p1:"SMARTEST GUIDEはシンプルなニーズから生まれました：ゲストはいつも同じ質問をします——朝食は何時まで、駐車場はどこ、近くの見どころは。",about_p2:"業務を軽減し、ゲスト体験を向上させるシステムを作りました。AlexはQRコードから数秒で利用可能——どのブラウザでも、どの言語でも。",about_p3:"Alexはご自身で「育てる」ことができます——設定は1日で完了。私たちはプラハのチームです。",satis_title:"ゲスト満足の要因",m1:"迅速な回答",m2:"言語の一致",m3:"24時間365日",m4:"アプリ不要",c_name:"お名前",c_email:"メール",c_msg:"メッセージ",c_send:"送信 →",c_ph_name:"山田太郎",c_ph_email:"yamada@hotel.jp",c_ph_msg:"ホテルについてお聞かせいただくか、ご質問ください…",footer_operator:"運営者：Native Hotel Guide s.r.o. · Korunní 2569/108, 101 00 プラハ、チェコ · ID 23112905",
     nav_how:"仕組み",nav_features:"機能",nav_pricing:"料金",nav_about:"私たちについて",nav_contact:"お問い合わせ",nav_cta:"今すぐ始める →",
     hero_badge:"ホテル向け AI コンシェルジュ",
     hero_h1:"お客様は<span class=\"grad-text\">即座の回答</span>を求めています",
@@ -933,13 +1332,13 @@ const TRANSLATIONS={
     hero_btn1:"14 日間無料 →",hero_btn2:"仕組みを見る",
     stat1_label:"対応言語数",stat2_label:"常時利用可能",stat3_label:"平均応答時間",stat4_label:"インストール不要",
     how_eyebrow:"プロセス",how_h2:"研修には<span class=\"grad-text\">どのくらいかかりますか？</span>",how_p:"SMARTEST GUIDE は 1 日でセットアップ完了——新しい情報を追加すれば、すぐに覚えてくれます。",
-    step1_h:"登録",step1_p:"ホテルに関するいくつかの簡単な質問に答えて、支払いを完了してください。",
+    step1_h:"登録して14日間無料でお試し",step1_p:"ホテルに関するいくつかの簡単な質問に答えて、登録を完了してください。",
     step2_h:"ホテルデータをインポート",step2_p:"ご提供いただいた情報を基に、ホテルプロファイルを迅速に作成します。",
-    step3_h:"確認・補完",step3_p:"ポータルにログインして、営業時間やサービス、地元のおすすめ情報などを追加してください。",
-    step4_h:"印刷・設置",step4_p:"QR ポスターを印刷してロビーや客室に設置してください。ゲストがスキャンするとすぐに利用できます。",
+    step3_h:"確認・補完",step3_p:"ポータルにログインして不足情報を補いましょう——ゲストの気持ちで考えてみてください。本物の体験、周辺の隠れた名所、地域の名物を求めています。地元に住む人のアドバイスこそ最も喜ばれるもの——それを今、あなたが制限なく提供できます。",
+    step4_h:"印刷・設置",step4_p:"QRポスターをダウンロードしてロビー（フロント横）や客室に設置してください。ゲストがスキャンすると、自分の言語で関連情報にすぐアクセスできます——その情報はあなたが完全に管理しているため、常に正確です。",
     feat_eyebrow:"機能",feat_h2:"ゲストが<span class=\"grad-text\">喜ぶこと</span>",feat_p:"いつでも、明確に、ゲストの言語で質問に素早く回答します。",
     pricing_eyebrow:"料金",pricing_h2:"シンプルで透明な<span class=\"grad-text\">料金体系</span>",pricing_p:"隠れた費用なし、長期契約なし、いつでも解約可能。",
-    pricing_compare:"💡 <strong style=\"color:var(--text)\">比較：</strong> SMARTEST GUIDE は低い月額料金で 24 時間働きます——常に親切で、眠らず、休暇も保険も不要。<strong style=\"color:var(--teal)\">1 日 €PERDAY</strong>、16 言語で絶え間ないサービスを提供。",
+    pricing_compare:"💡 <strong style=\"color:var(--text)\">比較：</strong> SMARTEST GUIDE は低い月額料金で 24 時間働きます——常に親切で、眠らず、休暇も保険も不要。<strong style=\"color:var(--teal)\">1 日 €PERDAY</strong>、100以上の言語で絶え間ないサービス——多数のゲストをリアルタイムで同時に、待たせずに対応します。",
     reviews_eyebrow:"実績",reviews_h2:"SMARTEST GUIDE が<span class=\"grad-text\">もたらすもの</span>",
     stat_card1:"常時利用可能<br>眠らず、休暇不要",
     stat_card2:"言語対応——ゲストは<br>母国語で回答を受けられます",
@@ -947,16 +1346,16 @@ const TRANSLATIONS={
     stat_card4:"導入コスト<br>ハードウェア不要、IT 不要",
     about_eyebrow:"私たちについて",about_h2:"ホテル経営者のために、<br><span class=\"grad-text\">旅行者が作った</span>",
     about_p:"SMARTEST GUIDE は私たち自身の不満から生まれました。なぜゲストは朝食の時間や駐車場の場所を知るためにフロントに電話しなければならないのか？私たちはプラハを拠点とする小さなチームで、欧州のホテル市場に特化しています。",
-    reg_eyebrow:"始めましょう",reg_h2:"今日<span class=\"grad-text\">ホテルを登録する</span>",reg_p:"以下のフォームに記入してください。お支払い後、ホテルプロファイルを準備してポータルへのアクセスをお送りします。",
-    reg_btn:"お支払いへ進む →",reg_note:"14 日間無料 · Stripe による安全な支払い · いつでも解約可能",
+    reg_eyebrow:"始めましょう",reg_h2:"今日<span class=\"grad-text\">ホテルを登録する</span>",reg_p:"以下のフォームに記入してください。ご登録後、ホテルプロファイルを準備してポータルへのアクセスをお送りします。",
+    reg_btn:"登録とお支払いへ進む →",reg_note:"14 日間無料 · Stripe による安全な支払い · いつでも解約可能",
     contact_eyebrow:"お問い合わせ",contact_h2:"ご質問がありますか？<br><span class=\"grad-text\">お気軽にご連絡ください。</span>",contact_p:"私たちは小さなチームで、すべてのメッセージに直接返信しています。",
     reg_name_hint:"⚠️ この名前はすべての印刷物とQRポスターに表示されます — 印刷したいとおりに正確に入力してください。",
-    f_name:"ホテル名 *",f_url:"ホテルのウェブサイト *",f_email:"連絡先メール *",f_phone:"電話番号",f_beds:"ベッド数 *",
+    f_name:"ホテル名 *",f_url:"ホテルのウェブサイト *",f_email:"連絡先メール *",f_phone:"電話番号",f_beds:"ホテル／リゾートの正確な総ベッド数 *",
     f_country:"国 *",f_country_opt:"国を選択",
     f_ico:'会社ID <small style="color:var(--muted)">(請求用)</small>',
     f_dic:'VAT番号 <small style="color:var(--muted)">(任意)</small>',
     f_source:"当サービスをどこで知りましたか？",f_source_opt:"選択してください...",
-    f_src_google:"Google検索",f_src_social:"ソーシャルメディア",f_src_rec:"紹介",f_src_fair:"展示会・イベント",f_src_other:"その他",
+    f_src_google:"インターネット検索",f_src_social:"LinkedIn",f_src_rec:"紹介",f_src_fair:"展示会・イベント",f_src_other:"その他",
     f_price_sub:"月額サブスクリプション",f_price_intro:"導入価格 — 契約の縛りなし、いつでも解約可能",
     f_price_trial:"14日間無料 — 15日目まで課金されません",
     f_gdpr:'<a href="/privacy" target="_blank" style="color:var(--teal)">プライバシーポリシー</a>と<a href="/terms" target="_blank" style="color:var(--teal)">利用規約</a>に同意します。ホテルのデータがSMARTEST GUIDEサービス提供のために処理されることを理解しています。',
@@ -1057,9 +1456,19 @@ function setLang(lang){
   const _ln=document.getElementById('reg-l-name'); if(_ln) _ln.textContent=FT('f_name');
   // Hlavička vlajek, demo chat, karty funkcí, „o nás", metriky, kontaktní formulář
   setText('flags-title',FT('flags_title'));
-  setText('chat-b1',FT('chat_b1'));setText('chat-u1',FT('chat_u1'));set('chat-b2',FT('chat_b2'));setText('chat-u2',FT('chat_u2'));set('chat-b3',FT('chat_b3'));
-  for(let i=1;i<=6;i++){setText('feat'+i+'-h',FT('feat'+i+'_h'));setText('feat'+i+'-p',FT('feat'+i+'_p'));}
-  setText('about-p1',FT('about_p1'));setText('about-p2',FT('about_p2'));setText('about-p3',FT('about_p3'));
+  setText('chat-b1',FT('chat_b1'));setText('chat-u1',FT('chat_u1'));set('chat-b2',FT('chat_b2'));setText('chat-u2',FT('chat_u2'));set('chat-b3',FT('chat_b3'));setText('chat-u3',FT('chat_u3'));set('chat-b4',FT('chat_b4'));
+  // QR flow + živá ukázka (redesign 25.7.2026)
+  setText('qr-eyebrow',FT('qr_eyebrow'));setText('qr-h2',FT('qr_h2'));
+  setText('qr1-h',FT('qr1_h'));setText('qr1-p',FT('qr1_p'));
+  setText('qr2-h',FT('qr2_h'));setText('qr2-p',FT('qr2_p'));
+  setText('qr3-h',FT('qr3_h'));setText('qr3-p',FT('qr3_p'));
+  setText('qr3-demo-q',FT('qr_demo_q'));setText('qr3-demo-a',FT('qr_demo_a'));
+  setText('demo-eyebrow',FT('demo_eyebrow'));setText('demo-h2',FT('demo_h2'));setText('demo-hotel',FT('demo_hotel'));setText('mock-input-ph',FT('mock_ph'));
+  setText('contact-p',FT('c_intro'));
+  // Funkce — fotomozaika má emoji v titulku (I18N texty jsou bez emoji)
+  const FEAT_EMOJI=['🌍','🎤','📱','🌤','🗺','✏️'];
+  for(let i=1;i<=6;i++){setText('feat'+i+'-h',FEAT_EMOJI[i-1]+' '+FT('feat'+i+'_h'));setText('feat'+i+'-p',FT('feat'+i+'_p'));}
+  setText('about-p1',FT('about_p1'));setText('about-p2',FT('about_p2'));setText('about-p3',FT('about_p3'));setText('about-p4',FT('about_p4'));
   setText('satis-title',FT('satis_title'));
   for(let i=1;i<=4;i++){setText('m'+i,FT('m'+i));}
   setText('c-l-name',FT('c_name'));setText('c-l-email',FT('c_email'));setText('c-l-msg',FT('c_msg'));setText('c-send',FT('c_send'));setText('contact-loc',FT('c_location'));
@@ -1070,6 +1479,7 @@ function setLang(lang){
   for(let i=1;i<=6;i++){setText('pf'+i,FT('pf'+i));}
   setText('calc-label',FT('calc_label'));setText('calc-beds-unit',FT('calc_beds_unit'));setText('calc-per-month',FT('calc_per_month'));setText('calc-cta',FT('calc_cta'));setText('calc-trial',FT('calc_trial'));setText('calc-beds-hint',FT('calc_beds_hint'));setText('calc-vat',FT('calc_vat'));
   if(typeof updCalcFormula==='function') updCalcFormula();
+  if(typeof window.updateFlagsRow==='function') window.updateFlagsRow();
   setText('contact-eyebrow',T.contact_eyebrow);set('contact-h2',T.contact_h2);setText('contact-p',T.contact_p);
 }
 
@@ -1091,6 +1501,69 @@ document.querySelectorAll('.step,.feature,.price-card').forEach(el=>{
   observer.observe(el);
 });
 loadLandingPricing();
+</script>
+
+<script>
+
+// ── Vlajky v jedne rade: schovej pretekajici, zbytek shrn chipem „+N dalších jazyků" ──
+const TOTAL_APP_LANGS=107;
+window.updateFlagsRow=function(){
+  const row=document.getElementById('flags-row');
+  const chip=document.getElementById('flags-more');
+  if(!row||!chip) return;
+  const imgs=[...row.querySelectorAll('img')];
+  imgs.forEach(i=>i.style.display='');
+  let visible=imgs.length;
+  // schovavej od konce, dokud se rada (vc. chipu) nevejde
+  let guard=0;
+  const tpl=(TRANSLATIONS[currentLang]&&TRANSLATIONS[currentLang].flags_more)||TRANSLATIONS.en.flags_more;
+  chip.textContent=tpl.replace('{n}',TOTAL_APP_LANGS-visible);
+  while(row.scrollWidth>row.clientWidth+1 && visible>6 && guard<100){
+    guard++; visible--;
+    imgs[visible].style.display='none';
+    chip.textContent=tpl.replace('{n}',TOTAL_APP_LANGS-visible);
+  }
+};
+window.addEventListener('resize',()=>{clearTimeout(window._frT);window._frT=setTimeout(window.updateFlagsRow,150);});
+setTimeout(window.updateFlagsRow,100);
+
+// ── Redesign 25.7.2026: scroll reveal + progress bary + chat demo smyčka ──
+(function(){
+  const io=new IntersectionObserver(entries=>{
+    entries.forEach(e=>{
+      if(!e.isIntersecting && e.boundingClientRect.top>=0) return;
+      const el=e.target;
+      if(el.hasAttribute('data-reveal')) el.classList.add('revealed');
+      if(el.hasAttribute('data-bar')){const w=el.getAttribute('data-bar')+'%';el.style.width='0%';requestAnimationFrame(()=>requestAnimationFrame(()=>{el.style.width=w;}));}
+      io.unobserve(el);
+    });
+  },{threshold:0,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('[data-reveal],[data-bar]').forEach(el=>io.observe(el));
+  // Pojistka: co je při načtení/rychlém skoku ve viewportu, odhal hned
+  const sweep=()=>{document.querySelectorAll('[data-reveal]:not(.revealed)').forEach(el=>{if(el.getBoundingClientRect().top<window.innerHeight)el.classList.add('revealed');});};
+  window.addEventListener('scroll',()=>{requestAnimationFrame(sweep);},{passive:true});
+  setTimeout(sweep,300);
+
+  // Chat demo — smyčka: bot píše (typing) → zpráva; host → zpráva; po konci pauza a reset
+  const msgs=[...document.querySelectorAll('.mock-chat .mock-msg')];
+  const typingEl=document.getElementById('mock-typing');
+  if(msgs.length&&typingEl){
+    let shown=1;
+    const render=()=>{msgs.forEach((m,i)=>{m.style.display=i<shown?'flex':'none';});};
+    const step=()=>{
+      if(shown>=msgs.length){setTimeout(()=>{shown=1;typingEl.style.display='none';render();step();},4500);return;}
+      const next=msgs[shown];
+      if(next.classList.contains('bot')){
+        setTimeout(()=>{typingEl.style.display='flex';
+          setTimeout(()=>{typingEl.style.display='none';shown++;render();step();},1300);
+        },500);
+      }else{
+        setTimeout(()=>{shown++;render();step();},1600);
+      }
+    };
+    render();step();
+  }
+})();
 </script>
 
 <!-- GDPR Cookies Banner -->

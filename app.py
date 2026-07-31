@@ -2107,7 +2107,7 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
 
     if lang == "cs":
         headline = "Váš osobní<br>AI concierge"
-        subline = f'Nechte <span style="color:#FF6B00;font-weight:600">Alexe</span> odpovědět na všechny vaše otázky — okamžitě, ve vašem jazyce, 24/7.'
+        subline = f'Nechte <span style="color:#FF6B00;font-weight:600">Alex</span> odpovědět na všechny vaše otázky — okamžitě, ve vašem jazyce, 24/7.'
         features = ["Snídaně a restaurace", "Tipy na výlety a skrytá místa", "Počasí a doprava", "Služby hotelu a WiFi", "K dispozici 24/7"]
         scan_text = "Naskenujte mě"
         no_app = "Bez instalace aplikace"
@@ -2731,7 +2731,7 @@ def success_page(hotel_id: str = "", request: Request = None):
     <div class="step active"><span class="icon">⚡</span> Importujeme data z vašeho webu…</div>
     <div class="step pending"><span class="icon">📝</span> Doplňte údaje v portálu</div>
     <div class="step pending"><span class="icon">🖨️</span> Vytiskněte QR plakát</div>
-    <div class="step pending"><span class="icon">🏨</span> Hosté začínají chatovat s Alexem</div>
+    <div class="step pending"><span class="icon">🏨</span> Hosté začínají chatovat s Alex</div>
   </div>
 
   {portal_btn}
@@ -4568,8 +4568,8 @@ async def guest_chat(req: GuestChatRequest, request: Request):
 
     hotel_info = f"""You are Alex, a friendly AI concierge for {h.get('name', 'this hotel')}.
 
-LANGUAGE RULE: Detect the language of the guest's message and always respond in that same language.
-If you cannot detect the language, use {lang_name} ({req.language}) as default.
+LANGUAGE RULE (CRITICAL): Detect the language of the guest's LATEST message and always respond in that language — even if the earlier conversation history, the selected interface language, or the hotel data is in a different language. When the guest switches language mid-conversation, switch with them immediately. The latest message ALWAYS wins over history and over the default.
+If you cannot detect the language of the latest message, use {lang_name} ({req.language}) as default.
 Never mix languages in a single response.
 TRANSLATE HOTEL DATA: The hotel profile below may be written in a different language (often Czech).
 Always TRANSLATE the information into the guest's language — never quote raw profile text in another
@@ -4580,7 +4580,7 @@ place names) in their original form.
 FORMATTING: Plain conversational text only. You may use **bold** for key facts and simple "-" bullet
 lists. NEVER use Markdown headings (#, ##), tables, or code blocks — the chat does not render them.
 
-BRAND NAMES (IMPORTANT): "SMARTEST GUIDE" and "Alex" are a brand and product name. NEVER translate or localise them into any language — always keep them exactly as "SMARTEST GUIDE" and "Alex", regardless of the language you are speaking. Do not write "Nejchytřejší průvodce", "Le guide le plus intelligent", or any translated form.
+BRAND NAMES (IMPORTANT): "SMARTEST GUIDE" and "Alex" are a brand and product name. NEVER translate or localise them into any language — always keep them exactly as "SMARTEST GUIDE" and "Alex", regardless of the language you are speaking. NEVER decline or inflect the name "Alex" in languages with grammatical cases — in Czech always write "Alex" (never "Alexovi", "Alexe", "Alexem"; e.g. "zeptejte se Alex", "nechte to na Alex"). Do not write "Nejchytřejší průvodce", "Le guide le plus intelligent", or any translated form.
 
 INPUT TOLERANCE (IMPORTANT): Guests often use voice dictation or type quickly, so words may be misspelled or phonetically garbled — possibly transcribed in the wrong language. If a word looks like a garbled, misheard or misspelled version of a common hotel topic, infer the most likely intended meaning and answer helpfully instead of saying you don't understand. For example: "Spicycarte"/"Spajzekarte" → German "Speisekarte" (menu / jídelní lístek); "checkout"/"chekaut" → check-out; "wai-fai"/"vайфай" → WiFi; "brekfast"/"frpštyk" → breakfast. Only ask the guest to rephrase if you genuinely cannot guess the intent. Never reply that you don't know a word like "Spicycarte" — recognise it as a misheard "Speisekarte" and give the menu info.
 
@@ -4707,6 +4707,54 @@ Guest name: {req.guest_name or 'Guest'}"""
     except Exception as e:
         logging.warning("Log dotazu hosta selhal: %s", e)
     return {"status": "ok", "reply": reply}
+
+# ─────────────────────────────────────────────
+# TTS — Alex čte odpověď nahlas (OpenAI gpt-4o-mini-tts, hlas Coral)
+# Frontend (guest.html) volá po hlasovém dotazu; fallback na Web Speech API řeší klient.
+# ─────────────────────────────────────────────
+_TTS_VOICE = os.getenv("TTS_VOICE", "coral")
+_TTS_MODEL = os.getenv("TTS_MODEL", "gpt-4o-mini-tts")
+_TTS_INSTRUCTIONS = os.getenv(
+    "TTS_INSTRUCTIONS",
+    "Calm, warm and friendly hotel concierge. Natural, brisk pace — slightly faster than normal, not dramatic. Speak in the language of the text.",
+)
+_TTS_MAX_CHARS = 700  # bezpečnostní strop; frontend beztak čte jen krátké odpovědi (~600)
+
+class GuestTTSRequest(BaseModel):
+    text: str
+    language: Optional[str] = None  # informativní; hlas je vícejazyčný
+
+@app.post("/api/guest/tts")
+async def guest_tts(req: GuestTTSRequest, request: Request):
+    """Převede text odpovědi na řeč (MP3). Rate-limit proti zneužití nákladů."""
+    if not _rate_limit_ok("tts:" + _client_ip(request), max_hits=15):
+        raise HTTPException(429, "Příliš mnoho požadavků na hlas. Zkuste to za chvíli.")
+    api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    if not api_key:
+        raise HTTPException(400, "TTS není nakonfigurováno")
+    text = (req.text or "").strip()
+    if not text:
+        raise HTTPException(400, "Prázdný text")
+    if len(text) > _TTS_MAX_CHARS:
+        text = text[:_TTS_MAX_CHARS]
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(
+            "https://api.openai.com/v1/audio/speech",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={
+                "model": _TTS_MODEL,
+                "voice": _TTS_VOICE,
+                "input": text,
+                "instructions": _TTS_INSTRUCTIONS,
+                "response_format": "mp3",
+            },
+        )
+    if r.status_code != 200:
+        logging.warning("TTS chyba %s: %s", r.status_code, r.text[:200])
+        raise HTTPException(502, "TTS selhalo")
+    from fastapi.responses import Response
+    return Response(content=r.content, media_type="audio/mpeg",
+                    headers={"Cache-Control": "no-store"})
 
 # ─────────────────────────────────────────────
 # Apaleo Connect (OAuth) — jednoklikové připojení hotelu (Apaleo Store ready)
@@ -4899,6 +4947,8 @@ def terms_of_service(lang: str = "en"):
     return HTMLResponse(content=TERMS_EN)
 
 LEGAL_CSS = """
+<meta name="google" content="notranslate">
+<meta charset="utf-8">
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#0f0f1a;color:#e0e0f0;line-height:1.8;padding:0}
@@ -4943,10 +4993,7 @@ PRIVACY_CS = LEGAL_CSS + """
   <h2>II. Jaké osobní údaje shromažďujeme</h2>
   <h3>Od hostů (koncových uživatelů)</h3>
   <ul>
-    <li><strong>Křestní jméno</strong> — personalizace komunikace s avatarem</li>
-    <li><strong>Pohlaví, věk</strong> — statistické účely a personalizace nabídek</li>
-    <li><strong>E-mail</strong> — komunikace a marketingové účely (se souhlasem)</li>
-    <li><strong>Telefonní číslo</strong> (nepovinné) — přímá komunikace nebo WhatsApp funkce</li>
+    <li><strong>Křestní jméno</strong> (volitelné — pouze pokud ho host sám zadá) — personalizace komunikace</li>
     <li><strong>Datum ubytování</strong> — relevantní poskytování informací</li>
     <li><strong>Obsah komunikace s avatarem</strong> — zlepšování AI, zpravidla anonymizováno</li>
     <li><strong>Informace o zařízení, IP adresa</strong> — technická optimalizace a zabezpečení</li>
@@ -5017,10 +5064,7 @@ PRIVACY_EN = LEGAL_CSS + """
   <h2>II. What personal data we collect</h2>
   <h3>From guests (end users)</h3>
   <ul>
-    <li><strong>First name</strong> — personalisation of avatar communication</li>
-    <li><strong>Gender, age</strong> — statistical purposes and offer personalisation</li>
-    <li><strong>Email address</strong> — communication and marketing (with consent)</li>
-    <li><strong>Phone number</strong> (optional) — direct communication or WhatsApp features</li>
+    <li><strong>First name</strong> (optional — only if the guest chooses to enter it) — personalisation of communication</li>
     <li><strong>Stay dates</strong> — providing relevant information</li>
     <li><strong>Avatar conversation content</strong> — AI improvement, typically anonymised</li>
     <li><strong>Device information, IP address</strong> — technical optimisation and security</li>
@@ -5089,7 +5133,7 @@ TERMS_CS = LEGAL_CSS + """
 
   <h2>II. Cena a platební podmínky</h2>
   <ul>
-    <li>Měsíční poplatek: <strong>200 EUR</strong> pro hotely do 100 lůžek; nad 100 lůžek +3 EUR/lůžko/měsíc</li>
+    <li>Měsíční poplatek: <strong>199 EUR</strong> pro hotely do 100 lůžek; nad 100 lůžek +2 EUR/lůžko/měsíc</li>
     <li>Platby probíhají automaticky kartou nebo převodem prostřednictvím platební brány</li>
     <li>Prvních <strong>14 dní zdarma</strong> — zkušební doba bez poplatku</li>
     <li>Zaváděcí cena je zachována po celou dobu nepřetržitého předplatného</li>
@@ -5116,7 +5160,9 @@ TERMS_CS = LEGAL_CSS + """
 
   <h2>VI. Ukončení smlouvy</h2>
   <ul>
-    <li><strong>Klient:</strong> výpovědní doba 1 měsíc (od prvního dne následujícího měsíce)</li>
+    <li><strong>Klient může předplatné zrušit kdykoliv</strong> — v hotelovém portálu nebo e-mailem Poskytovateli</li>
+    <li><strong>Zrušení ve zkušební době</strong> (prvních 14 dní): zdarma, Klientovi není účtována žádná platba</li>
+    <li><strong>Zrušení po zkušební době:</strong> předplatné končí uplynutím již započatého fakturačního měsíce. Poplatek za započatý měsíc se nevrací (ani poměrnou částí); služba zůstává Klientovi plně funkční do konce tohoto měsíce a žádné další platby již nejsou účtovány</li>
     <li><strong>Poskytovatel:</strong> může okamžitě ukončit při závažném porušení podmínek nebo prodlení s platbou delším než 14 dní</li>
   </ul>
 
@@ -5153,7 +5199,7 @@ TERMS_EN = LEGAL_CSS + """
 
   <h2>II. Pricing and payment</h2>
   <ul>
-    <li>Monthly fee: <strong>€200</strong> for hotels up to 100 beds; above 100 beds +€3/bed/month</li>
+    <li>Monthly fee: <strong>€199</strong> for hotels up to 100 beds; above 100 beds +€2/bed/month</li>
     <li>Payments are processed automatically by card or bank transfer via the payment gateway</li>
     <li>First <strong>14 days free</strong> — trial period with no charge</li>
     <li>Introductory pricing is maintained for the duration of continuous subscription</li>
@@ -5180,7 +5226,9 @@ TERMS_EN = LEGAL_CSS + """
 
   <h2>VI. Termination</h2>
   <ul>
-    <li><strong>Client:</strong> 1-month notice period (from the first day of the following month)</li>
+    <li><strong>The Client may cancel the subscription at any time</strong> — in the hotel portal or by email to the Provider</li>
+    <li><strong>Cancellation during the trial period</strong> (first 14 days): free of charge, nothing is billed</li>
+    <li><strong>Cancellation after the trial period:</strong> the subscription ends at the end of the current billing month. The fee for the started month is non-refundable (including pro-rata); the service remains fully available to the Client until the end of that month, and no further payments are charged</li>
     <li><strong>Provider:</strong> may terminate immediately upon material breach or payment default exceeding 14 days</li>
   </ul>
 
