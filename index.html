@@ -668,7 +668,12 @@ const API = '';  // prázdné = stejná origin (backend servíruje frontend)
 window.fetch = (function(orig){
   return async function(){
     const r = await orig.apply(this, arguments);
-    try{ if(r.status===401 && String(arguments[0]||'').indexOf('/api/')>=0) showAdminLogin(); }catch(e){}
+    try{
+      const u=String(arguments[0]||'');
+      // 401 z /api/danger/* = špatné DRUHÉ heslo (citlivé akce) a 401 z /api/admin/login = špatné admin heslo
+      // — ani jedno neznamená odhlášení, admin login se pro ně nesmí otvírat (jinak vznikne smyčka).
+      if(r.status===401 && u.indexOf('/api/')>=0 && u.indexOf('/api/danger/')<0 && u.indexOf('/api/admin/login')<0) showAdminLogin();
+    }catch(e){}
     return r;
   };
 })(window.fetch);
