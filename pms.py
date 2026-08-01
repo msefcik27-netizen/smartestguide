@@ -110,7 +110,10 @@ def format_services_block(services: list) -> str:
         lines.append(row)
     lines.append("Tyto služby přirozeně nabídni, když se hodí k tématu (snídaně, wellness, pozdní check-out…) — "
                  "jako přátelský tip concierge, ne jako reklamu. Ceny uváděj PŘESNĚ vč. rozlišení "
-                 "jednotkové ceny a součtu za pobyt — nic nedopočítávej. Objednání vyřídí recepce.")
+                 "jednotkové ceny a součtu za pobyt — nic nedopočítávej. "
+                 "DŮLEŽITÉ: Ty sám NIC neobjednáváš a nerezervuješ — NIKDY se neptej, zda to má host "
+                 "objednat (žádné 'Would you like to book it?'). Objednání vyřizuje VÝHRADNĚ recepce — "
+                 "odpověď zakonči odkazem na recepci (osobně/telefon/WhatsApp).")
     return "\n".join(lines)
 
 # ── Tolerantní párování čísla pokoje ─────────────────────────────────────────
