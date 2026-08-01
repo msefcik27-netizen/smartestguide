@@ -452,17 +452,25 @@ async def apaleo_available_services(hotel: dict) -> Optional[list]:
         d_to = (date.today() + timedelta(days=1)).isoformat()
     except Exception:
         return None
+    # API může vyžadovat datum, nebo plný date-time (ISO8601) — zkus obojí
     d = await _apaleo_get(hotel, "/availability/v1/services",
                           {"propertyId": pid, "from": d_from, "to": d_to,
                            "pageSize": 100}, quiet=True)
+    if d is None:
+        d = await _apaleo_get(hotel, "/availability/v1/services",
+                              {"propertyId": pid, "from": d_from + "T00:00:00Z",
+                               "to": d_to + "T00:00:00Z", "pageSize": 100}, quiet=True)
     if d is None:
         # Negativní cache — bez availability.read (starý souhlas) nezkoušet každou zprávu
         _services_cache[ck] = {"data": None, "expires": now + 600}
         return None
     out, seen = [], set()
-    # Tvar odpovědi se liší dle verze — projdi timeSlices[].services[] i ploché services[]
+    # Tvar odpovědi se liší dle verze — projdi timeSlices (položka může BÝT service záznam
+    # s vnořeným "service", nebo obsahovat pole services[]) i ploché services[]
     buckets = []
     for ts in d.get("timeSlices") or []:
+        if isinstance(ts.get("service"), dict):
+            buckets.append(ts)
         buckets += ts.get("services") or []
     buckets += d.get("services") or []
     for item in buckets:
@@ -479,7 +487,12 @@ async def apaleo_available_services(hotel: dict) -> Optional[list]:
                     "currency": price_obj.get("currency") or ""})
         if len(out) >= 12:
             break
-    _services_cache[ck] = {"data": out, "expires": now + 3600}
+    if not out:
+        # Diagnostika: API odpovědělo, ale nic jsme nevyparsovali → zaloguj tvar odpovědi
+        logging.info("Apaleo services: 200 OK, ale 0 služeb — klíče odpovědi: %s | ukázka: %s",
+                     list(d.keys())[:8], str(d)[:400])
+    # Úspěch s výsledky drž 1 h; prázdný výsledek jen 10 min (ať oprava/nová služba naskočí dřív)
+    _services_cache[ck] = {"data": out, "expires": now + (3600 if out else 600)}
     return out
 
 async def _apaleo_get_stay(hotel: dict, room: str) -> Optional[Stay]:
