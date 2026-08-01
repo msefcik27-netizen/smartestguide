@@ -33,6 +33,7 @@ class Stay:
     adults: int = 0
     children: int = 0
     rate_plan: str = ""             # název balíčku/sazby (např. "Wellness balíček")
+    unit_group: str = ""            # typ pokoje (unit group name) — pro nabídku prodloužení
     status: str = ""                # InHouse / Confirmed / ...
     source: str = ""                # 'apaleo' | 'mews' | ...
 
@@ -57,7 +58,48 @@ def format_stay_block(stay: "Stay") -> str:
     if stay.rate_plan:  lines.append(f"- Balíček/sazba: {stay.rate_plan}")
     lines.append("POZN.: Údaje o účtu, útratě, zůstatku a platbách NEMÁŠ k dispozici a nesděluj je — u jakéhokoli dotazu na účet/platby odkaž hosta na recepci.")
     lines.append("Pokud jsi dříve v této konverzaci uvedl jiné časy (obecné časy hotelu), tyto údaje z rezervace je NAHRAZUJÍ — odpovídej podle rezervace a případný rozpor krátce vysvětli (obecný čas hotelu vs. čas ve vaší rezervaci).")
-    lines.append("PRAVIDLO PŘESNOSTI PRO POBYT: Odpovídej VÝHRADNĚ z údajů uvedených výše. Pokud se host ptá na detail pobytu, který tu není (např. co přesně zahrnuje balíček, cena, platby, změna rezervace), NIKDY ho nedomýšlej — řekni, že tuto informaci nemáš, a odkaž na recepci. Změny rezervace (prodloužení, pozdní check-out) NIKDY nepotvrzuj — jen předej kontakt na recepci.")
+    lines.append("PRAVIDLO PŘESNOSTI PRO POBYT: Odpovídej VÝHRADNĚ z údajů uvedených výše. Pokud se host ptá na detail pobytu, který tu není (např. co přesně zahrnuje balíček, cena, platby, změna rezervace), NIKDY ho nedomýšlej — řekni, že tuto informaci nemáš, a odkaž na recepci. Změny rezervace NIKDY sám nepotvrzuj — potvrzuje je vždy recepce. VÝJIMKA: pokud máš níže blok PRODLOUŽENÍ POBYTU s živou dostupností a cenou, smíš tyto údaje hostovi sdělit (přesně, beze změny) — s dovětkem, že rezervaci prodloužení potvrdí recepce.")
+    return "\n".join(lines)
+
+def format_extension_block(ext: dict) -> str:
+    """Blok PRODLOUŽENÍ POBYTU do promptu — z živých dat offers.read. Cena doslova z API."""
+    if not ext:
+        return ""
+    if not ext.get("available"):
+        return ("PRODLOUŽENÍ POBYTU (živá data z hotelového systému): Na termín "
+                f"{ext.get('from','')} až {ext.get('to','')} NENÍ volná kapacita. "
+                "Hostovi to řekni a doporuč obrátit se na recepci — někdy umí najít řešení "
+                "(jiný typ pokoje, čekací listina).")
+    price = ext.get("price")
+    cur = ext.get("currency") or ""
+    lines = [
+        "PRODLOUŽENÍ POBYTU (živá data z hotelového systému — smíš je hostovi sdělit):",
+        f"- Termín: {ext.get('from','')} → {ext.get('to','')} ({ext.get('nights',1)} noc/noci)",
+        f"- Cena: {price} {cur} (uváděj PŘESNĚ tuto částku, nic nedopočítávej ani nezaokrouhluj)",
+    ]
+    if ext.get("unit_group"):
+        lines.append(f"- Typ pokoje: {ext['unit_group']}"
+                     + ("" if ext.get("same_room_type") else " (POZOR: jiný typ než hostův současný pokoj — zmiň to)"))
+    if ext.get("rate_plan"):
+        lines.append(f"- Sazba: {ext['rate_plan']}")
+    lines.append("DŮLEŽITÉ: Toto je informativní nabídka. Rezervaci prodloužení potvrzuje VÝHRADNĚ recepce — "
+                 "hosta vždy vyzvi, ať se pro potvrzení zastaví na recepci nebo zavolá. Ty sám NIC nerezervuješ.")
+    return "\n".join(lines)
+
+def format_services_block(services: list) -> str:
+    """Blok SLUŽBY HOTELU do promptu — nabídka z PMS (availability.read)."""
+    if not services:
+        return ""
+    lines = ["SLUŽBY HOTELU K DOKOUPENÍ (živá nabídka z hotelového systému):"]
+    for s in services[:12]:
+        row = f"- {s.get('name','')}"
+        if s.get("price") is not None:
+            row += f" — {s['price']} {s.get('currency','')}"
+        if s.get("description"):
+            row += f" ({s['description'][:120]})"
+        lines.append(row)
+    lines.append("Tyto služby přirozeně nabídni, když se hodí k tématu (snídaně, wellness, pozdní check-out…) — "
+                 "jako přátelský tip concierge, ne jako reklamu. Ceny uváděj přesně. Objednání vyřídí recepce.")
     return "\n".join(lines)
 
 # ── Tolerantní párování čísla pokoje ─────────────────────────────────────────
@@ -175,6 +217,7 @@ def _apaleo_normalize(res: dict) -> Stay:
         adults=res.get("adults") or 0,
         children=len(res.get("childrenAges") or []),
         rate_plan=((res.get("ratePlan") or {}).get("name") or ""),
+        unit_group=((res.get("unitGroup") or {}).get("name") or ""),
         status=res.get("status") or "",
         source="apaleo",
     )
@@ -195,51 +238,287 @@ async def apaleo_refresh_access_token(client_id: str, client_secret: str, refres
     d = r.json()
     return d.get("access_token"), d.get("refresh_token"), int(d.get("expires_in", 3600))
 
-async def _apaleo_get_stay(hotel: dict, room: str) -> Optional[Stay]:
-    property_id = (hotel.get("pms_property_id") or "").strip()
-    if not property_id:
-        return None
+async def _apaleo_access_token(hotel: dict) -> Optional[str]:
+    """Získá access token pro hotel — sdílené všemi Apaleo čteními.
+    1) Connect (OAuth, Apaleo Store) s cache do vypršení; 2) fallback client_credentials."""
     token = None
-    cache_key = None
     # 1) Connect (OAuth) režim — hotel připojený přes Apaleo Store / tlačítko v portálu
     if hotel.get("pms_refresh_token") and hotel.get("_apaleo_app_client_id"):
-        # Cache access tokenu do vypršení (~60 min) — bez ní se před KAŽDÝM čtením
-        # dělal nový refresh (2 volání na zprávu hosta místo 1).
-        cache_key = (hotel.get("id") or "") + ":" + property_id
+        cache_key = (hotel.get("id") or "") + ":" + (hotel.get("pms_property_id") or "")
         now = time.time()
         cached = _connect_token_cache.get(cache_key)
         if cached and cached["expires"] > now + 60:
-            token = cached["token"]
-        else:
-            token, new_rt, expires_in = await apaleo_refresh_access_token(
-                hotel["_apaleo_app_client_id"], hotel.get("_apaleo_app_client_secret", ""),
-                hotel["pms_refresh_token"])
-            if token:
-                _connect_token_cache[cache_key] = {"token": token, "expires": now + expires_in}
-            if new_rt and new_rt != hotel.get("pms_refresh_token"):
-                # rotace refresh tokenu — volající (app.py) ho po požadavku uloží
-                hotel["_new_refresh_token"] = new_rt
+            return cached["token"]
+        token, new_rt, expires_in = await apaleo_refresh_access_token(
+            hotel["_apaleo_app_client_id"], hotel.get("_apaleo_app_client_secret", ""),
+            hotel["pms_refresh_token"])
+        if token:
+            _connect_token_cache[cache_key] = {"token": token, "expires": now + expires_in}
+        if new_rt and new_rt != hotel.get("pms_refresh_token"):
+            # rotace refresh tokenu — volající (app.py) ho po požadavku uloží
+            hotel["_new_refresh_token"] = new_rt
     # 2) Custom app režim — ručně zadané client credentials per hotel
     if not token:
         client_id = (hotel.get("pms_client_id") or "").strip()
         client_secret = (hotel.get("pms_client_secret") or "").strip()
-        if not (client_id and client_secret):
+        if client_id and client_secret:
+            token = await _apaleo_token(client_id, client_secret)
+    return token
+
+def _drop_connect_token(hotel: dict):
+    """Zahodí cachovaný Connect access token (po 401/403 — token zneplatněn)."""
+    _connect_token_cache.pop((hotel.get("id") or "") + ":" + (hotel.get("pms_property_id") or ""), None)
+
+async def _apaleo_get(hotel: dict, path: str, params: dict, quiet: bool = False):
+    """GET na Apaleo API s tokenem hotelu. Vrací JSON dict nebo None.
+    quiet=True: 403 (chybějící scope u starého souhlasu) NEoznačuje _pms_fail —
+    nesmí spouštět alert 'PMS selhává', jádro (rezervace) může fungovat dál."""
+    token = await _apaleo_access_token(hotel)
+    if not token:
+        if not quiet:
+            hotel["_pms_fail"] = "token"
+        return None
+    async with httpx.AsyncClient(timeout=8.0) as client:
+        r = await client.get(f"{_APALEO_API}{path}",
+                             headers={"Authorization": f"Bearer {token}"}, params=params)
+    if r.status_code == 200:
+        try:
+            return r.json()
+        except Exception:
             return None
-        token = await _apaleo_token(client_id, client_secret)
+    if r.status_code in (401, 403):
+        _drop_connect_token(hotel)
+    if not quiet:
+        logging.warning("Apaleo GET %s selhal: %s %s", path, r.status_code, r.text[:150])
+        hotel["_pms_fail"] = f"http {r.status_code}"
+    elif r.status_code != 403:  # 403 u quiet = chybějící scope, logovat jen debug-tiše
+        logging.info("Apaleo GET %s (quiet) selhal: %s", path, r.status_code)
+    return None
+
+# ── setup.read: properties, units, časy check-in/out ─────────────────────────
+
+_setup_cache: dict = {}      # (hotel_id, property_id) -> {"data": dict, "expires": epoch}
+_services_cache: dict = {}   # (hotel_id, property_id) -> {"data": list, "expires": epoch}
+
+async def apaleo_list_properties(hotel: dict) -> Optional[list]:
+    """Seznam properties účtu (pro dropdown v portálu). Bez zvláštního scope.
+    Vrací [{code, name, status}] nebo None při selhání."""
+    d = await _apaleo_get(hotel, "/inventory/v1/properties", {"pageSize": 500}, quiet=True)
+    if not d:
+        return None
+    out = []
+    for p in d.get("properties") or []:
+        code = p.get("id") or p.get("code") or ""
+        name = p.get("name") or ""
+        if isinstance(name, dict):  # multijazyčné jméno → první hodnota
+            name = next(iter(name.values()), "")
+        if code:
+            out.append({"code": code, "name": str(name), "status": p.get("status") or ""})
+    return out
+
+async def apaleo_get_setup(hotel: dict, property_id: str = "") -> Optional[dict]:
+    """Konfigurace property (scope setup.read): seznam units, počet lůžek,
+    check-in/out časy z time slice definitions. Cache 10 min. Vrací None při selhání
+    (typicky starý souhlas bez setup.read) — volající musí umět jet bez toho."""
+    pid = (property_id or hotel.get("pms_property_id") or "").strip()
+    if not pid:
+        return None
+    ck = ((hotel.get("id") or ""), pid)
+    now = time.time()
+    c = _setup_cache.get(ck)
+    if c and c["expires"] > now:
+        return c["data"]
+    units_d = await _apaleo_get(hotel, "/inventory/v1/units",
+                                {"propertyId": pid, "pageSize": 500}, quiet=True)
+    if units_d is None:
+        # Negativní cache: starý souhlas bez setup.read by jinak zkoušel units
+        # při každé zprávě hosta znovu (latence + zbytečná volání)
+        _setup_cache[ck] = {"data": None, "expires": now + 600}
+        return None
+    units = []
+    for u in units_d.get("units") or []:
+        if u.get("name"):
+            units.append({"id": u.get("id") or "", "name": str(u.get("name")),
+                          "maxPersons": int(u.get("maxPersons") or 0)})
+    # Lůžka: součet maxPersons unit-groups typu BedRoom (units × kapacita);
+    # fallback: součet maxPersons přes units.
+    beds = 0
+    ug_d = await _apaleo_get(hotel, "/inventory/v1/unit-groups",
+                             {"propertyId": pid, "unitGroupTypes": "BedRoom", "pageSize": 500}, quiet=True)
+    if ug_d and (ug_d.get("unitGroups") or []):
+        try:
+            bed_ids = {g.get("id") for g in ug_d["unitGroups"]}
+            per_group = {g.get("id"): int(g.get("maxPersons") or 0) for g in ug_d["unitGroups"]}
+            for u in units_d.get("units") or []:
+                gid = (u.get("unitGroup") or {}).get("id") or u.get("unitGroupId")
+                if gid in bed_ids:
+                    beds += int(u.get("maxPersons") or per_group.get(gid, 0) or 0)
+        except Exception:
+            beds = 0
+    if not beds:
+        beds = sum(u["maxPersons"] for u in units)
+    # Check-in/out časy z time slice definitions (OverNight šablona)
+    checkin, checkout = "", ""
+    ts_d = await _apaleo_get(hotel, f"/settings/v1/properties/{pid}/time-slice-definitions",
+                             {}, quiet=True)
+    for ts in (ts_d or {}).get("timeSliceDefinitions") or []:
+        if (ts.get("template") or "") in ("OverNight", ""):
+            checkin = (ts.get("checkInTime") or "")[:5]    # "15:00:00" → "15:00"
+            checkout = (ts.get("checkOutTime") or "")[:5]
+            if checkin or checkout:
+                break
+    data = {"property_id": pid, "units": units, "unit_count": len(units),
+            "beds": beds, "checkin_time": checkin, "checkout_time": checkout}
+    _setup_cache[ck] = {"data": data, "expires": now + 600}
+    return data
+
+async def apaleo_validate_property(hotel: dict, property_code: str) -> dict:
+    """Validace property kódu při uložení: existuje v účtu? Vrací
+    {valid: bool, reason: str, name: str}. Když seznam properties nejde načíst,
+    vrací valid=True s reason='unverified' (nebránit uložení kvůli výpadku)."""
+    code = (property_code or "").strip()
+    if not code:
+        return {"valid": False, "reason": "empty", "name": ""}
+    props = await apaleo_list_properties(hotel)
+    if props is None:
+        return {"valid": True, "reason": "unverified", "name": ""}
+    for p in props:
+        if p["code"].strip().lower() == code.lower():
+            return {"valid": True, "reason": "ok", "name": p["name"]}
+    return {"valid": False, "reason": "not_found", "name": "",
+            "available": [p["code"] for p in props][:20]}
+
+# ── availability/offers.read: prodloužení pobytu + služby ────────────────────
+
+async def apaleo_extension_offer(hotel: dict, stay: "Stay", nights: int = 1) -> Optional[dict]:
+    """Živá nabídka prodloužení: od check-outu hosta o N nocí. Scope offers.read.
+    Vrací {available, price, currency, rate_plan, unit_group, from, to, nights}
+    nebo None (chyba/chybějící scope). Cena se NIKDY nedopočítává — jen doslova z API."""
+    pid = (hotel.get("pms_property_id") or "").strip()
+    if not (pid and stay and stay.departure):
+        return None
+    try:
+        from datetime import date, timedelta
+        d_from = date.fromisoformat(stay.departure)
+        d_to = d_from + timedelta(days=max(1, min(nights, 7)))
+    except Exception:
+        return None
+    d = await _apaleo_get(hotel, "/booking/v1/offers",
+                          {"propertyId": pid, "arrival": d_from.isoformat(),
+                           "departure": d_to.isoformat(),
+                           "adults": max(1, stay.adults or 1),
+                           "timeSliceTemplate": "OverNight"}, quiet=True)
+    if d is None:
+        return None
+    offers = d.get("offers") or []
+    if not offers:
+        return {"available": False, "from": d_from.isoformat(), "to": d_to.isoformat(),
+                "nights": (d_to - d_from).days}
+    # Preferuj nabídku pro stejný typ pokoje (unit group) jako má host; jinak nejlevnější
+    def _amount(o):
+        tg = o.get("totalGrossAmount") or {}
+        try:
+            return float(tg.get("amount"))
+        except (TypeError, ValueError):
+            return float("inf")
+    same_group = [o for o in offers
+                  if stay.unit_group and ((o.get("unitGroup") or {}).get("name") or "") == stay.unit_group]
+    pick = min(same_group or offers, key=_amount)
+    tg = pick.get("totalGrossAmount") or {}
+    if tg.get("amount") is None:
+        return None
+    return {"available": True,
+            "price": tg.get("amount"), "currency": tg.get("currency") or "",
+            "rate_plan": ((pick.get("ratePlan") or {}).get("name") or ""),
+            "unit_group": ((pick.get("unitGroup") or {}).get("name") or ""),
+            "same_room_type": bool(same_group),
+            "from": d_from.isoformat(), "to": d_to.isoformat(),
+            "nights": (d_to - d_from).days}
+
+async def apaleo_available_services(hotel: dict) -> Optional[list]:
+    """Dostupné služby hotelu (snídaně, wellness, late check-out…) — scope availability.read.
+    Cache 1 h per hotel+property. Vrací [{name, description, price, currency}] nebo None."""
+    pid = (hotel.get("pms_property_id") or "").strip()
+    if not pid:
+        return None
+    ck = ((hotel.get("id") or ""), pid)
+    now = time.time()
+    c = _services_cache.get(ck)
+    if c and c["expires"] > now:
+        return c["data"]
+    try:
+        from datetime import date, timedelta
+        d_from = date.today().isoformat()
+        d_to = (date.today() + timedelta(days=1)).isoformat()
+    except Exception:
+        return None
+    d = await _apaleo_get(hotel, "/availability/v1/services",
+                          {"propertyId": pid, "from": d_from, "to": d_to,
+                           "pageSize": 100}, quiet=True)
+    if d is None:
+        # Negativní cache — bez availability.read (starý souhlas) nezkoušet každou zprávu
+        _services_cache[ck] = {"data": None, "expires": now + 600}
+        return None
+    out, seen = [], set()
+    # Tvar odpovědi se liší dle verze — projdi timeSlices[].services[] i ploché services[]
+    buckets = []
+    for ts in d.get("timeSlices") or []:
+        buckets += ts.get("services") or []
+    buckets += d.get("services") or []
+    for item in buckets:
+        svc = item.get("service") if isinstance(item.get("service"), dict) else item
+        name = str(svc.get("name") or "").strip()
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        price_obj = (svc.get("defaultGrossPrice") or item.get("price")
+                     or item.get("grossAmount") or {})
+        desc = str(svc.get("description") or "").strip()
+        out.append({"name": name, "description": desc[:200],
+                    "price": price_obj.get("amount"),
+                    "currency": price_obj.get("currency") or ""})
+        if len(out) >= 12:
+            break
+    _services_cache[ck] = {"data": out, "expires": now + 3600}
+    return out
+
+async def _apaleo_get_stay(hotel: dict, room: str) -> Optional[Stay]:
+    property_id = (hotel.get("pms_property_id") or "").strip()
+    if not property_id:
+        return None
+    token = await _apaleo_access_token(hotel)
     if not token:
         hotel["_pms_fail"] = "token"   # monitoring: nepodařilo se získat access token
         return None
-    # Ubytovaní hosté (InHouse) pro danou property; pokoj filtrujeme lokálně dle unit.name
+    # Server-side filtr dle unit (setup.read): pokoj → unit id(s) přes reálný seznam units.
+    # Řeší velké properties (>200 InHouse rezervací = mimo první stránku) a umožní
+    # rozlišit „pokoj neexistuje" od „pokoj je prázdný". Bez setup.read (starý souhlas)
+    # tiše spadne na původní lokální filtrování.
+    params = {"propertyIds": property_id, "status": "InHouse", "pageSize": 200}
+    unit_ids = []
+    try:
+        setup = await apaleo_get_setup(hotel)
+        if setup and setup.get("units"):
+            exact = [u for u in setup["units"] if u["name"].strip().lower() == room.strip().lower()]
+            loose = exact or [u for u in setup["units"] if _room_match(u["name"], room)]
+            unit_ids = [u["id"] for u in loose if u.get("id")][:5]
+            if not loose:
+                hotel["_room_not_found"] = True  # pokoj v property neexistuje (překlep)
+                return None
+    except Exception as e:
+        logging.info("Apaleo setup lookup přeskočen: %s", e)
+    if unit_ids:
+        params["unitIds"] = unit_ids
     async with httpx.AsyncClient(timeout=8.0) as client:
         r = await client.get(
             f"{_APALEO_API}/booking/v1/reservations",
             headers={"Authorization": f"Bearer {token}"},
-            params={"propertyIds": property_id, "status": "InHouse", "pageSize": 200},
+            params=params,
         )
     if r.status_code != 200:
-        if r.status_code in (401, 403) and cache_key:
+        if r.status_code in (401, 403):
             # token mezitím zneplatněn (např. hotel odpojil app) → zahodit z cache
-            _connect_token_cache.pop(cache_key, None)
+            _drop_connect_token(hotel)
         logging.warning("Apaleo reservations selhal: %s %s", r.status_code, r.text[:150])
         hotel["_pms_fail"] = f"http {r.status_code}"   # monitoring: API vrátilo chybu
         return None

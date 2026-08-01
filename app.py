@@ -4479,6 +4479,16 @@ def analytics_overview():
         "hotels": hotels_out,
     }
 
+# Dotaz na PRODLOUŽENÍ pobytu (heuristika napříč jazyky) → spustí čtení živé
+# nabídky z Apaleo offers.read. Substring match, case-insensitive.
+_EXTENSION_INTENT_RE = re.compile(
+    r"prodlou[žz]|z[ůu]stat (d[ée]le|je[š]t[ěe])|dal[šs][íi] noc|extend|extension|"
+    r"stay (longer|another|an extra|one more)|another night|extra night|more night|"
+    r"verl[äa]nger|l[äa]nger bleiben|noch eine nacht|prolonger|nuit de plus|rester plus|"
+    r"prolongar|extender|una noche m[áa]s|quedarn?os m[áa]s|prolungare|un'?altra notte|"
+    r"przed[łl]u[żz]|jeszcze jedn[ąa] noc|продлить|продлени|еще одну ночь|ещё одну ночь|"
+    r"продовжити|ще одну ніч", re.IGNORECASE)
+
 # Fráze naznačující, že Alexovi chyběla informace (heuristika napříč jazyky)
 _LOW_INFO_MARKERS = [
     "i don't have", "i do not have", "i'm not sure", "i am not sure", "no information",
@@ -5421,6 +5431,7 @@ Guest name: {req.guest_name or 'Guest'}"""
     # jako SAMOSTATNÝ system blok (za kešovaným profilem hotelu — cache zůstane stabilní).
     # Jakákoli chyba => beze změny (graceful degradace, chat nikdy nesmí spadnout kvůli PMS).
     stay_block = None
+    _stay_obj = None   # skutečný ověřený pobyt (pro nabídku prodloužení z offers.read)
     if req.room and h.get("pms_type"):
         try:
             stay = await _fetch_stay_for_hotel(h, _hid, req.room, settings)
@@ -5430,6 +5441,7 @@ Guest name: {req.guest_name or 'Guest'}"""
                 claimed = _norm_date(req.arrival)
                 if stay and claimed and stay.arrival == claimed:
                     stay_block = pms_layer.format_stay_block(stay)
+                    _stay_obj = stay
                 else:
                     stay_block = ("OVĚŘENÍ POBYTU SELHALO: Host zadal číslo pokoje a datum příjezdu, "
                                   "ale neodpovídají žádné aktuální rezervaci. Pokud se ptá na svůj pobyt, "
@@ -5439,6 +5451,7 @@ Guest name: {req.guest_name or 'Guest'}"""
             elif stay:
                 # QR režim (pokoj z kartičky na pokoji) — personalizace z rezervace (bez účtu)
                 stay_block = pms_layer.format_stay_block(stay)
+                _stay_obj = stay
         except Exception as e:
             logging.warning("PMS injekce do promptu selhala: %s", e)
     elif h.get("pms_type") and not req.room:
@@ -5448,6 +5461,30 @@ Guest name: {req.guest_name or 'Guest'}"""
                       "odpověz z obecných údajů hotelu a přátelsky dodej, že odpovědi přímo ze své "
                       "rezervace získá propojením pobytu — tlačítkem pod chatem, kde zadá číslo pokoje "
                       "a datum příjezdu.")
+
+    # Apaleo rozšíření (balík re-submitu 2. 8. 2026 — „leverage Apaleo data"):
+    # a) SLUŽBY hotelu z PMS (availability.read, cache 1 h) — nabídka concierge;
+    # b) PRODLOUŽENÍ POBYTU (offers.read) — jen když se host ptá a má ověřený pobyt.
+    # Vše graceful: starý souhlas bez nových scopes → tiché přeskočení, chat jede dál.
+    pms_extra_blocks = []
+    if h.get("pms_type") and h.get("pms_property_id"):
+        try:
+            _ph_x = _pms_hotel_ctx(h, settings)
+            _svcs = await pms_layer.apaleo_available_services(_ph_x)
+            if _svcs:
+                pms_extra_blocks.append(pms_layer.format_services_block(_svcs))
+            if _stay_obj and _EXTENSION_INTENT_RE.search(req.message or ""):
+                _n = 1
+                _m = re.search(r"(\d{1,2})\s*(?:noc|näch|nach|night|nuit|noche|nott|noci|ночь|ночи|ноче|ніч|ноч)",
+                               (req.message or "").lower())
+                if _m:
+                    _n = max(1, min(int(_m.group(1)), 7))
+                _ext = await pms_layer.apaleo_extension_offer(_ph_x, _stay_obj, _n)
+                if _ext:
+                    pms_extra_blocks.append(pms_layer.format_extension_block(_ext))
+            _persist_rotated_refresh_token(_hid, _ph_x)
+        except Exception as e:
+            logging.warning("Apaleo služby/prodloužení přeskočeny: %s", e)
 
     messages = []
     # Omez historii na posledních 10 zpráv (~5 výměn) — starší kontext jen zbytečně žere vstupní tokeny
@@ -5466,7 +5503,8 @@ Guest name: {req.guest_name or 'Guest'}"""
                 # konverzaci čtou tenhle vstup levněji. Kešování naskočí, když prefix dosáhne minima
                 # (~1–2k tokenů); u bohatšího profilu ušetří nejvíc. Bez benefitu to neškodí.
                 "system": ([{"type": "text", "text": hotel_info, "cache_control": {"type": "ephemeral"}}]
-                           + ([{"type": "text", "text": stay_block}] if stay_block else [])),
+                           + ([{"type": "text", "text": stay_block}] if stay_block else [])
+                           + [{"type": "text", "text": b} for b in pms_extra_blocks if b]),
                 "messages": messages,
             },
             timeout=30.0,
@@ -5539,7 +5577,39 @@ async def guest_tts(req: GuestTTSRequest, request: Request):
 # Flow: portál → /connect?token=… → Apaleo authorize → /callback → uložení refresh tokenu
 # ─────────────────────────────────────────────
 _APALEO_AUTHORIZE_URL = "https://identity.apaleo.com/connect/authorize"
-_APALEO_SCOPES = "offline_access reservations.read"
+# Rozšíření scopes (2. 8. 2026, plán re-submitu po zamítnutí — Apaleo výslovně chtělo
+# „leverage Apaleo data"): setup.read = dropdown properties + auto-onboarding profilu
+# + párování pokojů proti units; availability.read + offers.read = prodloužení pobytu
+# s živou cenou + nabídka služeb. Vše read-only, bez PII, bez folios/invoices/accounting.
+_APALEO_SCOPES = "offline_access reservations.read setup.read availability.read offers.read"
+
+def _pms_hotel_ctx(h: dict, settings: dict) -> dict:
+    """Kopie hotelu s doplněnými app-level credentials pro pms vrstvu (Connect režim)."""
+    _ph = dict(h)
+    if h.get("pms_refresh_token"):
+        _ph["_apaleo_app_client_id"] = settings.get("apaleo_client_id", "")
+        _ph["_apaleo_app_client_secret"] = settings.get("apaleo_client_secret", "")
+    return _ph
+
+def _apaleo_prefill_profile(db, hid: str, setup: dict) -> dict:
+    """Auto-onboarding ze setup.read: doplní JEN PRÁZDNÁ pole profilu hotelu
+    (počet lůžek, check-in/out časy) + uloží počet pokojů. Vrací, co se doplnilo."""
+    h = db["hotels"].get(hid)
+    if not h or not setup:
+        return {}
+    filled = {}
+    if not h.get("bed_count") and setup.get("beds"):
+        h["bed_count"] = int(setup["beds"])
+        filled["bed_count"] = int(setup["beds"])
+    if not h.get("checkin_time") and setup.get("checkin_time"):
+        h["checkin_time"] = setup["checkin_time"]
+        filled["checkin_time"] = setup["checkin_time"]
+    if not h.get("checkout_time") and setup.get("checkout_time"):
+        h["checkout_time"] = setup["checkout_time"]
+        filled["checkout_time"] = setup["checkout_time"]
+    if setup.get("unit_count"):
+        h["pms_unit_count"] = int(setup["unit_count"])
+    return filled
 
 @app.get("/api/pms/apaleo/connect")
 def apaleo_connect(token: str, request: Request):
@@ -5630,11 +5700,111 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
     db["hotels"][hid].pop("pms_oauth_state", None)
     db["hotels"][hid].pop("pms_oauth_state_at", None)
     db_save(db)
+    # Auto-setup (setup.read): načti properties účtu. Jediná property → nastav rovnou
+    # a předvyplň prázdná pole profilu (lůžka, check-in/out). Více properties → hotel
+    # vybere z dropdownu v portálu (žádné ruční opisování kódu). Graceful: selhání
+    # auto-setupu nikdy nezablokuje samotné připojení.
     prop_note = ""
-    if not h.get("pms_property_id"):
-        prop_note = " One last step: enter your property code (e.g. BER) in the PMS section of your portal."
+    try:
+        _ph = _pms_hotel_ctx(db["hotels"][hid], s)
+        props = await pms_layer.apaleo_list_properties(_ph) or []
+        if len(props) == 1 and not db["hotels"][hid].get("pms_property_id"):
+            db["hotels"][hid]["pms_property_id"] = props[0]["code"]
+            setup = await pms_layer.apaleo_get_setup(_ph, props[0]["code"])
+            filled = _apaleo_prefill_profile(db, hid, setup) if setup else {}
+            db_save(db)
+            prop_note = f" Your property {props[0]['name'] or props[0]['code']} ({props[0]['code']}) was detected and set up automatically."
+            if filled:
+                prop_note += " We also pre-filled your profile from Apaleo: " + ", ".join(
+                    {"bed_count": "bed count", "checkin_time": "check-in time",
+                     "checkout_time": "check-out time"}.get(k, k) for k in filled) + "."
+        elif len(props) > 1 and not db["hotels"][hid].get("pms_property_id"):
+            prop_note = f" Your account has {len(props)} properties — please pick yours from the list in the PMS section of your portal."
+        elif not db["hotels"][hid].get("pms_property_id"):
+            prop_note = " One last step: select your property in the PMS section of your portal."
+        if _ph.get("_new_refresh_token"):
+            db["hotels"][hid]["pms_refresh_token"] = _ph["_new_refresh_token"]
+            db_save(db)
+    except Exception as e:
+        logging.warning("Apaleo auto-setup po připojení selhal: %s", e)
+        if not h.get("pms_property_id"):
+            prop_note = " One last step: select your property in the PMS section of your portal."
     logging.info("Apaleo Connect: hotel %s připojen.", hid)
     return _page("Apaleo connected", f"{h.get('name','Your hotel')} is now connected to SMARTEST GUIDE. Alex, the AI concierge, can answer your guests using their reservation details (check-out time, length of stay, package).{prop_note}", portal_url=portal_url)
+
+@app.get("/api/pms/apaleo/properties")
+async def apaleo_properties(token: str):
+    """Seznam properties Apaleo účtu pro dropdown v portálu (místo ručního opisování kódu).
+    Řeší bod z cert callu: hotel s více lokacemi neví, jaké kódy má k dispozici."""
+    h = find_hotel_by_token(token)
+    if not h:
+        raise HTTPException(403, "Neplatný přístupový token")
+    if not h.get("pms_refresh_token") and not h.get("pms_client_id"):
+        return {"status": "ok", "properties": [], "current": h.get("pms_property_id") or "",
+                "note": "not_connected"}
+    s = db_get_settings()
+    _ph = _pms_hotel_ctx(h, s)
+    props = await pms_layer.apaleo_list_properties(_ph)
+    _persist_rotated_refresh_token(h.get("id"), _ph)
+    if props is None:
+        return {"status": "ok", "properties": [], "current": h.get("pms_property_id") or "",
+                "note": "fetch_failed"}
+    return {"status": "ok", "properties": props, "current": h.get("pms_property_id") or ""}
+
+class ApaleoSelectPropertyRequest(BaseModel):
+    token: str
+    property_code: str
+
+@app.post("/api/pms/apaleo/select-property")
+async def apaleo_select_property(req: ApaleoSelectPropertyRequest):
+    """Uloží property hotelu S VALIDACÍ proti reálnému seznamu properties účtu
+    (řeší tichou díru: překlep v kódu = Alex bez personalizace a nikdo si nevšimne).
+    Po uložení rovnou auto-předvyplní prázdná pole profilu ze setup.read."""
+    h = find_hotel_by_token(req.token)
+    if not h:
+        raise HTTPException(403, "Neplatný přístupový token")
+    code = (req.property_code or "").strip()
+    if not code:
+        raise HTTPException(400, "Chybí kód property")
+    s = db_get_settings()
+    _ph = _pms_hotel_ctx(h, s)
+    check = await pms_layer.apaleo_validate_property(_ph, code)
+    if not check.get("valid"):
+        _persist_rotated_refresh_token(h.get("id"), _ph)
+        return {"status": "error", "valid": False,
+                "message": "Property s tímto kódem v připojeném Apaleo účtu neexistuje.",
+                "available": check.get("available") or []}
+    db = db_load()
+    hid = h.get("id")
+    if hid not in db["hotels"]:
+        raise HTTPException(404, "Hotel nenalezen")
+    db["hotels"][hid]["pms_property_id"] = code
+    filled, unit_count = {}, 0
+    try:
+        setup = await pms_layer.apaleo_get_setup(_ph, code)
+        if setup:
+            filled = _apaleo_prefill_profile(db, hid, setup)
+            unit_count = setup.get("unit_count") or 0
+    except Exception as e:
+        logging.warning("Apaleo prefill po výběru property selhal: %s", e)
+    if _ph.get("_new_refresh_token"):
+        db["hotels"][hid]["pms_refresh_token"] = _ph["_new_refresh_token"]
+    db_save(db)
+    return {"status": "ok", "valid": True, "property": code,
+            "property_name": check.get("name") or "", "verified": check.get("reason") == "ok",
+            "prefilled": filled, "unit_count": unit_count}
+
+def _persist_rotated_refresh_token(hid: str, ph: dict):
+    """Uloží rotovaný Apaleo refresh token, pokud ho pms vrstva vyměnila."""
+    if not (hid and ph.get("_new_refresh_token")):
+        return
+    try:
+        db = db_load()
+        if hid in db["hotels"]:
+            db["hotels"][hid]["pms_refresh_token"] = ph["_new_refresh_token"]
+            db_save(db)
+    except Exception as e:
+        logging.warning("Uložení rotovaného refresh tokenu selhalo: %s", e)
 
 @app.post("/api/pms/apaleo/disconnect")
 def apaleo_disconnect(token: str):

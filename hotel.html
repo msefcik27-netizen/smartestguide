@@ -376,6 +376,16 @@ const EN_MAP = {
   "Opravdu odpojit hotelový systém (Apaleo)?\n\nAlex přestane znát pobyty hostů a bude odpovídat jen z profilu hotelu. Připojit ho můžete kdykoli znovu jedním kliknutím.":"Really disconnect your hotel system (Apaleo)?\n\nAlex will stop knowing guest stays and answer only from the hotel profile. You can reconnect anytime with one click.",
   "Zadejte kód property (např. BER)":"Enter the property code (e.g. BER)",
   "Uložení se nepovedlo: ":"Saving failed: ","Odpojení se nepovedlo: ":"Disconnecting failed: ",
+  "Načítám seznam properties…":"Loading your properties…","Změnit":"Change",
+  "— vyberte svůj hotel —":"— select your hotel —",
+  "Vyberte svůj hotel ze seznamu":"Select your hotel from the list",
+  "Vyberte svůj hotel ze seznamu — načítá se přímo z vašeho Apaleo účtu, žádné opisování kódů.":"Select your hotel from the list — loaded directly from your Apaleo account, no copying codes.",
+  "Property s tímto kódem v připojeném Apaleo účtu neexistuje.":"No property with this code exists in the connected Apaleo account.",
+  "Dostupné kódy: ":"Available codes: ",
+  "Property uložena a ověřena proti vašemu Apaleo účtu.":"Property saved and verified against your Apaleo account.",
+  "počet lůžek":"bed count","check-in čas":"check-in time","check-out čas":"check-out time",
+  "Z Apalea jsme rovnou předvyplnili: ":"We pre-filled from Apaleo: ",
+  "Načteno pokojů: ":"Rooms loaded: ",
   // ── Průvodce spuštěním ──
   "🚀 Průvodce spuštěním":"🚀 Launch guide","krok":"step",
   "Základ pro hosty":"Guest essentials","Vylepšení":"Enhancements","Lokální tipy":"Local tips",
@@ -741,6 +751,11 @@ function renderPortal() {
         ${row('Room service', 'room_service_hours', 'text', h.room_service_hours, 'např. 0–24h, menu na pokoji')}
         ${row('Minibar na pokoji', 'minibar', 'text', h.minibar, 'např. Ano, doplňován denně')}
         ${row('Parkování', 'parking_info', 'text', h.parking_info, 'např. Bezplatné parkování před hotelem, garáž 200 Kč/noc')}
+        ${row('Cena parkování', 'parking_fee', 'text', h.parking_fee, 'např. 200 Kč/noc — hosté se ptají často')}
+        ${row('Poplatek za mazlíčka', 'pet_fee', 'text', h.pet_fee, 'např. 250 Kč/noc za psa')}
+        ${row('Turistický poplatek', 'tourist_tax', 'text', h.tourist_tax, 'např. 21 Kč/os./noc (od 18 let)')}
+        ${row('Platební metody', 'payment_methods', 'text', h.payment_methods, 'např. Visa, Mastercard, hotovost CZK/EUR')}
+        ${row('Jazyky personálu', 'staff_languages', 'text', h.staff_languages, 'např. čeština, angličtina, němčina')}
         ${row('Prádelna / Čistírna', 'laundry_info', 'text', h.laundry_info, 'např. Výdej do 24h, expresní 4h')}
         ${row('Půjčovna kol', 'bike_rental', 'text', h.bike_rental, 'cena a dostupnost')}
         ${row('Transfer / Shuttle', 'transfer_info', 'text', h.transfer_info, 'např. Shuttle na letiště, taxi')}
@@ -1598,24 +1613,29 @@ function loadPmsSection(){
     const failing=(h.pms_fail_count||0)>=3;
     const failInfo=failing?`<div style="margin-top:10px;background:rgba(255,90,90,.1);border:1px solid rgba(255,90,90,.35);border-radius:9px;padding:10px 14px;font-size:12px;color:#ff8a8a"><b>⚠️ Spojení s Apaleo aktuálně selhává</b>${h.pms_last_fail_at?` (naposledy ${new Date(h.pms_last_fail_at).toLocaleString('cs-CZ')})`:''} — Alex hostům dočasně odpovídá jen z profilu hotelu. Zkuste <b>Odpojit Apaleo</b> a hned poté znovu <b>Connect to Apaleo</b>. Pokud problém přetrvá, napište nám na support@smartestguide.com.</div>`:'';
     const discBtn = `<button onclick="disconnectPms()" style="background:transparent;border:none;color:var(--muted);font-size:11px;text-decoration:underline;cursor:pointer;font-family:var(--font-body);white-space:nowrap;padding:4px 2px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--muted)'">Odpojit Apaleo</button>`;
+    const showPicker=!prop||window._pmsPickProp;
+    const picker=`
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" id="pms-prop-picker">
+            <select id="pms-prop-select" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;min-width:220px;outline:none">
+              <option value="">Načítám seznam properties…</option>
+            </select>
+            <button onclick="savePmsProperty()" style="background:var(--accent);color:#0a0b0f;border:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Uložit</button>
+          </div>`;
     el.innerHTML=`
       <div style="background:${failing?'rgba(255,90,90,.06)':'rgba(46,204,135,.08)'};border:1px solid ${failing?'rgba(255,90,90,.3)':'rgba(46,204,135,.3)'};border-radius:12px;padding:18px 22px;margin-bottom:24px">
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
           <div style="font-size:26px">🔌</div>
           <div style="flex:1;min-width:220px">
             <div style="font-family:var(--font-head);font-size:14px;font-weight:700;color:${failing?'#ff8a8a':'#2ecc87'}">${failing?'Hotelový systém připojen — spojení selhává':'Hotelový systém připojen (Apaleo)'}</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:3px">${prop?`Property: <b>${prop}</b>. `:''}Alex zná pobyty hostů a odpovídá jim osobně (check-out, balíček, délka pobytu).</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px">${prop?`Property: <b>${prop}</b> <button onclick="window._pmsPickProp=true;loadPmsSection()" style="background:transparent;border:none;color:var(--muted);font-size:11px;text-decoration:underline;cursor:pointer;padding:0">Změnit</button>. `:''}Alex zná pobyty hostů a odpovídá jim osobně (check-out, balíček, délka pobytu).</div>
           </div>
-          ${prop?discBtn:`
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <input type="text" id="pms-prop-input" placeholder="Kód property (např. BER)" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;width:180px;outline:none">
-            <button onclick="savePmsProperty()" style="background:var(--accent);color:#0a0b0f;border:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Uložit</button>
-          </div>`}
+          ${showPicker?picker:discBtn}
         </div>
-        ${prop?'':`<div style="font-size:11px;color:var(--muted);margin-top:10px">Kód property najdete v adresním řádku po přihlášení do Apaleo — např. <b>app.apaleo.com/BER/…</b> → kód je <b>BER</b>.</div>
-        <div style="margin-top:8px;text-align:right">${discBtn}</div>`}
+        ${showPicker?`<div style="font-size:11px;color:var(--muted);margin-top:10px">Vyberte svůj hotel ze seznamu — načítá se přímo z vašeho Apaleo účtu, žádné opisování kódů.</div>
+        <div style="margin-top:8px;text-align:right">${discBtn}</div>`:''}
         ${failInfo}
       </div>`;
+    if(showPicker)loadPmsProperties();
   }else{
     el.innerHTML=`
       <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:24px">
@@ -1632,16 +1652,48 @@ function loadPmsSection(){
   translateDom(el);
 }
 
-async function savePmsProperty(){
-  const el=document.getElementById('pms-prop-input');
-  const val=(el?.value||'').trim().toUpperCase();
-  if(!val){alert(tr('Zadejte kód property (např. BER)'));return;}
+async function loadPmsProperties(){
+  // Dropdown properties přímo z Apaleo účtu (řeší překlepy i skupiny s více hotely).
+  const sel=document.getElementById('pms-prop-select');
+  if(!sel)return;
   try{
-    const r=await fetch(`${API}/api/hotel-portal/update?token=${token}`,{method:'PATCH',
-      headers:{'Content-Type':'application/json'},body:JSON.stringify({pms_property_id:val})});
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    hotelData.pms_property_id=val;
-    loadPmsSection();
+    const r=await fetch(`${API}/api/pms/apaleo/properties?token=${token}`);
+    const d=await r.json();
+    const props=d.properties||[];
+    if(!props.length)throw new Error(d.note||'empty');
+    sel.innerHTML='<option value="">'+tr('— vyberte svůj hotel —')+'</option>'+props.map(p=>
+      `<option value="${p.code}"${p.code===(d.current||'')?' selected':''}>${p.name?p.name+' ':''}(${p.code})${p.status==='Test'?' — test':''}</option>`).join('');
+  }catch(e){
+    // Fallback: seznam nejde načíst (starší souhlas bez nových oprávnění) → ruční zadání
+    const wrap=document.getElementById('pms-prop-picker');
+    if(wrap)wrap.innerHTML=`<input type="text" id="pms-prop-input" placeholder="${tr('Kód property (např. BER)')}" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;width:180px;outline:none">
+      <button onclick="savePmsProperty()" style="background:var(--accent);color:#0a0b0f;border:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">${tr('Uložit')}</button>`;
+  }
+}
+
+async function savePmsProperty(){
+  const sel=document.getElementById('pms-prop-select');
+  const inp=document.getElementById('pms-prop-input');
+  const val=((sel&&sel.value)||(inp&&inp.value)||'').trim();
+  if(!val){alert(tr('Vyberte svůj hotel ze seznamu'));return;}
+  try{
+    const r=await fetch(`${API}/api/pms/apaleo/select-property`,{method:'POST',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({token:token,property_code:val})});
+    const d=await r.json();
+    if(d.status!=='ok'||!d.valid){
+      alert(tr('Property s tímto kódem v připojeném Apaleo účtu neexistuje.')+
+        ((d.available&&d.available.length)?'\n\n'+tr('Dostupné kódy: ')+d.available.join(', '):''));
+      return;
+    }
+    window._pmsPickProp=false;
+    hotelData.pms_property_id=d.property;
+    let msg=tr('Property uložena a ověřena proti vašemu Apaleo účtu.');
+    const names={bed_count:tr('počet lůžek'),checkin_time:tr('check-in čas'),checkout_time:tr('check-out čas')};
+    const fl=Object.keys(d.prefilled||{}).map(k=>names[k]||k);
+    if(fl.length)msg+='\n\n'+tr('Z Apalea jsme rovnou předvyplnili: ')+fl.join(', ')+'.';
+    if(d.unit_count)msg+='\n'+tr('Načteno pokojů: ')+d.unit_count+'.';
+    alert(msg);
+    location.reload();
   }catch(e){alert(tr('Uložení se nepovedlo: ')+e.message);}
 }
 
@@ -1727,6 +1779,11 @@ const OB_STAGES = [
     {k:'restaurant_name', label:'Restaurace (název)',  ph:'např. Restaurace U Hvězdy'},
     {k:'dinner_hours',    label:'Večeře (čas)',        ph:'např. 18:00–22:00'},
     {k:'pet_policy',      label:'Domácí mazlíčci',     ph:'např. Psi vítáni, 300 Kč/noc'},
+    {k:'pet_fee',         label:'Poplatek za mazlíčka', ph:'např. 250 Kč/noc'},
+    {k:'parking_fee',     label:'Cena parkování',      ph:'např. 200 Kč/noc'},
+    {k:'tourist_tax',     label:'Turistický poplatek', ph:'např. 21 Kč/os./noc'},
+    {k:'payment_methods', label:'Platební metody',     ph:'např. karty, hotovost CZK/EUR'},
+    {k:'staff_languages', label:'Jazyky personálu',    ph:'např. čeština, angličtina, němčina'},
   ]},
   { title:'Lokální tipy', sub:'Váš trumf oproti generickým chatbotům', fields:[
     {k:'nearby_places',   label:'Zajímavá místa v okolí', ph:'oddělte čárkou', arr:true},
