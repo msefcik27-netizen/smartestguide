@@ -93,17 +93,17 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 5vw;display:flex;a
 .btn-ghost{background:rgba(255,255,255,.1);backdrop-filter:blur(8px);color:#fff;border:1.5px solid rgba(255,255,255,.6);border-radius:99px;padding:15px 30px;font-family:var(--font-body);font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;transition:all .2s}
 .btn-ghost:hover{background:rgba(255,255,255,.2)}
 /* Chat demo karta (přesunuta do sekce Živá ukázka) */
-.hero-mockup{width:100%;max-width:380px;margin:0 auto;background:#fff;border:none;border-radius:24px;overflow:hidden;box-shadow:0 30px 70px rgba(12,27,51,.18)}
-.mock-bar{background:#fff;padding:15px 18px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #eef2f9}
+.hero-mockup{width:100%;max-width:380px;margin:0 auto;background:#090e1c;border:none;border-radius:24px;overflow:hidden;box-shadow:0 30px 70px rgba(12,27,51,.35)}
+.mock-bar{background:#0e1426;padding:15px 18px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #20294a}
 .mock-dot{width:10px;height:10px;border-radius:50%}
 .mock-bar-title{flex:1;text-align:center;font-size:12px;color:var(--dim);font-weight:600}
-.mock-chat{padding:16px;display:flex;flex-direction:column;gap:10px;background:#fbfcfe;height:600px;overflow:hidden;justify-content:flex-start}
+.mock-chat{padding:16px;display:flex;flex-direction:column;gap:10px;background:#090e1c;height:600px;overflow:hidden;justify-content:flex-start}
 .mock-msg{display:flex;gap:10px;max-width:82%}
 .mock-msg.bot{align-self:flex-start}
 .mock-msg.user{align-self:flex-end;flex-direction:row-reverse}
 .mock-av{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px}
 .mock-msg.bot .mock-av{background:linear-gradient(135deg,#2c5fae,#2fd0d8)}
-.mock-msg.user .mock-av{background:#f1f4fa;border:1px solid var(--border);font-size:11px;color:var(--muted)}
+.mock-msg.user .mock-av{background:#151c30;border:1px solid #20294a;font-size:11px;color:#8ea3c4}
 .mock-spk{display:inline-flex;align-items:flex-end;gap:2.5px;height:12px;margin:6px 0 0 2px}
 .mock-spk i{width:3px;border-radius:2px;background:#2fd0d8;animation:sgWaveBar 1.05s ease-in-out infinite;display:inline-block}
 .mock-spk i:nth-child(2){height:6px}
@@ -114,10 +114,10 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 5vw;display:flex;a
 .mock-spk .spk-ic{font-size:10px;line-height:1;margin-right:3px}
 @keyframes sgWaveBar{0%,100%{transform:scaleY(.45)}50%{transform:scaleY(1)}}
 .mock-bubble{padding:10px 14px;border-radius:14px 14px 14px 4px;font-size:13px;line-height:1.5}
-.mock-msg.bot .mock-bubble{background:#eef3fc;border:none;color:var(--text)}
+.mock-msg.bot .mock-bubble{background:#151c30;border:1px solid #20294a;color:#eef2fa}
 .mock-msg.user .mock-bubble{background:#2c5fae;color:#fff;border-radius:14px 14px 4px 14px}
 .mock-typing{display:flex;align-self:flex-start}
-.mock-typing .tb{background:#eef3fc;border-radius:14px 14px 14px 4px;padding:10px 14px;display:flex;gap:4px}
+.mock-typing .tb{background:#151c30;border:1px solid #20294a;border-radius:14px 14px 14px 4px;padding:10px 14px;display:flex;gap:4px}
 .mock-typing .tb span{width:6px;height:6px;border-radius:50%;background:#8093b3;animation:sgDot 1.2s infinite}
 .mock-typing .tb span:nth-child(2){animation-delay:.2s}
 .mock-typing .tb span:nth-child(3){animation-delay:.4s}
@@ -392,7 +392,7 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
       <div class="hero-mockup">
         <div class="mock-bar">
           <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#2c5fae,#2fd0d8);display:grid;place-items:center;font-size:17px;color:#fff;font-weight:800">✦</div>
-          <span class="mock-bar-title" style="text-align:left"><b style="font-family:var(--font-display);font-size:14px;color:var(--text)">Alex — SmartestGuide</b><br><span style="color:#2fd0d8;font-size:11px">● online · <span id="demo-hotel">Your hotel</span></span></span>
+          <span class="mock-bar-title" style="text-align:left"><b style="font-family:var(--font-display);font-size:14px;color:#fff">Alex — SmartestGuide</b><br><span style="color:#2fd0d8;font-size:11px">● online · <span id="demo-hotel">Your hotel</span></span></span>
         </div>
         <div class="mock-chat">
           <div class="mock-msg bot"><div class="mock-av" style="color:#fff;font-weight:800">✦</div><div style="display:flex;flex-direction:column;align-items:flex-start;min-width:0"><div class="mock-bubble" id="chat-b1">Hi! I'm Alex, your personal concierge. How can I help you today? 👋</div><span class="mock-spk" title="Alex odpovídá i hlasem"><span class="spk-ic">🔊</span><i></i><i></i><i></i><i></i><i></i></span></div></div>
@@ -404,7 +404,7 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
           <div class="mock-msg bot"><div class="mock-av" style="color:#fff;font-weight:800">✦</div><div style="display:flex;flex-direction:column;align-items:flex-start;min-width:0"><div class="mock-bubble" id="chat-b4">Of course! 🍽 <strong>Today's menu:</strong><br>🥣 Beef broth<br>🍗 Roast chicken, potatoes<br>🍰 Apple strudel</div><span class="mock-spk" title="Alex odpovídá i hlasem"><span class="spk-ic">🔊</span><i></i><i></i><i></i><i></i><i></i></span></div></div>
           <div class="mock-typing" id="mock-typing" style="display:none"><div class="tb"><span></span><span></span><span></span></div></div>
         </div>
-        <div style="display:flex;gap:8px;padding:13px 16px;border-top:1px solid #eef2f9;background:#fff"><div style="flex:1;background:#f1f4fa;border-radius:99px;padding:10px 14px;font-size:12px;color:#8093b3" id="mock-input-ph">Napište zprávu…</div><div style="width:36px;height:36px;border-radius:50%;background:#f1f4fa;display:grid;place-items:center;font-size:15px" title="Voice input">🎤</div><div style="width:36px;height:36px;border-radius:50%;background:#2c5fae;display:grid;place-items:center;color:#fff;font-size:14px">➤</div></div>
+        <div style="display:flex;gap:8px;padding:13px 16px;border-top:1px solid #20294a;background:#0e1426"><div style="flex:1;background:#151c30;border:1px solid #20294a;border-radius:99px;padding:10px 14px;font-size:12px;color:#8ea3c4" id="mock-input-ph">Napište zprávu…</div><div style="width:36px;height:36px;border-radius:50%;background:#151c30;border:1px solid #20294a;display:grid;place-items:center;font-size:15px" title="Voice input">🎤</div><div style="width:36px;height:36px;border-radius:50%;background:#2c5fae;display:grid;place-items:center;color:#fff;font-size:14px">➤</div></div>
       </div>
     </div>
   </div>

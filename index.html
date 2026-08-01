@@ -1187,9 +1187,36 @@ function renderAnTable(hotels){
     const langs=(h.top_langs||[]).map(l=>`${AN_LANGS[l.code]||l.code} (${l.count})`).join(', ')||'<span style="color:var(--muted)">–</span>';
     const badge=h.active?'':' <span class="badge" style="background:var(--bg3);color:var(--muted);font-size:9px;padding:1px 7px">neaktivní</span>';
     const fl=h.month_flagged>0?`<span style="color:var(--warn);font-weight:600">${h.month_flagged}</span>`:'0';
-    return `<tr><td>${h.name}${badge}</td><td><strong>${h.month_visits??0}</strong></td><td>${h.month_visitors??0}</td><td><strong>${h.month_count}</strong></td><td>${h.month_devices??0}</td><td>${trend}</td><td>${fl}</td><td>${h.total}</td><td style="font-size:12px">${langs}</td><td>${anLastChat(h)}</td></tr>`;
+    return `<tr style="cursor:pointer" onclick="toggleAnQuestions('${h.id}')" title="Kliknutím zobrazíte poslední dotazy hostů"><td><span id="anchev-${h.id}" style="display:inline-block;transition:transform .15s;color:var(--muted)">▸</span> ${h.name}${badge}</td><td><strong>${h.month_visits??0}</strong></td><td>${h.month_visitors??0}</td><td><strong>${h.month_count}</strong></td><td>${h.month_devices??0}</td><td>${trend}</td><td>${fl}</td><td>${h.total}</td><td style="font-size:12px">${langs}</td><td>${anLastChat(h)}</td></tr>
+    <tr id="anq-${h.id}" style="display:none"><td colspan="10" style="padding:0;background:rgba(128,128,128,.07)"><div id="anq-body-${h.id}" style="padding:12px 16px;font-size:12px;color:var(--muted)">Načítám…</div></td></tr>`;
   }).join('');
 }
+async function toggleAnQuestions(hid){
+  const row=document.getElementById('anq-'+hid), chev=document.getElementById('anchev-'+hid);
+  if(!row)return;
+  const show=row.style.display==='none';
+  row.style.display=show?'table-row':'none';
+  if(chev)chev.style.transform=show?'rotate(90deg)':'';
+  if(!show)return;
+  const body=document.getElementById('anq-body-'+hid);
+  try{
+    const r=await fetch(API+'/api/hotels/'+hid+'/questions');
+    const d=await r.json(); if(!r.ok)throw new Error(d.detail||('HTTP '+r.status));
+    const qs=d.questions||[], tp=d.topics||[];
+    if(!qs.length){body.innerHTML='<span style="color:var(--muted)">Zatím žádné zaznamenané dotazy.</span>';return;}
+    const chips=tp.map(t=>`<span style="display:inline-block;background:var(--bg3);border:1px solid var(--border);border-radius:99px;padding:3px 10px;margin:0 6px 6px 0;font-size:11px">${t.topic} <b>${t.count}</b></span>`).join('');
+    const rows=qs.map(q=>`<tr>
+      <td style="font-size:11px;color:var(--muted);white-space:nowrap;vertical-align:top;padding:4px 10px 4px 0">${(q.at||'').slice(0,16).replace('T',' ')}</td>
+      <td style="font-size:11px;white-space:nowrap;vertical-align:top;padding:4px 10px 4px 0">${q.topic}</td>
+      <td style="font-size:12px;padding:4px 10px 4px 0">${esc(q.q)}${q.flagged?' <span style="color:var(--warn);font-size:10px" title="Alex neměl odpověď — doplňte info do profilu hotelu">⚠️ bez odpovědi</span>':''}</td>
+      <td style="font-size:11px;color:var(--muted);vertical-align:top">${esc(q.lang||'')}</td>
+    </tr>`).join('');
+    body.innerHTML=`<div style="margin-bottom:8px">${chips}</div>
+      <table style="width:100%;border-collapse:collapse">${rows}</table>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px">${esc(d.note||'')} ⚠️ = Alex neuměl odpovědět → doplňte tuto informaci do profilu hotelu.</div>`;
+  }catch(e){body.innerHTML='<span style="color:var(--danger)">Chyba: '+esc(e.message)+'</span>';}
+}
+
 function renderAnCharts(d){
   Object.values(anCharts).forEach(c=>{try{c.destroy();}catch(_){}});
   anCharts={};

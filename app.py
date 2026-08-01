@@ -486,7 +486,7 @@ def _is_public_api(path: str) -> bool:
         if path.startswith(p):
             return True
     if path.startswith("/api/hotels/"):
-        for s in ("/qr", "/qr-poster", "/qr-poster-print", "/manifest.webmanifest",
+        for s in ("/qr", "/qr-poster", "/qr-poster-print", "/manifest.webmanifest", "/room-cards",
                   "/rollup", "/flyer", "/flyer-en", "/flyer-cz", "/flyer-local",
                   "/flyer-a5-en", "/flyer-a5-cz", "/flyer-a5-local"):
             if path.endswith(s):
@@ -2138,6 +2138,81 @@ function setFlyerTheme(t){{
 
     return HTMLResponse(content=html)
 
+@app.get("/api/hotels/{hotel_id}/room-cards")
+def room_qr_cards(hotel_id: str, request: Request, rooms: str = ""):
+    """Arch QR kartiček per pokoj (tisk). ?rooms=101-110,201,3.001 — rozsahy i jednotlivé,
+    max 200 kartiček. Každá karta nese guest URL s ?room=<pokoj> (personalizace z PMS)."""
+    db = db_load()
+    hotel = db["hotels"].get(hotel_id)
+    if not hotel:
+        _hid, hotel = _resolve_hotel(db, hotel_id)
+        if not hotel:
+            raise HTTPException(404, "Hotel nenalezen")
+        hotel_id = _hid
+    base = get_base_url(request)
+    guest_url = _guest_url(base, hotel_id, hotel)
+    hotel_name = hotel.get("name", "Hotel")
+    # parsování seznamu pokojů
+    room_list = []
+    for part in (rooms or "").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        m = re.match(r"^(\d+)\s*-\s*(\d+)$", part)
+        if m:
+            lo, hi = int(m.group(1)), int(m.group(2))
+            if hi >= lo and hi - lo < 500:
+                room_list.extend(str(x) for x in range(lo, hi + 1))
+        else:
+            room_list.append(part[:20])
+    room_list = room_list[:200]
+    if not room_list:
+        return HTMLResponse("<meta charset='utf-8'><body style='font-family:sans-serif;padding:40px'>Zadejte pokoje v URL: <code>?rooms=101-110,201,3.001</code></body>")
+    is_cs = (hotel.get("country") or "").upper() in ("CZ", "SK")
+    scan_txt = "Naskenujte — váš AI concierge" if is_cs else "Scan me — your AI concierge"
+    room_lbl = "Pokoj" if is_cs else "Room"
+    sep = "&" if "?" in guest_url else "?"
+    cards = "".join(f"""
+    <div class="cardx">
+      <div class="ctop"><img src="/static/img/logo-inverse.svg" alt=""/><div><div class="cbrand">SmartestGuide</div><div class="chot">{hotel_name}</div></div></div>
+      <div class="cqr"><div class="qrh" data-url="{guest_url}{sep}room={r}"></div></div>
+      <div class="croom">{room_lbl} <b>{r}</b></div>
+      <div class="cscan">{scan_txt}</div>
+    </div>""" for r in room_list)
+    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg"/>
+<link rel="stylesheet" href="/static/fonts/fonts.css">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+body{{margin:0;background:#f6f8fc;font-family:'Manrope',sans-serif;padding:24px}}
+.btn{{position:fixed;top:16px;right:16px;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer;background:#2c5fae;color:#fff;z-index:10}}
+.hint{{max-width:760px;margin:0 auto 16px;font-size:13px;color:#51617e}}
+.sheet{{display:grid;grid-template-columns:repeat(2, 85mm);gap:6mm;justify-content:center}}
+.cardx{{width:85mm;height:54mm;background:#0c1b33;border-radius:4mm;padding:5mm;display:flex;flex-direction:column;align-items:center;position:relative;overflow:hidden;break-inside:avoid;page-break-inside:avoid}}
+.ctop{{display:flex;align-items:center;gap:2.5mm;align-self:flex-start}}
+.ctop img{{width:6mm;height:6mm;display:block}}
+.cbrand{{font-family:'Sora',sans-serif;font-weight:800;font-size:3.4mm;color:#fff;line-height:1.1}}
+.chot{{font-size:2.6mm;color:#a9cbe8}}
+.cqr{{position:absolute;right:5mm;top:50%;transform:translateY(-50%);background:#fff;border-radius:2.5mm;padding:2mm}}
+.qrh{{width:26mm;height:26mm}}
+.croom{{position:absolute;left:5mm;top:18mm;font-family:'Sora',sans-serif;font-size:5.6mm;color:#fff;font-weight:400}}
+.croom b{{font-weight:800;color:#2fd0d8}}
+.cscan{{position:absolute;left:5mm;bottom:5mm;font-size:2.8mm;color:#c6d4ec;max-width:44mm;line-height:1.35}}
+@media print{{.btn,.hint{{display:none}}body{{background:#fff;padding:0}}.sheet{{gap:4mm}}@page{{margin:8mm}}}}
+</style></head><body>
+<button class="btn" onclick="window.print()">🖨️ Tisknout / PDF</button>
+<div class="hint">{'Kartičky 85×54 mm (vizitkový formát) — vytiskněte, rozstříhejte a umístěte na pokoje. QR každé kartičky nese číslo pokoje → Alex zná pobyt hosta.' if is_cs else 'Cards 85×54 mm (business-card size) — print, cut and place in rooms. Each QR carries the room number → Alex knows the guest stay.'} ({len(room_list)})</div>
+<div class="sheet">{cards}</div>
+<script>
+(function(){{function draw(){{if(!window.qrcode){{setTimeout(draw,120);return;}}
+document.querySelectorAll('.qrh').forEach(function(h){{
+var qr=window.qrcode(0,'M');qr.addData(h.getAttribute('data-url'));qr.make();
+var n=qr.getModuleCount(),S=98,cell=S/n,r='';
+for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#0c1b33"/>';
+h.innerHTML='<svg width="100%" height="100%" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}});}}draw();}})();
+</script></body></html>"""
+    return HTMLResponse(content=html)
+
 # QR Plakát — print view
 @app.get("/api/hotels/{hotel_id}/qr-poster-print")
 def qr_poster_print(hotel_id: str, request: Request, theme: str = "dark"):
@@ -2974,8 +3049,9 @@ def _build_invoice_pdf_bytes(inv: dict, s: dict) -> bytes:
     W, H = A4
     buf = BytesIO()
     c = rl_canvas.Canvas(buf, pagesize=A4)
-    ORANGE = colors.HexColor("#2fd0d8")
-    INK = colors.HexColor("#1a1a1a")
+    ORANGE = colors.HexColor("#2c5fae")   # brand modra (nazev promenne historicky)
+    TEAL2 = colors.HexColor("#2fd0d8")
+    INK = colors.HexColor("#0c1b33")      # navy
     GREY = colors.HexColor("#666666")
     LINE = colors.HexColor("#dddddd")
     BOXBG = colors.HexColor("#f7f6f4")
@@ -2995,8 +3071,18 @@ def _build_invoice_pdf_bytes(inv: dict, s: dict) -> bytes:
 
     # ── Hlavička ──
     c.setFillColor(ORANGE); c.rect(0, H - 6*mm, W, 6*mm, fill=1, stroke=0)
-    c.setFillColor(INK); c.setFont(FB, 20); c.drawString(ML, H - 22*mm, "SMARTEST GUIDE")
-    c.setFillColor(GREY); c.setFont(FN, 9); c.drawString(ML, H - 27*mm, "AI concierge for hotels")
+    c.setFillColor(TEAL2); c.rect(W * 0.62, H - 6*mm, W * 0.38, 6*mm, fill=1, stroke=0)  # tyrkysovy konec pruhu
+    # Logo F1 vedle nazvu (logo.png v koreni aplikace; kdyz chybi, jen text)
+    _tx = ML
+    try:
+        _lp = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "logo.png")
+        if _os.path.exists(_lp):
+            c.drawImage(_lp, ML, H - 24.5*mm, width=8*mm, height=8*mm, mask="auto")
+            _tx = ML + 10*mm
+    except Exception:
+        _tx = ML
+    c.setFillColor(INK); c.setFont(FB, 20); c.drawString(_tx, H - 22*mm, "SMARTEST GUIDE")
+    c.setFillColor(GREY); c.setFont(FN, 9); c.drawString(_tx, H - 27*mm, "AI concierge for hotels")
     c.setFillColor(INK); c.setFont(FB, 22); c.drawRightString(MR, H - 20*mm, "INVOICE")
     c.setFillColor(INK); c.setFont(FB, 12); c.drawRightString(MR, H - 28*mm, "No. " + inv.get("invoice_number", ""))
 
@@ -3968,6 +4054,43 @@ def serve_widget(hotel_id: str, request: Request, lang: str = "auto"):
 # ─────────────────────────────────────────────
 # Analytics
 # ─────────────────────────────────────────────
+_TOPIC_RULES = [
+    ("🍳 Snídaně / strava", ["snídan", "breakfast", "frühstück", "menu", "jídel", "restaur", "večeř", "oběd", "lunch", "dinner", "essen", "colazione", "desayuno"]),
+    ("⏰ Check-in/out", ["check", "odjezd", "příjezd", "ubytov", "vystěhov", "anreise", "abreise"]),
+    ("🅿️ Parkování", ["park", "garáž", "garage", "parcheggio"]),
+    ("💆 Wellness / spa", ["wellness", "spa", "saun", "masáž", "massage", "bazén", "pool", "vířivk", "jacuzzi"]),
+    ("📶 WiFi / internet", ["wifi", "wi-fi", "internet", "heslo", "password", "passwort"]),
+    ("🗺 Okolí / tipy", ["okolí", "tip", "výlet", "navštívit", "vidět", "visit", "around", "doporuč", "recommend", "sehenswürdig", "attraction", "muzeum", "museum", "hrad", "castle"]),
+    ("🚕 Doprava", ["taxi", "bus", "vlak", "train", "letiště", "airport", "mhd", "tram", "uber"]),
+    ("🛏 Pokoj / služby", ["pokoj", "room", "zimmer", "klimatizac", "ručník", "towel", "úklid", "cleaning", "povlečen", "klíč", "key"]),
+    ("💳 Účet / platby", ["účet", "balance", "plat", "bill", "invoice", "rechnung", "zaplat", "cena", "price", "kolik stojí"]),
+]
+
+def _classify_topic(q: str) -> str:
+    low = (q or "").lower()
+    for label, kws in _TOPIC_RULES:
+        if any(k in low for k in kws):
+            return label
+    return "💬 Ostatní"
+
+@app.get("/api/hotels/{hotel_id}/questions")
+def get_hotel_questions(hotel_id: str):
+    """Posledních 50 reálných dotazů hostů + rozpad podle témat (pro admin analytiku)."""
+    db = db_load()
+    if hotel_id not in db.get("hotels", {}):
+        raise HTTPException(404, "Hotel nenalezen")
+    a = db.get("analytics", {}).get(hotel_id, {}) or {}
+    out = []
+    topics = {}
+    for q in (a.get("recent_questions") or [])[:50]:
+        t = _classify_topic(q.get("q", ""))
+        topics[t] = topics.get(t, 0) + 1
+        out.append({"q": q.get("q", ""), "lang": q.get("lang", ""), "flagged": bool(q.get("flagged")),
+                    "at": q.get("at", ""), "topic": t})
+    topic_list = sorted(topics.items(), key=lambda x: -x[1])
+    return {"status": "ok", "questions": out, "topics": [{"topic": t, "count": c} for t, c in topic_list],
+            "note": "Posledních 50 dotazů (starší se neuchovávají — jen agregáty)."}
+
 @app.get("/api/hotels/{hotel_id}/analytics")
 def get_analytics(hotel_id: str):
     db = db_load()
