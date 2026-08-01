@@ -312,12 +312,12 @@ async def _check_and_send_reminders():
 
             subject = f"Připomínka: doplňte profil hotelu {hotel_name} ({score}%)"
             html_body = f"""
-            <div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;background:#1a1a1a;color:#f0ece0;padding:32px;border-radius:12px">
-              <div style="font-weight:800;font-size:24px;color:#f0ece0;margin-bottom:4px">SMARTEST GUIDE<span style="width:7px;height:7px;border-radius:50%;background:#f08a2c;display:inline-block;margin-left:3px"></span></div>
+            <div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;background:#1a1a1a;color:#ffffff;padding:32px;border-radius:12px">
+              <div style="font-weight:800;font-size:24px;color:#ffffff;margin-bottom:4px">SMARTEST GUIDE<span style="width:7px;height:7px;border-radius:50%;background:#f08a2c;display:inline-block;margin-left:3px"></span></div>
               <div style="font-size:12px;color:#2fd0d8;letter-spacing:.15em;text-transform:uppercase;margin-bottom:24px">AI Concierge for Hotels</div>
               <h2 style="color:#2fd0d8;font-size:20px;margin-bottom:12px">Profil hotelu {hotel_name} je vyplněn z {score}%</h2>
-              <p style="color:#9ba0c0;line-height:1.7">Dobrý den,<br><br>váš hotel <strong style="color:#f0ece0">{hotel_name}</strong> má aktivní předplatné SmartestGuide, ale profil není kompletní. Čím více informací Alex zná, tím lépe pomáhá hostům.</p>
-              {"<p style='color:#9ba0c0'>Chybějící informace:</p><ul style='color:#f0ece0;line-height:2'>" + missing_html + "</ul>" if missing_list else ""}
+              <p style="color:#9ba0c0;line-height:1.7">Dobrý den,<br><br>váš hotel <strong style="color:#ffffff">{hotel_name}</strong> má aktivní předplatné SmartestGuide, ale profil není kompletní. Čím více informací Alex zná, tím lépe pomáhá hostům.</p>
+              {"<p style='color:#9ba0c0'>Chybějící informace:</p><ul style='color:#ffffff;line-height:2'>" + missing_html + "</ul>" if missing_list else ""}
               <a href="{portal_url}" style="display:inline-block;margin-top:20px;background:#2c5fae;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:15px">Přejít do portálu →</a>
               <p style="margin-top:32px;font-size:12px;color:#6b6f8e">SMARTEST GUIDE · support@smartestguide.com</p>
             </div>"""
@@ -2104,7 +2104,7 @@ def qr_poster_print(hotel_id: str, request: Request, theme: str = "dark"):
 
 def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark") -> str:
     light = (theme == "light")
-    c_page   = "#e9eef7" if light else "#0a1226"
+    c_page   = "#f6f8fc"   # okolí stránky: vždy světlé, téma mění jen tiskovinu
     c_bg     = "#ffffff" if light else "#0c1b33"
     c_ink    = "#0c1b33" if light else "#ffffff"
     c_dim    = "#555555" if light else "#9ba0c0"
@@ -2120,11 +2120,11 @@ def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark") -> s
 <style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:32px;font-family:'Manrope',sans-serif}}
 .btn{{position:fixed;top:16px;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer}}
 .btn-print{{right:16px;background:#2c5fae;color:#fff}}
-.btn-theme{{left:16px;background:#333;color:#fff}}
+.btn-theme{{left:16px;background:#fff;color:#0c1b33;border:1px solid #e3e9f4!important;box-shadow:0 4px 12px rgba(12,27,51,.08)}}
 @media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{margin:0}}}}</style></head>
 <body><button class="btn btn-print" onclick="window.print()">🖨️ Tisknout / PDF</button>
 <button class="btn btn-theme" onclick="location.href='?theme={_tt}'">{_tl}</button>
-<div style="position:relative;width:800px;height:800px;background:{c_bg};border:1px solid rgba(44,95,174,.35);border-radius:24px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5)">
+<div style="position:relative;width:800px;height:800px;background:{c_bg};border:1px solid rgba(44,95,174,.35);border-radius:24px;overflow:hidden;box-shadow:0 24px 60px rgba(12,27,51,.22)">
   <div style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
   <div style="position:absolute;top:300px;left:50%;width:620px;height:620px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.14),transparent 70%);pointer-events:none"></div>
   <div style="height:100%;display:flex;flex-direction:column;align-items:center;padding:58px 48px 48px;position:relative">
@@ -2328,10 +2328,10 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-body{{margin:0;background:#0a1226;display:flex;justify-content:center;padding:32px;font-family:'Manrope',sans-serif}}
+body{{margin:0;background:#f6f8fc;display:flex;justify-content:center;padding:32px;font-family:'Manrope',sans-serif}}
 .btn{{position:fixed;top:16px;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer}}
 .btn-print{{right:16px;background:#2c5fae;color:#fff}}
-.btn-theme{{left:16px;background:#333;color:#fff}}
+.btn-theme{{left:16px;background:#fff;color:#0c1b33;border:1px solid #e3e9f4!important;box-shadow:0 4px 12px rgba(12,27,51,.08)}}
 @media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:{page_size};margin:0}}}}</style></head>
 <body><button class="btn btn-print" onclick="window.print()">🖨️ Tisknout / PDF</button>
 <button class="btn btn-theme" onclick="location.href='?theme={"dark" if light else "light"}'">{"🌙 Tmavá verze" if light else "☀️ Světlá (šetří inkoust)"}</button>
@@ -2367,7 +2367,7 @@ h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-r
 def _render_rollup(hotel_name: str, guest_url: str, theme: str = "dark") -> str:
     light = (theme == "light")
     c_orange = "#2c5fae" if light else "#2fd0d8"  # brand akcent (název proměnné historický)
-    c_page   = "#e9eef7" if light else "#0a1226"
+    c_page   = "#f6f8fc"   # okolí stránky: vždy světlé, téma mění jen tiskovinu
     c_bg     = "#ffffff" if light else "#0c1b33"
     c_ink    = "#0c1b33" if light else "#ffffff"
     c_sub    = "#333333" if light else "#c6d4ec"
@@ -2387,15 +2387,15 @@ def _render_rollup(hotel_name: str, guest_url: str, theme: str = "dark") -> str:
 body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:32px;font-family:'Manrope',sans-serif}}
 .btn{{position:fixed;top:16px;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer}}
 .btn-print{{right:16px;background:#2c5fae;color:#fff}}
-.btn-theme{{left:16px;background:#333;color:#fff}}
+.btn-theme{{left:16px;background:#fff;color:#0c1b33;border:1px solid #e3e9f4!important;box-shadow:0 4px 12px rgba(12,27,51,.08)}}
 @media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:85mm 200mm;margin:0}}}}</style></head>
 <body><button class="btn btn-print" onclick="window.print()">🖨️ Tisknout / PDF</button>
 <button class="btn btn-theme" onclick="location.href='?theme={_tt}'">{_tl}</button>
-<div style="width:340px;background:{c_bg};position:relative;overflow:hidden;padding:0;border:1px solid rgba(44,95,174,.3);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+<div style="width:340px;background:{c_bg};position:relative;overflow:hidden;padding:0;border:1px solid rgba(44,95,174,.3);border-radius:12px;box-shadow:0 18px 48px rgba(12,27,51,.22)">
   <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
   <div style="position:absolute;top:120px;left:50%;width:400px;height:400px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.10),transparent 70%);pointer-events:none"></div>
   <div style="padding:36px 28px;display:flex;flex-direction:column;align-items:center;text-align:center">
-    <div translate="no" style="font-family:'Sora',sans-serif;font-weight:800;font-size:20px;color:{c_ink};display:flex;align-items:center;gap:3px">SmartestGuide<span style="width:7px;height:7px;border-radius:50%;background:#2fd0d8;display:inline-block;margin-left:2px;box-shadow:0 0 8px rgba(44,95,174,.9)"></span></div>
+    <div translate="no" style="font-family:'Sora',sans-serif;font-weight:800;font-size:20px;color:{c_ink};display:flex;align-items:center;gap:8px"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:22px;height:22px;display:block"/>SmartestGuide</div>
     <div style="margin-top:5px;font-size:9px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">AI CONCIERGE FOR HOTELS</div>
     <div style="margin-top:6px;font-size:12px;color:{c_dim}">{hotel_name}</div>
     <h1 style="font-family:'Sora',sans-serif;font-weight:800;font-size:36px;line-height:1.05;letter-spacing:-.02em;margin:28px 0 0;color:#2fd0d8">Your<br>personal<br>AI<br>concierge</h1>
@@ -2403,7 +2403,7 @@ body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:3
     <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:5px;margin-top:22px;max-width:300px">{flags_html}</div>
     <div style="margin-top:28px;position:relative;padding:14px;background:{c_qrcard};border:1px solid rgba(44,95,174,.4);border-radius:14px;box-shadow:0 0 24px rgba(44,95,174,.1)">
       <div id="qr-rollup" style="width:180px;height:180px;display:flex;align-items:center;justify-content:center"></div>
-      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:42px;height:42px;border-radius:50%;background:{c_badge};border:2px solid #2fd0d8;display:flex;align-items:center;justify-content:center;font-family:'Sora',sans-serif;font-weight:800;font-size:15px;color:#2fd0d8">SG</div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:42px;height:42px;border-radius:9px;overflow:hidden;box-shadow:0 0 0 3px #ffffff"><img src="/static/img/favicon.svg" alt="" style="width:100%;height:100%;display:block"/></div>
     </div>
     <div style="margin-top:18px;font-family:'Sora',sans-serif;font-weight:700;font-size:18px;color:{c_ink}">Scan me</div>
     <div style="margin-top:5px;font-size:13px;color:{c_dim}">100+ languages · No app needed · 24/7</div>
@@ -2493,7 +2493,7 @@ def rollup(hotel_id: str, request: Request, theme: str = "dark"):
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>
   *{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-  body{{margin:0;background:#0a1226;font-family:'Manrope',sans-serif;display:flex;justify-content:center;align-items:flex-start;padding:32px;min-height:100vh}}
+  body{{margin:0;background:#f6f8fc;font-family:'Manrope',sans-serif;display:flex;justify-content:center;align-items:flex-start;padding:32px;min-height:100vh}}
   @media print{{body{{background:#fff;padding:0;display:block}} @page{{margin:0}}}}
   .print-btn{{position:fixed;top:20px;right:20px;background:#2c5fae;color:#fff;border:none;border-radius:10px;padding:12px 22px;font-family:'Manrope',sans-serif;font-size:14px;font-weight:700;cursor:pointer;z-index:100;box-shadow:0 4px 16px rgba(44,95,174,.4)}}
   .print-btn:hover{{opacity:.88}}
@@ -2502,18 +2502,18 @@ def rollup(hotel_id: str, request: Request, theme: str = "dark"):
 </head>
 <body>
 <button class="print-btn" onclick="window.print()">🖨️ Tisknout / Uložit PDF</button>
-<div style="position:relative;width:800px;height:800px;background:#1a1a1a;border:1px solid rgba(44,95,174,.35);border-radius:24px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5)">
+<div style="position:relative;width:800px;height:800px;background:#0c1b33;border:1px solid rgba(44,95,174,.35);border-radius:24px;overflow:hidden;box-shadow:0 24px 60px rgba(12,27,51,.22)">
   <div style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
   <div style="position:absolute;top:300px;left:50%;width:620px;height:620px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.14),transparent 70%);pointer-events:none"></div>
   <div style="position:relative;height:100%;display:flex;flex-direction:column;align-items:center;padding:58px 48px 48px">
-    <div translate="no" style="display:flex;align-items:center;gap:4px;font-family:'Sora',sans-serif;font-weight:800;font-size:34px;letter-spacing:-.02em;color:#f0ece0">SmartestGuide<span style="width:10px;height:10px;border-radius:50%;background:#2fd0d8;display:inline-block;margin-left:2px;box-shadow:0 0 14px rgba(44,95,174,.9)"></span></div>
+    <div translate="no" style="display:flex;align-items:center;gap:10px;font-family:'Sora',sans-serif;font-weight:800;font-size:34px;letter-spacing:-.02em;color:#ffffff"><img src="/static/img/logo-inverse.svg" alt="" style="width:36px;height:36px;display:block"/>SmartestGuide</div>
     <div style="margin-top:10px;font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:#2fd0d8">AI Concierge for Hotels</div>
-    <div style="margin-top:26px;font-family:'Sora',sans-serif;font-weight:700;font-size:22px;color:#f0ece0;text-align:center">{hotel_name}</div>
-    <div style="position:relative;margin-top:22px;padding:22px;background:#0c0d12;border:1px solid rgba(44,95,174,.4);border-radius:20px;box-shadow:0 0 40px rgba(44,95,174,.12)">
+    <div style="margin-top:26px;font-family:'Sora',sans-serif;font-weight:700;font-size:22px;color:#ffffff;text-align:center">{hotel_name}</div>
+    <div style="position:relative;margin-top:22px;padding:22px;background:#ffffff;border-radius:20px;box-shadow:0 0 40px rgba(44,95,174,.15)">
       <div id="sg-qr-holder" style="width:420px;height:420px;display:flex;align-items:center;justify-content:center"></div>
-      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:50%;background:#1a1a1a;border:3px solid #2fd0d8;display:flex;align-items:center;justify-content:center;font-family:'Sora',sans-serif;font-weight:800;font-size:30px;color:#2fd0d8;box-shadow:0 0 22px rgba(44,95,174,.5)">SG</div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:16px;overflow:hidden;box-shadow:0 0 0 4px #ffffff"><img src="/static/img/favicon.svg" alt="" style="width:100%;height:100%;display:block"/></div>
     </div>
-    <div style="margin-top:30px;font-family:'Sora',sans-serif;font-weight:700;font-size:24px;color:#f0ece0;text-align:center">Scan for your personal AI concierge</div>
+    <div style="margin-top:30px;font-family:'Sora',sans-serif;font-weight:700;font-size:24px;color:#ffffff;text-align:center">Scan for your personal AI concierge</div>
     <div style="margin-top:10px;font-size:15px;color:#9ba0c0;letter-spacing:.02em">100+ languages · No app needed · 24/7</div>
     <div style="flex:1"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(47,208,216,.55),transparent)"></div>
@@ -2537,7 +2537,7 @@ def rollup(hotel_id: str, request: Request, theme: str = "dark"):
     for(var r=0;r<n;r++){{
       for(var c=0;c<n;c++){{
         if(qr.isDark(r,c)){{
-          rects += '<rect x="'+(c*cell).toFixed(2)+'" y="'+(r*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#2fd0d8"/>';
+          rects += '<rect x="'+(c*cell).toFixed(2)+'" y="'+(r*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#0c1b33"/>';
         }}
       }}
     }}
@@ -4148,12 +4148,12 @@ def send_reminder(hotel_id: str, request: Request, dry_run: bool = False):
 
         subject = f"Připomínka: doplňte profil hotelu {hotel_name}"
         html_body = f"""
-        <div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;background:#1a1a1a;color:#f0ece0;padding:32px;border-radius:12px">
+        <div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;background:#1a1a1a;color:#ffffff;padding:32px;border-radius:12px">
           <div style="font-family:Sora,sans-serif;font-weight:800;font-size:24px;color:#ffffff;margin-bottom:4px">SMARTEST GUIDE<span style="width:7px;height:7px;border-radius:50%;background:#f08a2c;display:inline-block;margin-left:3px"></span></div>
           <div style="font-size:12px;color:#2fd0d8;letter-spacing:.15em;text-transform:uppercase;margin-bottom:24px">AI Concierge for Hotels</div>
           <h2 style="color:#2fd0d8;font-size:20px;margin-bottom:12px">Profil hotelu {hotel_name} je vyplněn z {score}%</h2>
-          <p style="color:#9ba0c0;line-height:1.7">Dobrý den,<br><br>váš hotel <strong style="color:#f0ece0">{hotel_name}</strong> má aktivní předplatné SmartestGuide, ale profil není kompletní. Čím více informací Alex zná, tím lépe pomáhá hostům.</p>
-          {"<p style='color:#9ba0c0'>Chybějící informace:</p><ul style='color:#f0ece0;line-height:2'>" + missing_html + "</ul>" if missing_list else ""}
+          <p style="color:#9ba0c0;line-height:1.7">Dobrý den,<br><br>váš hotel <strong style="color:#ffffff">{hotel_name}</strong> má aktivní předplatné SmartestGuide, ale profil není kompletní. Čím více informací Alex zná, tím lépe pomáhá hostům.</p>
+          {"<p style='color:#9ba0c0'>Chybějící informace:</p><ul style='color:#ffffff;line-height:2'>" + missing_html + "</ul>" if missing_list else ""}
           <a href="{portal_url}" style="display:inline-block;margin-top:20px;background:#2c5fae;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:15px">Přejít do portálu →</a>
           <p style="margin-top:32px;font-size:12px;color:#6b6f8e">SMARTEST GUIDE · support@smartestguide.com</p>
         </div>"""
