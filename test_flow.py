@@ -817,7 +817,7 @@ def test_print_materials(hotel_id):
     try:
         r = get_retry(f"{BASE}/api/hotels/{hotel_id}/qr-poster", timeout=15)
         html = r.text
-        if r.status_code == 200 and "SmartestGuide" in html:
+        if r.status_code == 200 and ("SMARTEST" in html or "SmartestGuide" in html):
             ok("QR hub stránka dostupná")
         else:
             fail("QR hub stránka", f"status {r.status_code}")
@@ -845,7 +845,7 @@ def test_print_materials(hotel_id):
                 ok(f"QR hub — '{key}' v urls mapě")
             else:
                 fail(f"QR hub — '{key}' CHYBÍ v urls mapě", "CZ A4/A5 by byla prázdná stránka")
-        if "f5a623" in html or "f0c060" in html or "FF6B00" in html:
+        if "2c5fae" in html or "2fd0d8" in html or "FF6B00" in html:
             ok("QR hub — brand barva")
         else:
             fail("QR hub — brand barva", "chybí brand barva")
@@ -1115,7 +1115,7 @@ def test_local_flyres(hotel_id):
     try:
         r = get_retry(f"{BASE}/api/hotels/{hotel_id}/flyer-en", timeout=15)
         if r.status_code == 200:
-            has_brand = any(c in r.text for c in ["FF6B00", "f5a623", "f0c060", "00d4aa"])
+            has_brand = any(c in r.text for c in ["2c5fae", "2fd0d8", "0c1b33", "FF6B00"])
             ok("Leták EN — brand barvy") if has_brand else fail("Leták EN — brand barvy", "chybí")
     except Exception as e:
         fail("Leták EN brand barvy", str(e))

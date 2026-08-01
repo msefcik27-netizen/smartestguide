@@ -257,6 +257,54 @@ async def _check_and_send_reminders():
             if (h.get("name") or "").strip().upper().startswith("E2E"):
                 continue
 
+            # ── TRIAL-ENDING: 3 dny před koncem triálu, jednou per hotel ──
+            # (transakční e-mail existujícímu zákazníkovi — nejvyšší návratnost dle plánu nurture)
+            try:
+                if h.get("trial_start") and not h.get("trial_ending_sent") and not h.get("is_free"):
+                    _ts = datetime.fromisoformat(str(h["trial_start"]).replace("Z", ""))
+                    _days_in = (now - _ts).days
+                    if 11 <= _days_in <= 13:
+                        _comp = hotel_profile_completeness(h)
+                        _score = _comp.get("score", 0)
+                        _qtotal = (db.get("analytics", {}).get(hotel_id, {}) or {}).get("total", 0)
+                        _hname = h.get("name", "Hotel")
+                        _hmail = h.get("registration_email") or h.get("email", "")
+                        _tok = h.get("hotel_token", "")
+                        _portal = f"{base_url}/portal?token={_tok}" if _tok else f"{base_url}/portal"
+                        _left = max(14 - _days_in, 1)
+                        if _hmail:
+                            _payload = {
+                                "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
+                                "to": [{"email": _hmail}],
+                                "bcc": _admin_notify_bcc(exclude=_hmail) or None,
+                                "subject": f"⏳ {_hname}: your free trial ends in {_left} day" + ("s" if _left > 1 else ""),
+                                "htmlContent": (
+                                    f"<p>Hello,</p>"
+                                    f"<p>your 14-day SMARTEST GUIDE trial for <b>{_hname}</b> ends in <b>{_left} day" + ("s" if _left > 1 else "") + "</b>.</p>"
+                                    f"<p>So far: your hotel profile is <b>{_score}&#37; complete</b>"
+                                    + (f" and Alex has already answered <b>{_qtotal}</b> guest questions" if _qtotal else "")
+                                    + ".</p>"
+                                    f"<p><b>What happens next:</b> after the trial your subscription starts automatically "
+                                    f"and Alex keeps working for your guests without interruption — no action needed. "
+                                    f"If you don't wish to continue, cancel anytime in your "
+                                    f"<a href='{_portal}'>hotel portal</a> before the trial ends and nothing will be charged.</p>"
+                                    + (f"<p>Tip: profiles above 80&#37; completeness give guests noticeably better answers — "
+                                       f"finishing yours takes a few minutes in the <a href='{_portal}'>portal</a>.</p>" if _score < 80 else "")
+                                    + "<p>Questions? Just reply to this e-mail.<br>— SMARTEST GUIDE · support@smartestguide.com</p>"),
+                                "textContent": f"Your SMARTEST GUIDE trial for {_hname} ends in {_left} days. Profile {_score} percent complete. Manage: {_portal}",
+                            }
+                            if not _payload["bcc"]:
+                                _payload.pop("bcc")
+                            async with _httpx.AsyncClient() as _client:
+                                _r = await _client.post("https://api.brevo.com/v3/smtp/email", json=_payload,
+                                    headers={"api-key": brevo_key, "Content-Type": "application/json"}, timeout=30)
+                            if _r.status_code in (200, 201):
+                                h["trial_ending_sent"] = now.isoformat()
+                                db_save(db)
+                                logging.info("Trial-ending e-mail odeslán: %s", hotel_id)
+            except Exception as _e:
+                logging.warning("Trial-ending e-mail selhal (%s): %s", hotel_id, _e)
+
             # Completeness skóre
             completeness = hotel_profile_completeness(h)
             score = completeness.get("score", 100)
@@ -2668,6 +2716,7 @@ class RegistrationRequest(BaseModel):
     billing_name: Optional[str] = None   # právní/fakturační název
     ref: Optional[str] = None            # referral kód partnera (atribuce provize)
     src: Optional[str] = None            # akviziční kanál ("apaleo" = přišel z Apaleo Store — bez provize)
+    source: Optional[str] = None         # „How did you hear about us?" — pro ruční dohledání atribuce
 
 def _norm_ico(x: str) -> str:
     """IČO na porovnání — jen číslice."""
@@ -2765,6 +2814,7 @@ async def register_hotel(req: RegistrationRequest, request: Request):
     hotel["referral_code"] = _norm_ref(req.ref) if _ref_partner else ""
     hotel["acquisition_channel"] = "apaleo_store" if _is_apaleo else ("partner" if _ref_partner else "direct")
     hotel["acquired_at"] = now
+    hotel["source"] = (req.source or "").strip()[:40]   # „How did you hear about us?"
     _ensure_slug(db, hid, hotel)  # čitelná guest URL /h/{slug}
     db["hotels"][hid] = hotel
     db_save(db)
@@ -3791,9 +3841,9 @@ async def stripe_webhook(request: Request):
                         except Exception as e:
                             logging.warning("Auto-faktura selhala pro hotel %s: %s", hotel_id, e)
 
-                        # Provize partnerovi až za PRVNÍ reálnou platbu (idempotentní)
+                        # Provize partnerovi za KAŽDÝ zaplacený měsíc (opakovaný model, idempotentní per hotel+měsíc)
                         try:
-                            _create_commission_if_eligible(db, hotel_id)
+                            _create_commission_if_eligible(db, hotel_id, now.strftime("%Y-%m"))
                         except Exception as e:
                             logging.warning("Vytvoření provize selhalo pro hotel %s: %s", hotel_id, e)
                     else:
@@ -4528,6 +4578,50 @@ def app_icon(size: int):
     img.save(buf, "PNG")
     return Response(content=buf.getvalue(), media_type="image/png",
                     headers={"Cache-Control": "public, max-age=300"})
+
+# ── Serverové STT (Whisper) — mikrofon s automatickou detekcí jazyka ──
+# Řeší „jazykový mix": prohlížečové rozpoznávání poslouchá jen ve zvoleném jazyce
+# (německá řeč při vybrané češtině = paskvil). Whisper detekuje jazyk ze zvuku sám.
+# Klient posílá RAW audio v těle requestu (bez multipart závislosti), ?fmt=webm|mp4|ogg.
+@app.post("/api/guest/stt")
+async def guest_stt(request: Request, fmt: str = "webm"):
+    if not _rate_limit_ok("stt:" + _client_ip(request), max_hits=10):
+        raise HTTPException(429, "Příliš mnoho požadavků")
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    if not api_key:
+        raise HTTPException(503, "STT není nakonfigurováno")
+    audio = await request.body()
+    if not audio or len(audio) < 200:
+        raise HTTPException(400, "Prázdné audio")
+    if len(audio) > 2_500_000:   # ~25 s záznamu bohatě stačí na dotaz
+        raise HTTPException(413, "Audio je příliš velké")
+    fmt = (fmt or "webm").lower().strip()
+    if fmt not in ("webm", "mp4", "m4a", "ogg", "wav"):
+        fmt = "webm"
+    model = os.getenv("STT_MODEL", "whisper-1")
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                "https://api.openai.com/v1/audio/transcriptions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                files={"file": (f"audio.{fmt}", audio, f"audio/{fmt}")},
+                data={"model": model, "response_format": "verbose_json"},
+                timeout=30.0)
+    except Exception as e:
+        raise HTTPException(502, f"STT selhalo: {str(e)[:100]}")
+    if r.status_code != 200:
+        logging.warning("STT chyba %s: %s", r.status_code, r.text[:150])
+        raise HTTPException(502, "STT selhalo")
+    d = r.json()
+    lang = (d.get("language") or "")[:16]
+    _LANG_NAME2CODE = {"czech": "cs", "slovak": "sk", "english": "en", "german": "de", "french": "fr",
+                       "italian": "it", "spanish": "es", "polish": "pl", "russian": "ru", "ukrainian": "uk",
+                       "dutch": "nl", "portuguese": "pt", "hungarian": "hu", "swedish": "sv", "danish": "da",
+                       "norwegian": "no", "finnish": "fi", "greek": "el", "turkish": "tr", "japanese": "ja",
+                       "chinese": "zh", "korean": "ko", "arabic": "ar", "hebrew": "he", "romanian": "ro",
+                       "croatian": "hr", "slovenian": "sl", "bulgarian": "bg", "serbian": "sr"}
+    return {"status": "ok", "text": (d.get("text") or "").strip(),
+            "language": _LANG_NAME2CODE.get(lang.lower(), lang.lower()[:2])}
 
 @app.get("/api/hotels/{hotel_id}/manifest.webmanifest")
 def hotel_manifest(hotel_id: str, request: Request):
@@ -5593,7 +5687,7 @@ def get_commission_settings():
     s = db_get_settings()
     return {
         "commission_enabled": bool(s.get("commission_enabled", False)),
-        "commission_amount": float(s.get("commission_amount", 1500)),
+        "commission_amount": float(s.get("commission_amount", 400)),
         "commission_currency": "CZK",
         "commission_hold_days": int(s.get("commission_hold_days", 30)),
     }
@@ -5610,6 +5704,7 @@ class PartnerRequest(BaseModel):
     ico: Optional[str] = None
     active: Optional[bool] = True
     note: Optional[str] = None
+    contract_end: Optional[str] = None   # ISO datum ukončení smlouvy — provize běží ještě 6 měsíců (doběh)
 
 def _partner_by_ref(db: dict, ref: str):
     ref = _norm_ref(ref)
@@ -5652,7 +5747,8 @@ def create_partner(req: PartnerRequest):
         "id": pid, "name": req.name, "email": (req.email or "").strip(),
         "referral_code": ref, "ico": (req.ico or "").strip(),
         "active": True if req.active is None else bool(req.active),
-        "note": req.note or "", "created_at": datetime.utcnow().isoformat(),
+        "note": req.note or "", "contract_end": (req.contract_end or "").strip()[:10],
+        "created_at": datetime.utcnow().isoformat(),
     }
     partners[pid] = partner
     db_save(db)
@@ -5675,6 +5771,7 @@ def update_partner(partner_id: str, req: PartnerRequest):
         "name": req.name, "email": (req.email or "").strip(), "referral_code": ref,
         "ico": (req.ico or "").strip(),
         "active": True if req.active is None else bool(req.active), "note": req.note or "",
+        "contract_end": (req.contract_end or "").strip()[:10],
     })
     db_save(db)
     return {"status": "ok", "partner": p}
@@ -5688,8 +5785,68 @@ def delete_partner(partner_id: str, request: Request):
         db_save(db)
     return {"status": "ok"}
 
-def _create_commission_if_eligible(db: dict, hotel_id: str):
-    """Vytvoří provizi při první REÁLNÉ platbě, pokud hotel získal partner. Idempotentní."""
+@app.get("/api/partners/{partner_id}/qr")
+def partner_qr(partner_id: str, request: Request):
+    """QR kód s referral odkazem partnera (LinkedIn upozaďuje příspěvky s odkazy — QR je řešení)."""
+    from fastapi.responses import Response
+    db = db_load()
+    p = db.get("partners", {}).get(partner_id)
+    if not p:
+        raise HTTPException(404, "Partner nenalezen")
+    base = get_base_url(request)
+    url = f"{base}/landing?ref={p.get('referral_code','')}"
+    png = _generate_qr_png_branded(url, size=600)
+    return Response(content=png, media_type="image/png",
+                    headers={"Content-Disposition": f'inline; filename="qr-{p.get("referral_code","partner")}.png"'})
+
+@app.get("/api/partners/{partner_id}/report")
+def partner_monthly_report(partner_id: str, month: str = ""):
+    """Měsíční přehled pro partnera (smluvní povinnost à 30 dní + podklad pro fakturaci provize).
+    Vrací: hotely přivedené partnerem + stav plateb v měsíci + provize za měsíc + kandidáty
+    na ruční atribuci (neatribuované registrace se zdrojem LinkedIn v daném měsíci)."""
+    db = db_load()
+    p = db.get("partners", {}).get(partner_id)
+    if not p:
+        raise HTTPException(404, "Partner nenalezen")
+    month = (month or datetime.utcnow().strftime("%Y-%m"))[:7]
+    hotels = db.get("hotels", {})
+    invoices = db.get("invoices", {})
+    comms = db.get("commissions", {})
+    rows = []
+    for hid, h in hotels.items():
+        if h.get("acquired_by") != partner_id:
+            continue
+        paid_now = any(i.get("hotel_id") == hid and i.get("status") == "paid"
+                       and str(i.get("issued_at", i.get("created_at", "")))[:7] == month
+                       for i in invoices.values())
+        rows.append({
+            "hotel_id": hid, "name": h.get("name", ""),
+            "active": bool(h.get("subscription_active")), "is_free": bool(h.get("is_free")),
+            "acquired_at": str(h.get("acquired_at", ""))[:10],
+            "paid_this_month": paid_now,
+        })
+    month_comms = [c for c in comms.values() if c.get("partner_id") == partner_id
+                   and (c.get("period") or str(c.get("created_at", ""))[:7]) == month]
+    # Kandidáti na ruční atribuci: v daném měsíci registrované hotely bez partnera se zdrojem linkedin
+    candidates = [{"name": h.get("name", ""), "created_at": str(h.get("created_at", ""))[:10],
+                   "source": h.get("source", "")}
+                  for h in hotels.values()
+                  if (h.get("acquired_by") in (None, "", "auto"))
+                  and str(h.get("created_at", ""))[:7] == month
+                  and (h.get("source") or "").lower() in ("linkedin", "social")]
+    return {"status": "ok", "partner": {"id": partner_id, "name": p.get("name", ""),
+                                        "referral_code": p.get("referral_code", ""),
+                                        "contract_end": p.get("contract_end", "")},
+            "month": month, "hotels": rows,
+            "commissions": sorted(month_comms, key=lambda c: c.get("created_at", "")),
+            "commission_total_czk": round(sum(c.get("amount", 0) for c in month_comms), 2),
+            "attribution_candidates": candidates}
+
+def _create_commission_if_eligible(db: dict, hotel_id: str, period: str = ""):
+    """OPAKOVANÝ model (dohoda s J. Bártíkovou 21. 7. 2026): provize vzniká za KAŽDÝ
+    zaplacený měsíc hotelu (400 Kč/měs), dokud je hotel platícím zákazníkem.
+    Idempotentní per (hotel, měsíc). Doběh: po ukončení smlouvy partnera
+    (partner.contract_end) běží provize ještě max 6 měsíců."""
     hotel = db.get("hotels", {}).get(hotel_id)
     if not hotel:
         return
@@ -5699,13 +5856,26 @@ def _create_commission_if_eligible(db: dict, hotel_id: str):
     s = db.get("settings", {})
     if not s.get("commission_enabled"):
         return
+    period = (period or datetime.utcnow().strftime("%Y-%m"))[:7]
+    # Doběh 6 měsíců po ukončení smlouvy partnera
+    partner = db.get("partners", {}).get(pid) or {}
+    ce = (partner.get("contract_end") or "").strip()
+    if ce:
+        try:
+            _end = datetime.fromisoformat(ce[:10])
+            _cutoff = (_end + timedelta(days=183)).strftime("%Y-%m")
+            if period > _cutoff:
+                logging.info("Provize %s/%s: po doběhu smlouvy partnera (%s + 6 měs.) — negeneruji", hotel_id, period, ce)
+                return
+        except Exception:
+            pass
     comms = db.setdefault("commissions", {})
-    if any(c.get("hotel_id") == hotel_id for c in comms.values()):
-        return  # jedna provize na hotel (jednorázový model)
-    amount = float(s.get("commission_amount", 1500))
+    if any(c.get("hotel_id") == hotel_id and c.get("period") == period for c in comms.values()):
+        return  # už vygenerováno za tento měsíc
+    amount = float(s.get("commission_amount", 400))
     cid = str(uuid.uuid4())
     comms[cid] = {
-        "id": cid, "partner_id": pid, "hotel_id": hotel_id,
+        "id": cid, "partner_id": pid, "hotel_id": hotel_id, "period": period,
         "hotel_name": hotel.get("name", ""), "amount": round(amount, 2), "currency": "CZK",
         "status": "pending", "created_at": datetime.utcnow().isoformat(),
         "approved_at": None, "paid_at": None, "payout_reference": "",
