@@ -291,8 +291,10 @@ async def _apaleo_get(hotel: dict, path: str, params: dict, quiet: bool = False)
     if not quiet:
         logging.warning("Apaleo GET %s selhal: %s %s", path, r.status_code, r.text[:150])
         hotel["_pms_fail"] = f"http {r.status_code}"
-    elif r.status_code != 403:  # 403 u quiet = chybějící scope, logovat jen debug-tiše
-        logging.info("Apaleo GET %s (quiet) selhal: %s", path, r.status_code)
+    else:
+        # WARNING schválně (Railway INFO aplikace nezobrazuje); díky negativním cache
+        # se to neopakuje častěji než 1× za ~10 min na hotel. _pms_fail se u quiet NEnastavuje.
+        logging.warning("Apaleo GET %s (quiet) selhal: %s %s", path, r.status_code, r.text[:200])
     return None
 
 # ── setup.read: properties, units, časy check-in/out ─────────────────────────
@@ -489,8 +491,12 @@ async def apaleo_available_services(hotel: dict) -> Optional[list]:
             break
     if not out:
         # Diagnostika: API odpovědělo, ale nic jsme nevyparsovali → zaloguj tvar odpovědi
-        logging.info("Apaleo services: 200 OK, ale 0 služeb — klíče odpovědi: %s | ukázka: %s",
-                     list(d.keys())[:8], str(d)[:400])
+        # (WARNING, aby to bylo vidět v Railway; jakmile services pojedou, tahle větev zmlkne)
+        logging.warning("Apaleo services: 200 OK, ale 0 služeb — klíče odpovědi: %s | ukázka: %s",
+                        list(d.keys())[:8], str(d)[:500])
+    else:
+        logging.warning("Apaleo services: načteno %d služeb (%s)", len(out),
+                        ", ".join(s["name"] for s in out[:5]))
     # Úspěch s výsledky drž 1 h; prázdný výsledek jen 10 min (ať oprava/nová služba naskočí dřív)
     _services_cache[ck] = {"data": out, "expires": now + (3600 if out else 600)}
     return out
