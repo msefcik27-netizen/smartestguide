@@ -1255,17 +1255,35 @@ async def scrape_hotel_data(url: str, api_key: str) -> dict:
         pages_text = [f"=== HLAVNI STRANKA ===\n{main_text}"]
 
         # Podstránky – zkusíme jen 5, každá max 1500 znaků
+        # Hotel může žít v podadresáři (řetězce: orea.cz/hotel-concertino) → hinty zkoušej
+        # NEJDŘÍV vůči plné cestě, pak vůči kořeni domény. (Zjištěno 2. 8. 2026 na Concertinu:
+        # /wellness mířilo na orea.cz/wellness místo orea.cz/hotel-concertino/wellness.)
+        path_base = url if url.endswith("/") else url + "/"
         async def try_sub(hint):
-            sub_url = urljoin(base, hint)
-            html = await fetch_page(client, sub_url)
-            if html:
-                t = extract_text(html, 1500)
-                if len(t) > 100:  # ignoruj prázdné stránky
-                    return f"=== {hint.upper()} ===\n{t}"
+            for sub_url in (urljoin(path_base, hint.lstrip("/")), urljoin(base, hint)):
+                html = await fetch_page(client, sub_url)
+                if html:
+                    t = extract_text(html, 1500)
+                    if len(t) > 100:  # ignoruj prázdné stránky
+                        return f"=== {hint.upper()} ===\n{t}"
             return None
 
         results = await asyncio.gather(*[try_sub(h) for h in SUBPAGE_HINTS[:8]])
         pages_text += [r for r in results if r]
+
+        # FIX 2: strukturovaná data (JSON-LD, schema.org) — přesně to, co čte Google.
+        # Hotelové weby v nich často mají check-in/out, telefon, adresu, otevíračky.
+        try:
+            _soup_ld = BeautifulSoup(main_html, "html.parser")
+            _lds = []
+            for _tag in _soup_ld.find_all("script", type="application/ld+json"):
+                _raw = (_tag.string or "").strip()
+                if _raw and len(_raw) > 20:
+                    _lds.append(_raw[:2000])
+            if _lds:
+                pages_text.append("=== STRUKTUROVANA DATA WEBU (JSON-LD / schema.org) ===\n" + "\n".join(_lds[:3]))
+        except Exception:
+            pass
 
     # Celkový limit znaků – Haiku zvládne víc, lepší pokrytí praktických info (WiFi, FAQ, pravidla)
     combined = "\n\n".join(pages_text)[:12000]

@@ -655,6 +655,20 @@ function _ttsPlain(text){
 function _ttsReset(btn){ if(btn){btn.classList.remove('speaking');btn.textContent='🔊';} }
 
 let _ttsAudio=null;  // právě přehrávané serverové MP3
+// Mobilní prohlížeče blokují audio.play() mimo dotyk uživatele. Trik: při dotyku
+// (mikrofon/odeslat) přehrajeme na sdíleném elementu tichý zvuk → element je „odemčený"
+// a pozdější programové přehrání odpovědi (po fetch řetězci) už projde.
+let _ttsEl=null, _audioUnlocked=false;
+function _unlockAudio(){
+  try{
+    if(!_ttsEl) _ttsEl=new Audio();
+    if(_audioUnlocked) return;
+    _ttsEl.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+    const p=_ttsEl.play();
+    if(p&&p.then) p.then(()=>{try{_ttsEl.pause();}catch(e){} _audioUnlocked=true;}).catch(()=>{});
+    else _audioUnlocked=true;
+  }catch(e){}
+}
 
 function _ttsStopAll(){
   if(_ttsAudio){ try{_ttsAudio.pause();}catch(e){} _ttsAudio=null; }
@@ -693,10 +707,12 @@ async function speakText(text, btn){
     if(!r.ok) throw new Error('tts '+r.status);
     const blob=await r.blob();
     if(_ttsBtn!==btn) return;  // mezitím kliknuto jinam/zastaveno
-    const a=new Audio(URL.createObjectURL(blob));
+    const a=_ttsEl||new Audio(); _ttsEl=a;   // sdílený (odemčený) element — projde i autoplay policy
+    const src=URL.createObjectURL(blob);
+    a.src=src;
     _ttsAudio=a;
-    a.onended=()=>{ URL.revokeObjectURL(a.src); if(_ttsAudio===a)_ttsAudio=null; _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null; };
-    a.onerror=()=>{ URL.revokeObjectURL(a.src); if(_ttsAudio===a)_ttsAudio=null; _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null; };
+    a.onended=()=>{ URL.revokeObjectURL(src); if(_ttsAudio===a)_ttsAudio=null; _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null; };
+    a.onerror=()=>{ URL.revokeObjectURL(src); if(_ttsAudio===a)_ttsAudio=null; _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null; };
     await a.play();
   }catch(e){
     if(_ttsBtn!==btn) return;
@@ -1249,6 +1265,7 @@ function detectLangFromText(text){
 }
 
 async function sendMsg(){
+  _unlockAudio();   // klik na odeslat = gesto — odemkne audio pro automatické přehrání odpovědi
   const inp=document.getElementById('msg-input');
   const text=inp.value.trim();
   if(!text||isTyping)return;
@@ -1491,7 +1508,7 @@ async function fetchWeather(){
 // řeší situaci „vybraná čeština, host mluví německy" (prohlížečové rozpoznávání to neumí).
 // Fallback: když MediaRecorder/endpoint není k dispozici, jede původní Web Speech API.
 let _sttAvailable = null;   // null = nevyzkoušeno, false = server STT nejede (spadni na prohlížeč)
-let _mediaRec = null, _mediaChunks = [], _mediaStream = null, _recTimer = null;
+let _mediaRec = null, _mediaChunks = [], _mediaStream = null, _recTimer = null, _sttCtx = null;
 
 function _sttSupported(){
   return _sttAvailable !== false && typeof MediaRecorder !== 'undefined'
@@ -1517,6 +1534,7 @@ async function _startServerRec(){
     clearTimeout(_recTimer);
     isListening = false; b.classList.remove('listening'); b.textContent = '🎤';
     try{ _mediaStream.getTracks().forEach(t=>t.stop()); }catch(e){}
+    try{ if(_sttCtx){_sttCtx.close(); _sttCtx=null;} }catch(e){}
     const blob = new Blob(_mediaChunks, {type: _mediaRec.mimeType || 'audio/webm'});
     if(blob.size < 1200) return;   // moc krátké (omylem ťuknuto)
     const fmt = (blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm');
@@ -1543,8 +1561,29 @@ async function _startServerRec(){
   };
   _mediaRec.start();
   _recTimer = setTimeout(()=>{ try{ _mediaRec.state!=='inactive' && _mediaRec.stop(); }catch(e){} }, 20000); // strop 20 s
+  // Detekce ticha → auto-stop (host nemusí mačkat ⏹): po začátku řeči 1,7 s ticha = konec
+  try{
+    const _ctx=new (window.AudioContext||window.webkitAudioContext)();
+    _sttCtx=_ctx;
+    const srcNode=_ctx.createMediaStreamSource(_mediaStream);
+    const an=_ctx.createAnalyser(); an.fftSize=512;
+    srcNode.connect(an);
+    const buf=new Uint8Array(an.frequencyBinCount);
+    let spoke=false, silentMs=0, last=Date.now();
+    const tick=()=>{
+      if(!isListening){ try{_ctx.close();}catch(e){} return; }
+      an.getByteTimeDomainData(buf);
+      let peak=0; for(let i=0;i<buf.length;i++){const v=Math.abs(buf[i]-128); if(v>peak)peak=v;}
+      const now=Date.now(); silentMs=(peak>10)?0:silentMs+(now-last); last=now;
+      if(peak>10) spoke=true;
+      if(spoke && silentMs>1700){ try{ _mediaRec.state!=='inactive' && _mediaRec.stop(); }catch(e){} try{_ctx.close();}catch(e){} return; }
+      requestAnimationFrame(tick);
+    };
+    tick();
+  }catch(e){}
 }
 function toggleVoice(){
+  _unlockAudio();   // odemkni audio v dotyku — odpověď se pak přehraje automaticky
   // 1) Preferuj serverové STT s autodetekcí jazyka (funguje i na iOS Safari přes MediaRecorder)
   if(_sttSupported()){
     if(isListening){ try{ _mediaRec && _mediaRec.state!=='inactive' && _mediaRec.stop(); }catch(e){} return; }
