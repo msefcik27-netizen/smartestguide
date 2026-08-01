@@ -1230,6 +1230,111 @@ async def fetch_page(client, url: str) -> Optional[str]:
         pass
     return None
 
+async def _google_places_block(client, main_html: str) -> Optional[str]:
+    """#6 (2. 8. 2026): Google Places API (New) — legální doplňkový zdroj GBP dat.
+
+    Aktivní jen s env GOOGLE_PLACES_API_KEY (bez klíče tiše přeskočí — vrací None).
+    Volá se jednorázově při scrapingu hotelu (~0,4 Kč/dotaz). Vytahuje to, co na
+    webu hotelu často NENÍ: telefon, hodnocení, otevíračky, parkování, platby, psi.
+    """
+    _key = (os.getenv("GOOGLE_PLACES_API_KEY") or "").strip()
+    if not _key:
+        return None
+    # Název podniku z <title> hlavní stránky jako textový dotaz
+    try:
+        _t = BeautifulSoup(main_html, "html.parser").find("title")
+        _query = (_t.get_text() if _t else "").strip()
+    except Exception:
+        _query = ""
+    _query = re.sub(r"\s+", " ", _query)[:120]
+    if len(_query) < 3:
+        return None
+
+    # 1) Text Search → place id
+    _sr = await client.post(
+        "https://places.googleapis.com/v1/places:searchText",
+        json={"textQuery": _query, "maxResultCount": 1},
+        headers={"X-Goog-Api-Key": _key,
+                 "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress"},
+        timeout=15.0)
+    if _sr.status_code != 200:
+        logging.warning("Google Places searchText HTTP %s: %s", _sr.status_code, _sr.text[:200])
+        return None
+    _places = _sr.json().get("places") or []
+    if not _places:
+        return None
+    _pid = _places[0].get("id")
+    if not _pid:
+        return None
+
+    # 2) Place Details — checkInTime/checkOutTime jsou nová pole; při HTTP 400
+    #    (nepodporovaná v dané verzi) zkus znovu bez nich.
+    _base_fields = ("displayName,formattedAddress,internationalPhoneNumber,websiteUri,"
+                    "rating,userRatingCount,regularOpeningHours.weekdayDescriptions,"
+                    "parkingOptions,paymentOptions,allowsDogs")
+    _d = None
+    for _fields in (_base_fields + ",checkInTime,checkOutTime", _base_fields):
+        _dr = await client.get(
+            f"https://places.googleapis.com/v1/places/{_pid}",
+            headers={"X-Goog-Api-Key": _key, "X-Goog-FieldMask": _fields},
+            timeout=15.0)
+        if _dr.status_code == 200:
+            _d = _dr.json()
+            break
+        if _dr.status_code != 400:
+            logging.warning("Google Places details HTTP %s: %s", _dr.status_code, _dr.text[:200])
+            return None
+    if not _d:
+        return None
+
+    def _fmt_time(_v):
+        if isinstance(_v, dict):
+            return f"{_v.get('hours', 0):02d}:{_v.get('minutes', 0):02d}"
+        return str(_v)
+
+    _out = []
+    _dn = (_d.get("displayName") or {}).get("text")
+    if _dn:
+        _out.append(f"Nazev (Google): {_dn}")
+    if _d.get("formattedAddress"):
+        _out.append(f"Adresa: {_d['formattedAddress']}")
+    if _d.get("internationalPhoneNumber"):
+        _out.append(f"Telefon: {_d['internationalPhoneNumber']}")
+    if _d.get("rating") is not None:
+        _out.append(f"Hodnoceni Google: {_d['rating']}/5 ({_d.get('userRatingCount', 0)} recenzi)")
+    if _d.get("checkInTime"):
+        _out.append(f"Check-in: od {_fmt_time(_d['checkInTime'])}")
+    if _d.get("checkOutTime"):
+        _out.append(f"Check-out: do {_fmt_time(_d['checkOutTime'])}")
+    _oh = (_d.get("regularOpeningHours") or {}).get("weekdayDescriptions") or []
+    if _oh:
+        _out.append("Oteviraci doba:\n" + "\n".join(_oh[:7]))
+    _pk = _d.get("parkingOptions") or {}
+    _pk_txt = [_lbl for _k, _lbl in (
+        ("freeParkingLot", "vlastni parkoviste zdarma"),
+        ("paidParkingLot", "vlastni parkoviste placene"),
+        ("freeGarageParking", "garaz zdarma"),
+        ("paidGarageParking", "garaz placena"),
+        ("freeStreetParking", "parkovani na ulici zdarma"),
+        ("paidStreetParking", "parkovani na ulici placene"),
+        ("valetParking", "valet parking")) if _pk.get(_k)]
+    if _pk_txt:
+        _out.append("Parkovani: " + ", ".join(_pk_txt))
+    _pay = _d.get("paymentOptions") or {}
+    _pay_txt = [_lbl for _k, _lbl in (
+        ("acceptsCreditCards", "platebni karty"),
+        ("acceptsDebitCards", "debetni karty"),
+        ("acceptsCashOnly", "POUZE hotovost"),
+        ("acceptsNfc", "bezkontaktne/NFC")) if _pay.get(_k)]
+    if _pay_txt:
+        _out.append("Platby: " + ", ".join(_pay_txt))
+    if _d.get("allowsDogs") is not None:
+        _out.append("Psi povoleni: " + ("ano" if _d["allowsDogs"] else "ne"))
+
+    if len(_out) < 2:
+        return None
+    return "=== GOOGLE BUSINESS PROFILE (Google Places API) ===\n" + "\n".join(_out)
+
 async def scrape_hotel_data(url: str, api_key: str) -> dict:
     if not url.startswith("http"):
         url = "https://" + url
@@ -1264,17 +1369,77 @@ async def scrape_hotel_data(url: str, api_key: str) -> dict:
         # NEJDŘÍV vůči plné cestě, pak vůči kořeni domény. (Zjištěno 2. 8. 2026 na Concertinu:
         # /wellness mířilo na orea.cz/wellness místo orea.cz/hotel-concertino/wellness.)
         path_base = url if url.endswith("/") else url + "/"
+        _KEY_HINTS = ("restaur", "wellness", "spa", "faq", "informace", "good-to-know", "dobre")
         async def try_sub(hint):
+            # Klíčové stránky (restaurace/wellness/faq) mají vyšší limit — otevíračky bývají až na konci
+            limit = 3000 if any(k in hint for k in _KEY_HINTS) else 1500
             for sub_url in (urljoin(path_base, hint.lstrip("/")), urljoin(base, hint)):
                 html = await fetch_page(client, sub_url)
                 if html:
-                    t = extract_text(html, 1500)
+                    t = extract_text(html, limit)
                     if len(t) > 100:  # ignoruj prázdné stránky
                         return f"=== {hint.upper()} ===\n{t}"
             return None
 
         results = await asyncio.gather(*[try_sub(h) for h in SUBPAGE_HINTS[:8]])
         pages_text += [r for r in results if r]
+
+        # #3 (2. 8. 2026): crawl REÁLNÝCH odkazů z menu hlavní stránky — slepé hinty
+        # nestačí (weby mají /restaurace, /dining, /gastronomie…). Same-site, stejný
+        # prefix cesty (hotel v podadresáři řetězce), priorita dle klíčových slov, max 6.
+        try:
+            _KEYWORDS = ("restaur", "menu", "jidel", "gastro", "dining", "wellness", "spa", "saun",
+                         "kontakt", "contact", "faq", "info", "pokoj", "room", "ubytov", "accommod",
+                         "cenik", "price", "sluzb", "service", "snidan", "breakfast", "parkov", "parking")
+            _soup_nav = BeautifulSoup(main_html, "html.parser")
+            _hotel_prefix = parsed.path.rstrip("/")
+            _seen_l, _cands = set(), []
+            for _a in _soup_nav.find_all("a", href=True):
+                _href = (_a["href"] or "").strip()
+                if not _href or _href.startswith(("#", "mailto:", "tel:", "javascript:")):
+                    continue
+                _abs = urljoin(path_base, _href)
+                _p2 = urlparse(_abs)
+                if _p2.netloc != parsed.netloc:
+                    continue
+                if _hotel_prefix and not _p2.path.startswith(_hotel_prefix):
+                    continue
+                if _p2.path.rstrip("/") in ("", parsed.path.rstrip("/")):
+                    continue
+                if any(_p2.path.lower().endswith(_e) for _e in (".pdf", ".jpg", ".jpeg", ".png", ".webp", ".zip", ".doc", ".docx", ".xml")):
+                    continue
+                _clean = f"{_p2.scheme}://{_p2.netloc}{_p2.path}"
+                if _clean in _seen_l:
+                    continue
+                _seen_l.add(_clean)
+                _txt = (_a.get_text() or "").strip().lower()
+                _score = sum(1 for _k in _KEYWORDS if _k in _p2.path.lower() or _k in _txt)
+                _cands.append((_score, _clean))
+            _cands.sort(key=lambda x: -x[0])
+            _menu_urls = [u for _sc, u in _cands if _sc > 0][:6] or [u for _sc, u in _cands][:3]
+
+            async def _try_link(u):
+                html = await fetch_page(client, u)
+                if html:
+                    t = extract_text(html, 2500)
+                    if len(t) > 100:
+                        return f"=== {urlparse(u).path.upper() or u} ===\n{t}"
+                return None
+            if _menu_urls:
+                _res2 = await asyncio.gather(*[_try_link(u) for u in _menu_urls])
+                pages_text += [r for r in _res2 if r]
+        except Exception as _e:
+            logging.warning("Crawl odkazů z menu selhal: %s", _e)
+
+        # #6 (2. 8. 2026): Google Places API (New) jako volitelný LEGÁLNÍ zdroj GBP dat
+        # (telefon, hodnocení, otevíračky, parkování, platby, psi). Aktivní jen s env
+        # GOOGLE_PLACES_API_KEY (~0,4 Kč/dotaz, volá se jen při scrapingu = jednorázově).
+        try:
+            _gp = await _google_places_block(client, main_html)
+            if _gp:
+                pages_text.append(_gp)
+        except Exception as _e:
+            logging.warning("Google Places enrichment selhal: %s", _e)
 
         # FIX 2: strukturovaná data (JSON-LD, schema.org) — přesně to, co čte Google.
         # Hotelové weby v nich často mají check-in/out, telefon, adresu, otevíračky.
@@ -1291,7 +1456,7 @@ async def scrape_hotel_data(url: str, api_key: str) -> dict:
             pass
 
     # Celkový limit znaků – Haiku zvládne víc, lepší pokrytí praktických info (WiFi, FAQ, pravidla)
-    combined = "\n\n".join(pages_text)[:12000]
+    combined = "\n\n".join(pages_text)[:16000]
 
     # Systémový prompt zvlášť, user message jen s textem
     system_prompt = """Jsi expert na extrakci dat z hotelových webů.
@@ -1474,6 +1639,35 @@ def find_hotel_by_token(token: str):
             return h
     return None
 
+# JEDINÝ zdroj pravdy pro vyplněnost profilu (2. 8. 2026 — dřív existovaly DVĚ různé
+# definice → portál ukazoval 96 % v banneru a 90 % v analytice. Sjednoceno na seznam
+# z banneru, protože přesně tahle pole hotel v portálu vidí a vyplňuje.)
+# Pozn.: nová pole (parking_fee, pet_fee, tourist_tax, payment_methods, staff_languages)
+# záměrně NEJSOU ve skóre — nezměnit skóre stávajících hotelů (remindery).
+_PROFILE_REQUIRED = [
+    ("name", "Název hotelu"),
+    ("address", "Adresa"),
+    ("phone", "Telefon"),
+    ("email", "E-mail"),
+    ("bed_count", "Počet lůžek"),
+    ("checkin_time", "Check-in čas"),
+    ("checkout_time", "Check-out čas"),
+    ("description", "Popis hotelu"),
+    ("wifi_name", "WiFi síť"),
+    ("wifi_password", "WiFi heslo"),
+]
+_PROFILE_BONUS = [
+    ("breakfast_hours", "Hodiny snídaně"),
+    ("dinner_hours", "Hodiny večeře"),
+    ("restaurant_name", "Název restaurace"),
+    ("parking_info", "Parkování"),
+    ("wellness_info", "Wellness/Spa"),
+    ("whatsapp_number", "WhatsApp"),
+    ("nearby_places", "Místa v okolí"),
+    ("amenities", "Vybavení"),
+    ("pet_policy", "Pravidla pro mazlíčky"),
+]
+
 @app.get("/api/hotels/{hotel_id}/completeness")
 def hotel_completeness(hotel_id: str):
     """Vrátí skóre vyplněnosti profilu hotelu."""
@@ -1482,50 +1676,24 @@ def hotel_completeness(hotel_id: str):
     if not h:
         raise HTTPException(404, "Hotel nenalezen")
 
-    # Povinná pole (80% váha)
-    required = [
-        ("name", "Název hotelu"),
-        ("address", "Adresa"),
-        ("phone", "Telefon"),
-        ("email", "E-mail"),
-        ("bed_count", "Počet lůžek"),
-        ("checkin_time", "Check-in čas"),
-        ("checkout_time", "Check-out čas"),
-        ("description", "Popis hotelu"),
-        ("wifi_name", "WiFi síť"),
-        ("wifi_password", "WiFi heslo"),
-    ]
-    # Bonusová pole (20% váha)
-    bonus = [
-        ("breakfast_hours", "Hodiny snídaně"),
-        ("dinner_hours", "Hodiny večeře"),
-        ("restaurant_name", "Název restaurace"),
-        ("parking_info", "Parkování"),
-        ("wellness_info", "Wellness/Spa"),
-        ("whatsapp_number", "WhatsApp"),
-        ("nearby_places", "Místa v okolí"),
-        ("amenities", "Vybavení"),
-        ("pet_policy", "Pravidla pro mazlíčky"),
-    ]
+    filled_req = sum(1 for k, _ in _PROFILE_REQUIRED if h.get(k))
+    filled_bon = sum(1 for k, _ in _PROFILE_BONUS if h.get(k))
 
-    filled_req = sum(1 for k, _ in required if h.get(k))
-    filled_bon = sum(1 for k, _ in bonus if h.get(k))
-
-    req_score = round((filled_req / len(required)) * 80)
-    bon_score = round((filled_bon / len(bonus)) * 20)
+    req_score = round((filled_req / len(_PROFILE_REQUIRED)) * 80)
+    bon_score = round((filled_bon / len(_PROFILE_BONUS)) * 20)
     total = req_score + bon_score
 
-    missing_req = [label for k, label in required if not h.get(k)]
-    missing_bon = [label for k, label in bonus if not h.get(k)]
+    missing_req = [label for k, label in _PROFILE_REQUIRED if not h.get(k)]
+    missing_bon = [label for k, label in _PROFILE_BONUS if not h.get(k)]
 
     return {
         "score": total,
         "required_score": req_score,
         "bonus_score": bon_score,
         "filled_required": filled_req,
-        "total_required": len(required),
+        "total_required": len(_PROFILE_REQUIRED),
         "filled_bonus": filled_bon,
-        "total_bonus": len(bonus),
+        "total_bonus": len(_PROFILE_BONUS),
         "missing": missing_req + missing_bon,
         "missing_required": missing_req,
         "missing_bonus": missing_bon,
@@ -4394,40 +4562,23 @@ def _log_guest_question(hotel_id: str, message: str, language: str, reply: str, 
 # Email reminder
 # ─────────────────────────────────────────────
 def hotel_profile_completeness(hotel: dict) -> dict:
-    required = [
-        "name", "address", "phone", "email",
-        "checkin_time", "checkout_time", "breakfast_hours",
-        "bed_count", "star_rating", "description",
-        "wifi_name", "wifi_password",
-    ]
-    bonus = [
-        "wellness_info", "parking_info", "restaurant_name",
-        "nearby_places", "fitness_info", "pool_info",
-        "whatsapp_number", "whatsapp_wellness", "dinner_hours",
-        "pet_policy",
-    ]
-    filled_req = [f for f in required if hotel.get(f)]
-    filled_bon = [f for f in bonus if hotel.get(f)]
-    missing = [f for f in required if not hotel.get(f)]
-    # Skóre: required = 80%, bonus = 20%
-    req_score = int((len(filled_req) / len(required)) * 80)
-    bon_score = min(20, int((len(filled_bon) / len(bonus)) * 20))
+    """Skóre vyplněnosti — POČÍTÁ ZE STEJNÝCH SEZNAMŮ jako banner v portálu
+    (_PROFILE_REQUIRED/_PROFILE_BONUS). Do 2. 8. 2026 tu byla vlastní odlišná sada
+    polí → analytika/remindery ukazovaly jiné procento (90) než banner (96)."""
+    filled_req = [k for k, _ in _PROFILE_REQUIRED if hotel.get(k)]
+    filled_bon = [k for k, _ in _PROFILE_BONUS if hotel.get(k)]
+    missing = [k for k, _ in _PROFILE_REQUIRED if not hotel.get(k)]
+    # Skóre: required = 80 %, bonus = 20 % — stejné zaokrouhlení jako banner!
+    req_score = round((len(filled_req) / len(_PROFILE_REQUIRED)) * 80)
+    bon_score = round((len(filled_bon) / len(_PROFILE_BONUS)) * 20)
     score = req_score + bon_score
     return {
         "score": score,
         "filled_required": len(filled_req),
-        "total_required": len(required),
+        "total_required": len(_PROFILE_REQUIRED),
         "missing": missing,
         "is_complete": score >= 80,
     }
-
-@app.get("/api/hotels/{hotel_id}/completeness")
-def get_completeness(hotel_id: str):
-    db = db_load()
-    h = db["hotels"].get(hotel_id)
-    if not h:
-        raise HTTPException(404, "Hotel nenalezen")
-    return {"status": "ok", **hotel_profile_completeness(h)}
 
 @app.post("/api/hotels/{hotel_id}/send-reminder")
 def send_reminder(hotel_id: str, request: Request, dry_run: bool = False):
@@ -4444,6 +4595,8 @@ def send_reminder(hotel_id: str, request: Request, dry_run: bool = False):
         "email": "Email", "checkin_time": "Check-in čas",
         "checkout_time": "Check-out čas", "breakfast_hours": "Hodiny snídaně",
         "bed_count": "Počet lůžek", "star_rating": "Hvězdičky",
+        "name": "Název hotelu", "description": "Popis hotelu",
+        "wifi_name": "WiFi síť", "wifi_password": "WiFi heslo",
     }
     missing_list = [missing_labels.get(f, f) for f in completeness["missing"]]
     score = completeness["score"]
