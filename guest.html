@@ -2,6 +2,7 @@
 <html lang="cs">
 <head>
   <meta charset="UTF-8"/>
+  <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <meta name="google" content="notranslate">
   <meta name="mobile-web-app-capable" content="yes"/>
@@ -854,6 +855,11 @@ const QUICK={
   sk:['⏰ Check-in/out','🍳 Raňajky','🅿️ Parkovanie','💆 Wellness','📍 Okolie','☎️ Kontakt','🌤 Počasie'],
 };
 
+const OFFER_CHIP={
+  cs:'🎁 Dnešní nabídka', en:"🎁 Today's offer", de:'🎁 Angebot des Tages', fr:"🎁 Offre du jour",
+  it:'🎁 Offerta del giorno', es:'🎁 Oferta del día', pl:'🎁 Oferta dnia', sk:'🎁 Dnešná ponuka',
+};
+
 const INSTALL_TIP = {
   cs:'📲 Tip: Uložte si mě na plochu telefonu (nabídka prohlížeče → „Přidat na plochu"), ať jsem po ruce i bez QR kódu.',
   en:'📲 Tip: Add me to your home screen (browser menu → "Add to Home Screen") so I\'m always one tap away — even without the QR code.',
@@ -1030,7 +1036,13 @@ function unlinkStay(){
   setQuickReplies();
 }
 function setQuickReplies(){
-  const list=QUICK[guestLang]||QUICK['en'];
+  const list=[...(QUICK[guestLang]||QUICK['en'])];
+  // Aktivní nabídka hotelu → decentní chip (druhý v řadě); jen když je v profilu vyplněná
+  try{
+    if(typeof hotelData!=='undefined' && hotelData && String(hotelData.active_offer||'').trim()){
+      list.splice(1,0,OFFER_CHIP[guestLang]||OFFER_CHIP['en']);
+    }
+  }catch(e){}
   const el=document.getElementById('quick-replies');
   el.style.display='';
   el.innerHTML=_linkStayBtnHtml() + list.map(q=>`<button class="qr-btn" onclick="quickSend('${q}')">${q}</button>`).join('');
