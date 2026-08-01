@@ -12,6 +12,7 @@
 
 import base64
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Optional
@@ -58,6 +59,41 @@ def format_stay_block(stay: "Stay") -> str:
     lines.append("PRAVIDLO PŘESNOSTI PRO POBYT: Odpovídej VÝHRADNĚ z údajů uvedených výše. Pokud se host ptá na detail pobytu, který tu není (např. co přesně zahrnuje balíček, cena, platby, změna rezervace), NIKDY ho nedomýšlej — řekni, že tuto informaci nemáš, a odkaž na recepci. Změny rezervace (prodloužení, pozdní check-out) NIKDY nepotvrzuj — jen předej kontakt na recepci.")
     return "\n".join(lines)
 
+# ── Tolerantní párování čísla pokoje ─────────────────────────────────────────
+# Apaleo má pokoj např. jako "3.008" — host ale z kartičky přečte "3008" či "308".
+# Přesná shoda by selhala, přestože pokoj i rezervace existují.
+
+def _room_keys(name: str) -> set:
+    """Vygeneruje množinu normalizovaných variant názvu pokoje pro volné porovnání.
+    '3.008' → {'3.008', '3008', '308', '38'}: lowercase, rozpad na segmenty podle
+    oddělovačů (tečka/mezera/pomlčka/podtržítko/lomítko), u číselných segmentů
+    varianty s postupně odstraněnými vodicími nulami, slepení bez oddělovačů."""
+    s = (name or "").strip().lower()
+    if not s:
+        return set()
+    keys = {s}
+    segments = [seg for seg in re.split(r"[.\s\-_/]+", s) if seg]
+    if not segments:
+        return keys
+    variant_lists = []
+    for seg in segments:
+        variants = {seg}
+        if seg.isdigit():
+            t = seg
+            while len(t) > 1 and t.startswith("0"):
+                t = t[1:]
+                variants.add(t)
+        variant_lists.append(variants)
+    combos = {""}
+    for variants in variant_lists:
+        combos = {c + v for c in combos for v in variants}
+    keys |= combos
+    return keys
+
+def _room_match(unit_name: str, guest_room: str) -> bool:
+    """Volné porovnání názvu pokoje (True = pravděpodobně tentýž pokoj)."""
+    return bool(_room_keys(unit_name) & _room_keys(guest_room))
+
 # ── Dispatcher ────────────────────────────────────────────────────────────────
 
 async def get_stay_for_room(hotel: dict, room: str) -> Optional[Stay]:
@@ -86,7 +122,8 @@ async def get_stay_for_room(hotel: dict, room: str) -> Optional[Stay]:
 
 _APALEO_TOKEN_URL = "https://identity.apaleo.com/connect/token"
 _APALEO_API = "https://api.apaleo.com"
-_token_cache: dict = {}   # client_id -> {"token": str, "expires": epoch}
+_token_cache: dict = {}          # client_id -> {"token": str, "expires": epoch}  (client_credentials režim)
+_connect_token_cache: dict = {}  # hotel_id  -> {"token": str, "expires": epoch}  (Connect/OAuth režim)
 
 async def _apaleo_token(client_id: str, client_secret: str) -> Optional[str]:
     now = time.time()
@@ -142,7 +179,7 @@ def _apaleo_normalize(res: dict) -> Stay:
 
 async def apaleo_refresh_access_token(client_id: str, client_secret: str, refresh_token: str):
     """Connect (OAuth) flow: vymění refresh token za nový access + refresh token.
-    Vrací (access_token, new_refresh_token) nebo (None, None)."""
+    Vrací (access_token, new_refresh_token, expires_in_s) nebo (None, None, 0)."""
     basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
     async with httpx.AsyncClient(timeout=8.0) as client:
         r = await client.post(
@@ -152,23 +189,34 @@ async def apaleo_refresh_access_token(client_id: str, client_secret: str, refres
         )
     if r.status_code != 200:
         logging.warning("Apaleo refresh token selhal: %s %s", r.status_code, r.text[:150])
-        return None, None
+        return None, None, 0
     d = r.json()
-    return d.get("access_token"), d.get("refresh_token")
+    return d.get("access_token"), d.get("refresh_token"), int(d.get("expires_in", 3600))
 
 async def _apaleo_get_stay(hotel: dict, room: str) -> Optional[Stay]:
     property_id = (hotel.get("pms_property_id") or "").strip()
     if not property_id:
         return None
     token = None
+    cache_key = None
     # 1) Connect (OAuth) režim — hotel připojený přes Apaleo Store / tlačítko v portálu
     if hotel.get("pms_refresh_token") and hotel.get("_apaleo_app_client_id"):
-        token, new_rt = await apaleo_refresh_access_token(
-            hotel["_apaleo_app_client_id"], hotel.get("_apaleo_app_client_secret", ""),
-            hotel["pms_refresh_token"])
-        if new_rt and new_rt != hotel.get("pms_refresh_token"):
-            # rotace refresh tokenu — volající (app.py) ho po požadavku uloží
-            hotel["_new_refresh_token"] = new_rt
+        # Cache access tokenu do vypršení (~60 min) — bez ní se před KAŽDÝM čtením
+        # dělal nový refresh (2 volání na zprávu hosta místo 1).
+        cache_key = (hotel.get("id") or "") + ":" + property_id
+        now = time.time()
+        cached = _connect_token_cache.get(cache_key)
+        if cached and cached["expires"] > now + 60:
+            token = cached["token"]
+        else:
+            token, new_rt, expires_in = await apaleo_refresh_access_token(
+                hotel["_apaleo_app_client_id"], hotel.get("_apaleo_app_client_secret", ""),
+                hotel["pms_refresh_token"])
+            if token:
+                _connect_token_cache[cache_key] = {"token": token, "expires": now + expires_in}
+            if new_rt and new_rt != hotel.get("pms_refresh_token"):
+                # rotace refresh tokenu — volající (app.py) ho po požadavku uloží
+                hotel["_new_refresh_token"] = new_rt
     # 2) Custom app režim — ručně zadané client credentials per hotel
     if not token:
         client_id = (hotel.get("pms_client_id") or "").strip()
@@ -186,11 +234,21 @@ async def _apaleo_get_stay(hotel: dict, room: str) -> Optional[Stay]:
             params={"propertyIds": property_id, "status": "InHouse", "pageSize": 200},
         )
     if r.status_code != 200:
+        if r.status_code in (401, 403) and cache_key:
+            # token mezitím zneplatněn (např. hotel odpojil app) → zahodit z cache
+            _connect_token_cache.pop(cache_key, None)
         logging.warning("Apaleo reservations selhal: %s %s", r.status_code, r.text[:150])
         return None
-    room_l = room.lower()
-    for res in (r.json().get("reservations") or []):
+    reservations = r.json().get("reservations") or []
+    room_l = room.strip().lower()
+    # 1) přesná shoda má přednost (kdyby volné porovnání sedělo na víc pokojů)
+    for res in reservations:
         unit_name = ((res.get("unit") or {}).get("name") or "").strip().lower()
         if unit_name == room_l:
+            return _apaleo_normalize(res)
+    # 2) tolerantní shoda — host vynechal tečku/oddělovače nebo vodicí nuly ("3008", "308" ~ "3.008")
+    for res in reservations:
+        unit_name = ((res.get("unit") or {}).get("name") or "")
+        if unit_name and _room_match(unit_name, room):
             return _apaleo_normalize(res)
     return None
