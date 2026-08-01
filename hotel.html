@@ -134,7 +134,7 @@ html{color-scheme:light}
 
 <div class="topbar">
   <div style="display:flex;align-items:center;gap:16px">
-    <div class="logo">SMARTEST GUIDE<span style="width:6px;height:6px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:3px;margin-bottom:1px;box-shadow:0 0 6px rgba(255,107,0,.8)"></span></div>
+    <div class="logo" style="display:flex;align-items:center;gap:8px"><img src="/static/img/logo.svg" alt="" style="width:22px;height:22px;display:block"/>SMARTEST GUIDE</div>
     <div class="hotel-name-bar">Hotel AI Concierge: <strong id="hotel-name-bar">–</strong></div>
   </div>
   <div class="save-bar">
@@ -406,7 +406,6 @@ const EN_MAP = {
   "Zrušit předplatné?\n\nSMARTEST GUIDE poběží až do konce aktuálního zaplaceného období — poté se automaticky ukončí a další platba se NESTRHNE. Ve zkušební době vám nic naúčtováno nebude. Znovu se můžete přihlásit kdykoliv.":"Cancel subscription?\n\nSMARTEST GUIDE keeps running until the end of the current paid period — then it ends automatically and NO further payment is taken. Nothing is charged during the trial. You can sign up again anytime.",
   "Předplatné bude zrušeno na konci období":"Subscription will be cancelled at the end of the period",
   "Chyba: ":"Error: ","✅ Kód zkopírován!":"✅ Code copied!",
-  "⚠️ Tato URL je dočasná (ngrok). Po nasazení na server použijte produkční URL.":"⚠️ This URL is temporary (ngrok). Use the production URL after deployment.",
   "✅ Produkční URL — kód je připraven k použití.":"✅ Production URL — the code is ready to use.",
 };
 // Regexová pravidla pro uzly s čísly uvnitř textu
@@ -1981,16 +1980,10 @@ function initEmbedCode(){
   const base = window.location.origin;
   const code = '<script src="' + base + '/widget.js?hotel_id=' + hotelData.id + '"><\/script>';
   el.textContent = code;
-  // Přidej poznámku pokud je ngrok URL
   const note = document.getElementById('embed-note');
   if(note){
-    if(base.includes('ngrok')){
-      note.textContent = tr('⚠️ Tato URL je dočasná (ngrok). Po nasazení na server použijte produkční URL.');
-      note.style.color = 'var(--warn)';
-    } else {
-      note.textContent = tr('✅ Produkční URL — kód je připraven k použití.');
-      note.style.color = 'var(--success)';
-    }
+    note.textContent = tr('✅ Produkční URL — kód je připraven k použití.');
+    note.style.color = 'var(--success)';
   }
 }
 

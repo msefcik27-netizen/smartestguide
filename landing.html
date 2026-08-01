@@ -24,8 +24,7 @@
 <meta property="og:url" content="https://app.smartestguide.com/"/>
 <meta property="og:image" content="https://smartestguide-production.up.railway.app/static/og-image.png"/>
 <meta name="twitter:card" content="summary_large_image"/>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/static/fonts/fonts.css"/>
 <style>
 :root {
   /* Inntelo-style tokeny (redesign 25.7.2026) — názvy proměnných zachovány kvůli inline stylům */
@@ -103,7 +102,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 5vw;display:flex;a
 .mock-msg.bot{align-self:flex-start}
 .mock-msg.user{align-self:flex-end;flex-direction:row-reverse}
 .mock-av{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px}
-.mock-msg.bot .mock-av{background:linear-gradient(135deg,#2c5fae,#58a6c8)}
+.mock-msg.bot .mock-av{background:linear-gradient(135deg,#2c5fae,#2fd0d8)}
 .mock-msg.user .mock-av{background:#f1f4fa;border:1px solid var(--border);font-size:11px;color:var(--muted)}
 .mock-bubble{padding:10px 14px;border-radius:14px 14px 14px 4px;font-size:13px;line-height:1.5}
 .mock-msg.bot .mock-bubble{background:#eef3fc;border:none;color:var(--text)}
@@ -116,7 +115,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 5vw;display:flex;a
 /* Statistiky — skleněné karty přes hranu hera */
 .stats-strip{position:relative;z-index:6;padding:0 80px;margin-top:-52px;margin-bottom:20px;display:grid;grid-template-columns:repeat(4,1fr);gap:20px;border:none}
 .stat{background:rgba(255,255,255,.8);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.7);border-radius:20px;padding:30px;box-shadow:0 18px 44px rgba(12,27,51,.1);text-align:left}
-.stat-num{font-family:var(--font-display);font-size:38px;font-weight:800;background:linear-gradient(120deg,#2c5fae,#58a6c8);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat-num{font-family:var(--font-display);font-size:38px;font-weight:800;background:linear-gradient(120deg,#2c5fae,#2fd0d8);-webkit-background-clip:text;background-clip:text;color:transparent}
 .stat-label{font-size:14px;color:var(--dim);margin-top:6px}
 section{padding:80px 5vw}
 .section-inner{max-width:1100px;margin:0 auto}
@@ -129,7 +128,7 @@ section{padding:80px 5vw}
 .qr-card h3{font-family:var(--font-display);font-size:17px;font-weight:700;margin-bottom:6px}
 .qr-card p{font-size:14px;color:var(--dim);line-height:1.5}
 .qr-line{width:90px;height:2px;background:#d7dfee;position:relative;margin:0 6px}
-.qr-line .dot{position:absolute;top:-5px;width:12px;height:12px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px rgba(44,95,174,.6);animation:sgFlow 2.6s linear infinite}
+.qr-line .dot{position:absolute;top:-5px;width:12px;height:12px;border-radius:50%;background:#2fd0d8;box-shadow:0 0 12px rgba(47,208,216,.7);animation:sgFlow 2.6s linear infinite}
 .qr-line.d2 .dot{animation-delay:1.3s}
 /* Registrační sekce — tmavá navy, světlé nadpisy */
 #register .section-header h2{color:#fff}
@@ -188,7 +187,7 @@ select option{background:#ffffff;color:#0c1b33}
 .about-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .about-metric{display:flex;align-items:center;gap:16px}
 .metric-bar-wrap{flex:1;background:#e3e9f4;border-radius:99px;height:8px;overflow:hidden}
-.metric-bar{height:100%;border-radius:99px;background:var(--grad);transition:width 1.4s cubic-bezier(.2,.8,.2,1)}
+.metric-bar{height:100%;border-radius:99px;background:linear-gradient(90deg,#2c5fae,#2fd0d8);transition:width 1.4s cubic-bezier(.2,.8,.2,1)}
 .metric-label{font-size:14px;font-weight:600;color:#3c4c68;width:170px;flex-shrink:0}
 .metric-val{font-size:14px;font-weight:700;width:44px;text-align:right;flex-shrink:0;color:#3c4c68}
 #contact{background:#ffffff;border-radius:32px;margin:40px 24px 0}
@@ -242,7 +241,7 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
 <div style="position:fixed;top:0;left:0;right:0;height:3px;z-index:200;background:linear-gradient(90deg,#2c5fae,#58a6c8);box-shadow:0 0 12px rgba(44,95,174,.4)"></div>
 
 <nav>
-  <a href="#" class="nav-logo" translate="no">SMARTEST&nbsp;GUIDE<span style="width:7px;height:7px;border-radius:50%;background:var(--gold);display:inline-block;margin-left:4px;margin-bottom:-1px;box-shadow:0 0 8px rgba(255,107,0,.8)"></span></a>
+  <a href="#" class="nav-logo" translate="no" style="display:flex;align-items:center;gap:8px"><img src="/static/img/logo.svg" alt="" style="width:24px;height:24px;display:block"/>SMARTEST&nbsp;GUIDE</a>
   <ul class="nav-links" id="nav-links">
     <li><a href="#how">How it works</a></li>
     <li><a href="#features">Features</a></li>
@@ -270,10 +269,10 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
 </nav>
 
 <section class="hero">
-  <img class="hero-slide" fetchpriority="high" src="https://images.pexels.com/photos/6758532/pexels-photo-6758532.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="Moderní hotel — exteriér">
-  <img class="hero-slide s2" loading="lazy" src="https://images.pexels.com/photos/9746967/pexels-photo-9746967.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="">
-  <img class="hero-slide s3" loading="lazy" src="https://images.pexels.com/photos/13325113/pexels-photo-13325113.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="">
-  <img class="hero-slide s4" loading="lazy" src="https://images.pexels.com/photos/6758532/pexels-photo-6758532.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="" aria-hidden="true">
+  <img class="hero-slide" fetchpriority="high" src="/static/img/p6758532_w1920.jpg" alt="Moderní hotel — exteriér">
+  <img class="hero-slide s2" loading="lazy" src="/static/img/p9746967_w1920.jpg" alt="">
+  <img class="hero-slide s3" loading="lazy" src="/static/img/p13325113_w1920.jpg" alt="">
+  <img class="hero-slide s4" loading="lazy" src="/static/img/p6758532_w1920.jpg" alt="" aria-hidden="true">
   <div class="hero-overlay"></div>
   <div class="hero-scrim"></div>
   <div class="hero-badge" id="hero-badge">✦ AI-Powered Hotel Concierge</div>
@@ -383,8 +382,8 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
       </div>
       <div class="hero-mockup">
         <div class="mock-bar">
-          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#2c5fae,#58a6c8);display:grid;place-items:center;font-size:17px;color:#fff;font-weight:800">✦</div>
-          <span class="mock-bar-title" style="text-align:left"><b style="font-family:var(--font-display);font-size:14px;color:var(--text)">Alex — SmartestGuide</b><br><span style="color:#19b57e;font-size:11px">● online · <span id="demo-hotel">Your hotel</span></span></span>
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#2c5fae,#2fd0d8);display:grid;place-items:center;font-size:17px;color:#fff;font-weight:800">✦</div>
+          <span class="mock-bar-title" style="text-align:left"><b style="font-family:var(--font-display);font-size:14px;color:var(--text)">Alex — SmartestGuide</b><br><span style="color:#2fd0d8;font-size:11px">● online · <span id="demo-hotel">Your hotel</span></span></span>
         </div>
         <div class="mock-chat">
           <div class="mock-msg bot"><div class="mock-av" style="color:#fff;font-weight:800">✦</div><div class="mock-bubble" id="chat-b1">Hi! I'm Alex, your personal concierge. How can I help you today? 👋</div></div>
@@ -410,10 +409,10 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
       <p id="how-p">SMARTEST GUIDE trains in one day — and you can keep teaching it new things it will remember.</p>
     </div>
     <div class="steps">
-      <div class="step"><div class="step-photo"><img src="https://images.pexels.com/photos/19893582/pexels-photo-19893582.jpeg?auto=compress&cs=tinysrgb&w=800" alt="" style="object-position:center 60%"><div class="step-num">01</div></div><h3 id="step1-h">Register & try 14 days free</h3><p id="step1-p">Answer a few quick questions about your hotel and complete the registration.</p></div>
-      <div class="step"><div class="step-photo"><img src="https://images.pexels.com/photos/4050290/pexels-photo-4050290.jpeg?auto=compress&cs=tinysrgb&w=800" alt="" style="object-position:center 35%"><div class="step-num">02</div></div><h3 id="step2-h">We import your hotel data</h3><p id="step2-p">We prepare your hotel profile based on the information you provide — quickly and without unnecessary effort on your part.</p></div>
-      <div class="step"><div class="step-photo"><img src="https://images.pexels.com/photos/3182812/pexels-photo-3182812.jpeg?auto=compress&cs=tinysrgb&w=800" alt="" style="object-position:center 30%"><div class="step-num">03</div></div><h3 id="step3-h">Review & complete</h3><p id="step3-p">Log in to the portal and fill in the missing details — think like your guest. They often crave authentic experiences, hidden local spots and the specialities of your region. They always appreciate advice from someone who lives there and knows it best — and that is exactly what you can now give them — without limits.</p></div>
-      <div class="step"><div class="step-photo"><img src="https://images.pexels.com/photos/7942138/pexels-photo-7942138.jpeg?auto=compress&cs=tinysrgb&w=800" alt="" style="object-position:center 70%"><div class="step-num">04</div></div><h3 id="step4-h">Print & place</h3><p id="step4-p">Download the QR poster and place it in the lobby (by reception) or in the rooms. Guests scan it and get instant access to relevant information in their language — information you have full control over, so it is always accurate.</p></div>
+      <div class="step"><div class="step-photo"><img src="/static/img/p19893582_w800.jpg" alt="" style="object-position:center 60%"><div class="step-num">01</div></div><h3 id="step1-h">Register & try 14 days free</h3><p id="step1-p">Answer a few quick questions about your hotel and complete the registration.</p></div>
+      <div class="step"><div class="step-photo"><img src="/static/img/p4050290_w800.jpg" alt="" style="object-position:center 35%"><div class="step-num">02</div></div><h3 id="step2-h">We import your hotel data</h3><p id="step2-p">We prepare your hotel profile based on the information you provide — quickly and without unnecessary effort on your part.</p></div>
+      <div class="step"><div class="step-photo"><img src="/static/img/p3182812_w800.jpg" alt="" style="object-position:center 30%"><div class="step-num">03</div></div><h3 id="step3-h">Review & complete</h3><p id="step3-p">Log in to the portal and fill in the missing details — think like your guest. They often crave authentic experiences, hidden local spots and the specialities of your region. They always appreciate advice from someone who lives there and knows it best — and that is exactly what you can now give them — without limits.</p></div>
+      <div class="step"><div class="step-photo"><img src="/static/img/p7942138_w800.jpg" alt="" style="object-position:center 70%"><div class="step-num">04</div></div><h3 id="step4-h">Print & place</h3><p id="step4-p">Download the QR poster and place it in the lobby (by reception) or in the rooms. Guests scan it and get instant access to relevant information in their language — information you have full control over, so it is always accurate.</p></div>
     </div>
   </div>
 </section>
@@ -426,11 +425,11 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
       <p id="feat-p">Quick answers to their questions — anytime, clearly, in their language.</p>
     </div>
     <div class="features-grid">
-      <div class="feature"><img class="feat-photo" src="https://images.pexels.com/photos/9263510/pexels-photo-9263510.jpeg?auto=compress&cs=tinysrgb&w=1200" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat1-h">🌍 Communication in their language</h3><p id="feat1-p">Quick answers in 100+ languages — Alex automatically detects the guest's language and responds naturally.</p></div></div>
-      <div class="feature"><img class="feat-photo" src="https://images.pexels.com/photos/699122/pexels-photo-699122.jpeg?auto=compress&cs=tinysrgb&w=800" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat2-h">🎤 Voice conversations</h3><p id="feat2-p">Guests simply say their question out loud — and Alex answers back in a natural human voice. No typing needed.</p></div></div>
-      <div class="feature"><img class="feat-photo" src="https://images.pexels.com/photos/230544/pexels-photo-230544.jpeg?auto=compress&cs=tinysrgb&w=800" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat3-h">📱 No app installation needed</h3><p id="feat3-p">Guests scan a QR code and the concierge opens instantly in their browser. No download, no account.</p></div></div>
-      <div class="feature"><img class="feat-photo" src="https://images.pexels.com/photos/209831/pexels-photo-209831.jpeg?auto=compress&cs=tinysrgb&w=800" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat4-h">🌤 Live weather</h3><p id="feat4-p">Instant local weather for your hotel's location — temperature, wind, humidity — in real time.</p></div></div>
-      <div class="feature"><img class="feat-photo" src="https://images.pexels.com/photos/460621/pexels-photo-460621.jpeg?auto=compress&cs=tinysrgb&w=800" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat5-h">🗺 Local tips</h3><p id="feat5-p">Thanks to you, Alex knows the area like a local — so it gives guests the best advice on activities, sights and local specialities.</p></div></div>
+      <div class="feature"><img class="feat-photo" src="/static/img/p9263510_w1200.jpg" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat1-h">🌍 Communication in their language</h3><p id="feat1-p">Quick answers in 100+ languages — Alex automatically detects the guest's language and responds naturally.</p></div></div>
+      <div class="feature"><img class="feat-photo" src="/static/img/p699122_w800.jpg" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat2-h">🎤 Voice conversations</h3><p id="feat2-p">Guests simply say their question out loud — and Alex answers back in a natural human voice. No typing needed.</p></div></div>
+      <div class="feature"><img class="feat-photo" src="/static/img/p230544_w800.jpg" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat3-h">📱 No app installation needed</h3><p id="feat3-p">Guests scan a QR code and the concierge opens instantly in their browser. No download, no account.</p></div></div>
+      <div class="feature"><img class="feat-photo" src="/static/img/p209831_w800.jpg" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat4-h">🌤 Live weather</h3><p id="feat4-p">Instant local weather for your hotel's location — temperature, wind, humidity — in real time.</p></div></div>
+      <div class="feature"><img class="feat-photo" src="/static/img/p460621_w800.jpg" alt=""><div class="feat-shade"></div><div class="feat-body"><h3 id="feat5-h">🗺 Local tips</h3><p id="feat5-p">Thanks to you, Alex knows the area like a local — so it gives guests the best advice on activities, sights and local specialities.</p></div></div>
     </div>
   </div>
 </section>
@@ -474,13 +473,13 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
     </div>
   </div>
     <div style="text-align:center;margin-top:32px;padding:20px 28px;background:#e8effc;border:none;border-radius:16px;max-width:700px;margin-left:auto;margin-right:auto" id="pricing-compare-box">
-      <span style="font-size:14px;color:var(--dim)" id="pricing-compare">💡 <strong style="color:var(--text)">Perspective:</strong> SMARTEST GUIDE works 24/7 for a low monthly fee — always friendly, never sleeps, never needs a holiday or insurance. <strong style="color:var(--teal)">€<span id="price-per-day">7</span>/day</strong> for non-stop service in 100+ languages — serving many guests at once, in real time, with no waiting.</span>
+      <span style="font-size:14px;color:var(--dim)" id="pricing-compare">💡 <strong style="color:var(--text)">Perspective:</strong> SMARTEST GUIDE works 24/7 for a low monthly fee — always friendly, never sleeps, never needs a holiday or insurance. <strong style="color:#f08a2c">€<span id="price-per-day">7</span>/day</strong> for non-stop service in 100+ languages — serving many guests at once, in real time, with no waiting.</span>
     </div>
 </div>
 </section>
 
 <section style="position:relative;overflow:hidden;border-radius:32px;margin:0 24px;padding:100px 56px" data-reveal>
-  <img src="https://images.pexels.com/photos/3124079/pexels-photo-3124079.jpeg?auto=compress&cs=tinysrgb&w=1920" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+  <img src="/static/img/p3124079_w1920.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
   <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,16,35,.85),rgba(7,16,35,.55))"></div>
   <div class="section-inner" style="position:relative;color:#fff">
     <div class="section-header" style="text-align:left;margin-bottom:40px">
@@ -489,19 +488,19 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px">
       <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(10px);border-radius:18px;padding:30px;text-align:left">
-        <div style="font-family:var(--font-display);font-size:40px;font-weight:800;color:var(--lightblue);line-height:1.1;margin-bottom:8px">24/7</div>
+        <div style="font-family:var(--font-display);font-size:40px;font-weight:800;color:#2fd0d8;line-height:1.1;margin-bottom:8px">24/7</div>
         <div style="font-size:14px;color:#dbe4f5;line-height:1.5" id="stat-card1">Always available<br>never sleeps, never on holiday</div>
       </div>
       <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(10px);border-radius:18px;padding:30px;text-align:left">
-        <div style="font-family:var(--font-display);font-size:40px;font-weight:800;color:var(--lightblue);line-height:1.1;margin-bottom:8px">100+</div>
+        <div style="font-family:var(--font-display);font-size:40px;font-weight:800;color:#2fd0d8;line-height:1.1;margin-bottom:8px">100+</div>
         <div style="font-size:14px;color:#dbe4f5;line-height:1.5" id="stat-card2">languages — guests get answers<br>in their own language</div>
       </div>
       <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(10px);border-radius:18px;padding:30px;text-align:left">
-        <div style="font-family:var(--font-display);font-size:40px;font-weight:800;color:var(--lightblue);line-height:1.1;margin-bottom:8px">&lt;2s</div>
+        <div style="font-family:var(--font-display);font-size:40px;font-weight:800;color:#2fd0d8;line-height:1.1;margin-bottom:8px">&lt;2s</div>
         <div style="font-size:14px;color:#dbe4f5;line-height:1.5" id="stat-card3">average response time<br>instant reply for every guest</div>
       </div>
       <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(10px);border-radius:18px;padding:30px;text-align:left">
-        <div style="font-family:var(--font-display);font-size:40px;font-weight:800;color:var(--lightblue);line-height:1.1;margin-bottom:8px">€0</div>
+        <div style="font-family:var(--font-display);font-size:40px;font-weight:800;color:#2fd0d8;line-height:1.1;margin-bottom:8px">€0</div>
         <div style="font-size:14px;color:#dbe4f5;line-height:1.5" id="stat-card4">installation cost<br>no hardware, no IT required</div>
       </div>
     </div>
@@ -525,7 +524,7 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
         <div class="about-metric"><div class="metric-label" id="m2">Language match</div><div class="metric-bar-wrap"><div class="metric-bar" data-bar="88" style="width:88%"></div></div><div class="metric-val">88%</div></div>
         <div class="about-metric"><div class="metric-label" id="m3">24/7 availability</div><div class="metric-bar-wrap"><div class="metric-bar" data-bar="100" style="width:100%"></div></div><div class="metric-val">100%</div></div>
         <div class="about-metric"><div class="metric-label" id="m4">No-app experience</div><div class="metric-bar-wrap"><div class="metric-bar" data-bar="100" style="width:100%"></div></div><div class="metric-val">100%</div></div>
-        <div class="about-photo" style="min-height:300px;margin-top:20px"><img src="https://images.pexels.com/photos/7942132/pexels-photo-7942132.jpeg?auto=compress&cs=tinysrgb&w=1200" alt="Hotelový interiér"></div>
+        <div class="about-photo" style="min-height:300px;margin-top:20px"><img src="/static/img/p7942132_w1200.jpg" alt="Hotelový interiér"></div>
       </div>
     </div>
   </div>
@@ -823,7 +822,7 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
           <div id="price-intro" style="font-size:11px;color:var(--muted);margin-top:4px">Introductory price — locked in for first 3 months</div>
           <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px">
             <span style="font-size:16px">🎁</span>
-            <span id="price-trial" style="font-size:12px;color:var(--teal);font-weight:600">14-day free trial — your card won't be charged until day 15</span>
+            <span id="price-trial" style="font-size:12px;color:#f08a2c;font-weight:600">14-day free trial — your card won't be charged until day 15</span>
           </div>
         </div>
 
@@ -862,7 +861,7 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
 </section>
 
 <footer>
-  <div class="footer-logo" translate="no">SMARTEST<span class="t">GUIDE</span></div>
+  <div class="footer-logo" translate="no" style="display:flex;align-items:center;gap:8px"><img src="/static/img/logo.svg" alt="" style="width:20px;height:20px;display:block"/>SMARTEST<span class="t">GUIDE</span></div>
   <div class="footer-links">
     <a href="#how">How it works</a><a href="#pricing">Pricing</a>
     <a href="#about">About</a><a href="#contact">Contact</a>
@@ -889,14 +888,14 @@ function calcSgPrice(beds){
   if(!beds||beds<1) return 0;
   const base = window._sgPricingBase || 199;
   const threshold = window._sgPricingThreshold || 100;
-  const perBed = window._sgPricingPerBed || 3;
+  const perBed = window._sgPricingPerBed || 2;
   return beds<=threshold ? base : base+(beds-threshold)*perBed;
 }
 
 // ── Ceníková kalkulačka (posuvník) ──
 function updCalcFormula(){
   const fEl=document.getElementById('calc-formula'); if(!fEl) return;
-  const base=window._sgPricingBase||199, threshold=window._sgPricingThreshold||100, perBed=window._sgPricingPerBed||3;
+  const base=window._sgPricingBase||199, threshold=window._sgPricingThreshold||100, perBed=window._sgPricingPerBed||2;
   fEl.textContent=(typeof currentLang!=='undefined'&&currentLang==='cs')
     ? base+' € / měsíc do '+threshold+' lůžek · +'+perBed+' € za každé lůžko navíc'
     : '€'+base+'/month up to '+threshold+' beds · +€'+perBed+' per extra bed';
@@ -1082,7 +1081,7 @@ const TRANSLATIONS={
     step4_h:"Print & place",step4_p:"Download the QR poster and place it in the lobby (by reception) or in the rooms. Guests scan it and get instant access to relevant information in their language — information you have full control over, so it is always accurate.",
     feat_eyebrow:"Features",feat_h2:"What guests <span class=\"grad-text\">appreciate</span>",feat_p:"Quick answers to their questions — anytime, clearly, in their language.",
     pricing_eyebrow:"Pricing",pricing_h2:"Simple, transparent <span class=\"grad-text\">pricing</span>",pricing_p:"No hidden fees, no long-term contracts. Cancel anytime.",
-    pricing_compare:"💡 <strong style=\"color:var(--text)\">Perspective:</strong> SMARTEST GUIDE works 24/7 for a low monthly fee — always friendly, never sleeps, never needs a holiday or insurance. <strong style=\"color:var(--teal)\">€PERDAY/day</strong> for non-stop service in 100+ languages — serving many guests at once, in real time, with no waiting.",
+    pricing_compare:"💡 <strong style=\"color:var(--text)\">Perspective:</strong> SMARTEST GUIDE works 24/7 for a low monthly fee — always friendly, never sleeps, never needs a holiday or insurance. <strong style=\"color:#f08a2c\">€PERDAY/day</strong> for non-stop service in 100+ languages — serving many guests at once, in real time, with no waiting.",
     reviews_eyebrow:"Results",reviews_h2:"What SMARTEST GUIDE <span class=\"grad-text\">delivers</span>",
     stat_card1:"Always available<br>never sleeps, never on holiday",
     stat_card2:"languages — guests get answers<br>in their own language",
@@ -1152,7 +1151,7 @@ const TRANSLATIONS={
     step4_h:"Vytiskněte a umístěte",step4_p:"Stáhněte QR plakát a umístěte ho do lobby (k recepci) nebo na pokoje. Hosté si ho naskenují a mají okamžitý přístup k relevantním informacím ve svém jazyce, nad kterými máte vy absolutní kontrolu. Proto jsou vždy přesné.",
     feat_eyebrow:"Funkce",feat_h2:"Co hosté <span class=\"grad-text\">ocení</span>",feat_p:"Rychlé odpovědi na jejich otázky — kdykoliv, srozumitelně, v jejich jazyce.",
     pricing_eyebrow:"Ceník",pricing_h2:"Jednoduché, transparentní <span class=\"grad-text\">ceny</span>",pricing_p:"Bez skrytých poplatků, bez dlouhodobých smluv. Zrušení kdykoliv.",
-    pricing_compare:"💡 <strong style=\"color:var(--text)\">Srovnání:</strong> SMARTEST GUIDE pracuje 24/7 za nízký měsíční paušál — je vždy příjemný, nikdy nespí, nepotřebuje dovolenou ani pojištění. <strong style=\"color:var(--teal)\">€PERDAY/den</strong> za nepřetržitý servis ve 100+ jazycích — obslouží mnoho hostů najednou, v reálném čase a bez čekání.",
+    pricing_compare:"💡 <strong style=\"color:var(--text)\">Srovnání:</strong> SMARTEST GUIDE pracuje 24/7 za nízký měsíční paušál — je vždy příjemný, nikdy nespí, nepotřebuje dovolenou ani pojištění. <strong style=\"color:#f08a2c\">€PERDAY/den</strong> za nepřetržitý servis ve 100+ jazycích — obslouží mnoho hostů najednou, v reálném čase a bez čekání.",
     reviews_eyebrow:"Výsledky",reviews_h2:"Co SMARTEST GUIDE <span class=\"grad-text\">přináší</span>",
     stat_card1:"Vždy dostupný<br>nikdy nespí, nepotřebuje dovolenou",
     stat_card2:"jazyků — hosté dostanou odpověď<br>ve svém jazyce",
@@ -1215,7 +1214,7 @@ const TRANSLATIONS={
     step4_h:"Drucken & aufstellen",step4_p:"Laden Sie das QR-Plakat herunter und platzieren Sie es in der Lobby (an der Rezeption) oder in den Zimmern. Gäste scannen es und erhalten sofort relevante Informationen in ihrer Sprache — Informationen, über die Sie die volle Kontrolle haben. Deshalb sind sie immer korrekt.",
     feat_eyebrow:"Funktionen",feat_h2:"Was Gäste <span class=\"grad-text\">schätzen</span>",feat_p:"Schnelle Antworten auf ihre Fragen — jederzeit, klar, in ihrer Sprache.",
     pricing_eyebrow:"Preise",pricing_h2:"Einfache, transparente <span class=\"grad-text\">Preise</span>",pricing_p:"Keine versteckten Gebühren, keine Langzeitverträge. Jederzeit kündbar.",
-    pricing_compare:"💡 <strong style=\"color:var(--text)\">Perspektive:</strong> SMARTEST GUIDE arbeitet 24/7 für eine niedrige monatliche Pauschale — immer freundlich, schläft nie, braucht keinen Urlaub. <strong style=\"color:var(--teal)\">€PERDAY/Tag</strong> für ununterbrochenen Service in 100+ Sprachen — bedient viele Gäste gleichzeitig, in Echtzeit, ohne Wartezeit.",
+    pricing_compare:"💡 <strong style=\"color:var(--text)\">Perspektive:</strong> SMARTEST GUIDE arbeitet 24/7 für eine niedrige monatliche Pauschale — immer freundlich, schläft nie, braucht keinen Urlaub. <strong style=\"color:#f08a2c\">€PERDAY/Tag</strong> für ununterbrochenen Service in 100+ Sprachen — bedient viele Gäste gleichzeitig, in Echtzeit, ohne Wartezeit.",
     reviews_eyebrow:"Ergebnisse",reviews_h2:"Was SMARTEST GUIDE <span class=\"grad-text\">leistet</span>",
     stat_card1:"Immer verfügbar<br>schläft nie, braucht keinen Urlaub",
     stat_card2:"Sprachen — Gäste bekommen Antworten<br>in ihrer eigenen Sprache",
@@ -1256,7 +1255,7 @@ const TRANSLATIONS={
     step4_h:"Imprimir y colocar",step4_p:"Descargue el póster QR y colóquelo en el vestíbulo (junto a recepción) o en las habitaciones. Los huéspedes lo escanean y acceden al instante a información relevante en su idioma — información sobre la que usted tiene control absoluto. Por eso siempre es precisa.",
     feat_eyebrow:"Funciones",feat_h2:"Lo que los huéspedes <span class=\"grad-text\">aprecian</span>",feat_p:"Respuestas rápidas a sus preguntas — siempre, claramente, en su idioma.",
     pricing_eyebrow:"Precios",pricing_h2:"Precios simples y <span class=\"grad-text\">transparentes</span>",pricing_p:"Sin cargos ocultos, sin contratos a largo plazo. Cancelación en cualquier momento.",
-    pricing_compare:"💡 <strong style=\"color:var(--text)\">Perspectiva:</strong> SMARTEST GUIDE trabaja 24/7 por una baja cuota mensual — siempre amable, nunca duerme, no necesita vacaciones. <strong style=\"color:var(--teal)\">€PERDAY/día</strong> de servicio ininterrumpido en 100+ idiomas — atiende a muchos huéspedes a la vez, en tiempo real y sin esperas.",
+    pricing_compare:"💡 <strong style=\"color:var(--text)\">Perspectiva:</strong> SMARTEST GUIDE trabaja 24/7 por una baja cuota mensual — siempre amable, nunca duerme, no necesita vacaciones. <strong style=\"color:#f08a2c\">€PERDAY/día</strong> de servicio ininterrumpido en 100+ idiomas — atiende a muchos huéspedes a la vez, en tiempo real y sin esperas.",
     reviews_eyebrow:"Resultados",reviews_h2:"Lo que SMARTEST GUIDE <span class=\"grad-text\">aporta</span>",
     stat_card1:"Siempre disponible<br>nunca duerme, nunca de vacaciones",
     stat_card2:"idiomas — los huéspedes reciben respuestas<br>en su propio idioma",
@@ -1297,7 +1296,7 @@ const TRANSLATIONS={
     step4_h:"打印并放置",step4_p:"下载二维码海报，放置在大堂（前台旁）或客房。客人扫码即可立即获取自己语言的相关信息——这些信息完全由您掌控，因此始终准确。",
     feat_eyebrow:"功能",feat_h2:"客人<span class=\"grad-text\">喜爱的</span>",feat_p:"随时用他们自己的语言清晰地回答问题。",
     pricing_eyebrow:"价格",pricing_h2:"简单透明的<span class=\"grad-text\">定价</span>",pricing_p:"无隐藏费用，无长期合同，随时可取消。",
-    pricing_compare:"💡 <strong style=\"color:var(--text)\">对比：</strong> SMARTEST GUIDE 以低廉的月费全天候工作——始终友好，永不休眠，不需要假期。<strong style=\"color:var(--teal)\">每天 €PERDAY</strong>，100多种语言不间断服务——实时同时服务多位客人，无需等待。",
+    pricing_compare:"💡 <strong style=\"color:var(--text)\">对比：</strong> SMARTEST GUIDE 以低廉的月费全天候工作——始终友好，永不休眠，不需要假期。<strong style=\"color:#f08a2c\">每天 €PERDAY</strong>，100多种语言不间断服务——实时同时服务多位客人，无需等待。",
     reviews_eyebrow:"成果",reviews_h2:"SMARTEST GUIDE <span class=\"grad-text\">带来什么</span>",
     stat_card1:"全天候可用<br>永不休眠，不需要假期",
     stat_card2:"种语言——客人用<br>自己的语言获得回答",
@@ -1338,7 +1337,7 @@ const TRANSLATIONS={
     step4_h:"印刷・設置",step4_p:"QRポスターをダウンロードしてロビー（フロント横）や客室に設置してください。ゲストがスキャンすると、自分の言語で関連情報にすぐアクセスできます——その情報はあなたが完全に管理しているため、常に正確です。",
     feat_eyebrow:"機能",feat_h2:"ゲストが<span class=\"grad-text\">喜ぶこと</span>",feat_p:"いつでも、明確に、ゲストの言語で質問に素早く回答します。",
     pricing_eyebrow:"料金",pricing_h2:"シンプルで透明な<span class=\"grad-text\">料金体系</span>",pricing_p:"隠れた費用なし、長期契約なし、いつでも解約可能。",
-    pricing_compare:"💡 <strong style=\"color:var(--text)\">比較：</strong> SMARTEST GUIDE は低い月額料金で 24 時間働きます——常に親切で、眠らず、休暇も保険も不要。<strong style=\"color:var(--teal)\">1 日 €PERDAY</strong>、100以上の言語で絶え間ないサービス——多数のゲストをリアルタイムで同時に、待たせずに対応します。",
+    pricing_compare:"💡 <strong style=\"color:var(--text)\">比較：</strong> SMARTEST GUIDE は低い月額料金で 24 時間働きます——常に親切で、眠らず、休暇も保険も不要。<strong style=\"color:#f08a2c\">1 日 €PERDAY</strong>、100以上の言語で絶え間ないサービス——多数のゲストをリアルタイムで同時に、待たせずに対応します。",
     reviews_eyebrow:"実績",reviews_h2:"SMARTEST GUIDE が<span class=\"grad-text\">もたらすもの</span>",
     stat_card1:"常時利用可能<br>眠らず、休暇不要",
     stat_card2:"言語対応——ゲストは<br>母国語で回答を受けられます",
@@ -1373,7 +1372,7 @@ async function loadLandingPricing(){
     const d = await r.json();
     const base      = d.pricing_base      || 199;
     const threshold = d.pricing_threshold || 100;
-    const perBed    = d.pricing_per_bed   || 3;
+    const perBed    = d.pricing_per_bed   || 2;
     const perDay    = Math.round(base / 30);
     const setEl = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
     setEl('price-base-val',   base);
