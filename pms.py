@@ -50,6 +50,7 @@ def format_stay_block(stay: "Stay") -> str:
     if stay.arrival:    lines.append(f"- Příjezd: {stay.arrival}" + (f" od {stay.arrival_time}" if stay.arrival_time else ""))
     if stay.departure:  lines.append(f"- Odjezd (check-out): {stay.departure}" + (f" v {stay.departure_time}" if stay.departure_time else ""))
     lines.append("DŮLEŽITÉ: Časy z této rezervace mají PŘEDNOST před obecnými časy hotelu (check-in/check-out v profilu). Hostovi vždy říkej čas z jeho rezervace.")
+    lines.append("PLATÍ TO I PRO OBECNÉ DOTAZY: když se host zeptá obecně (např. Jaké jsou časy check-in/check-out? / Kdy je check-out?) nebo klikne na rychlou volbu s časy, odpověz PŘEDEVŠÍM konkrétním časem z JEHO rezervace (např. Váš check-out je 8. 7. v 10:00); obecné časy hotelu můžeš doplnit nanejvýš jako vedlejší poznámku. Nikdy neodpovídej jen obecnými časy, když má host propojený pobyt.")
     if stay.nights:     lines.append(f"- Počet nocí: {stay.nights}")
     if stay.adults or stay.children:
         lines.append(f"- Osoby: {stay.adults} dosp." + (f" + {stay.children} děti" if stay.children else ""))
@@ -109,6 +110,7 @@ async def get_stay_for_room(hotel: dict, room: str) -> Optional[Stay]:
         # further adapters: elif pms_type == "mews": ...
     except Exception as e:
         logging.warning("PMS lookup selhal (%s, pokoj %s): %s", pms_type, room, e)
+        hotel["_pms_fail"] = ("exception: " + str(e))[:120]  # monitoring: technické selhání
     return None
 
 # ── Apaleo adapter ────────────────────────────────────────────────────────────
@@ -225,6 +227,7 @@ async def _apaleo_get_stay(hotel: dict, room: str) -> Optional[Stay]:
             return None
         token = await _apaleo_token(client_id, client_secret)
     if not token:
+        hotel["_pms_fail"] = "token"   # monitoring: nepodařilo se získat access token
         return None
     # Ubytovaní hosté (InHouse) pro danou property; pokoj filtrujeme lokálně dle unit.name
     async with httpx.AsyncClient(timeout=8.0) as client:
@@ -238,7 +241,9 @@ async def _apaleo_get_stay(hotel: dict, room: str) -> Optional[Stay]:
             # token mezitím zneplatněn (např. hotel odpojil app) → zahodit z cache
             _connect_token_cache.pop(cache_key, None)
         logging.warning("Apaleo reservations selhal: %s %s", r.status_code, r.text[:150])
+        hotel["_pms_fail"] = f"http {r.status_code}"   # monitoring: API vrátilo chybu
         return None
+    hotel["_pms_fail"] = ""   # monitoring: spojení OK (i když pokoj třeba nemá rezervaci)
     reservations = r.json().get("reservations") or []
     room_l = room.strip().lower()
     # 1) přesná shoda má přednost (kdyby volné porovnání sedělo na víc pokojů)

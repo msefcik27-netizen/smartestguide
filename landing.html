@@ -104,6 +104,15 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 5vw;display:flex;a
 .mock-av{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px}
 .mock-msg.bot .mock-av{background:linear-gradient(135deg,#2c5fae,#2fd0d8)}
 .mock-msg.user .mock-av{background:#f1f4fa;border:1px solid var(--border);font-size:11px;color:var(--muted)}
+.mock-spk{display:inline-flex;align-items:flex-end;gap:2.5px;height:12px;margin:6px 0 0 2px}
+.mock-spk i{width:3px;border-radius:2px;background:#2fd0d8;animation:sgWaveBar 1.05s ease-in-out infinite;display:inline-block}
+.mock-spk i:nth-child(2){height:6px}
+.mock-spk i:nth-child(3){height:11px;animation-delay:.15s}
+.mock-spk i:nth-child(4){height:8px;animation-delay:.3s}
+.mock-spk i:nth-child(5){height:12px;animation-delay:.45s}
+.mock-spk i:nth-child(6){height:7px;animation-delay:.6s}
+.mock-spk .spk-ic{font-size:10px;line-height:1;margin-right:3px}
+@keyframes sgWaveBar{0%,100%{transform:scaleY(.45)}50%{transform:scaleY(1)}}
 .mock-bubble{padding:10px 14px;border-radius:14px 14px 14px 4px;font-size:13px;line-height:1.5}
 .mock-msg.bot .mock-bubble{background:#eef3fc;border:none;color:var(--text)}
 .mock-msg.user .mock-bubble{background:#2c5fae;color:#fff;border-radius:14px 14px 4px 14px}
@@ -386,13 +395,13 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
           <span class="mock-bar-title" style="text-align:left"><b style="font-family:var(--font-display);font-size:14px;color:var(--text)">Alex — SmartestGuide</b><br><span style="color:#2fd0d8;font-size:11px">● online · <span id="demo-hotel">Your hotel</span></span></span>
         </div>
         <div class="mock-chat">
-          <div class="mock-msg bot"><div class="mock-av" style="color:#fff;font-weight:800">✦</div><div class="mock-bubble" id="chat-b1">Hi! I'm Alex, your personal concierge. How can I help you today? 👋</div></div>
+          <div class="mock-msg bot"><div class="mock-av" style="color:#fff;font-weight:800">✦</div><div style="display:flex;flex-direction:column;align-items:flex-start;min-width:0"><div class="mock-bubble" id="chat-b1">Hi! I'm Alex, your personal concierge. How can I help you today? 👋</div><span class="mock-spk" title="Alex odpovídá i hlasem"><span class="spk-ic">🔊</span><i></i><i></i><i></i><i></i><i></i></span></div></div>
           <div class="mock-msg user"><div class="mock-av">JD</div><div class="mock-bubble" id="chat-u1">What time does breakfast start?</div></div>
-          <div class="mock-msg bot"><div class="mock-av" style="color:#fff;font-weight:800">✦</div><div class="mock-bubble" id="chat-b2">Breakfast is served from <strong>7:00 to 10:30 AM</strong> in the hotel restaurant on the ground floor. Enjoy! 🍳</div></div>
+          <div class="mock-msg bot"><div class="mock-av" style="color:#fff;font-weight:800">✦</div><div style="display:flex;flex-direction:column;align-items:flex-start;min-width:0"><div class="mock-bubble" id="chat-b2">Breakfast is served from <strong>7:00 to 10:30 AM</strong> in the hotel restaurant on the ground floor. Enjoy! 🍳</div><span class="mock-spk" title="Alex odpovídá i hlasem"><span class="spk-ic">🔊</span><i></i><i></i><i></i><i></i><i></i></span></div></div>
           <div class="mock-msg user"><div class="mock-av">JD</div><div class="mock-bubble" id="chat-u2">Is there parking nearby?</div></div>
-          <div class="mock-msg bot"><div class="mock-av" style="color:#fff;font-weight:800">✦</div><div class="mock-bubble" id="chat-b3">Yes! The hotel has a <strong>private parking lot</strong> right behind the building — free for guests. 🅿️</div></div>
+          <div class="mock-msg bot"><div class="mock-av" style="color:#fff;font-weight:800">✦</div><div style="display:flex;flex-direction:column;align-items:flex-start;min-width:0"><div class="mock-bubble" id="chat-b3">Yes! The hotel has a <strong>private parking lot</strong> right behind the building — free for guests. 🅿️</div><span class="mock-spk" title="Alex odpovídá i hlasem"><span class="spk-ic">🔊</span><i></i><i></i><i></i><i></i><i></i></span></div></div>
           <div class="mock-msg user"><div class="mock-av">JD</div><div class="mock-bubble" id="chat-u3">Can I see the menu?</div></div>
-          <div class="mock-msg bot"><div class="mock-av" style="color:#fff;font-weight:800">✦</div><div class="mock-bubble" id="chat-b4">Of course! 🍽 <strong>Today's menu:</strong><br>🥣 Beef broth<br>🍗 Roast chicken, potatoes<br>🍰 Apple strudel</div></div>
+          <div class="mock-msg bot"><div class="mock-av" style="color:#fff;font-weight:800">✦</div><div style="display:flex;flex-direction:column;align-items:flex-start;min-width:0"><div class="mock-bubble" id="chat-b4">Of course! 🍽 <strong>Today's menu:</strong><br>🥣 Beef broth<br>🍗 Roast chicken, potatoes<br>🍰 Apple strudel</div><span class="mock-spk" title="Alex odpovídá i hlasem"><span class="spk-ic">🔊</span><i></i><i></i><i></i><i></i><i></i></span></div></div>
           <div class="mock-typing" id="mock-typing" style="display:none"><div class="tb"><span></span><span></span><span></span></div></div>
         </div>
         <div style="display:flex;gap:8px;padding:13px 16px;border-top:1px solid #eef2f9;background:#fff"><div style="flex:1;background:#f1f4fa;border-radius:99px;padding:10px 14px;font-size:12px;color:#8093b3" id="mock-input-ph">Napište zprávu…</div><div style="width:36px;height:36px;border-radius:50%;background:#f1f4fa;display:grid;place-items:center;font-size:15px" title="Voice input">🎤</div><div style="width:36px;height:36px;border-radius:50%;background:#2c5fae;display:grid;place-items:center;color:#fff;font-size:14px">➤</div></div>

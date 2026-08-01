@@ -1579,13 +1579,17 @@ function loadPmsSection(){
   const connected=!!h.pms_type;
   const prop=h.pms_property_id||'';
   if(connected){
+    // Monitoring spojení: server počítá selhání čtení z Apalea (pms_fail_count) — při opakovaném
+    // selhání ukážeme varování místo zeleného „vše OK" (jinak hotel nepozná, že personalizace nejede).
+    const failing=(h.pms_fail_count||0)>=3;
+    const failInfo=failing?`<div style="margin-top:10px;background:rgba(255,90,90,.1);border:1px solid rgba(255,90,90,.35);border-radius:9px;padding:10px 14px;font-size:12px;color:#ff8a8a"><b>⚠️ Spojení s Apaleo aktuálně selhává</b>${h.pms_last_fail_at?` (naposledy ${new Date(h.pms_last_fail_at).toLocaleString('cs-CZ')})`:''} — Alex hostům dočasně odpovídá jen z profilu hotelu. Zkuste <b>Odpojit Apaleo</b> a hned poté znovu <b>Connect to Apaleo</b>. Pokud problém přetrvá, napište nám na support@smartestguide.com.</div>`:'';
     const discBtn = `<button onclick="disconnectPms()" style="background:transparent;border:none;color:var(--muted);font-size:11px;text-decoration:underline;cursor:pointer;font-family:var(--font-body);white-space:nowrap;padding:4px 2px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--muted)'">Odpojit Apaleo</button>`;
     el.innerHTML=`
-      <div style="background:rgba(46,204,135,.08);border:1px solid rgba(46,204,135,.3);border-radius:12px;padding:18px 22px;margin-bottom:24px">
+      <div style="background:${failing?'rgba(255,90,90,.06)':'rgba(46,204,135,.08)'};border:1px solid ${failing?'rgba(255,90,90,.3)':'rgba(46,204,135,.3)'};border-radius:12px;padding:18px 22px;margin-bottom:24px">
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
           <div style="font-size:26px">🔌</div>
           <div style="flex:1;min-width:220px">
-            <div style="font-family:var(--font-head);font-size:14px;font-weight:700;color:#2ecc87">Hotelový systém připojen (Apaleo)</div>
+            <div style="font-family:var(--font-head);font-size:14px;font-weight:700;color:${failing?'#ff8a8a':'#2ecc87'}">${failing?'Hotelový systém připojen — spojení selhává':'Hotelový systém připojen (Apaleo)'}</div>
             <div style="font-size:12px;color:var(--muted);margin-top:3px">${prop?`Property: <b>${prop}</b>. `:''}Alex zná pobyty hostů a odpovídá jim osobně (check-out, balíček, délka pobytu).</div>
           </div>
           ${prop?discBtn:`
@@ -1596,6 +1600,7 @@ function loadPmsSection(){
         </div>
         ${prop?'':`<div style="font-size:11px;color:var(--muted);margin-top:10px">Kód property najdete v adresním řádku po přihlášení do Apaleo — např. <b>app.apaleo.com/BER/…</b> → kód je <b>BER</b>.</div>
         <div style="margin-top:8px;text-align:right">${discBtn}</div>`}
+        ${failInfo}
       </div>`;
   }else{
     el.innerHTML=`
