@@ -85,6 +85,7 @@ async def _reminder_background_loop():
     await asyncio.sleep(60)
     while True:
         try:
+            await _check_abandoned_registrations()
             await _check_and_send_reminders()
             await _deactivate_expired_subscriptions()
             await _backup_data()
@@ -227,6 +228,80 @@ async def _email_backup(src) -> bool:
     except Exception as e:
         logging.warning("E-mail zálohy selhal: %s", e)
         return False
+
+async def _check_abandoned_registrations():
+    """Nedokončená registrace: hoteliér vyplnil formulář, ale u Stripe checkoutu odpadl.
+    Pošle JEDNOU e-mail s původním checkout odkazem (Stripe session platí 24 h).
+    Okno 3-20 h od registrace: dost pozdě, aby nerušil běžící platbu; dost brzy, aby odkaz platil.
+    Kill-switch: settings.abandoned_reg_emails_enabled=False vypne (default zapnuto).
+    BEZPEČNOST: nikdy neposílá aktivním hotelům, jen 1× per hotel (flag), přeskakuje E2E testy."""
+    brevo_key = os.getenv("BREVO_API_KEY", "")
+    if not brevo_key:
+        return
+    if db_get_settings().get("abandoned_reg_emails_enabled", True) is False:
+        return
+    db = db_load()
+    now = datetime.utcnow()
+    for hid, h in db["hotels"].items():
+        try:
+            if h.get("subscription_active") or h.get("archived") or h.get("is_free"):
+                continue
+            if h.get("abandoned_reg_email_sent"):
+                continue
+            if not h.get("checkout_url"):
+                continue
+            if (h.get("name") or "").strip().upper().startswith("E2E"):
+                continue
+            created_str = h.get("checkout_created_at") or h.get("created_at") or ""
+            try:
+                created = datetime.fromisoformat(str(created_str).replace("Z", ""))
+            except Exception:
+                continue
+            age_h = (now - created).total_seconds() / 3600.0
+            if not (3 <= age_h <= 20):
+                # po 20 h checkout odkaz brzy expiruje — neposílat mrtvý odkaz
+                if age_h > 20 and not h.get("abandoned_reg_email_sent"):
+                    h["abandoned_reg_email_sent"] = "expired-window"
+                    db_save(db)
+                continue
+            email = (h.get("registration_email") or h.get("email") or "").strip()
+            if not email:
+                continue
+            name = h.get("name", "your hotel")
+            payload = {
+                "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
+                "to": [{"email": email}],
+                "bcc": _admin_notify_bcc(exclude=email) or None,
+                "subject": f"Your SMARTEST GUIDE registration for {name} is one click away",
+                "htmlContent": (
+                    f"<p>Hello{(' ' + h.get('contact_name')) if h.get('contact_name') else ''},</p>"
+                    f"<p>you started setting up the AI concierge for <b>{name}</b> — the only step left is "
+                    f"activating your <b>14-day free trial</b> (no charge today).</p>"
+                    f"<p style='margin:22px 0'><a href='{h['checkout_url']}' "
+                    f"style='background:#2c5fae;color:#ffffff;text-decoration:none;padding:12px 26px;"
+                    f"border-radius:10px;font-weight:700'>Finish registration →</a></p>"
+                    f"<p>Your details are saved — this takes under a minute. Alex will start answering "
+                    f"your guests' questions in 100+ languages the same day.</p>"
+                    f"<p style='color:#888;font-size:12px'>The link is valid for 24 hours from your registration. "
+                    f"If it has expired, just register again at smartestguide.com — it only takes a moment. "
+                    f"Didn't request this? Simply ignore this e-mail and nothing will be created or charged.</p>"
+                    f"<p>Questions? Just reply.<br>— SMARTEST GUIDE · support@smartestguide.com</p>"),
+                "textContent": f"Finish your SMARTEST GUIDE registration for {name}: {h['checkout_url']} (link valid 24h; no charge today - 14-day free trial)",
+            }
+            if not payload["bcc"]:
+                payload.pop("bcc")
+            import httpx as _hx
+            async with _hx.AsyncClient() as client:
+                r = await client.post("https://api.brevo.com/v3/smtp/email", json=payload,
+                    headers={"api-key": brevo_key, "Content-Type": "application/json"}, timeout=30)
+            if r.status_code in (200, 201):
+                h["abandoned_reg_email_sent"] = now.isoformat()
+                db_save(db)
+                logging.info("Abandoned-registration e-mail odeslán: %s (%s)", hid, email)
+            else:
+                logging.warning("Abandoned-registration e-mail selhal %s: %s %s", hid, r.status_code, r.text[:120])
+        except Exception as e:
+            logging.warning("Abandoned-registration check selhal (%s): %s", hid, e)
 
 async def _check_and_send_reminders():
     """Zkontroluje všechny hotely a pošle reminder pokud splňují podmínky."""
@@ -2949,6 +3024,17 @@ async def register_hotel(req: RegistrationRequest, request: Request):
         checkout_url = session.get("url")
         if not checkout_url:
             raise ValueError("Stripe nevrátil checkout URL")
+
+        # Ulož checkout URL na (zatím neaktivní) hotel — kdyby hoteliér u platby odpadl,
+        # připomínkový e-mail mu pošle TENTÝŽ odkaz (Stripe session platí 24 h).
+        try:
+            _db2 = db_load()
+            if hid in _db2["hotels"]:
+                _db2["hotels"][hid]["checkout_url"] = checkout_url
+                _db2["hotels"][hid]["checkout_created_at"] = datetime.utcnow().isoformat()
+                db_save(_db2)
+        except Exception as _e:
+            logging.warning("Uložení checkout_url selhalo (%s): %s", hid, _e)
 
         return {"status": "ok", "checkout_url": checkout_url, "hotel_id": hid}
 
