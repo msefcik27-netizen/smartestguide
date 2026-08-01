@@ -5467,13 +5467,15 @@ Guest name: {req.guest_name or 'Guest'}"""
     # b) PRODLOUŽENÍ POBYTU (offers.read) — jen když se host ptá a má ověřený pobyt.
     # Vše graceful: starý souhlas bez nových scopes → tiché přeskočení, chat jede dál.
     pms_extra_blocks = []
-    if h.get("pms_type") and h.get("pms_property_id"):
+    if _stay_obj and h.get("pms_type") and h.get("pms_property_id"):
         try:
             _ph_x = _pms_hotel_ctx(h, settings)
-            _svcs = await pms_layer.apaleo_available_services(_ph_x)
+            # Služby na míru pobytu hosta (jeho sazba + termín) — service-offers.
+            # (/availability/v1/services vrací jen kapacitně omezené služby → 204, nepoužívat.)
+            _svcs = await pms_layer.apaleo_service_offers(_ph_x, _stay_obj)
             if _svcs:
                 pms_extra_blocks.append(pms_layer.format_services_block(_svcs))
-            if _stay_obj and _EXTENSION_INTENT_RE.search(req.message or ""):
+            if _EXTENSION_INTENT_RE.search(req.message or ""):
                 _n = 1
                 _m = re.search(r"(\d{1,2})\s*(?:noc|näch|nach|night|nuit|noche|nott|noci|ночь|ночи|ноче|ніч|ноч)",
                                (req.message or "").lower())

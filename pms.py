@@ -33,6 +33,7 @@ class Stay:
     adults: int = 0
     children: int = 0
     rate_plan: str = ""             # název balíčku/sazby (např. "Wellness balíček")
+    rate_plan_id: str = ""          # id sazby — pro service-offers (upsell služeb na míru pobytu)
     unit_group: str = ""            # typ pokoje (unit group name) — pro nabídku prodloužení
     status: str = ""                # InHouse / Confirmed / ...
     source: str = ""                # 'apaleo' | 'mews' | ...
@@ -217,6 +218,7 @@ def _apaleo_normalize(res: dict) -> Stay:
         adults=res.get("adults") or 0,
         children=len(res.get("childrenAges") or []),
         rate_plan=((res.get("ratePlan") or {}).get("name") or ""),
+        rate_plan_id=((res.get("ratePlan") or {}).get("id") or ""),
         unit_group=((res.get("unitGroup") or {}).get("name") or ""),
         status=res.get("status") or "",
         source="apaleo",
@@ -286,6 +288,8 @@ async def _apaleo_get(hotel: dict, path: str, params: dict, quiet: bool = False)
             return r.json()
         except Exception:
             return None
+    if r.status_code == 204:
+        return {}   # platný dotaz, prázdný výsledek (Apaleo vrací 204 No Content)
     if r.status_code in (401, 403):
         _drop_connect_token(hotel)
     if not quiet:
@@ -436,6 +440,52 @@ async def apaleo_extension_offer(hotel: dict, stay: "Stay", nights: int = 1) -> 
             "same_room_type": bool(same_group),
             "from": d_from.isoformat(), "to": d_to.isoformat(),
             "nights": (d_to - d_from).days}
+
+async def apaleo_service_offers(hotel: dict, stay: "Stay") -> Optional[list]:
+    """Upsell na míru POBYTU hosta: služby nabízené k jeho sazbě a termínu
+    (GET /booking/v1/service-offers — ratePlanId + arrival/departure + adults).
+    Pozn.: /availability/v1/services vrací jen služby s kapacitním omezením (204 u
+    běžných služeb — zjištěno 1. 8. na sandboxu), proto upsell jede tudy.
+    Cache 1 h per (hotel, sazba, příjezd). Vrací [{name, description, price, currency}] / None."""
+    pid = (hotel.get("pms_property_id") or "").strip()
+    rid = (getattr(stay, "rate_plan_id", "") or "").strip()
+    if not (pid and rid and stay.arrival and stay.departure):
+        return None
+    ck = ((hotel.get("id") or ""), rid, stay.arrival)
+    now = time.time()
+    c = _services_cache.get(ck)
+    if c and c["expires"] > now:
+        return c["data"]
+    d = await _apaleo_get(hotel, "/booking/v1/service-offers",
+                          {"ratePlanId": rid, "arrival": stay.arrival,
+                           "departure": stay.departure,
+                           "adults": max(1, stay.adults or 1)}, quiet=True)
+    if d is None:
+        _services_cache[ck] = {"data": None, "expires": now + 600}
+        return None
+    out, seen = [], set()
+    for item in d.get("services") or []:
+        svc = item.get("service") if isinstance(item.get("service"), dict) else item
+        name = str(svc.get("name") or "").strip()
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        price_obj = (item.get("totalAmount") or svc.get("defaultGrossPrice")
+                     or item.get("price") or {})
+        price = price_obj.get("grossAmount", price_obj.get("amount"))
+        desc = str(svc.get("description") or "").strip()
+        out.append({"name": name, "description": desc[:200],
+                    "price": price, "currency": price_obj.get("currency") or ""})
+        if len(out) >= 12:
+            break
+    if not out:
+        logging.warning("Apaleo service-offers: OK, ale 0 služeb — klíče: %s | ukázka: %s",
+                        list(d.keys())[:8], str(d)[:500])
+    else:
+        logging.warning("Apaleo service-offers: načteno %d služeb (%s)", len(out),
+                        ", ".join(s["name"] for s in out[:5]))
+    _services_cache[ck] = {"data": out, "expires": now + (3600 if out else 600)}
+    return out
 
 async def apaleo_available_services(hotel: dict) -> Optional[list]:
     """Dostupné služby hotelu (snídaně, wellness, late check-out…) — scope availability.read.
