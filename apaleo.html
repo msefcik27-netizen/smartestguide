@@ -4,16 +4,15 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>SMARTEST GUIDE + Apaleo — The in-stay AI concierge</title>
-<link rel="icon" type="image/png" href="/api/app-icon/64"/>
+<link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg"/>
 <meta name="description" content="Connect SMARTEST GUIDE to Apaleo in two minutes. Alex, the AI concierge, reads each guest's live reservation and answers personally — one QR code, 100+ languages, zero data stored."/>
 <meta property="og:title" content="SMARTEST GUIDE + Apaleo — The in-stay AI concierge"/>
 <meta property="og:description" content="One QR code, 100+ languages, zero data stored. Alex knows each guest's stay via the Apaleo integration."/>
 <meta property="og:type" content="website"/>
 <meta property="og:url" content="https://www.smartestguide.com/apaleo"/>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/static/fonts/fonts.css"/>
 <style>
-:root{--ink:#1a1a1a;--border:#e8e4dc;--muted:#6b6b6b;--text:#1a1a1a;--dim:#6b6b6b;--teal:#00d4aa;--tealdark:#0a9d86;--gold:#FF6B00;--font-display:'Syne',sans-serif;--font-body:'Inter',sans-serif}
+:root{--ink:#0c1b33;--border:#e3e9f4;--muted:#51617e;--text:#0c1b33;--dim:#51617e;--teal:#2fd0d8;--tealdark:#2c5fae;--gold:#2c5fae;--font-display:'Sora',sans-serif;--font-body:'Manrope',sans-serif}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{background:#fff;color:var(--text);font-family:var(--font-body);font-size:16px;line-height:1.6;overflow-x:hidden}
@@ -22,23 +21,23 @@ h1,h2,h3{font-family:var(--font-display);line-height:1.15}
 nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 5vw;display:flex;align-items:center;justify-content:space-between;height:64px;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
 .nav-logo{font-family:var(--font-display);font-size:20px;font-weight:800;text-decoration:none;color:var(--text)}
 .nav-logo .dot{color:var(--gold)}
-.nav-cta{background:var(--gold);color:#0a0b0f;border:none;border-radius:8px;padding:9px 20px;font-size:14px;font-weight:700;cursor:pointer;text-decoration:none}
+.nav-cta{background:var(--gold);color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:14px;font-weight:700;cursor:pointer;text-decoration:none}
 .nav-cta:hover{opacity:.88}
 .hero{padding:140px 5vw 70px;text-align:center;position:relative;overflow:hidden}
-.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(255,107,0,.14) 0%,transparent 70%);pointer-events:none}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(44,95,174,.14) 0%,transparent 70%);pointer-events:none}
 .hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(0,212,170,.08);border:1px solid rgba(0,212,170,.3);border-radius:20px;padding:6px 16px;font-size:13px;color:var(--tealdark);font-weight:600;margin-bottom:28px;position:relative}
 .hero h1{font-size:clamp(30px,4vw,50px);font-weight:800;max-width:900px;margin:0 auto 20px;position:relative}
 .hero h1 .g{color:var(--gold)}
 .hero p{font-size:clamp(16px,2vw,19px);color:var(--dim);max-width:640px;margin:0 auto 40px;line-height:1.7;position:relative}
-.btn-primary{background:var(--gold);color:#0a0b0f;border:none;border-radius:10px;padding:14px 28px;font-size:15px;font-weight:700;text-decoration:none;box-shadow:0 4px 24px rgba(255,107,0,.3);display:inline-block;position:relative}
+.btn-primary{background:var(--gold);color:#fff;border:none;border-radius:10px;padding:14px 28px;font-size:15px;font-weight:700;text-decoration:none;box-shadow:0 4px 24px rgba(44,95,174,.3);display:inline-block;position:relative}
 .btn-primary:hover{transform:translateY(-2px)}
 .bubbles{max-width:620px;margin:56px auto 0;background:#faf9f5;border:1px solid var(--border);border-radius:16px;padding:24px;text-align:left;position:relative}
 .bub{display:flex;gap:10px;margin:10px 0;max-width:85%}
 .bub.user{margin-left:auto;flex-direction:row-reverse}
-.bub .av{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;background:linear-gradient(135deg,#FF6B00,#e05e00)}
+.bub .av{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;background:linear-gradient(135deg,#2c5fae,#2fd0d8)}
 .bub.user .av{background:#f0ede6;font-size:11px;color:var(--muted)}
 .bub .txt{padding:9px 13px;border-radius:12px;font-size:14px;line-height:1.5;background:#fff;border:1px solid var(--border)}
-.bub.user .txt{background:var(--gold);color:#0a0b0f;border:none}
+.bub.user .txt{background:var(--gold);color:#fff;border:none}
 section{padding:80px 5vw;max-width:1080px;margin:0 auto}
 section h2{font-size:clamp(24px,3vw,34px);font-weight:800;margin-bottom:16px}
 .sub{color:var(--dim);max-width:640px;margin-bottom:44px}

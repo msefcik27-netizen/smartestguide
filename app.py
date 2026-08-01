@@ -1863,7 +1863,7 @@ function drawQR(holderId, size){{
   for(var r=0;r<n;r++){{
     for(var c=0;c<n;c++){{
       if(qr.isDark(r,c)){{
-        rects+='<rect x="'+(c*cell).toFixed(2)+'" y="'+(r*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#2fd0d8"/>';
+        rects+='<rect x="'+(c*cell).toFixed(2)+'" y="'+(r*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#0c1b33"/>';
       }}
     }}
   }}
@@ -1875,37 +1875,47 @@ function drawQR(holderId, size){{
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tiskové materiály — {hotel_name}</title>
+<title>{hub_title} — {hotel_name}</title>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{background:#faf9f5;font-family:'Manrope',sans-serif;color:#1a1a1a;min-height:100vh}}
+body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-height:100vh}}
 .topbar{{position:fixed;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#2c5fae,#2fd0d8);z-index:200}}
-.hub{{max-width:960px;margin:0 auto;padding:60px 24px 80px}}
-.hub-header{{text-align:center;margin-bottom:48px}}
-.hub-logo{{font-family:'Sora',sans-serif;font-weight:800;font-size:28px;color:#1a1a1a;display:inline-flex;align-items:center;gap:4px;margin-bottom:8px}}
-.hub-dot{{width:9px;height:9px;border-radius:50%;background:#f08a2c;box-shadow:0 0 10px rgba(240,138,44,.7);margin-left:2px}}
-.hub-hotel{{font-size:15px;color:#6b6b6b;margin-top:4px}}
-.hub-title{{font-family:'Sora',sans-serif;font-size:22px;font-weight:700;color:#1a1a1a;margin-top:16px}}
-.formats{{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:0}}
-.fmt-card{{background:#181920;border:1px solid #222330;border-radius:16px;overflow:hidden;display:flex;flex-direction:column}}
-.fmt-card:hover{{border-color:#2fd0d8;box-shadow:0 4px 16px rgba(44,95,174,.12)}}
-.fmt-preview{{background:#e9eaee;padding:24px;display:flex;justify-content:center;align-items:center;min-height:200px;cursor:pointer;position:relative;overflow:hidden}}
-.fmt-preview::before{{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 80% at 50% 50%,rgba(0,0,0,.04),transparent 70%);pointer-events:none}}
-.fmt-preview>div{{box-shadow:0 6px 18px rgba(0,0,0,.20)}}
-.fmt-info{{padding:20px}}
-.fmt-name{{font-family:'Sora',sans-serif;font-weight:700;font-size:16px;color:#f0ece0;margin-bottom:4px}}
-.fmt-desc{{font-size:13px;color:#6b6b6b;line-height:1.5;margin-bottom:16px}}
-.fmt-btn{{display:block;width:100%;background:#2c5fae;color:#fff;border:none;border-radius:8px;padding:11px;font-family:'Manrope',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-align:center;text-decoration:none;transition:opacity .15s}}
-.fmt-btn:hover{{opacity:.88}}
-/* Print styles */
-@media print{{
-  .topbar,.hub-header,.fmt-info,.formats,.fmt-preview:not(.printing){{display:none!important}}
-  body{{background:#fff;padding:0}}
-  .active-print{{display:block!important}}
-  @page{{margin:0;size:auto}}
-}}
+.hub{{max-width:1020px;margin:0 auto;padding:56px 24px 80px}}
+.hub-header{{text-align:center;margin-bottom:40px}}
+.hub-logo{{font-family:'Sora',sans-serif;font-weight:800;font-size:24px;letter-spacing:1px;color:#0c1b33;display:inline-flex;align-items:center;gap:10px}}
+.hub-logo img{{width:28px;height:28px;display:block}}
+.hub-logo span{{color:#2c5fae}}
+.hub-hotel{{font-size:14px;color:#51617e;margin-top:6px}}
+.hub-title{{font-family:'Sora',sans-serif;font-size:26px;font-weight:800;color:#0c1b33;margin-top:14px}}
+.portal-link{{display:inline-flex;align-items:center;gap:6px;margin-top:14px;background:#fff;border:1px solid #e3e9f4;border-radius:99px;padding:8px 18px;font-size:13px;font-weight:600;color:#2c5fae;text-decoration:none;box-shadow:0 4px 12px rgba(12,27,51,.05)}}
+.portal-link:hover{{border-color:#2c5fae}}
+.theme-note{{margin-top:8px;font-size:12px;color:#8093b3}}
+.theme-wrap{{display:inline-flex;background:#fff;border:1px solid #e3e9f4;border-radius:99px;padding:4px;gap:4px;margin-top:18px;box-shadow:0 4px 12px rgba(12,27,51,.05)}}
+.theme-btn{{border:none;background:transparent;color:#51617e;border-radius:99px;padding:8px 18px;font-family:'Manrope',sans-serif;font-size:13px;font-weight:700;cursor:pointer}}
+.theme-btn.active{{background:#2c5fae;color:#fff}}
+.formats{{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}}
+@media(max-width:820px){{.formats{{grid-template-columns:repeat(2,1fr)}}}}
+@media(max-width:560px){{.formats{{grid-template-columns:1fr}}}}
+.fmt-card{{background:#fff;border:1px solid #e3e9f4;border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(12,27,51,.07);transition:transform .2s,box-shadow .2s}}
+.fmt-card:hover{{transform:translateY(-4px);box-shadow:0 22px 44px rgba(12,27,51,.13)}}
+.fmt-preview{{background:#eef3fc;padding:22px;display:flex;justify-content:center;align-items:center;min-height:216px;cursor:pointer}}
+.fmt-info{{padding:18px 20px 20px}}
+.fmt-name{{font-family:'Sora',sans-serif;font-weight:700;font-size:15px;color:#0c1b33;margin-bottom:4px}}
+.fmt-desc{{font-size:13px;color:#51617e;line-height:1.55;margin-bottom:14px;min-height:40px}}
+.fmt-btn{{display:block;width:100%;background:linear-gradient(90deg,#2c5fae,#3a72c4);color:#fff;border:none;border-radius:99px;padding:11px;font-family:'Manrope',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-align:center;text-decoration:none;transition:opacity .15s}}
+.fmt-btn:hover{{opacity:.9}}
+/* Mini-náhledy = zmenšeniny skutečných tiskovin (tmavé téma) */
+.mini{{background:#0c1b33;border-radius:9px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:5px;box-shadow:0 10px 24px rgba(12,27,51,.28)}}
+.mini-h{{font-family:'Sora',sans-serif;font-weight:800;color:#fff;line-height:1.25;text-align:center}}
+.mini-s{{color:#2fd0d8;font-weight:700;letter-spacing:.06em}}
+.mini-qr{{background:#fff;border-radius:7px;padding:5px;display:flex;position:relative}}
+.mini-u{{color:#a9cbe8}}
+.formats.light .mini{{background:#fff;border:1.5px solid #0c1b33;box-shadow:0 8px 20px rgba(12,27,51,.12)}}
+.formats.light .mini-h{{color:#0c1b33}}
+.formats.light .mini-u{{color:#51617e}}
+.formats.light .mini-qr{{border:1px solid #e3e9f4}}
 </style>
 </head>
 <body>
@@ -1913,44 +1923,46 @@ body{{background:#faf9f5;font-family:'Manrope',sans-serif;color:#1a1a1a;min-heig
 
 <div class="hub">
   <div class="hub-header">
-    <div class="hub-logo" translate="no">SmartestGuide<span class="hub-dot"></span></div>
+    <div class="hub-logo" translate="no"><img src="/static/img/logo.svg" alt=""/>SMARTEST<span>GUIDE</span></div>
     <div class="hub-hotel">{hotel_name}</div>
     <div class="hub-title">{hub_title}</div>
-    {f'<a href="{portal_url}" style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:rgba(44,95,174,.1);border:1px solid rgba(44,95,174,.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;color:#2fd0d8;text-decoration:none;transition:opacity .15s" onmouseover="this.style.opacity=.8" onmouseout="this.style.opacity=1">⚙️ {portal_label}</a>' if portal_url else ''}
-    <div style="margin-top:16px;font-size:12px;color:#1a1a1a;font-weight:700;margin-bottom:7px">🎨 Vyberte vzhled tiskovin:</div>
-    <div style="display:inline-flex;background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.15);border-radius:10px;padding:4px;gap:4px">
-      <button id="theme-dark" onclick="setFlyerTheme('dark')" style="border:1px solid transparent;background:#2c5fae;color:#fff;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">🌙 Tmavá</button>
-      <button id="theme-light" onclick="setFlyerTheme('light')" style="border:1px solid rgba(44,95,174,.55);background:transparent;color:#1a1a1a;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">📄 Print-friendly</button>
+    <br>
+    {f'<a href="{portal_url}" class="portal-link">⚙️ {portal_label}</a>' if portal_url else ''}
+    <br>
+    <div class="theme-wrap">
+      <button id="theme-dark" class="theme-btn active" onclick="setFlyerTheme('dark')">🌙 {'Tmavá' if is_cs else 'Dark'}</button>
+      <button id="theme-light" class="theme-btn" onclick="setFlyerTheme('light')">📄 Print-friendly</button>
     </div>
-    <div style="margin-top:8px;font-size:11px;color:#333333">🌙 Tmavá = ideální pro PDF &nbsp;·&nbsp; 📄 <b style="color:#d95700">Print-friendly</b> (světlá) šetří inkoust při tisku na papír</div>
+    <div class="theme-note">{'Tmavá = ideální pro PDF a obrazovky · Print-friendly (světlá) šetří inkoust při tisku' if is_cs else 'Dark = best for PDF and screens · Print-friendly (light) saves ink when printing'}</div>
   </div>
 
-  <div class="formats">
+  <div class="formats" id="formats">
 
     <!-- Roll-up -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('rollup')">
-        <div style="width:65px;height:156px;background:#1a1a1a;border:1px solid rgba(44,95,174,.3);border-radius:6px;padding:8px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
-          <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:7px;color:#2fd0d8;line-height:1.2">Your<br>personal<br>AI<br>concierge</div>
-          <div style="font-size:7px;color:#2fd0d8;font-weight:600;letter-spacing:.05em">🌍 100+ LANG</div>
-          <div id="qr-rollup" style="width:44px;height:44px"></div>
-          <div style="font-size:6px;color:#2fd0d8">smartestguide.com</div>
+        <div class="mini" style="width:68px;height:164px;padding:8px 6px">
+          <div class="mini-h" style="font-size:7px">Your<br>personal<br>AI concierge</div>
+          <div class="mini-s" style="font-size:5.5px">100+ LANGUAGES</div>
+          <div class="mini-qr"><div id="qr-rollup" style="width:42px;height:42px"></div></div>
+          <div class="mini-u" style="font-size:5.5px">smartestguide.com</div>
         </div>
       </div>
       <div class="fmt-info">
-        <div class="fmt-name">Roll-up Banner · 850×2000mm</div>
+        <div class="fmt-name">Roll-up Banner · 850×2000&nbsp;mm</div>
         <div class="fmt-desc">{rollup_desc}</div>
         <button class="fmt-btn" onclick="openFormat('rollup')">{btn_print}</button>
       </div>
     </div>
-    <!-- A4 Primární jazyk -->
+
+    <!-- A4 primární (EN) -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('{flyer_primary_url}')">
-        <div style="width:110px;min-height:155px;background:#1a1a1a;border:1px solid rgba(44,95,174,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
-          <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:9px;color:#2fd0d8;line-height:1.2">{'Váš osobní<br>AI concierge' if is_cs else 'Your personal<br>AI concierge'}</div>
-          <div style="font-size:8px;color:#2fd0d8;font-weight:600;letter-spacing:.05em">🌍 100+ LANGUAGES</div>
-          <div id="qr-a4-primary" style="width:70px;height:70px"></div>
-          <div style="font-size:7px;color:#2fd0d8">smartestguide.com</div>
+        <div class="mini" style="width:118px;height:164px">
+          <div class="mini-h" style="font-size:9px">Your personal<br>AI concierge</div>
+          <div class="mini-s" style="font-size:6.5px">100+ LANGUAGES</div>
+          <div class="mini-qr"><div id="qr-a4-primary" style="width:64px;height:64px"></div></div>
+          <div class="mini-u" style="font-size:6.5px">smartestguide.com</div>
         </div>
       </div>
       <div class="fmt-info">
@@ -1958,14 +1970,16 @@ body{{background:#faf9f5;font-family:'Manrope',sans-serif;color:#1a1a1a;min-heig
         <div class="fmt-desc">{flyer_primary_desc}</div>
         <button class="fmt-btn" onclick="openFormat('{flyer_primary_url}')">{btn_print}</button>
       </div>
-    </div>    <!-- A4 Sekundární jazyk -->
+    </div>
+
+    <!-- A4 sekundární (lokální) -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('{flyer_secondary_url}')">
-        <div style="width:110px;min-height:155px;background:#1a1a1a;border:1px solid rgba(44,95,174,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px">
-          <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:9px;color:#2fd0d8;line-height:1.2">{'Your personal<br>AI concierge' if is_cs else 'Váš osobní<br>AI concierge'}</div>
-          <div style="font-size:8px;color:#2fd0d8;font-weight:600;letter-spacing:.05em">🌍 100+ LANGUAGES</div>
-          <div id="qr-a4-secondary" style="width:70px;height:70px"></div>
-          <div style="font-size:7px;color:#2fd0d8">smartestguide.com</div>
+        <div class="mini" style="width:118px;height:164px">
+          <div class="mini-h" style="font-size:9px">{'Váš osobní<br>AI concierge' if is_cs else 'Your personal<br>AI concierge'}</div>
+          <div class="mini-s" style="font-size:6.5px">100+ LANGUAGES</div>
+          <div class="mini-qr"><div id="qr-a4-secondary" style="width:64px;height:64px"></div></div>
+          <div class="mini-u" style="font-size:6.5px">smartestguide.com</div>
         </div>
       </div>
       <div class="fmt-info">
@@ -1973,12 +1987,16 @@ body{{background:#faf9f5;font-family:'Manrope',sans-serif;color:#1a1a1a;min-heig
         <div class="fmt-desc">{flyer_secondary_desc}</div>
         <button class="fmt-btn" onclick="openFormat('{flyer_secondary_url}')">{btn_print}</button>
       </div>
-    </div>    <!-- QR Plakát -->
+    </div>
+
+    <!-- QR Plakát -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('qr-poster')">
-        <div style="position:relative;padding:16px;background:#0c0d12;border:1px solid rgba(44,95,174,.4);border-radius:14px;display:inline-block">
-          <div id="qr-thumb" style="width:160px;height:160px;display:block"></div>
-          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;background:#1a1a1a;border:2px solid #2fd0d8;display:flex;align-items:center;justify-content:center;font-family:'Sora',sans-serif;font-weight:800;font-size:14px;color:#2fd0d8;z-index:10;pointer-events:none">SG</div>
+        <div class="mini" style="width:164px;height:164px;justify-content:center">
+          <div class="mini-qr" style="padding:7px">
+            <div id="qr-thumb" style="width:126px;height:126px"></div>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:8px;overflow:hidden;box-shadow:0 0 0 3px #fff"><img src="/static/img/favicon.svg" alt="" style="width:100%;height:100%;display:block"/></div>
+          </div>
         </div>
       </div>
       <div class="fmt-info">
@@ -1986,52 +2004,57 @@ body{{background:#faf9f5;font-family:'Manrope',sans-serif;color:#1a1a1a;min-heig
         <div class="fmt-desc">{qr_poster_desc}</div>
         <button class="fmt-btn" onclick="openFormat('qr-poster')">{btn_print}</button>
       </div>
-    </div>    <!-- A5 primární jazyk (EN) -->
+    </div>
+
+    <!-- A5 primární (EN) -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('flyer-a5-en')">
-        <div style="width:130px;height:92px;background:#1a1a1a;border:1px solid rgba(44,95,174,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
-          <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:9px;color:#2fd0d8;line-height:1.2">Your AI concierge</div>
-          <div style="font-size:8px;color:#2fd0d8;font-weight:600">🌍 100+ LANGUAGES</div>
-          <div id="qr-a5-primary" style="width:50px;height:50px"></div>
+        <div class="mini" style="width:132px;height:96px;flex-direction:row;gap:9px;padding:10px 12px">
+          <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left">
+            <div class="mini-h" style="font-size:8.5px;text-align:left">Your AI<br>concierge</div>
+            <div class="mini-s" style="font-size:6px">100+ LANG</div>
+          </div>
+          <div class="mini-qr"><div id="qr-a5-primary" style="width:52px;height:52px"></div></div>
         </div>
       </div>
       <div class="fmt-info">
         <div class="fmt-name">A5 Flyer · English</div>
-        <div class="fmt-desc">Compact A5 — perfect for rooms and tables.</div>
+        <div class="fmt-desc">{'Kompaktní A5 — na pokoje a stolky.' if is_cs else 'Compact A5 — perfect for rooms and tables.'}</div>
         <button class="fmt-btn" onclick="openFormat('flyer-a5-en')">{btn_print}</button>
       </div>
-    </div>    <!-- A5 sekundární jazyk (lokální) -->
+    </div>
+
+    <!-- A5 sekundární (lokální) -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('flyer-a5-local')">
-        <div style="width:130px;height:92px;background:#1a1a1a;border:1px solid rgba(44,95,174,.3);border-radius:8px;padding:10px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:space-between">
-          <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:9px;color:#2fd0d8;line-height:1.2">AI concierge</div>
-          <div style="font-size:8px;color:#2fd0d8;font-weight:600">🌍 100+ LANGUAGES</div>
-          <div id="qr-a5-secondary" style="width:50px;height:50px"></div>
+        <div class="mini" style="width:132px;height:96px;flex-direction:row;gap:9px;padding:10px 12px">
+          <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left">
+            <div class="mini-h" style="font-size:8.5px;text-align:left">{'Váš AI<br>concierge' if is_cs else 'AI<br>concierge'}</div>
+            <div class="mini-s" style="font-size:6px">100+ LANG</div>
+          </div>
+          <div class="mini-qr"><div id="qr-a5-secondary" style="width:52px;height:52px"></div></div>
         </div>
       </div>
       <div class="fmt-info">
         <div class="fmt-name">A5 Leták · {local_lang_name}</div>
-        <div class="fmt-desc">Kompaktní A5 v lokálním jazyce hotelu.</div>
+        <div class="fmt-desc">{'Kompaktní A5 v lokálním jazyce hotelu.' if is_cs else 'Compact A5 in the hotel local language.'}</div>
         <button class="fmt-btn" onclick="openFormat('flyer-a5-local')">{btn_print}</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Hidden print frames -->
-<iframe id="print-frame" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:9999;background:#1a1a1a"></iframe>
-
 <script>
 {qr_js}
 
 window.addEventListener('load', function(){{
   setTimeout(function(){{
-    drawQR('qr-thumb', 160);
-    drawQR('qr-a4-primary', 70);
-    drawQR('qr-a4-secondary', 70);
-    drawQR('qr-a5-primary', 50);
-    drawQR('qr-a5-secondary', 50);
-    drawQR('qr-rollup', 44);
+    drawQR('qr-thumb', 126);
+    drawQR('qr-a4-primary', 64);
+    drawQR('qr-a4-secondary', 64);
+    drawQR('qr-a5-primary', 52);
+    drawQR('qr-a5-secondary', 52);
+    drawQR('qr-rollup', 42);
   }}, 300);
 }});
 
@@ -2057,11 +2080,9 @@ function openFormat(fmt){{
 window._flyerTheme='dark';
 function setFlyerTheme(t){{
   window._flyerTheme=t;
-  var d=document.getElementById('theme-dark'), l=document.getElementById('theme-light');
-  if(d){{ d.style.background = t==='dark'?'#2c5fae':'transparent'; d.style.color = t==='dark'?'#fff':'#1a1a1a'; d.style.borderColor = t==='dark'?'transparent':'rgba(44,95,174,.55)'; }}
-  if(l){{ l.style.background = t==='light'?'#2c5fae':'transparent'; l.style.color = t==='light'?'#fff':'#1a1a1a'; l.style.borderColor = t==='light'?'transparent':'rgba(44,95,174,.55)'; }}
-  // Přepni i pozadí náhledů (mini-plakátů) v kartách
-  document.querySelectorAll('.fmt-preview>div').forEach(function(m){{ m.style.background = (t==='light')?'#ffffff':'#1a1a1a'; }});
+  document.getElementById('theme-dark').classList.toggle('active', t==='dark');
+  document.getElementById('theme-light').classList.toggle('active', t==='light');
+  document.getElementById('formats').classList.toggle('light', t==='light');
 }}
 </script>
 </body>
@@ -2345,6 +2366,7 @@ h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-r
 
 def _render_rollup(hotel_name: str, guest_url: str, theme: str = "dark") -> str:
     light = (theme == "light")
+    c_orange = "#2c5fae" if light else "#2fd0d8"  # brand akcent (název proměnné historický)
     c_page   = "#e9eef7" if light else "#0a1226"
     c_bg     = "#ffffff" if light else "#0c1b33"
     c_ink    = "#0c1b33" if light else "#ffffff"
