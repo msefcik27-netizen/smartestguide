@@ -5654,6 +5654,36 @@ def apaleo_connect(token: str, request: Request):
                    "prompt": "consent"})  # vynutí consent obrazovku i při opakovaném připojení
     return RedirectResponse(f"{_APALEO_AUTHORIZE_URL}?{q}")
 
+def _apaleo_picker_html(props: list, hotel_token: str, portal_url: str) -> str:
+    """Výběr property přímo na potvrzovací stránce po OAuth (více properties v účtu,
+    nebo dřívější volba už v účtu neexistuje). Ukládá přes select-property (validace+prefill)."""
+    _opts = "".join(
+        f'<option value="{p["code"]}">{(p["name"] or p["code"])} ({p["code"]})'
+        + (" — test" if p.get("status") == "Test" else "") + "</option>"
+        for p in props)
+    return f"""
+<div style="margin-top:20px;background:#15161a;border:1px solid #2a2c36;border-radius:12px;padding:16px">
+<div style="font-size:13px;font-weight:700;margin-bottom:10px">Select your property</div>
+<select id="prp" style="width:100%;background:#1e1f25;border:1px solid #2a2c36;border-radius:8px;color:#e6e4df;font-size:14px;padding:10px">
+<option value="">— select your hotel —</option>{_opts}</select>
+<button onclick="saveProp()" style="margin-top:12px;background:#2c5fae;color:#fff;border:none;padding:10px 22px;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer">Save property</button>
+<p id="prp-msg" style="font-size:12px;color:#a9adc1;margin:8px 0 0"></p>
+<script>
+async function saveProp(){{
+  var v=document.getElementById('prp').value, m=document.getElementById('prp-msg');
+  if(!v){{m.textContent='Please select your hotel first.';return;}}
+  m.textContent='Saving…';
+  try{{
+    var r=await fetch('/api/pms/apaleo/select-property',{{method:'POST',
+      headers:{{'Content-Type':'application/json'}},
+      body:JSON.stringify({{token:'{hotel_token}',property_code:v}})}});
+    var d=await r.json();
+    if(d.status==='ok'&&d.valid){{m.textContent='Saved ✓ Redirecting…';location.href='{portal_url}';}}
+    else{{m.textContent=d.message||'Saving failed — please try again.';}}
+  }}catch(e){{m.textContent='Saving failed: '+e.message;}}
+}}
+</script></div>"""
+
 @app.get("/api/pms/apaleo/callback")
 async def apaleo_callback(request: Request, code: str = "", state: str = "", error: str = ""):
     """Návrat z Apaleo: výměna kódu za tokeny, uložení k hotelu dle state."""
@@ -5738,47 +5768,29 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
                 prop_note += " We also pre-filled your profile from Apaleo: " + ", ".join(
                     {"bed_count": "bed count", "checkin_time": "check-in time",
                      "checkout_time": "check-out time"}.get(k, k) for k in filled) + "."
-        elif len(props) > 1 and not db["hotels"][hid].get("pms_property_id"):
+        elif props and not db["hotels"][hid].get("pms_property_id"):
             # Více properties → výběr ROVNOU tady na potvrzovací stránce (žádné hledání
             # v portálu). Uloží se přes /api/pms/apaleo/select-property (validace + prefill).
             prop_note = f" One last step: your account has {len(props)} properties — select yours below."
-            _opts = "".join(
-                f'<option value="{p["code"]}">{(p["name"] or p["code"])} ({p["code"]})'
-                + (" — test" if p.get("status") == "Test" else "") + "</option>"
-                for p in props)
-            _tok = h.get("hotel_token", "")
-            picker_html = f"""
-<div style="margin-top:20px;background:#15161a;border:1px solid #2a2c36;border-radius:12px;padding:16px">
-<div style="font-size:13px;font-weight:700;margin-bottom:10px">Select your property</div>
-<select id="prp" style="width:100%;background:#1e1f25;border:1px solid #2a2c36;border-radius:8px;color:#e6e4df;font-size:14px;padding:10px">
-<option value="">— select your hotel —</option>{_opts}</select>
-<button onclick="saveProp()" style="margin-top:12px;background:#2c5fae;color:#fff;border:none;padding:10px 22px;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer">Save property</button>
-<p id="prp-msg" style="font-size:12px;color:#a9adc1;margin:8px 0 0"></p>
-<script>
-async function saveProp(){{
-  var v=document.getElementById('prp').value, m=document.getElementById('prp-msg');
-  if(!v){{m.textContent='Please select your hotel first.';return;}}
-  m.textContent='Saving…';
-  try{{
-    var r=await fetch('/api/pms/apaleo/select-property',{{method:'POST',
-      headers:{{'Content-Type':'application/json'}},
-      body:JSON.stringify({{token:'{_tok}',property_code:v}})}});
-    var d=await r.json();
-    if(d.status==='ok'&&d.valid){{m.textContent='Saved ✓ Redirecting…';location.href='{portal_url}';}}
-    else{{m.textContent=d.message||'Saving failed — please try again.';}}
-  }}catch(e){{m.textContent='Saving failed: '+e.message;}}
-}}
-</script></div>"""
+            picker_html = _apaleo_picker_html(props, h.get("hotel_token", ""), portal_url)
         elif not db["hotels"][hid].get("pms_property_id"):
             prop_note = " One last step: select your property in the PMS section of your portal."
         else:
-            # Property už byla nastavená (reconnect) — ŘÍCT to explicitně, jinak to vypadá,
-            # že se výběr přeskočil (zpětná vazba Martina 1. 8.)
+            # Property už byla nastavená (reconnect) → ZKONTROLOVAT proti aktuálnímu
+            # seznamu účtu (hotel mohli prodat/odebrat — rozhodnutí Martina 1. 8.).
             _cur = db["hotels"][hid]["pms_property_id"]
-            _cur_name = next((p["name"] for p in props if p["code"] == _cur), "")
-            prop_note = (f" Connected property: {_cur_name + ' ' if _cur_name else ''}({_cur})"
-                         f" — kept from your previous connection. You can change it anytime"
-                         f" via the Change button in the PMS section of your portal.")
+            _codes = [p["code"] for p in props]
+            if props and _cur not in _codes:
+                prop_note = (f" ⚠ Your previously selected property ({_cur}) is NO LONGER available"
+                             f" in your Apaleo account — please select the current one below.")
+                picker_html = _apaleo_picker_html(props, h.get("hotel_token", ""), portal_url)
+            else:
+                _cur_name = next((p["name"] for p in props if p["code"] == _cur), "")
+                prop_note = (f" Connected property: {_cur_name + ' ' if _cur_name else ''}({_cur})"
+                             f" — kept from your previous connection.")
+                if len(props) > 1:
+                    prop_note += (f" Your account has {len(props)} properties — you can switch anytime"
+                                  f" via the Change button in the PMS section of your portal.")
         if _ph.get("_new_refresh_token"):
             db["hotels"][hid]["pms_refresh_token"] = _ph["_new_refresh_token"]
             db_save(db)
