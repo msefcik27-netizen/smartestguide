@@ -5137,7 +5137,7 @@ PRIVACY_CS = LEGAL_CSS + """
 <div class="container">
   <a href="/landing" class="back">← Zpět na hlavní stránku</a>
   <h1>Zásady ochrany osobních údajů</h1>
-  <div class="subtitle">Poskytovatele aplikace SmartestGuide · Účinnost od 1. 6. 2025</div>
+  <div class="subtitle">Poskytovatele aplikace SmartestGuide · Účinnost od 1. 6. 2025 · Naposledy aktualizováno 1. 8. 2026</div>
 
   <h2>I. Úvodní ustanovení</h2>
   <h3>Správce osobních údajů</h3>
@@ -5166,10 +5166,19 @@ PRIVACY_CS = LEGAL_CSS + """
   </ul>
 
   <h2>IV. Sdílení osobních údajů</h2>
-  <p>Vaše údaje sdílíme pouze s příslušným hotelem, smluvními zpracovateli (cloudové služby, platební brány, analytické nástroje) a orgány veřejné moci v případě zákonné povinnosti.</p>
+  <p>Vaše údaje sdílíme pouze s příslušným hotelem, smluvními zpracovateli uvedenými níže a orgány veřejné moci v případě zákonné povinnosti.</p>
+  <h3>Zpracovatelé (sub-processoři)</h3>
+  <ul>
+    <li><strong>Anthropic, PBC (USA)</strong> — AI model Claude generuje odpovědi asistenta; zpracovává text konverzace (dotaz hosta a související kontext, např. informace o hotelu). Data nejsou využívána k trénování AI modelů.</li>
+    <li><strong>OpenAI, L.L.C. (USA)</strong> — hlasový výstup asistenta (převod textu odpovědi na řeč); zpracovává pouze text právě čtené odpovědi.</li>
+    <li><strong>Apaleo GmbH (Německo)</strong> — hotelový systém (PMS): pokud hotel používá Apaleo a host si propojí svůj pobyt, čteme z Apalea údaje o rezervaci (číslo pokoje, termíny pobytu) výhradně pro zodpovězení dotazu hosta. Tyto údaje trvale neukládáme.</li>
+    <li><strong>Railway Corp. (hosting, region EU)</strong> — provoz aplikace a databáze.</li>
+    <li><strong>Stripe, Inc.</strong> — zpracování plateb hotelů (klientů); údaje hostů nezpracovává.</li>
+    <li><strong>Brevo (Sendinblue GmbH, Německo)</strong> — odesílání transakčních e-mailů hotelům.</li>
+  </ul>
 
   <h2>V. Přenos do třetích zemí</h2>
-  <p>Údaje jsou primárně zpracovávány v EU/EHP. Případný přenos mimo EU/EHP probíhá v souladu s GDPR (standardní smluvní doložky, adekvátní rozhodnutí Komise).</p>
+  <p>Údaje jsou primárně zpracovávány v EU/EHP. Případný přenos mimo EU/EHP (zejména Anthropic, OpenAI a Stripe se sídlem v USA) probíhá v souladu s GDPR — na základě standardních smluvních doložek, případně rámce EU-U.S. Data Privacy Framework.</p>
 
   <h2>VI. Doba uchovávání</h2>
   <ul>
@@ -5208,7 +5217,7 @@ PRIVACY_EN = LEGAL_CSS + """
 <div class="container">
   <a href="/landing" class="back">← Back to homepage</a>
   <h1>Privacy Policy</h1>
-  <div class="subtitle">SmartestGuide application provider · Effective from 1 June 2025</div>
+  <div class="subtitle">SmartestGuide application provider · Effective from 1 June 2025 · Last updated 1 August 2026</div>
 
   <h2>I. Introduction</h2>
   <h3>Data Controller</h3>
@@ -5237,10 +5246,19 @@ PRIVACY_EN = LEGAL_CSS + """
   </ul>
 
   <h2>IV. Sharing of personal data</h2>
-  <p>Your data is shared only with the relevant hotel, contracted processors (cloud services, payment gateways, analytics tools) and public authorities when required by law.</p>
+  <p>Your data is shared only with the relevant hotel, the contracted processors listed below and public authorities when required by law.</p>
+  <h3>Processors (sub-processors)</h3>
+  <ul>
+    <li><strong>Anthropic, PBC (USA)</strong> — the Claude AI model generates assistant responses; it processes conversation text (the guest's question and related context, e.g. hotel information). Data is not used to train AI models.</li>
+    <li><strong>OpenAI, L.L.C. (USA)</strong> — voice output of the assistant (text-to-speech); it processes only the text of the response being read aloud.</li>
+    <li><strong>Apaleo GmbH (Germany)</strong> — hotel property management system (PMS): if the hotel uses Apaleo and the guest links their stay, we read reservation details (room number, stay dates) from Apaleo solely to answer the guest's question. We do not permanently store this data.</li>
+    <li><strong>Railway Corp. (hosting, EU region)</strong> — application and database hosting.</li>
+    <li><strong>Stripe, Inc.</strong> — payment processing for hotels (clients); it does not process guest data.</li>
+    <li><strong>Brevo (Sendinblue GmbH, Germany)</strong> — transactional e-mails to hotels.</li>
+  </ul>
 
   <h2>V. International transfers</h2>
-  <p>Data is primarily processed within the EU/EEA. Any transfer outside the EU/EEA is carried out in compliance with GDPR (standard contractual clauses, Commission adequacy decisions).</p>
+  <p>Data is primarily processed within the EU/EEA. Any transfer outside the EU/EEA (in particular Anthropic, OpenAI and Stripe, based in the USA) is carried out in compliance with GDPR — under standard contractual clauses or the EU-U.S. Data Privacy Framework.</p>
 
   <h2>VI. Retention periods</h2>
   <ul>
