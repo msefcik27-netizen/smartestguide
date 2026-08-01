@@ -908,6 +908,11 @@ class HotelData(BaseModel):
     country: Optional[str] = None
     continent: Optional[str] = None
     pet_policy: Optional[str] = None     # pravidla pro mazlíčky (časté dotazy hostů)
+    pet_fee: Optional[str] = None        # poplatek za mazlíčka (často jen na portálech, ne na webu!)
+    parking_fee: Optional[str] = None    # cena parkování
+    tourist_tax: Optional[str] = None    # místní/turistický poplatek
+    payment_methods: Optional[str] = None  # přijímané platby (karty, hotovost, měny)
+    staff_languages: Optional[str] = None  # jazyky personálu/recepce
     # PMS napojení (per hotel) — nastavuje jen admin; credentials NIKDY ke guestům
     pms_type: Optional[str] = None          # 'apaleo' | '' (vypnuto)
     pms_client_id: Optional[str] = None
@@ -1315,9 +1320,14 @@ Pokud informaci nenajdeš, použij null. Nikdy nevymýšlej data."""
   "restaurant_name": "nazev nebo null",
   "wellness_info": "info nebo null",
   "parking_info": "info nebo null",
+  "parking_fee": "cena parkovani (napr. 200 Kc/noc) nebo null",
   "wifi_name": "nazev WiFi site / SSID pokud je uveden, jinak null",
   "wifi_password": "heslo WiFi pouze pokud je verejne uvedeno na webu, jinak null",
   "pet_policy": "pravidla pro mazlicky / domaci zvirata nebo null",
+  "pet_fee": "poplatek za mazlicka (napr. 250 Kc/noc) nebo null",
+  "tourist_tax": "mistni/turisticky poplatek (napr. 21 Kc/os/noc) nebo null",
+  "payment_methods": "prijimane platby (karty, hotovost, meny) nebo null",
+  "staff_languages": "jazyky personalu/recepce nebo null",
   "star_rating": číslo_nebo_null,
   "country": "ISO kod zeme napr CZ SK AT DE FR IT HR nebo null",
   "continent": "Europe/Asia/America/Africa/Oceania nebo null",
@@ -5209,11 +5219,16 @@ Hotel information:
 - Dinner: {h.get('dinner_hours', 'N/A')}
 - Restaurant: {h.get('restaurant_name', 'N/A')}
 - Parking: {h.get('parking_info', 'N/A')}
+- Cena parkování: {h.get('parking_fee', 'N/A')}
 - WiFi: {h.get('wifi_name', 'N/A')}{(' / Heslo: ' + h.get('wifi_password','')) if h.get('wifi_password') else ''}
 - Wellness: {h.get('wellness_info', 'N/A')}
 - Počet lůžek / kapacita: {h.get('bed_count', 'N/A')}
 - Hvězdičky: {h.get('star_rating', 'N/A')}
 - Domácí mazlíčci (pet policy): {h.get('pet_policy', 'N/A')}
+- Poplatek za mazlíčka: {h.get('pet_fee', 'N/A')}
+- Turistický/místní poplatek: {h.get('tourist_tax', 'N/A')}
+- Platební metody: {h.get('payment_methods', 'N/A')}
+- Jazyky personálu: {h.get('staff_languages', 'N/A')}
 - Bazén: {h.get('pool_info', 'N/A')}
 - Fitness: {h.get('fitness_info', 'N/A')}
 - Minibar: {h.get('minibar', 'N/A')}

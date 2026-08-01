@@ -1674,6 +1674,8 @@ function openEdit(id){
     ['lunch_hours','Oběd (hodiny)','text'],['dinner_hours','Večeře (hodiny)','text'],
     ['whatsapp_number','WhatsApp','text'],['restaurant_name','Restaurace','text'],
     ['wellness_info','Wellness / Spa','text'],['parking_info','Parkování','text'],
+    ['parking_fee','Cena parkování','text'],['pet_policy','Mazlíčci (pravidla)','text'],['pet_fee','Poplatek za mazlíčka','text'],
+    ['tourist_tax','Turistický poplatek','text'],['payment_methods','Platební metody','text'],['staff_languages','Jazyky personálu','text'],
     ['country','Kód země (CZ/SK/AT...)','text'],['description','Popis','textarea'],
     ['extra_info','Další informace','textarea'],
   ];
@@ -1759,6 +1761,7 @@ async function saveEdit(id){
   const fields=['name','address','phone','email','bed_count','room_count','star_rating',
     'checkin_time','checkout_time','breakfast_hours','lunch_hours','dinner_hours',
     'whatsapp_number','restaurant_name','wellness_info','parking_info','country',
+    'parking_fee','pet_policy','pet_fee','tourist_tax','payment_methods','staff_languages',
     'description','extra_info'];
   const numFields=['bed_count','room_count','star_rating'];
   const data={};

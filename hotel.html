@@ -741,6 +741,11 @@ function renderPortal() {
         ${row('Room service', 'room_service_hours', 'text', h.room_service_hours, 'např. 0–24h, menu na pokoji')}
         ${row('Minibar na pokoji', 'minibar', 'text', h.minibar, 'např. Ano, doplňován denně')}
         ${row('Parkování', 'parking_info', 'text', h.parking_info, 'např. Bezplatné parkování před hotelem, garáž 200 Kč/noc')}
+        ${row('Cena parkování', 'parking_fee', 'text', h.parking_fee, 'např. 200 Kč/noc — hosté se ptají často')}
+        ${row('Poplatek za mazlíčka', 'pet_fee', 'text', h.pet_fee, 'např. 250 Kč/noc za psa')}
+        ${row('Turistický poplatek', 'tourist_tax', 'text', h.tourist_tax, 'např. 21 Kč/os./noc (od 18 let)')}
+        ${row('Platební metody', 'payment_methods', 'text', h.payment_methods, 'např. Visa, Mastercard, hotovost CZK/EUR')}
+        ${row('Jazyky personálu', 'staff_languages', 'text', h.staff_languages, 'např. čeština, angličtina, němčina')}
         ${row('Prádelna / Čistírna', 'laundry_info', 'text', h.laundry_info, 'např. Výdej do 24h, expresní 4h')}
         ${row('Půjčovna kol', 'bike_rental', 'text', h.bike_rental, 'cena a dostupnost')}
         ${row('Transfer / Shuttle', 'transfer_info', 'text', h.transfer_info, 'např. Shuttle na letiště, taxi')}
@@ -1727,6 +1732,11 @@ const OB_STAGES = [
     {k:'restaurant_name', label:'Restaurace (název)',  ph:'např. Restaurace U Hvězdy'},
     {k:'dinner_hours',    label:'Večeře (čas)',        ph:'např. 18:00–22:00'},
     {k:'pet_policy',      label:'Domácí mazlíčci',     ph:'např. Psi vítáni, 300 Kč/noc'},
+    {k:'pet_fee',         label:'Poplatek za mazlíčka', ph:'např. 250 Kč/noc'},
+    {k:'parking_fee',     label:'Cena parkování',      ph:'např. 200 Kč/noc'},
+    {k:'tourist_tax',     label:'Turistický poplatek', ph:'např. 21 Kč/os./noc'},
+    {k:'payment_methods', label:'Platební metody',     ph:'např. karty, hotovost CZK/EUR'},
+    {k:'staff_languages', label:'Jazyky personálu',    ph:'např. čeština, angličtina, němčina'},
   ]},
   { title:'Lokální tipy', sub:'Váš trumf oproti generickým chatbotům', fields:[
     {k:'nearby_places',   label:'Zajímavá místa v okolí', ph:'oddělte čárkou', arr:true},
