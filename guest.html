@@ -420,16 +420,24 @@ try{
   const _qRoom = new URLSearchParams(location.search).get('room') || '';
   let _stored = {};
   try{ _stored = JSON.parse(localStorage.getItem('sg_stay_'+hotelId)||'{}')||{}; }catch(e){}
+  // Auto-expirace propojeného pobytu: po 21 dnech od uložení se vazba zahodí
+  // (běžný pobyt je kratší; další host na témže zařízení nedostane cizí rezervaci).
+  try{
+    if(_stored.saved_at && Date.now()-_stored.saved_at > 21*24*3600*1000){
+      localStorage.removeItem('sg_stay_'+hotelId); _stored = {};
+    }
+  }catch(e){}
   if(_qRoom){
-    // Nový/jiný pokoj v URL => začni čistou konverzaci (stará historie bez pobytu
-    // by Alexe svazovala — držel by se dřívějších obecných odpovědí)
+    // JINÝ pokoj v URL než dřív => čistá konverzace (sdílené zařízení / nový host — soukromí).
+    // Přechod „bez pokoje → pokoj" (obecný QR na recepci → kartička na pokoji) historii ZACHOVÁ,
+    // ať host neztrácí kontext jen proto, že scanl druhý QR (hlášeno testerem 1. 8. 2026).
     const _prevRoom = _stored.room || sessionStorage.getItem('sg_room') || '';
-    if(_qRoom !== _prevRoom){
+    if(_prevRoom && _qRoom !== _prevRoom){
       try{ localStorage.removeItem('sg_history_'+hotelId); }catch(e){}
     }
     sessionStorage.setItem('sg_room', _qRoom);
     roomNumber = _qRoom; roomMode = 'qr'; roomArrival = '';
-    localStorage.setItem('sg_stay_'+hotelId, JSON.stringify({room:_qRoom, mode:'qr'}));
+    localStorage.setItem('sg_stay_'+hotelId, JSON.stringify({room:_qRoom, mode:'qr', saved_at:Date.now()}));
   } else if(_stored.room){
     roomNumber = _stored.room; roomMode = _stored.mode || 'qr'; roomArrival = _stored.arrival || '';
   } else {
@@ -456,8 +464,16 @@ let guestLang = _savedLang || 'cs';
 let hotelData = null;
 // guestName a guestLang definovány výše u hotelId
 let history = [];
-try{ const _h=JSON.parse(localStorage.getItem('sg_history_'+hotelId)||'[]'); if(Array.isArray(_h)) history=_h.slice(-40); }catch(e){}
-function saveHistory(){ try{ localStorage.setItem('sg_history_'+hotelId, JSON.stringify(history.slice(-40))); }catch(e){} }
+// Historie s expirací: po 14 dnech od poslední zprávy se startuje čistě (další pobyt = nový kontext).
+try{
+  const _ts = parseInt(localStorage.getItem('sg_hist_ts_'+hotelId)||'0',10);
+  if(_ts && Date.now()-_ts > 14*24*3600*1000){
+    localStorage.removeItem('sg_history_'+hotelId);
+    localStorage.removeItem('sg_hist_ts_'+hotelId);
+  }
+  const _h=JSON.parse(localStorage.getItem('sg_history_'+hotelId)||'[]'); if(Array.isArray(_h)) history=_h.slice(-40);
+}catch(e){}
+function saveHistory(){ try{ localStorage.setItem('sg_history_'+hotelId, JSON.stringify(history.slice(-40))); localStorage.setItem('sg_hist_ts_'+hotelId, String(Date.now())); }catch(e){} }
 let isTyping = false;
 let recognition = null;
 let isListening = false;
@@ -672,7 +688,7 @@ async function speakText(text, btn){
   try{
     const r=await fetch(`${API}/api/guest/tts`,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({text:say,language:guestLang})
+      body:JSON.stringify({text:say,language:guestLang,hotel_id:hotelId})
     });
     if(!r.ok) throw new Error('tts '+r.status);
     const blob=await r.blob();
@@ -1091,7 +1107,7 @@ async function submitLinkStay(){
     if(d.verified){
       roomNumber=room; roomArrival=iso; roomMode='verified';
       try{
-        localStorage.setItem('sg_stay_'+hotelId, JSON.stringify({room:room,arrival:iso,mode:'verified'}));
+        localStorage.setItem('sg_stay_'+hotelId, JSON.stringify({room:room,arrival:iso,mode:'verified',saved_at:Date.now()}));
         sessionStorage.setItem('sg_room', room);
       }catch(e){}
       const f=document.getElementById('linkstay-form'); if(f) f.remove();
@@ -1471,7 +1487,73 @@ async function fetchWeather(){
 }
 
 // ══ HLAS ═════════════════════════════════════
+// Serverové STT (Whisper): nahraje audio a nechá server detekovat jazyk ze zvuku —
+// řeší situaci „vybraná čeština, host mluví německy" (prohlížečové rozpoznávání to neumí).
+// Fallback: když MediaRecorder/endpoint není k dispozici, jede původní Web Speech API.
+let _sttAvailable = null;   // null = nevyzkoušeno, false = server STT nejede (spadni na prohlížeč)
+let _mediaRec = null, _mediaChunks = [], _mediaStream = null, _recTimer = null;
+
+function _sttSupported(){
+  return _sttAvailable !== false && typeof MediaRecorder !== 'undefined'
+      && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+}
+function _recMime(){
+  const cands = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+  for(const c of cands){ try{ if(MediaRecorder.isTypeSupported(c)) return c; }catch(e){} }
+  return '';
+}
+async function _startServerRec(){
+  const b = document.getElementById('voice-btn');
+  try{
+    _mediaStream = await navigator.mediaDevices.getUserMedia({audio:true});
+  }catch(e){ _sttAvailable = false; toggleVoice(); return; }   // mikrofon odmítnut/nedostupný → fallback
+  const mime = _recMime();
+  try{ _mediaRec = mime ? new MediaRecorder(_mediaStream, {mimeType:mime}) : new MediaRecorder(_mediaStream); }
+  catch(e){ _sttAvailable = false; _mediaStream.getTracks().forEach(t=>t.stop()); toggleVoice(); return; }
+  _mediaChunks = [];
+  isListening = true; b.classList.add('listening'); b.textContent = '⏹';
+  _mediaRec.ondataavailable = e => { if(e.data && e.data.size) _mediaChunks.push(e.data); };
+  _mediaRec.onstop = async () => {
+    clearTimeout(_recTimer);
+    isListening = false; b.classList.remove('listening'); b.textContent = '🎤';
+    try{ _mediaStream.getTracks().forEach(t=>t.stop()); }catch(e){}
+    const blob = new Blob(_mediaChunks, {type: _mediaRec.mimeType || 'audio/webm'});
+    if(blob.size < 1200) return;   // moc krátké (omylem ťuknuto)
+    const fmt = (blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm');
+    b.textContent = '…';
+    try{
+      const r = await fetch(`${API}/api/guest/stt?fmt=${fmt}&hotel_id=${encodeURIComponent(hotelId)}`, {method:'POST', body: blob});
+      b.textContent = '🎤';
+      if(r.status === 503 || r.status === 404){ _sttAvailable = false; return; }
+      if(!r.ok) return;
+      const d = await r.json();
+      const text = (d.text||'').trim();
+      if(!text) return;
+      // Jazyk detekovaný ze ZVUKU — přepni UI/mikrofon, pokud ho známe
+      if(d.language && d.language !== guestLang && ALL_LANGS.some(l=>l.code===d.language)){
+        guestLang = d.language;
+        localStorage.setItem('sg_lang_' + hotelId, guestLang);
+        applyGuestLangUI(); setQuickReplies();
+      }
+      document.getElementById('msg-input').value = text;
+      autoResize(document.getElementById('msg-input'));
+      _lastInputVoice = true;
+      sendMsg();
+    }catch(e){ b.textContent = '🎤'; }
+  };
+  _mediaRec.start();
+  _recTimer = setTimeout(()=>{ try{ _mediaRec.state!=='inactive' && _mediaRec.stop(); }catch(e){} }, 20000); // strop 20 s
+}
 function toggleVoice(){
+  // 1) Preferuj serverové STT s autodetekcí jazyka (funguje i na iOS Safari přes MediaRecorder)
+  if(_sttSupported()){
+    if(isListening){ try{ _mediaRec && _mediaRec.state!=='inactive' && _mediaRec.stop(); }catch(e){} return; }
+    _startServerRec();
+    return;
+  }
+  _legacyToggleVoice();
+}
+function _legacyToggleVoice(){
   // iOS detekce - použij nativní diktát přes input focus
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
   if(isIOS || (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window))){
@@ -1732,7 +1814,7 @@ async function installPwaNow(){
     document.getElementById('pwa-banner').classList.remove('show');
     if(choice && choice.outcome !== 'accepted'){
       // Odmítl → snooze jako u zavření křížkem
-      localStorage.setItem('sg_pwa_snooze', String(Date.now() + 3*24*3600*1000));
+      localStorage.setItem('sg_pwa_snooze', String(Date.now() + 24*3600*1000));
     }
   }catch(e){
     // Prompt selhal → ukaž aspoň návod
@@ -1753,8 +1835,8 @@ const PWA_BANNER = {
 };
 function dismissPwaBanner(){
   document.getElementById('pwa-banner').classList.remove('show');
-  // Snooze: připomeň znovu za 3 dny (ne trvalé odmítnutí — kontrola je při každém spuštění)
-  localStorage.setItem('sg_pwa_snooze', String(Date.now() + 3*24*3600*1000));
+  // Snooze: připomeň znovu za 1 den (host má appku nainstalovat BĚHEM pobytu — 3 dny byly moc)
+  localStorage.setItem('sg_pwa_snooze', String(Date.now() + 24*3600*1000));
 }
 function pwaShouldRemind(){
   return !isPwaInstalled() && Date.now() > (parseInt(localStorage.getItem('sg_pwa_snooze')||'0', 10));

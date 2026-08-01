@@ -181,6 +181,7 @@
     <div class="nav-item" onclick="showPage('settings')"><span class="nav-icon">⚙️</span> Nastavení<span class="nav-badge" id="settings-badge">!</span></div>
     <div class="nav-item" onclick="showPage('billing')"><span class="nav-icon">💰</span> Faktury</div>
     <div class="nav-item" onclick="showPage('commissions')"><span class="nav-icon">🤝</span> Provize</div>
+    <div class="nav-item" onclick="showPage('economics')"><span class="nav-icon">📈</span> Ekonomika</div>
     <div class="nav-item" onclick="showPage('log');clearLogBadge()"><span class="nav-icon">📋</span> Log<span class="nav-badge" id="log-badge">0</span></div>
     <div class="sidebar-footer" id="sidebar-footer">
       <div>Backend: spuštěn</div>
@@ -599,7 +600,7 @@
         <h3 style="margin:0 0 14px;font-size:15px">Nastavení provize</h3>
         <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end">
           <label style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" id="com-enabled" style="width:16px;height:16px"> Provize zapnuté</label>
-          <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Částka za hotel (CZK)</div><input type="number" id="com-amount" style="width:140px" placeholder="1500"></div>
+          <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Kč / hotel / MĚSÍC (opakovaně)</div><input type="number" id="com-amount" style="width:140px" placeholder="400"></div>
           <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Zádržná lhůta (dny)</div><input type="number" id="com-hold" style="width:120px" placeholder="30"></div>
           <button class="btn btn-primary" onclick="saveCommissionSettings()">💾 Uložit</button>
         </div>
@@ -617,15 +618,55 @@
           <button class="btn btn-primary" onclick="addPartner()">+ Přidat partnera</button>
         </div>
         <div style="font-size:12px;color:var(--muted);margin-bottom:12px">💡 Klikni na řádek partnera pro rozbalení jeho provizí. <a href="/api/docs/commissions" target="_blank" rel="noopener" style="color:var(--accent)">Jak celé provize fungují →</a></div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Klikni na partnera pro rozbalení jeho provizí.</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Klikni na partnera pro rozbalení jeho provizí. &nbsp;Legenda: <b>⏳ čeká</b> = provize v zádržné lhůtě · <b>✅ schváleno</b> = k vyplacení partnerovi · <b>💸 vyplaceno</b>. Platby hotelů se párují automaticky přes Stripe (webhook po stržení platby); ruční je jen tlačítko „Vyplaceno" u provize.</div>
         <div class="table-wrap">
-          <table><thead><tr><th>Partner</th><th>Referral link</th><th>Hotely</th><th>Provize</th><th>Dluží se</th><th>Akce</th></tr></thead>
+          <table><thead><tr><th>Partner</th><th>Referral link</th><th>Hotely / platby</th><th>Provize</th><th title="Schválené provize, které partnerovi zatím nebyly vyplaceny">K vyplacení</th><th>Akce</th></tr></thead>
           <tbody id="partners-tbody"></tbody></table>
         </div>
       </div>
     </div>
 
     <!-- LOG -->
+    <!-- EKONOMIKA -->
+    <div class="page" id="page-economics">
+      <div class="topbar"><div class="page-title">Ekonomika <small>zisk po hotelích</small></div></div>
+
+      <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">
+        <div class="stat-card"><div class="stat-label">Příjmy celkem</div><div class="stat-value green" id="eco-revenue">–</div></div>
+        <div class="stat-card"><div class="stat-label">Provize + AI náklady</div><div class="stat-value" style="color:var(--warn)" id="eco-costs">–</div></div>
+        <div class="stat-card"><div class="stat-label">Fixní náklady (za dobu provozu)</div><div class="stat-value" id="eco-fixed">–</div></div>
+        <div class="stat-card"><div class="stat-label">Čistý zisk</div><div class="stat-value accent" id="eco-net">–</div></div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;padding:14px 16px">
+        <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end">
+          <div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Kurz EUR→CZK</div><input type="number" id="eco-rate" step="0.1" style="width:90px"></div>
+          <div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Kurz USD→CZK (API ceny)</div><input type="number" id="eco-usd" step="0.1" style="width:90px"></div>
+          <div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Fallback Kč/dotaz (bez měření)</div><input type="number" id="eco-costq" step="0.01" style="width:110px"></div>
+<div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Stripe % z platby</div><input type="number" id="eco-spct" step="0.1" style="width:80px"></div>
+          <div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Stripe fix €/transakce</div><input type="number" id="eco-sfix" step="0.05" style="width:90px"></div>
+          <button class="btn btn-primary" style="font-size:12px;padding:8px 14px" onclick="saveEconomicsSettings()">💾 Uložit a přepočítat</button>
+          <span style="font-size:11px;color:var(--muted)">AI náklady se od 1. 8. 2026 <b>měří přesně</b> (tokeny Claude + znaky TTS + sekundy Whisper, ceníky API v USD). Hotely bez naměřených dat (starší provoz) = odhad dotazy × sazba.</span>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;padding:14px 16px">
+        <div style="font-size:12px;font-weight:700;margin-bottom:8px">Fixní měsíční náklady (služby okolo)</div>
+        <div id="eco-items"></div>
+        <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;margin-top:8px" onclick="addEcoItem()">＋ Přidat položku</button>
+        <span style="font-size:11px;color:var(--muted);margin-left:10px">Násobí se počtem měsíců provozu (měsíce se zaplacenou fakturou). Uložíš tlačítkem „Uložit a přepočítat" nahoře.</span>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Hotel</th><th>Dotazů</th><th>Zaplatili (€)</th><th>Zaplatili (Kč)</th><th>Provize (Kč)</th><th>AI (Kč)</th><th>Stripe (Kč)</th><th>Zisk (Kč)</th></tr></thead>
+            <tbody id="eco-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <div class="page" id="page-log">
       <div class="topbar">
         <div class="page-title">Log <small>aktivita aplikace</small></div>
@@ -729,7 +770,7 @@ function exportLog(){
 }
 
 // ══ NAV ══════════════════════════════════════
-const PAGES=['dashboard','analytics','scrape','hotels','pricing','settings','billing','commissions','log'];
+const PAGES=['dashboard','analytics','scrape','hotels','pricing','settings','billing','commissions','economics','log'];
 // ── Zámek citlivých sekcí (Nastavení, Provize) + nebezpečné akce ──
 // Heslo se ověří jednou, drží se v paměti pro session a přiloží se jako X-Danger-Key.
 let dangerKey=null, dangerEnabled=null;
@@ -772,6 +813,7 @@ function _renderPage(name){
   if(name==='settings'){loadKeyStatus();loadCompanySettings();loadPaymentTasks();loadAiStatus(false);}
   if(name==='billing')loadBilling();
   if(name==='commissions')loadCommissionsPage();
+  if(name==='economics')loadEconomics();
   if(name==='pricing')loadPricingForm();
 }
 
@@ -2021,6 +2063,70 @@ async function showPortalLink(id, name){
 
 // ══ PROVIZE ══════════════════════════════════
 let _partners=[], _commissions=[];
+async function loadEconomics(){
+  try{
+    const r=await fetch(API+'/api/economics');
+    const d=await r.json(); if(!r.ok)throw new Error(d.detail||('HTTP '+r.status));
+    document.getElementById('eco-rate').value=d.params.eur_czk;
+    document.getElementById('eco-costq').value=d.params.ai_cost_per_question_czk;
+    document.getElementById('eco-usd').value=d.params.usd_czk;
+    document.getElementById('eco-spct').value=d.params.stripe_pct;
+    document.getElementById('eco-sfix').value=d.params.stripe_fix_eur;
+    window._ecoItems=(d.params.cost_items||[]).map(i=>({name:i.name,monthly_czk:i.monthly_czk}));
+    renderEcoItems();
+    const t=d.totals;
+    const fmt=n=>(Math.round(n)).toLocaleString('cs-CZ');
+    document.getElementById('eco-revenue').textContent=fmt(t.revenue_czk)+' Kč';
+    document.getElementById('eco-costs').textContent=fmt(t.commission_czk+t.ai_cost_czk+t.stripe_fee_czk)+' Kč';
+    document.getElementById('eco-fixed').textContent=fmt(t.fixed_czk)+' Kč ('+t.months_active+' měs.)';
+    const net=document.getElementById('eco-net');
+    net.textContent=fmt(t.net_profit_czk)+' Kč';
+    net.style.color=t.net_profit_czk>=0?'#2ecc87':'#ff6b6b';
+    const tb=document.getElementById('eco-tbody');
+    const rows=d.rows.map(r=>`<tr>
+      <td><strong>${esc(r.name)}</strong>${r.is_free?' <span style="font-size:10px;color:var(--muted)">(zdarma)</span>':''}${r.active?'':' <span style="font-size:10px;color:var(--danger)">(neaktivní)</span>'}</td>
+      <td>${r.questions.toLocaleString('cs-CZ')}</td>
+      <td>${r.revenue_eur.toLocaleString('cs-CZ')} €</td>
+      <td>${fmt(r.revenue_czk)}</td>
+      <td>${fmt(r.commission_czk)}${r.commission_paid_czk?'<div style="font-size:10px;color:var(--muted)">vyplaceno '+fmt(r.commission_paid_czk)+'</div>':''}</td>
+      <td>${r.ai_cost_czk.toLocaleString('cs-CZ')} <span style="font-size:9px;color:var(--muted)" title="${r.ai_measured?('Měřeno z reálné spotřeby: '+r.ai_tokens_in.toLocaleString('cs-CZ')+' tokenů in / '+r.ai_tokens_out.toLocaleString('cs-CZ')+' out + TTS/STT'):'Odhad (dotazy × sazba) — měření běží od nasazení'}">${r.ai_measured?'📐 měřeno':'≈ odhad'}</span></td>
+      <td>${fmt(r.stripe_fee_czk)}<div style="font-size:9px;color:var(--muted)">${r.paid_tx}× platba</div></td>
+      <td style="font-weight:700;color:${r.profit_czk>=0?'#2ecc87':'#ff6b6b'}">${fmt(r.profit_czk)}</td>
+    </tr>`).join('');
+    tb.innerHTML=rows+`<tr style="border-top:2px solid var(--border)">
+      <td><strong>CELKEM (${d.rows.length} hotelů)</strong></td>
+      <td><strong>${t.questions.toLocaleString('cs-CZ')}</strong></td>
+      <td><strong>${t.revenue_eur.toLocaleString('cs-CZ')} €</strong></td>
+      <td><strong>${fmt(t.revenue_czk)}</strong></td>
+      <td><strong>${fmt(t.commission_czk)}</strong></td>
+      <td><strong>${fmt(t.ai_cost_czk)}</strong></td>
+      <td><strong>${fmt(t.stripe_fee_czk)}</strong></td>
+      <td style="font-weight:700">${fmt(t.profit_czk)}</td>
+    </tr>`;
+  }catch(e){toast('Ekonomika: '+e.message,'err');}
+}
+function renderEcoItems(){
+  const box=document.getElementById('eco-items'); if(!box)return;
+  const items=window._ecoItems||[];
+  box.innerHTML=items.map((it,i)=>`<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+    <input type="text" value="${esc(it.name)}" onchange="_ecoItems[${i}].name=this.value" style="flex:1;max-width:320px;font-size:12px;padding:6px 10px">
+    <input type="number" value="${it.monthly_czk}" step="10" onchange="_ecoItems[${i}].monthly_czk=parseFloat(this.value)||0" style="width:110px;font-size:12px;padding:6px 10px"> <span style="font-size:11px;color:var(--muted)">Kč/měs</span>
+    <button class="btn btn-secondary" style="font-size:10px;padding:3px 8px" onclick="_ecoItems.splice(${i},1);renderEcoItems()">✕</button>
+  </div>`).join('')||'<div style="font-size:12px;color:var(--muted)">Žádné položky</div>';
+}
+function addEcoItem(){ (window._ecoItems=window._ecoItems||[]).push({name:'',monthly_czk:0}); renderEcoItems(); }
+
+async function saveEconomicsSettings(){
+  const body={eur_czk:parseFloat(document.getElementById('eco-rate').value)||25,
+    ai_cost_per_question_czk:parseFloat(document.getElementById('eco-costq').value)||0.2,
+    usd_czk:parseFloat(document.getElementById('eco-usd').value)||23,
+    stripe_pct:parseFloat(document.getElementById('eco-spct').value)||1.5,
+    stripe_fix_eur:parseFloat(document.getElementById('eco-sfix').value)||0.25,
+    cost_items:(window._ecoItems||[]).filter(i=>(i.name||'').trim())};
+  try{ const r=await fetch(API+'/api/economics/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error('HTTP '+r.status); toast('✅ Uloženo'); loadEconomics(); }catch(e){toast('Chyba: '+e.message,'err');}
+}
+
 async function loadCommissionsPage(){
   try{
     const s=await (await fetch(API+'/api/settings/commission')).json();
@@ -2051,13 +2157,13 @@ function renderPartners(){
     const commRows = pc.length ? pc.map(commissionRow).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:12px;font-size:12px">Zatím žádné provize (vzniknou po první platbě přivedeného hotelu).</td></tr>';
     return `<tr style="cursor:pointer" onclick="togglePartner('${p.id}')">
     <td><span id="pchev-${p.id}" style="display:inline-block;transition:transform .15s;color:var(--muted)">▸</span> <strong>${esc(p.name)}</strong>${p.active?'':' <span style="color:var(--danger);font-size:11px">(neaktivní)</span>'}<div style="font-size:11px;color:var(--muted)">${esc(p.email||'')}${p.ico?' · IČO '+esc(p.ico):''}</div></td>
-    <td style="font-size:11px" onclick="event.stopPropagation()"><code>${esc(p.referral_code)}</code><br><button class="btn btn-secondary" style="padding:3px 8px;font-size:10px;margin-top:4px" onclick="navigator.clipboard.writeText('${link}').then(()=>toast('Link zkopírován'))">📋 Kopírovat link</button></td>
-    <td>${st.hotels||0}</td>
-    <td style="font-size:11px">⏳${st.pending||0} ✅${st.approved||0} 💸${st.paid||0}</td>
+    <td style="font-size:11px"><code>${esc(p.referral_code)}</code>${p.contract_end?'<div style="font-size:10px;color:var(--warn)">smlouva do '+esc(p.contract_end)+' (+6 měs. doběh)</div>':''}<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px"><button class="btn btn-secondary" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();navigator.clipboard.writeText('${link}').then(()=>toast('Link zkopírován'))">📋 Link</button><a class="btn btn-secondary" style="padding:3px 8px;font-size:10px;text-decoration:none" href="${API}/api/partners/${p.id}/qr-poster" target="_blank" onclick="event.stopPropagation()">📱 QR plakát</a><button class="btn btn-secondary" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();showPartnerReport('${p.id}')">📊 Report</button></div></td>
+    <td>${st.hotels||0}<div style="font-size:10px;color:#2ecc87" title="Kolik nám přivedené hotely reálně zaplatily (zaplacené faktury, přes Stripe)">zaplatily ${st.revenue_eur||0} €</div></td>
+    <td style="font-size:11px"><span title="Čeká v zádržné lhůtě">⏳${st.pending||0}</span> <span title="Schváleno k vyplacení">✅${st.approved||0}</span> <span title="Vyplaceno partnerovi">💸${st.paid||0}</span></td>
     <td><strong>${st.owed_czk||0} Kč</strong></td>
     <td onclick="event.stopPropagation()"><button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="deletePartner('${p.id}','${esc(p.name)}')">✕</button></td>
   </tr>
-  <tr id="pcomm-${p.id}" style="display:none"><td colspan="6" style="padding:0;background:rgba(128,128,128,.1)">
+  <tr id="pcomm-${p.id}" style="display:none;cursor:pointer" onclick="togglePartner('${p.id}')" title="Kliknutím sbalíte"><td colspan="6" style="padding:0;background:rgba(128,128,128,.1)">
     <div style="padding:10px 16px 14px">
       <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Provize partnera „${esc(p.name)}"</div>
       <table style="width:100%;font-size:13px"><thead><tr><th style="text-align:left">Hotel</th><th style="text-align:left">Částka</th><th style="text-align:left">Stav</th><th style="text-align:left">Vznik</th><th style="text-align:left">Akce</th></tr></thead><tbody>${commRows}</tbody></table>
@@ -2065,6 +2171,32 @@ function renderPartners(){
   </td></tr>`;
   }).join('');
 }
+async function showPartnerReport(pid){
+  const month=prompt('Měsíc reportu (RRRR-MM):', new Date().toISOString().slice(0,7));
+  if(month===null)return;
+  if(!/^\d{4}-\d{2}$/.test(month.trim())){toast('Formát RRRR-MM','err');return;}
+  try{
+    const r=await fetch(API+'/api/partners/'+pid+'/report?month='+month.trim());
+    const d=await r.json(); if(!r.ok)throw new Error(d.detail||('HTTP '+r.status));
+    const hs=d.hotels||[], cs=d.commissions||[], cand=d.attribution_candidates||[];
+    const rows=hs.map(h=>`<tr><td>${esc(h.name)}</td><td>${h.acquired_at||''}</td><td>${h.is_free?'zdarma':(h.active?'aktivní':'neaktivní')}</td><td>${h.paid_this_month?'✅ zaplaceno':'—'}</td></tr>`).join('')||'<tr><td colspan="4" style="color:#888">Žádné hotely</td></tr>';
+    const crows=cs.map(c=>`<tr><td>${esc(c.hotel_name)}</td><td>${c.period||''}</td><td>${c.amount} Kč</td><td>${c.status}</td></tr>`).join('')||'<tr><td colspan="4" style="color:#888">Žádné provize za tento měsíc</td></tr>';
+    const cand_html=cand.length?`<h3>K ručnímu posouzení (zdroj LinkedIn, bez referralu)</h3><ul>${cand.map(x=>'<li>'+esc(x.name)+' ('+x.created_at+')</li>').join('')}</ul>`:'';
+    const w=window.open('','_blank');
+    w.document.write(`<html><head><meta charset="utf-8"><title>Report ${esc(d.partner.name)} — ${d.month}</title>
+      <style>body{font-family:sans-serif;max-width:760px;margin:32px auto;color:#0c1b33}h1{font-size:20px}h3{margin-top:24px;font-size:14px}table{width:100%;border-collapse:collapse;font-size:13px}td,th{border:1px solid #dbe3f0;padding:6px 10px;text-align:left}strong.big{font-size:18px}@media print{button{display:none}}</style></head><body>
+      <h1>Měsíční přehled partnera — ${esc(d.partner.name)} (${esc(d.partner.referral_code)})</h1>
+      <div>Období: <b>${d.month}</b>${d.partner.contract_end?' · smlouva ukončena '+esc(d.partner.contract_end)+' (doběh 6 měs.)':''}</div>
+      <h3>Přivedené hotely</h3><table><tr><th>Hotel</th><th>Získán</th><th>Stav</th><th>Platba v měsíci</th></tr>${rows}</table>
+      <h3>Provize za ${d.month}</h3><table><tr><th>Hotel</th><th>Období</th><th>Částka</th><th>Stav</th></tr>${crows}</table>
+      <p><strong class="big">Celkem provize: ${d.commission_total_czk} Kč</strong></p>
+      ${cand_html}
+      <button onclick="window.print()">🖨️ Tisknout / PDF</button>
+      </body></html>`);
+    w.document.close();
+  }catch(e){toast('Chyba reportu: '+e.message,'err');}
+}
+
 async function addPartner(){
   const name=document.getElementById('pn-name').value.trim();
   const ref=document.getElementById('pn-ref').value.trim();

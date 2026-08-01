@@ -257,6 +257,54 @@ async def _check_and_send_reminders():
             if (h.get("name") or "").strip().upper().startswith("E2E"):
                 continue
 
+            # ── TRIAL-ENDING: 3 dny před koncem triálu, jednou per hotel ──
+            # (transakční e-mail existujícímu zákazníkovi — nejvyšší návratnost dle plánu nurture)
+            try:
+                if h.get("trial_start") and not h.get("trial_ending_sent") and not h.get("is_free"):
+                    _ts = datetime.fromisoformat(str(h["trial_start"]).replace("Z", ""))
+                    _days_in = (now - _ts).days
+                    if 11 <= _days_in <= 13:
+                        _comp = hotel_profile_completeness(h)
+                        _score = _comp.get("score", 0)
+                        _qtotal = (db.get("analytics", {}).get(hotel_id, {}) or {}).get("total", 0)
+                        _hname = h.get("name", "Hotel")
+                        _hmail = h.get("registration_email") or h.get("email", "")
+                        _tok = h.get("hotel_token", "")
+                        _portal = f"{base_url}/portal?token={_tok}" if _tok else f"{base_url}/portal"
+                        _left = max(14 - _days_in, 1)
+                        if _hmail:
+                            _payload = {
+                                "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
+                                "to": [{"email": _hmail}],
+                                "bcc": _admin_notify_bcc(exclude=_hmail) or None,
+                                "subject": f"⏳ {_hname}: your free trial ends in {_left} day" + ("s" if _left > 1 else ""),
+                                "htmlContent": (
+                                    f"<p>Hello,</p>"
+                                    f"<p>your 14-day SMARTEST GUIDE trial for <b>{_hname}</b> ends in <b>{_left} day" + ("s" if _left > 1 else "") + "</b>.</p>"
+                                    f"<p>So far: your hotel profile is <b>{_score}&#37; complete</b>"
+                                    + (f" and Alex has already answered <b>{_qtotal}</b> guest questions" if _qtotal else "")
+                                    + ".</p>"
+                                    f"<p><b>What happens next:</b> after the trial your subscription starts automatically "
+                                    f"and Alex keeps working for your guests without interruption — no action needed. "
+                                    f"If you don't wish to continue, cancel anytime in your "
+                                    f"<a href='{_portal}'>hotel portal</a> before the trial ends and nothing will be charged.</p>"
+                                    + (f"<p>Tip: profiles above 80&#37; completeness give guests noticeably better answers — "
+                                       f"finishing yours takes a few minutes in the <a href='{_portal}'>portal</a>.</p>" if _score < 80 else "")
+                                    + "<p>Questions? Just reply to this e-mail.<br>— SMARTEST GUIDE · support@smartestguide.com</p>"),
+                                "textContent": f"Your SMARTEST GUIDE trial for {_hname} ends in {_left} days. Profile {_score} percent complete. Manage: {_portal}",
+                            }
+                            if not _payload["bcc"]:
+                                _payload.pop("bcc")
+                            async with _httpx.AsyncClient() as _client:
+                                _r = await _client.post("https://api.brevo.com/v3/smtp/email", json=_payload,
+                                    headers={"api-key": brevo_key, "Content-Type": "application/json"}, timeout=30)
+                            if _r.status_code in (200, 201):
+                                h["trial_ending_sent"] = now.isoformat()
+                                db_save(db)
+                                logging.info("Trial-ending e-mail odeslán: %s", hotel_id)
+            except Exception as _e:
+                logging.warning("Trial-ending e-mail selhal (%s): %s", hotel_id, _e)
+
             # Completeness skóre
             completeness = hotel_profile_completeness(h)
             score = completeness.get("score", 100)
@@ -2668,6 +2716,7 @@ class RegistrationRequest(BaseModel):
     billing_name: Optional[str] = None   # právní/fakturační název
     ref: Optional[str] = None            # referral kód partnera (atribuce provize)
     src: Optional[str] = None            # akviziční kanál ("apaleo" = přišel z Apaleo Store — bez provize)
+    source: Optional[str] = None         # „How did you hear about us?" — pro ruční dohledání atribuce
 
 def _norm_ico(x: str) -> str:
     """IČO na porovnání — jen číslice."""
@@ -2765,6 +2814,7 @@ async def register_hotel(req: RegistrationRequest, request: Request):
     hotel["referral_code"] = _norm_ref(req.ref) if _ref_partner else ""
     hotel["acquisition_channel"] = "apaleo_store" if _is_apaleo else ("partner" if _ref_partner else "direct")
     hotel["acquired_at"] = now
+    hotel["source"] = (req.source or "").strip()[:40]   # „How did you hear about us?"
     _ensure_slug(db, hid, hotel)  # čitelná guest URL /h/{slug}
     db["hotels"][hid] = hotel
     db_save(db)
@@ -3791,9 +3841,9 @@ async def stripe_webhook(request: Request):
                         except Exception as e:
                             logging.warning("Auto-faktura selhala pro hotel %s: %s", hotel_id, e)
 
-                        # Provize partnerovi až za PRVNÍ reálnou platbu (idempotentní)
+                        # Provize partnerovi za KAŽDÝ zaplacený měsíc (opakovaný model, idempotentní per hotel+měsíc)
                         try:
-                            _create_commission_if_eligible(db, hotel_id)
+                            _create_commission_if_eligible(db, hotel_id, now.strftime("%Y-%m"))
                         except Exception as e:
                             logging.warning("Vytvoření provize selhalo pro hotel %s: %s", hotel_id, e)
                     else:
@@ -4033,14 +4083,42 @@ _LOW_INFO_MARKERS = [
     "žádné informace", "zadne informace", "leider", "désolé je n'ai pas", "no tengo esa información",
 ]
 
-def _log_guest_question(hotel_id: str, message: str, language: str, reply: str, device_id: str = ""):
-    """Zaloguje dotaz hosta do analytiky + drží posledních 50 reálných dotazů (pro doplnění mezer)."""
+def _log_ai_media_usage(hotel_id: str, tts_chars: int = 0, stt_sec: float = 0.0):
+    """Zapíše spotřebu TTS znaků / STT sekund per hotel a měsíc (přesná ekonomika)."""
+    if not hotel_id or (not tts_chars and not stt_sec):
+        return
+    try:
+        db = db_load()
+        if hotel_id not in db.get("hotels", {}):
+            _hid, _h = _resolve_hotel(db, hotel_id)
+            if not _h:
+                return
+            hotel_id = _hid
+        a = db.setdefault("analytics", {}).setdefault(hotel_id, {"total": 0, "topics": {}})
+        _mk = datetime.utcnow().strftime("%Y-%m")
+        _au = a.setdefault("ai_usage", {}).setdefault(_mk, {"in": 0, "out": 0, "tts_chars": 0, "stt_sec": 0.0})
+        if tts_chars:
+            _au["tts_chars"] = _au.get("tts_chars", 0) + int(tts_chars)
+        if stt_sec:
+            _au["stt_sec"] = round(_au.get("stt_sec", 0.0) + float(stt_sec), 1)
+        db_save(db)
+    except Exception as e:
+        logging.warning("AI usage log selhal (%s): %s", hotel_id, e)
+
+def _log_guest_question(hotel_id: str, message: str, language: str, reply: str, device_id: str = "", in_tokens: int = 0, out_tokens: int = 0):
+    """Zaloguje dotaz hosta do analytiky + drží posledních 50 reálných dotazů (pro doplnění mezer).
+    Nově i REÁLNÉ tokeny z Anthropic usage → přesná ekonomika per hotel/měsíc."""
     if not message:
         return
     db = db_load()
     analytics = db.setdefault("analytics", {})
     a = analytics.setdefault(hotel_id, {"total": 0, "topics": {}})
     a["total"] = a.get("total", 0) + 1
+    if in_tokens or out_tokens:
+        _mk = datetime.utcnow().strftime("%Y-%m")
+        _au = a.setdefault("ai_usage", {}).setdefault(_mk, {"in": 0, "out": 0, "tts_chars": 0, "stt_sec": 0.0})
+        _au["in"] = _au.get("in", 0) + in_tokens
+        _au["out"] = _au.get("out", 0) + out_tokens
     now = datetime.utcnow()
     a["last_chat"] = now.isoformat()
     low = (reply or "").lower()
@@ -4529,6 +4607,52 @@ def app_icon(size: int):
     return Response(content=buf.getvalue(), media_type="image/png",
                     headers={"Cache-Control": "public, max-age=300"})
 
+# ── Serverové STT (Whisper) — mikrofon s automatickou detekcí jazyka ──
+# Řeší „jazykový mix": prohlížečové rozpoznávání poslouchá jen ve zvoleném jazyce
+# (německá řeč při vybrané češtině = paskvil). Whisper detekuje jazyk ze zvuku sám.
+# Klient posílá RAW audio v těle requestu (bez multipart závislosti), ?fmt=webm|mp4|ogg.
+@app.post("/api/guest/stt")
+async def guest_stt(request: Request, fmt: str = "webm", hotel_id: str = ""):
+    if not _rate_limit_ok("stt:" + _client_ip(request), max_hits=10):
+        raise HTTPException(429, "Příliš mnoho požadavků")
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    if not api_key:
+        raise HTTPException(503, "STT není nakonfigurováno")
+    audio = await request.body()
+    if not audio or len(audio) < 200:
+        raise HTTPException(400, "Prázdné audio")
+    if len(audio) > 2_500_000:   # ~25 s záznamu bohatě stačí na dotaz
+        raise HTTPException(413, "Audio je příliš velké")
+    fmt = (fmt or "webm").lower().strip()
+    if fmt not in ("webm", "mp4", "m4a", "ogg", "wav"):
+        fmt = "webm"
+    model = os.getenv("STT_MODEL", "whisper-1")
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                "https://api.openai.com/v1/audio/transcriptions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                files={"file": (f"audio.{fmt}", audio, f"audio/{fmt}")},
+                data={"model": model, "response_format": "verbose_json"},
+                timeout=30.0)
+    except Exception as e:
+        raise HTTPException(502, f"STT selhalo: {str(e)[:100]}")
+    if r.status_code != 200:
+        logging.warning("STT chyba %s: %s", r.status_code, r.text[:150])
+        raise HTTPException(502, "STT selhalo")
+    d = r.json()
+    if hotel_id:
+        _log_ai_media_usage(hotel_id, stt_sec=float(d.get("duration") or 0.0))
+    lang = (d.get("language") or "")[:16]
+    _LANG_NAME2CODE = {"czech": "cs", "slovak": "sk", "english": "en", "german": "de", "french": "fr",
+                       "italian": "it", "spanish": "es", "polish": "pl", "russian": "ru", "ukrainian": "uk",
+                       "dutch": "nl", "portuguese": "pt", "hungarian": "hu", "swedish": "sv", "danish": "da",
+                       "norwegian": "no", "finnish": "fi", "greek": "el", "turkish": "tr", "japanese": "ja",
+                       "chinese": "zh", "korean": "ko", "arabic": "ar", "hebrew": "he", "romanian": "ro",
+                       "croatian": "hr", "slovenian": "sl", "bulgarian": "bg", "serbian": "sr"}
+    return {"status": "ok", "text": (d.get("text") or "").strip(),
+            "language": _LANG_NAME2CODE.get(lang.lower(), lang.lower()[:2])}
+
 @app.get("/api/hotels/{hotel_id}/manifest.webmanifest")
 def hotel_manifest(hotel_id: str, request: Request):
     """Per-hotel PWA manifest — instalovaná ikona otevře přímo Alexe tohoto hotelu."""
@@ -4955,10 +5079,12 @@ Guest name: {req.guest_name or 'Guest'}"""
         )
     if r.status_code != 200:
         raise HTTPException(500, f"AI chyba: {r.text[:200]}")
-    reply = r.json()["content"][0]["text"]
+    _j = r.json()
+    reply = _j["content"][0]["text"]
+    _usage = _j.get("usage", {}) or {}
     # Zaloguj reálný dotaz hosta (analytika + detekce mezer v informacích)
     try:
-        _log_guest_question(_hid, req.message, req.language, reply, device_id=req.device_id or "")
+        _log_guest_question(_hid, req.message, req.language, reply, device_id=req.device_id or "", in_tokens=int(_usage.get("input_tokens") or 0), out_tokens=int(_usage.get("output_tokens") or 0))
     except Exception as e:
         logging.warning("Log dotazu hosta selhal: %s", e)
     return {"status": "ok", "reply": reply}
@@ -4978,6 +5104,7 @@ _TTS_MAX_CHARS = 700  # bezpečnostní strop; frontend beztak čte jen krátké 
 class GuestTTSRequest(BaseModel):
     text: str
     language: Optional[str] = None  # informativní; hlas je vícejazyčný
+    hotel_id: Optional[str] = None  # pro měření nákladů per hotel
 
 @app.post("/api/guest/tts")
 async def guest_tts(req: GuestTTSRequest, request: Request):
@@ -5007,6 +5134,8 @@ async def guest_tts(req: GuestTTSRequest, request: Request):
     if r.status_code != 200:
         logging.warning("TTS chyba %s: %s", r.status_code, r.text[:200])
         raise HTTPException(502, "TTS selhalo")
+    if req.hotel_id:
+        _log_ai_media_usage(req.hotel_id, tts_chars=len(text))
     from fastapi.responses import Response
     return Response(content=r.content, media_type="audio/mpeg",
                     headers={"Cache-Control": "no-store"})
@@ -5593,7 +5722,7 @@ def get_commission_settings():
     s = db_get_settings()
     return {
         "commission_enabled": bool(s.get("commission_enabled", False)),
-        "commission_amount": float(s.get("commission_amount", 1500)),
+        "commission_amount": float(s.get("commission_amount", 400)),
         "commission_currency": "CZK",
         "commission_hold_days": int(s.get("commission_hold_days", 30)),
     }
@@ -5610,6 +5739,7 @@ class PartnerRequest(BaseModel):
     ico: Optional[str] = None
     active: Optional[bool] = True
     note: Optional[str] = None
+    contract_end: Optional[str] = None   # ISO datum ukončení smlouvy — provize běží ještě 6 měsíců (doběh)
 
 def _partner_by_ref(db: dict, ref: str):
     ref = _norm_ref(ref)
@@ -5628,8 +5758,13 @@ def list_partners():
     hotels = db.get("hotels", {})
     for p in partners:
         pc = [c for c in comms.values() if c.get("partner_id") == p["id"]]
+        _phids = [hid for hid, h in hotels.items() if h.get("acquired_by") == p["id"]]
+        _revenue = sum(i.get("amount_total", i.get("amount_eur", 0)) or 0
+                       for i in db.get("invoices", {}).values()
+                       if i.get("hotel_id") in _phids and i.get("status") == "paid")
         p["_stats"] = {
-            "hotels": sum(1 for h in hotels.values() if h.get("acquired_by") == p["id"]),
+            "hotels": len(_phids),
+            "revenue_eur": round(_revenue, 2),
             "pending": sum(1 for c in pc if c.get("status") == "pending"),
             "approved": sum(1 for c in pc if c.get("status") == "approved"),
             "paid": sum(1 for c in pc if c.get("status") == "paid"),
@@ -5652,7 +5787,8 @@ def create_partner(req: PartnerRequest):
         "id": pid, "name": req.name, "email": (req.email or "").strip(),
         "referral_code": ref, "ico": (req.ico or "").strip(),
         "active": True if req.active is None else bool(req.active),
-        "note": req.note or "", "created_at": datetime.utcnow().isoformat(),
+        "note": req.note or "", "contract_end": (req.contract_end or "").strip()[:10],
+        "created_at": datetime.utcnow().isoformat(),
     }
     partners[pid] = partner
     db_save(db)
@@ -5675,6 +5811,7 @@ def update_partner(partner_id: str, req: PartnerRequest):
         "name": req.name, "email": (req.email or "").strip(), "referral_code": ref,
         "ico": (req.ico or "").strip(),
         "active": True if req.active is None else bool(req.active), "note": req.note or "",
+        "contract_end": (req.contract_end or "").strip()[:10],
     })
     db_save(db)
     return {"status": "ok", "partner": p}
@@ -5688,8 +5825,226 @@ def delete_partner(partner_id: str, request: Request):
         db_save(db)
     return {"status": "ok"}
 
-def _create_commission_if_eligible(db: dict, hotel_id: str):
-    """Vytvoří provizi při první REÁLNÉ platbě, pokud hotel získal partner. Idempotentní."""
+@app.get("/api/partners/{partner_id}/qr")
+def partner_qr(partner_id: str, request: Request):
+    """QR kód s referral odkazem partnera (LinkedIn upozaďuje příspěvky s odkazy — QR je řešení)."""
+    from fastapi.responses import Response
+    db = db_load()
+    p = db.get("partners", {}).get(partner_id)
+    if not p:
+        raise HTTPException(404, "Partner nenalezen")
+    base = get_base_url(request)
+    url = f"{base}/landing?ref={p.get('referral_code','')}"
+    png = _generate_qr_png_branded(url, size=600)
+    return Response(content=png, media_type="image/png",
+                    headers={"Content-Disposition": f'inline; filename="qr-{p.get("referral_code","partner")}.png"'})
+
+@app.get("/api/partners/{partner_id}/qr-poster")
+def partner_qr_poster(partner_id: str, request: Request):
+    """Tiskový QR plakát pro partnera (LinkedIn/akce) — stejný brand jako hotelové tiskoviny."""
+    db = db_load()
+    p = db.get("partners", {}).get(partner_id)
+    if not p:
+        raise HTTPException(404, "Partner nenalezen")
+    base = get_base_url(request)
+    ref = p.get("referral_code", "")
+    url = f"{base}/landing?ref={ref}"
+    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg"/>
+<link rel="stylesheet" href="/static/fonts/fonts.css">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+body{{margin:0;background:#f6f8fc;display:flex;justify-content:center;padding:32px;font-family:'Manrope',sans-serif}}
+.btn{{position:fixed;top:16px;right:16px;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer;background:#2c5fae;color:#fff}}
+@media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{margin:0}}}}</style></head>
+<body><button class="btn" onclick="window.print()">🖨️ Tisknout / PDF</button>
+<div style="position:relative;width:800px;height:800px;background:#0c1b33;border-radius:24px;overflow:hidden;box-shadow:0 24px 60px rgba(12,27,51,.22)">
+  <div style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
+  <div style="position:absolute;top:300px;left:50%;width:620px;height:620px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.14),transparent 70%);pointer-events:none"></div>
+  <div style="height:100%;display:flex;flex-direction:column;align-items:center;padding:58px 48px 44px;position:relative">
+    <div translate="no" style="font-family:'Sora',sans-serif;font-weight:800;font-size:34px;color:#fff;display:flex;align-items:center;gap:10px"><img src="/static/img/logo-inverse.svg" alt="" style="width:36px;height:36px;display:block"/>SmartestGuide</div>
+    <div style="margin-top:10px;font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:#2fd0d8">AI Concierge for Hotels</div>
+    <div style="margin-top:24px;font-family:'Sora',sans-serif;font-weight:700;font-size:26px;color:#fff;text-align:center;line-height:1.3">Váš hotel odpovídá hostům 24/7<br>ve 100+ jazycích</div>
+    <div style="margin-top:8px;font-size:15px;color:#c6d4ec">14 dní zdarma · bez instalace · nastavení za jeden den</div>
+    <div style="position:relative;margin-top:24px;padding:22px;background:#ffffff;border-radius:20px;box-shadow:0 0 40px rgba(44,95,174,.15)">
+      <div id="qr" style="width:380px;height:380px;display:flex;align-items:center;justify-content:center"></div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:72px;height:72px;border-radius:15px;overflow:hidden;box-shadow:0 0 0 4px #ffffff"><img src="/static/img/favicon.svg" alt="" style="width:100%;height:100%;display:block"/></div>
+    </div>
+    <div style="margin-top:24px;font-family:'Sora',sans-serif;font-weight:700;font-size:22px;color:#fff;text-align:center">Naskenujte a vyzkoušejte zdarma</div>
+    <div style="flex:1"></div>
+    <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(47,208,216,.55),transparent)"></div>
+    <div style="margin-top:16px;font-size:14px;font-weight:600;color:#2fd0d8">smartestguide.com</div>
+  </div>
+</div>
+<script>
+(function(){{function draw(){{var h=document.getElementById('qr');if(!h)return;if(!window.qrcode){{setTimeout(draw,120);return;}}
+var qr=window.qrcode(0,'H');qr.addData('{url}');qr.make();var n=qr.getModuleCount(),S=380,cell=S/n,r='';
+for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#0c1b33"/>';
+h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
+</script></body></html>"""
+    return HTMLResponse(content=html)
+
+@app.get("/api/partners/{partner_id}/report")
+def partner_monthly_report(partner_id: str, month: str = ""):
+    """Měsíční přehled pro partnera (smluvní povinnost à 30 dní + podklad pro fakturaci provize).
+    Vrací: hotely přivedené partnerem + stav plateb v měsíci + provize za měsíc + kandidáty
+    na ruční atribuci (neatribuované registrace se zdrojem LinkedIn v daném měsíci)."""
+    db = db_load()
+    p = db.get("partners", {}).get(partner_id)
+    if not p:
+        raise HTTPException(404, "Partner nenalezen")
+    month = (month or datetime.utcnow().strftime("%Y-%m"))[:7]
+    hotels = db.get("hotels", {})
+    invoices = db.get("invoices", {})
+    comms = db.get("commissions", {})
+    rows = []
+    for hid, h in hotels.items():
+        if h.get("acquired_by") != partner_id:
+            continue
+        paid_now = any(i.get("hotel_id") == hid and i.get("status") == "paid"
+                       and str(i.get("issued_at", i.get("created_at", "")))[:7] == month
+                       for i in invoices.values())
+        rows.append({
+            "hotel_id": hid, "name": h.get("name", ""),
+            "active": bool(h.get("subscription_active")), "is_free": bool(h.get("is_free")),
+            "acquired_at": str(h.get("acquired_at", ""))[:10],
+            "paid_this_month": paid_now,
+        })
+    month_comms = [c for c in comms.values() if c.get("partner_id") == partner_id
+                   and (c.get("period") or str(c.get("created_at", ""))[:7]) == month]
+    # Kandidáti na ruční atribuci: v daném měsíci registrované hotely bez partnera se zdrojem linkedin
+    candidates = [{"name": h.get("name", ""), "created_at": str(h.get("created_at", ""))[:10],
+                   "source": h.get("source", "")}
+                  for h in hotels.values()
+                  if (h.get("acquired_by") in (None, "", "auto"))
+                  and str(h.get("created_at", ""))[:7] == month
+                  and (h.get("source") or "").lower() in ("linkedin", "social")]
+    return {"status": "ok", "partner": {"id": partner_id, "name": p.get("name", ""),
+                                        "referral_code": p.get("referral_code", ""),
+                                        "contract_end": p.get("contract_end", "")},
+            "month": month, "hotels": rows,
+            "commissions": sorted(month_comms, key=lambda c: c.get("created_at", "")),
+            "commission_total_czk": round(sum(c.get("amount", 0) for c in month_comms), 2),
+            "attribution_candidates": candidates}
+
+@app.get("/api/economics")
+def economics_overview():
+    """Ekonomika per hotel: příjmy (zaplacené faktury, EUR→CZK), provize (CZK), odhad nákladů
+    na AI (dotazy × sazba) a zisk. AI náklad je ODHAD — tokeny se per hotel netrackují."""
+    db = db_load()
+    s = db_get_settings()
+    rate = float(s.get("eco_eur_czk", 25.0))
+    cost_q = float(s.get("eco_ai_cost_per_question_czk", 0.20))
+    fixed_m_legacy = float(s.get("eco_fixed_monthly_czk", 0.0))
+    usd_czk = float(s.get("eco_usd_czk", 23.0))
+    stripe_pct = float(s.get("eco_stripe_pct", 1.5))          # % z platby (Stripe EU karty)
+    stripe_fix_eur = float(s.get("eco_stripe_fix_eur", 0.25)) # fix za transakci
+    cost_items = s.get("eco_cost_items") or [
+        {"name": "Railway (app + Postgres)", "monthly_czk": 500},
+        {"name": "Doména smartestguide.com", "monthly_czk": 25},
+        {"name": "Forpsi Redirect", "monthly_czk": 10},
+        {"name": "Brevo (e-maily)", "monthly_czk": 0},
+        {"name": "Ostatní / rezerva", "monthly_czk": 0},
+    ]
+    fixed_m_items = round(sum(float(i.get("monthly_czk", 0) or 0) for i in cost_items), 2)
+    fixed_m = fixed_m_items if cost_items else fixed_m_legacy
+    # Ceníky API (USD): Claude Haiku 4.5 $1/M in + $5/M out; TTS ~$15/M znaků; Whisper $0.006/min
+    _P_IN, _P_OUT, _P_TTS, _P_STT = 1.0, 5.0, 15.0, 0.006
+    invoices = db.get("invoices", {})
+    comms = db.get("commissions", {})
+    analytics = db.get("analytics", {})
+    rows = []
+    paid_months = set()
+    for hid, h in db.get("hotels", {}).items():
+        revenue_eur = 0.0
+        paid_tx = 0
+        for i in invoices.values():
+            if i.get("hotel_id") == hid and i.get("status") == "paid":
+                revenue_eur += float(i.get("amount_total", i.get("amount_eur", 0)) or 0)
+                paid_tx += 1
+                mk = str(i.get("issued_at", i.get("created_at", "")))[:7]
+                if mk:
+                    paid_months.add(mk)
+        stripe_fee_czk = round((revenue_eur * stripe_pct / 100.0 + paid_tx * stripe_fix_eur) * rate, 2)
+        comm_all = sum(float(c.get("amount", 0) or 0) for c in comms.values()
+                       if c.get("hotel_id") == hid and c.get("status") != "canceled")
+        comm_paid = sum(float(c.get("amount", 0) or 0) for c in comms.values()
+                        if c.get("hotel_id") == hid and c.get("status") == "paid")
+        questions = int((analytics.get(hid, {}) or {}).get("total", 0) or 0)
+        # PŘESNÉ MĚŘENÍ (od 1. 8. 2026): reálné tokeny/znaky/sekundy per měsíc; starší provoz bez dat → odhad
+        _usage = (analytics.get(hid, {}) or {}).get("ai_usage", {}) or {}
+        _in = sum(int(u.get("in", 0) or 0) for u in _usage.values())
+        _out = sum(int(u.get("out", 0) or 0) for u in _usage.values())
+        _tts = sum(int(u.get("tts_chars", 0) or 0) for u in _usage.values())
+        _stt = sum(float(u.get("stt_sec", 0) or 0) for u in _usage.values())
+        measured = bool(_in or _out or _tts or _stt)
+        if measured:
+            _usd = (_in / 1e6) * _P_IN + (_out / 1e6) * _P_OUT + (_tts / 1e6) * _P_TTS + (_stt / 60.0) * _P_STT
+            ai_cost = round(_usd * usd_czk, 2)
+        else:
+            ai_cost = round(questions * cost_q, 2)
+        revenue_czk = round(revenue_eur * rate, 2)
+        profit = round(revenue_czk - comm_all - ai_cost - stripe_fee_czk, 2)
+        rows.append({
+            "hotel_id": hid, "name": h.get("name", ""),
+            "active": bool(h.get("subscription_active")), "is_free": bool(h.get("is_free")),
+            "questions": questions,
+            "revenue_eur": round(revenue_eur, 2), "revenue_czk": revenue_czk,
+            "commission_czk": round(comm_all, 2), "commission_paid_czk": round(comm_paid, 2),
+            "ai_cost_czk": ai_cost, "ai_measured": measured, "stripe_fee_czk": stripe_fee_czk, "paid_tx": paid_tx,
+            "ai_tokens_in": _in, "ai_tokens_out": _out, "profit_czk": profit,
+        })
+    rows.sort(key=lambda r: -r["profit_czk"])
+    months_active = max(len(paid_months), 1)
+    totals = {
+        "questions": sum(r["questions"] for r in rows),
+        "revenue_eur": round(sum(r["revenue_eur"] for r in rows), 2),
+        "revenue_czk": round(sum(r["revenue_czk"] for r in rows), 2),
+        "commission_czk": round(sum(r["commission_czk"] for r in rows), 2),
+        "ai_cost_czk": round(sum(r["ai_cost_czk"] for r in rows), 2),
+        "stripe_fee_czk": round(sum(r["stripe_fee_czk"] for r in rows), 2),
+        "profit_czk": round(sum(r["profit_czk"] for r in rows), 2),
+    }
+    fixed_total = round(fixed_m * months_active, 2)
+    totals["fixed_czk"] = fixed_total
+    totals["months_active"] = months_active
+    totals["net_profit_czk"] = round(totals["profit_czk"] - fixed_total, 2)
+    return {"status": "ok", "rows": rows, "totals": totals,
+            "params": {"eur_czk": rate, "ai_cost_per_question_czk": cost_q,
+                       "fixed_monthly_czk": fixed_m, "usd_czk": usd_czk,
+                       "stripe_pct": stripe_pct, "stripe_fix_eur": stripe_fix_eur,
+                       "cost_items": cost_items}}
+
+class EconomicsSettingsRequest(BaseModel):
+    eur_czk: float = 25.0
+    ai_cost_per_question_czk: float = 0.20
+    fixed_monthly_czk: float = 0.0
+    usd_czk: float = 23.0
+    stripe_pct: float = 1.5
+    stripe_fix_eur: float = 0.25
+    cost_items: Optional[List[dict]] = None
+
+@app.post("/api/economics/settings")
+def save_economics_settings(req: EconomicsSettingsRequest):
+    db_save_settings({
+        "eco_eur_czk": max(1.0, float(req.eur_czk)),
+        "eco_ai_cost_per_question_czk": max(0.0, float(req.ai_cost_per_question_czk)),
+        "eco_fixed_monthly_czk": max(0.0, float(req.fixed_monthly_czk)),
+        "eco_usd_czk": max(1.0, float(req.usd_czk)),
+        "eco_stripe_pct": max(0.0, float(req.stripe_pct)),
+        "eco_stripe_fix_eur": max(0.0, float(req.stripe_fix_eur)),
+        "eco_cost_items": [
+            {"name": str(i.get("name", ""))[:60], "monthly_czk": max(0.0, float(i.get("monthly_czk", 0) or 0))}
+            for i in (req.cost_items or [])[:20] if isinstance(i, dict) and str(i.get("name", "")).strip()
+        ],
+    })
+    return {"status": "ok"}
+
+def _create_commission_if_eligible(db: dict, hotel_id: str, period: str = ""):
+    """OPAKOVANÝ model (dohoda s J. Bártíkovou 21. 7. 2026): provize vzniká za KAŽDÝ
+    zaplacený měsíc hotelu (400 Kč/měs), dokud je hotel platícím zákazníkem.
+    Idempotentní per (hotel, měsíc). Doběh: po ukončení smlouvy partnera
+    (partner.contract_end) běží provize ještě max 6 měsíců."""
     hotel = db.get("hotels", {}).get(hotel_id)
     if not hotel:
         return
@@ -5699,13 +6054,26 @@ def _create_commission_if_eligible(db: dict, hotel_id: str):
     s = db.get("settings", {})
     if not s.get("commission_enabled"):
         return
+    period = (period or datetime.utcnow().strftime("%Y-%m"))[:7]
+    # Doběh 6 měsíců po ukončení smlouvy partnera
+    partner = db.get("partners", {}).get(pid) or {}
+    ce = (partner.get("contract_end") or "").strip()
+    if ce:
+        try:
+            _end = datetime.fromisoformat(ce[:10])
+            _cutoff = (_end + timedelta(days=183)).strftime("%Y-%m")
+            if period > _cutoff:
+                logging.info("Provize %s/%s: po doběhu smlouvy partnera (%s + 6 měs.) — negeneruji", hotel_id, period, ce)
+                return
+        except Exception:
+            pass
     comms = db.setdefault("commissions", {})
-    if any(c.get("hotel_id") == hotel_id for c in comms.values()):
-        return  # jedna provize na hotel (jednorázový model)
-    amount = float(s.get("commission_amount", 1500))
+    if any(c.get("hotel_id") == hotel_id and c.get("period") == period for c in comms.values()):
+        return  # už vygenerováno za tento měsíc
+    amount = float(s.get("commission_amount", 400))
     cid = str(uuid.uuid4())
     comms[cid] = {
-        "id": cid, "partner_id": pid, "hotel_id": hotel_id,
+        "id": cid, "partner_id": pid, "hotel_id": hotel_id, "period": period,
         "hotel_name": hotel.get("name", ""), "amount": round(amount, 2), "currency": "CZK",
         "status": "pending", "created_at": datetime.utcnow().isoformat(),
         "approved_at": None, "paid_at": None, "payout_reference": "",

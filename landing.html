@@ -817,8 +817,8 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
             <label id="reg-l-source">How did you hear about us?</label>
             <select id="reg-source">
               <option value="" id="reg-opt-source">Select...</option>
-              <option id="reg-src-google">Internet search</option><option id="reg-src-social">LinkedIn</option>
-              <option id="reg-src-rec">Recommendation</option><option id="reg-src-fair">Trade fair / event</option><option id="reg-src-other">Other</option>
+              <option value="google" id="reg-src-google">Internet search</option><option value="linkedin" id="reg-src-social">LinkedIn</option>
+              <option value="recommendation" id="reg-src-rec">Recommendation</option><option value="fair" id="reg-src-fair">Trade fair / event</option><option value="other" id="reg-src-other">Other</option>
             </select>
           </div>
         </div>
@@ -1012,6 +1012,7 @@ async function submitForm(){
         dic: dic||null,
         ref: (new URLSearchParams(location.search).get('ref') || localStorage.getItem('sg_ref') || null),
         src: (new URLSearchParams(location.search).get('src') || localStorage.getItem('sg_src') || null),
+        source: ((document.getElementById('reg-source')||{}).value||null),
       })
     });
     const d = await r.json();
