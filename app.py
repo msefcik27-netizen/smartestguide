@@ -4631,20 +4631,18 @@ async def _send_pms_alert_email(hid: str, h: dict, reason: str):
         "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
         "to": [{"email": to_email}],
         "bcc": _admin_notify_bcc(exclude=to_email) or None,
-        "subject": f"⚠️ {name}: spojení s hotelovým systémem (Apaleo) selhává",
+        "subject": f"⚠️ {name}: connection to your hotel system (Apaleo) is failing",
         "htmlContent": (
-            f"<p>Dobrý den,</p>"
-            f"<p>spojení mezi SMARTEST GUIDE a vaším hotelovým systémem <b>Apaleo</b> opakovaně selhává "
-            f"(důvod: <code>{reason}</code>). Alex proto hostům dočasně odpovídá jen z profilu hotelu — "
-            f"<b>personalizované odpovědi z rezervací (check-out, délka pobytu) teď nefungují</b>.</p>"
-            f"<p><b>Co udělat:</b> otevřete svůj hotelový portál → sekce <b>Hotelový systém</b> → "
-            f"<b>Odpojit Apaleo</b> a hned poté <b>Connect to Apaleo</b> (nové přihlášení obnoví přístup). "
-            f"Pokud problém přetrvá, odpovězte na tento e-mail.</p>"
-            f"<p>— SMARTEST GUIDE · support@smartestguide.com</p>"
-            f"<hr><p style='font-size:12px;color:#888'>Hello, the connection between SMARTEST GUIDE and your Apaleo "
-            f"account keeps failing (reason: {reason}). Alex temporarily answers from your hotel profile only. "
-            f"Fix: hotel portal → Hotel system → Disconnect, then Connect to Apaleo again.</p>"),
-        "textContent": f"Spojeni s Apaleo selhava ({reason}). Portal -> Hotelovy system -> Odpojit a znovu Pripojit.",
+            f"<p>Hello,</p>"
+            f"<p>the connection between SMARTEST GUIDE and your <b>Apaleo</b> account keeps failing "
+            f"(reason: <code>{reason}</code>). Alex is therefore temporarily answering your guests from the "
+            f"hotel profile only — <b>personalised answers from live reservations (check-out time, length of stay) "
+            f"are not working right now</b>.</p>"
+            f"<p><b>How to fix it:</b> open your hotel portal → section <b>Hotel system</b> → "
+            f"<b>Disconnect Apaleo</b>, then click <b>Connect to Apaleo</b> again (a fresh login restores access). "
+            f"If the problem persists, just reply to this e-mail.</p>"
+            f"<p>— SMARTEST GUIDE · support@smartestguide.com</p>"),
+        "textContent": f"The connection to Apaleo keeps failing ({reason}). Hotel portal -> Hotel system -> Disconnect, then Connect to Apaleo again. Reply to this e-mail if it persists.",
     }
     if not payload["bcc"]:
         payload.pop("bcc")
