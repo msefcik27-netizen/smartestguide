@@ -829,15 +829,15 @@ def get_settings():
         "stripe_mode": ("live" if s.get("stripe_secret_key","").startswith("sk_live_") else "test" if s.get("stripe_secret_key","").startswith("sk_test_") else None),
         "has_webhook_secret": bool(s.get("stripe_webhook_secret")),
         "has_brevo": bool(os.getenv("BREVO_API_KEY")),
-        "pricing_base": s.get("pricing_base", 300),
+        "pricing_base": s.get("pricing_base", 199),
         "pricing_threshold": s.get("pricing_threshold", 100),
-        "pricing_per_bed": s.get("pricing_per_bed", 3),
+        "pricing_per_bed": s.get("pricing_per_bed", 2),
     }
 
 class PricingSettingsRequest(BaseModel):
-    pricing_base: int = 300
+    pricing_base: int = 199
     pricing_threshold: int = 100
-    pricing_per_bed: float = 3.0
+    pricing_per_bed: float = 2.0
 
 @app.post("/api/settings/pricing")
 def save_pricing_settings(req: PricingSettingsRequest):
@@ -858,9 +858,9 @@ def apply_pricing_to_new_hotels():
     Hotely s aktivním předplatným a subscription_price zůstávají nedotčeny."""
     db = db_load()
     s = db_get_settings()
-    base      = int(s.get("pricing_base", 200))
+    base      = int(s.get("pricing_base", 199))
     threshold = int(s.get("pricing_threshold", 100))
-    per_bed   = float(s.get("pricing_per_bed", 3))
+    per_bed   = float(s.get("pricing_per_bed", 2))
     updated = []
     skipped = []
     for hotel_id, hotel in db["hotels"].items():
@@ -914,6 +914,140 @@ def delete_api_key(request: Request):
     _check_danger(request)
     db_save_settings({"anthropic_api_key": ""})
     return {"status": "ok"}
+
+# ─────────────────────────────────────────────
+# Platby & obnovy — checklist v Nastavení (viz EXPIRACE_HLIDAT.md)
+# + živý stav AI kreditů (Anthropic = chat, OpenAI = hlas/TTS)
+# ─────────────────────────────────────────────
+def _seed_payment_tasks() -> list:
+    """Výchozí seznam plateb/obnov — co, kdy a proč. Termíny dle EXPIRACE_HLIDAT.md."""
+    today = datetime.now().date()
+    in_days = lambda n: (today + timedelta(days=n)).isoformat()
+    return [
+        {"id": "openai", "title": "OpenAI kredit — HLAS Alex (TTS)", "why": "Samostatný účet (org Travel) — NEPLÉST s Anthropicem! Bez kreditu Alex tiše přejde na robotický hlas prohlížeče (chat jede dál). Stav 31. 7. 2026: $0, nikdy nedobito → dobít $5 + klíč do Railway.", "due": today.isoformat(), "period_months": 1, "url": "https://platform.openai.com/settings/organization/billing/overview", "last_done": ""},
+        {"id": "anthropic", "title": "Anthropic kredit — CHAT Alex (auto-reload)", "why": "Mozek Alexe. Auto-reload zapnutý, strhává se z karty sám (na výpisu ANTHROPIC ... SAN FRANCISCO) — kontrola = že platby prochází.", "due": in_days(30), "period_months": 1, "url": "https://console.anthropic.com", "last_done": ""},
+        {"id": "railway", "title": "Railway — billing (app + Postgres-EU)", "why": "Neplacení = pozastavení aplikace i databáze → úplný výpadek všeho.", "due": in_days(30), "period_months": 1, "url": "https://railway.com", "last_done": ""},
+        {"id": "brevo", "title": "Brevo — API klíč + limit e-mailů", "why": "Bez něj nechodí onboarding, faktury, zálohy ani upomínky.", "due": in_days(30), "period_months": 1, "url": "https://app.brevo.com", "last_done": ""},
+        {"id": "stripe", "title": "Stripe — live účet v pořádku", "why": "Nejdou platby → noví hotelé nezaplatí, reaktivace selžou.", "due": in_days(30), "period_months": 1, "url": "https://dashboard.stripe.com", "last_done": ""},
+        {"id": "domena", "title": "Doména smartestguide.com (Forpsi) — expirace 1. 3. 2027", "why": "Expirace = zhasne ÚPLNĚ VŠE: web, guest appka, portál, admin i e-maily.", "due": "2027-02-15", "period_months": 12, "url": "https://admin.forpsi.com", "last_done": ""},
+        {"id": "redirect", "title": "Forpsi Redirect apex→www (~120 Kč/rok) — do 1. 3. 2027", "why": "smartestguide.com (bez www) by přestal přesměrovávat; www jede dál.", "due": "2027-02-15", "period_months": 12, "url": "https://admin.forpsi.com", "last_done": ""},
+        {"id": "karta1", "title": "Karta #1 (msefcik27) — platnost 01/2029", "why": "Z ní jedou automatické obnovy (Forpsi, Railway, Anthropic, Brevo…) — expirace = selžou naráz. Po výměně aktualizovat u všech poskytovatelů.", "due": "2028-12-15", "period_months": 0, "url": "", "last_done": ""},
+        {"id": "karta2", "title": "Karta #2 (martin.1303) — platnost 06/2030", "why": "Záložní/druhá karta — po výměně aktualizovat u poskytovatelů, kde je uložená.", "due": "2030-05-15", "period_months": 0, "url": "", "last_done": ""},
+    ]
+
+@app.get("/api/settings/payment-tasks")
+def get_payment_tasks():
+    s = db_get_settings()
+    tasks = s.get("payment_tasks")
+    if not tasks:
+        tasks = _seed_payment_tasks()
+        db_save_settings({"payment_tasks": tasks})
+    return {"tasks": tasks}
+
+class PaymentTasksRequest(BaseModel):
+    tasks: List[dict]
+
+@app.post("/api/settings/payment-tasks")
+def save_payment_tasks(req: PaymentTasksRequest):
+    clean = []
+    for t in (req.tasks or [])[:50]:
+        if not isinstance(t, dict):
+            continue
+        try:
+            period = int(t.get("period_months") or 0)
+        except (TypeError, ValueError):
+            period = 0
+        clean.append({
+            "id": str(t.get("id", ""))[:40] or uuid.uuid4().hex[:8],
+            "title": str(t.get("title", ""))[:160],
+            "why": str(t.get("why", ""))[:400],
+            "due": str(t.get("due", ""))[:10],
+            "period_months": max(0, min(period, 120)),
+            "url": str(t.get("url", ""))[:300],
+            "last_done": str(t.get("last_done", ""))[:10],
+        })
+    db_save_settings({"payment_tasks": clean})
+    return {"status": "ok", "tasks": clean}
+
+_AI_STATUS_CACHE = {"ts": 0.0, "data": None}
+
+async def _check_anthropic_credit(key: str) -> dict:
+    """Miniaturní dotaz (1 token) — ověří klíč i kredit. Zbývající zůstatek Anthropic přes API nevystavuje."""
+    if not key:
+        return {"state": "missing", "msg": "Klíč není nastaven → Alex (chat) neodpovídá"}
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                json={"model": "claude-haiku-4-5-20251001", "max_tokens": 1,
+                      "messages": [{"role": "user", "content": "ok"}]},
+                timeout=15.0)
+        if r.status_code == 200:
+            return {"state": "ok", "msg": "Klíč funguje, kredit je (auto-reload zapnutý)"}
+        if r.status_code == 401:
+            return {"state": "bad", "msg": "Neplatný klíč"}
+        detail = ""
+        try:
+            detail = r.json().get("error", {}).get("message", "")
+        except Exception:
+            detail = r.text[:120]
+        if "credit balance" in detail.lower():
+            return {"state": "empty", "msg": "KREDIT VYČERPÁN — chat Alex neodpovídá! Zkontrolovat auto-reload/kartu"}
+        if r.status_code == 429:
+            return {"state": "warn", "msg": "Rate limit — zkus kontrolu za chvíli"}
+        return {"state": "warn", "msg": f"HTTP {r.status_code}: {detail[:80]}"}
+    except Exception as e:
+        return {"state": "warn", "msg": f"Kontrola selhala: {str(e)[:80]}"}
+
+async def _check_openai_credit(key: str) -> dict:
+    """Miniaturní dotaz (1 token) — ověří klíč i kredit. Zbývající zůstatek OpenAI přes API nevystavuje."""
+    if not key:
+        return {"state": "missing", "msg": "OPENAI_API_KEY není v env — hlas jede na fallback prohlížeče (robot)"}
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {key}", "content-type": "application/json"},
+                json={"model": "gpt-4o-mini", "max_tokens": 1,
+                      "messages": [{"role": "user", "content": "ok"}]},
+                timeout=15.0)
+        if r.status_code == 200:
+            return {"state": "ok", "msg": "Klíč funguje, kredit je — Alex mluví hlasem Coral"}
+        if r.status_code == 401:
+            return {"state": "bad", "msg": "Neplatný klíč"}
+        detail = ""
+        err_code = ""
+        try:
+            err = r.json().get("error", {})
+            detail = err.get("message", "")
+            err_code = str(err.get("code") or err.get("type") or "")
+        except Exception:
+            detail = r.text[:120]
+        low = (detail + " " + err_code).lower()
+        if "insufficient_quota" in low or "quota" in low or "billing" in low:
+            return {"state": "empty", "msg": "KREDIT VYČERPÁN/NEDOBITO — Alex mluví robotem. Dobít na platform.openai.com (org Travel)"}
+        if r.status_code == 429:
+            return {"state": "warn", "msg": "Rate limit — zkus kontrolu za chvíli"}
+        return {"state": "warn", "msg": f"HTTP {r.status_code}: {detail[:80]}"}
+    except Exception as e:
+        return {"state": "warn", "msg": f"Kontrola selhala: {str(e)[:80]}"}
+
+@app.get("/api/settings/ai-status")
+async def ai_status(force: int = 0):
+    """Živý stav obou AI účtů. Cache 10 min (každá kontrola stojí zlomek haléře — neplýtvat)."""
+    now = _time.time()
+    if not force and _AI_STATUS_CACHE["data"] and now - _AI_STATUS_CACHE["ts"] < 600:
+        return _AI_STATUS_CACHE["data"]
+    s = db_get_settings()
+    anth, oai = await asyncio.gather(
+        _check_anthropic_credit(s.get("anthropic_api_key", "")),
+        _check_openai_credit(os.getenv("OPENAI_API_KEY", "")))
+    data = {"anthropic": anth, "openai": oai,
+            "checked_at": datetime.now().strftime("%d.%m. %H:%M")}
+    _AI_STATUS_CACHE["ts"] = now
+    _AI_STATUS_CACHE["data"] = data
+    return data
 
 # ─────────────────────────────────────────────
 # Scraping
@@ -2404,7 +2538,7 @@ def pricing_config():
     return {
         "pricing_base": s.get("pricing_base", 199),
         "pricing_threshold": s.get("pricing_threshold", 100),
-        "pricing_per_bed": s.get("pricing_per_bed", 3),
+        "pricing_per_bed": s.get("pricing_per_bed", 2),
     }
 
 @app.get("/api/pricing")
@@ -2412,9 +2546,9 @@ def pricing(beds: int):
     if beds <= 0:
         raise HTTPException(400, "Počet lůžek musí být kladný")
     s = db_get_settings()
-    base = s.get("pricing_base", 300)
+    base = s.get("pricing_base", 199)
     threshold = s.get("pricing_threshold", 100)
-    per_bed = s.get("pricing_per_bed", 3)
+    per_bed = s.get("pricing_per_bed", 2)
     price = base if beds <= threshold else base + (beds - threshold) * per_bed
     price = int(price)
     return {"beds": beds, "monthly_eur": price, "yearly_eur": price * 12,
@@ -2566,7 +2700,7 @@ async def register_hotel(req: RegistrationRequest, request: Request):
     # Načti aktuální ceník z DB
     pricing_base = int(s.get("pricing_base", 199))
     pricing_threshold = int(s.get("pricing_threshold", 100))
-    pricing_per_bed = float(s.get("pricing_per_bed", 3))
+    pricing_per_bed = float(s.get("pricing_per_bed", 2))
 
     hid = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
@@ -3483,7 +3617,7 @@ async def stripe_checkout(hotel_id: str, request: Request):
         raise HTTPException(400, "Stripe není nastaven")
     base = int(s.get("pricing_base", 199))
     threshold = int(s.get("pricing_threshold", 100))
-    per_bed = float(s.get("pricing_per_bed", 3))
+    per_bed = float(s.get("pricing_per_bed", 2))
     beds = hotel.get("bed_count", 0) or 0
     price = base if beds <= threshold else int(base + (beds - threshold) * per_bed)
     base_url = get_base_url(request)
@@ -4478,13 +4612,29 @@ def _norm_date(s: str) -> str:
     except Exception:
         return ""
 
+_stay_cache: dict = {}   # (hotel_id, room) -> {"stay": Stay, "expires": epoch}
+_STAY_CACHE_TTL = 300    # 5 min — po dobu konverzace se rezervace nečte z Apalea znovu
+
 async def _fetch_stay_for_hotel(h: dict, hid: str, room: str, settings: dict):
-    """Načte pobyt z PMS vč. app-level credentials a uložení rotovaného refresh tokenu."""
+    """Načte pobyt z PMS vč. app-level credentials a uložení rotovaného refresh tokenu.
+    Pozitivní výsledek se cachuje 5 min per (hotel, pokoj) — konverzace o 5 zprávách
+    tak čte Apaleo 1×, ne 5× (soulad s cert formulářem „typically one GET per conversation")."""
+    import time as _t
+    _ck = (hid, (room or "").strip().lower())
+    _c = _stay_cache.get(_ck)
+    if _c and _c["expires"] > _t.time():
+        return _c["stay"]
     _ph = dict(h)  # kopie — do originálu nezasahujeme
     if h.get("pms_refresh_token"):  # Connect (OAuth) režim → app-level credentials
         _ph["_apaleo_app_client_id"] = settings.get("apaleo_client_id", "")
         _ph["_apaleo_app_client_secret"] = settings.get("apaleo_client_secret", "")
     stay = await pms_layer.get_stay_for_room(_ph, room)
+    if stay:
+        _stay_cache[_ck] = {"stay": stay, "expires": _t.time() + _STAY_CACHE_TTL}
+        if len(_stay_cache) > 500:  # pojistka proti růstu paměti
+            _now = _t.time()
+            for _k in [k for k, v in _stay_cache.items() if v["expires"] <= _now]:
+                _stay_cache.pop(_k, None)
     if _ph.get("_new_refresh_token"):
         try:
             _db2 = db_load()
@@ -4504,12 +4654,16 @@ class VerifyStayRequest(BaseModel):
 async def guest_verify_stay(req: VerifyStayRequest, request: Request):
     """Znalostní ověření pobytu: pokoj + datum příjezdu musí sedět s In-house rezervací.
     Vrací jen {verified: bool} — žádné údaje z rezervace neprozrazuje."""
-    if not _rate_limit_ok("verify:" + _client_ip(request), max_hits=10):
+    # 5 pokusů/min na IP (dřív 10) + strop 60/h na hotel bez ohledu na IP —
+    # brání hádání kombinací pokoj×datum i z více IP adres.
+    if not _rate_limit_ok("verify:" + _client_ip(request), max_hits=5):
         raise HTTPException(429, "Příliš mnoho pokusů. Zkuste to prosím za chvíli.")
     db = db_load()
     _hid, h = _resolve_hotel(db, req.hotel_id)
     if not h or not h.get("pms_type"):
         return {"status": "ok", "verified": False}
+    if not _rate_limit_ok("verify-hotel:" + _hid, max_hits=60, window=3600):
+        raise HTTPException(429, "Příliš mnoho pokusů. Zkuste to prosím za chvíli.")
     arrival = _norm_date(req.arrival)
     if not arrival or not (req.room or "").strip():
         return {"status": "ok", "verified": False}
@@ -4983,7 +5137,7 @@ PRIVACY_CS = LEGAL_CSS + """
 <div class="container">
   <a href="/landing" class="back">← Zpět na hlavní stránku</a>
   <h1>Zásady ochrany osobních údajů</h1>
-  <div class="subtitle">Poskytovatele aplikace SmartestGuide · Účinnost od 1. 6. 2025</div>
+  <div class="subtitle">Poskytovatele aplikace SmartestGuide · Účinnost od 1. 6. 2025 · Naposledy aktualizováno 1. 8. 2026</div>
 
   <h2>I. Úvodní ustanovení</h2>
   <h3>Správce osobních údajů</h3>
@@ -5012,10 +5166,19 @@ PRIVACY_CS = LEGAL_CSS + """
   </ul>
 
   <h2>IV. Sdílení osobních údajů</h2>
-  <p>Vaše údaje sdílíme pouze s příslušným hotelem, smluvními zpracovateli (cloudové služby, platební brány, analytické nástroje) a orgány veřejné moci v případě zákonné povinnosti.</p>
+  <p>Vaše údaje sdílíme pouze s příslušným hotelem, smluvními zpracovateli uvedenými níže a orgány veřejné moci v případě zákonné povinnosti.</p>
+  <h3>Zpracovatelé (sub-processoři)</h3>
+  <ul>
+    <li><strong>Anthropic, PBC (USA)</strong> — AI model Claude generuje odpovědi asistenta; zpracovává text konverzace (dotaz hosta a související kontext, např. informace o hotelu). Data nejsou využívána k trénování AI modelů.</li>
+    <li><strong>OpenAI, L.L.C. (USA)</strong> — hlasový výstup asistenta (převod textu odpovědi na řeč); zpracovává pouze text právě čtené odpovědi.</li>
+    <li><strong>Apaleo GmbH (Německo)</strong> — hotelový systém (PMS): pokud hotel používá Apaleo a host si propojí svůj pobyt, čteme z Apalea údaje o rezervaci (číslo pokoje, termíny pobytu) výhradně pro zodpovězení dotazu hosta. Tyto údaje trvale neukládáme.</li>
+    <li><strong>Railway Corp. (hosting, region EU)</strong> — provoz aplikace a databáze.</li>
+    <li><strong>Stripe, Inc.</strong> — zpracování plateb hotelů (klientů); údaje hostů nezpracovává.</li>
+    <li><strong>Brevo (Sendinblue GmbH, Německo)</strong> — odesílání transakčních e-mailů hotelům.</li>
+  </ul>
 
   <h2>V. Přenos do třetích zemí</h2>
-  <p>Údaje jsou primárně zpracovávány v EU/EHP. Případný přenos mimo EU/EHP probíhá v souladu s GDPR (standardní smluvní doložky, adekvátní rozhodnutí Komise).</p>
+  <p>Údaje jsou primárně zpracovávány v EU/EHP. Případný přenos mimo EU/EHP (zejména Anthropic, OpenAI a Stripe se sídlem v USA) probíhá v souladu s GDPR — na základě standardních smluvních doložek, případně rámce EU-U.S. Data Privacy Framework.</p>
 
   <h2>VI. Doba uchovávání</h2>
   <ul>
@@ -5054,7 +5217,7 @@ PRIVACY_EN = LEGAL_CSS + """
 <div class="container">
   <a href="/landing" class="back">← Back to homepage</a>
   <h1>Privacy Policy</h1>
-  <div class="subtitle">SmartestGuide application provider · Effective from 1 June 2025</div>
+  <div class="subtitle">SmartestGuide application provider · Effective from 1 June 2025 · Last updated 1 August 2026</div>
 
   <h2>I. Introduction</h2>
   <h3>Data Controller</h3>
@@ -5083,10 +5246,19 @@ PRIVACY_EN = LEGAL_CSS + """
   </ul>
 
   <h2>IV. Sharing of personal data</h2>
-  <p>Your data is shared only with the relevant hotel, contracted processors (cloud services, payment gateways, analytics tools) and public authorities when required by law.</p>
+  <p>Your data is shared only with the relevant hotel, the contracted processors listed below and public authorities when required by law.</p>
+  <h3>Processors (sub-processors)</h3>
+  <ul>
+    <li><strong>Anthropic, PBC (USA)</strong> — the Claude AI model generates assistant responses; it processes conversation text (the guest's question and related context, e.g. hotel information). Data is not used to train AI models.</li>
+    <li><strong>OpenAI, L.L.C. (USA)</strong> — voice output of the assistant (text-to-speech); it processes only the text of the response being read aloud.</li>
+    <li><strong>Apaleo GmbH (Germany)</strong> — hotel property management system (PMS): if the hotel uses Apaleo and the guest links their stay, we read reservation details (room number, stay dates) from Apaleo solely to answer the guest's question. We do not permanently store this data.</li>
+    <li><strong>Railway Corp. (hosting, EU region)</strong> — application and database hosting.</li>
+    <li><strong>Stripe, Inc.</strong> — payment processing for hotels (clients); it does not process guest data.</li>
+    <li><strong>Brevo (Sendinblue GmbH, Germany)</strong> — transactional e-mails to hotels.</li>
+  </ul>
 
   <h2>V. International transfers</h2>
-  <p>Data is primarily processed within the EU/EEA. Any transfer outside the EU/EEA is carried out in compliance with GDPR (standard contractual clauses, Commission adequacy decisions).</p>
+  <p>Data is primarily processed within the EU/EEA. Any transfer outside the EU/EEA (in particular Anthropic, OpenAI and Stripe, based in the USA) is carried out in compliance with GDPR — under standard contractual clauses or the EU-U.S. Data Privacy Framework.</p>
 
   <h2>VI. Retention periods</h2>
   <ul>
@@ -5605,9 +5777,9 @@ def _create_invoice_record(db: dict, hotel_id: str, hotel: dict, status: str = "
     from datetime import timedelta as _td
     beds = hotel.get("bed_count") or hotel.get("subscription_paid_beds") or 0
     s = db_get_settings()
-    base = int(s.get("pricing_base", 200))
+    base = int(s.get("pricing_base", 199))
     threshold = int(s.get("pricing_threshold", 100))
-    per_bed = float(s.get("pricing_per_bed", 3))
+    per_bed = float(s.get("pricing_per_bed", 2))
     price = base if beds <= threshold else base + (beds - threshold) * per_bed
     now = datetime.utcnow()
     if "invoices" not in db:

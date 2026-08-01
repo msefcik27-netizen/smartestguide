@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+@font-face { font-family: 'Lib'; src: url('LiberationSans-Regular.ttf'); font-weight: 400; }
+@font-face { font-family: 'Lib'; src: url('LiberationSans-Bold.ttf'); font-weight: 700; }
+
+@page {
+  size: A4;
+  margin: 20mm 16mm 18mm 16mm;
+  @top-left  { content: "SMARTEST GUIDE"; font-family:'Lib'; font-weight:700; font-size:8pt; color:#1a1a1a; letter-spacing:.3pt; }
+  @top-right { content: "Apaleo Onboarding Guide"; font-family:'Lib'; font-size:8pt; color:#8a8a8a; }
+  @bottom-left  { content: "support@smartestguide.com  ·  www.smartestguide.com/apaleo"; font-family:'Lib'; font-size:7.5pt; color:#9a9a9a; }
+  @bottom-right { content: "Page " counter(page); font-family:'Lib'; font-size:7.5pt; color:#9a9a9a; }
+}
+
+body { font-family:'Lib', sans-serif; color:#1f2430; font-size:10.2pt; line-height:1.5; margin:0; }
+
+h1 { font-size:26pt; font-weight:700; margin:0 0 4pt 0; color:#12141a; letter-spacing:-.3pt; }
+h1 .x { color:#0a9d86; }
+.subtitle { color:#5a6070; font-size:11pt; margin:0 0 14pt 0; }
+.rule { height:2px; background:#ececec; margin:0 0 14pt 0; }
+
+h2 { font-size:12pt; font-weight:700; color:#0a9d86; margin:16pt 0 5pt 0; }
+h2 .n { color:#FF6B00; }
+p { margin:0 0 7pt 0; }
+b, strong { font-weight:700; }
+.muted { color:#5a6070; }
+a { color:#0a9d86; text-decoration:none; }
+
+ul.data { margin:4pt 0 7pt 0; padding-left:0; list-style:none; }
+ul.data li { margin:0 0 4pt 0; padding-left:14pt; position:relative; }
+ul.data li:before { content:"–"; position:absolute; left:0; color:#0a9d86; font-weight:700; }
+
+.caption { font-size:8pt; color:#8a8a8a; font-style:italic; margin:3pt 0 10pt 0; }
+
+/* ---- recreated PMS boxes ---- */
+.box { border:1px solid #e2e2df; border-radius:14px; padding:16px 18px; display:flex; align-items:center; margin:8pt 0 2pt 0; background:#ffffff; }
+.box .plug { margin-right:13px; width:24px; }
+.box .body { flex:1; }
+.box h3 { margin:0 0 3px 0; font-size:11pt; font-weight:700; color:#12141a; }
+.box .txt { font-size:9pt; color:#5a6070; line-height:1.45; margin:0; }
+.box .btn { background:#FF6B00; color:#fff; font-weight:700; font-size:9pt; padding:9px 16px; border-radius:9px; margin-left:14px; white-space:nowrap; }
+.box.connected { background:#eefaf3; border-color:#c7ebd7; }
+.box.connected h3 { color:#1aa06a; }
+.box .disc { font-size:8.5pt; color:#8a8a8a; text-decoration:underline; margin-left:14px; white-space:nowrap; }
+
+.consent { width:82%; display:block; margin:8pt auto 2pt auto; border:1px solid #e2e2df; border-radius:8px; }
+
+/* ---- chat mockup ---- */
+.phone { width:280px; margin:8pt auto 2pt auto; background:#0b0d12; border-radius:16px; padding:0 0 10px 0; overflow:hidden; border:1px solid #23262e; break-inside:avoid; page-break-inside:avoid; }
+.figure { break-inside:avoid; page-break-inside:avoid; }
+.phone .top { background:#111319; padding:11px 13px; display:flex; align-items:center; border-bottom:1px solid #20232b; }
+.phone .av { width:26px; height:26px; border-radius:50%; margin-right:9px;
+  background:#12b48c; }
+.phone .top .h { color:#fff; font-weight:700; font-size:9.5pt; line-height:1.15; }
+.phone .top .s { color:#12b48c; font-size:7pt; }
+.phone .msgs { padding:10px 11px 3px 11px; }
+.bot, .user { font-size:7.8pt; line-height:1.35; border-radius:11px; padding:7px 9px; margin-bottom:7px; max-width:82%; }
+.bot { background:#171a21; color:#e7e9ee; border:1px solid #23262e; }
+.bot b { color:#fff; }
+.user { background:#FF6B00; color:#fff; font-weight:700; margin-left:auto; text-align:left; max-width:66%; }
+.time { font-size:6.5pt; color:#6b7180; margin:-4px 0 8px 2px; }
+.time.r { text-align:right; margin-right:2px; }
+
+.footnote { margin-top:14pt; padding-top:8pt; border-top:1px solid #ececec; font-size:8.5pt; color:#6a7080; font-style:italic; }
+.keep { }
+</style>
+</head>
+<body>
+
+<h1>SMARTEST GUIDE <span class="x">× Apaleo</span></h1>
+<p class="subtitle">Onboarding guide — give every guest a personal AI concierge that knows their stay. Setup takes about two minutes; no API keys, no IT project.</p>
+<div class="rule"></div>
+
+<h2>What is SMARTEST GUIDE?</h2>
+<p>SMARTEST GUIDE is an in-stay AI concierge. Guests scan one QR code — in the room or at reception — and chat with <b>Alex</b> in their own language (100+ languages). Alex answers questions about breakfast, WiFi, parking, wellness, house rules and local tips, 24/7, only from your hotel profile and Apaleo data. Guests can also simply <b>talk to Alex</b> — ask by voice and hear the answer read aloud in a natural voice. With Apaleo connected, Alex also knows each guest's reservation and answers personally.</p>
+
+<h2>What data is shared between Apaleo and SMARTEST GUIDE — and why</h2>
+<p class="muted">When a guest identifies their room, SMARTEST GUIDE reads that guest's in-house reservation from Apaleo to personalise Alex's answers. We use:</p>
+<ul class="data">
+  <li><b>Room / unit identifier</b> — to match the guest's room number to their reservation.</li>
+  <li><b>Check-in / check-out date and time</b> — so Alex gives the guest their exact times (these override the hotel's generic profile times).</li>
+  <li><b>Length of stay (number of nights)</b> — for stay-related answers.</li>
+  <li><b>Rate plan name</b> — to reference the guest's package when relevant.</li>
+</ul>
+<p>We request a <b>single, read-only scope: <code>reservations.read</code></b>. We never write anything, and we <b>never read billing, folio or payment data</b> — for anything about the bill, Alex defers to reception. All personally identifiable information is omitted (PII: Omit all). Data is fetched <b>on demand</b> for a single AI response and <b>never stored</b>. Privacy Policy: <a>www.smartestguide.com/privacy</a></p>
+
+<h2><span class="n">Step 1</span> — Get SMARTEST GUIDE</h2>
+<p>Sign up at <b>smartestguide.com</b> (14-day free trial). You'll receive your hotel portal link and a QR code for your guests.</p>
+
+<h2><span class="n">Step 2</span> — Connect Apaleo</h2>
+<p>In your hotel portal, the <b>PMS section</b> sits at the top. Click <b>Connect to Apaleo</b>. You'll be redirected to Apaleo — sign in with your Apaleo login (and your authenticator code if your account uses 2FA), then click <b>Authorize</b>. The consent screen shows exactly what SMARTEST GUIDE can access: read-only reservations.</p>
+
+<div class="box">
+  <div class="plug"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0a9d86" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="2.5" x2="9" y2="7.5"/><line x1="15" y1="2.5" x2="15" y2="7.5"/><path d="M6.2 7.5h11.6v2.1a5.8 5.8 0 0 1-11.6 0z"/><line x1="12" y1="15.5" x2="12" y2="22"/></svg></div>
+  <div class="body">
+    <h3>Connect your hotel system</h3>
+    <p class="txt">Do you use <b>Apaleo</b>? Once connected, Alex knows your guests' stays and answers personally (check-out, package, length of stay). No copying API keys — one click and consent in Apaleo.</p>
+  </div>
+  <div class="btn">Connect to Apaleo →</div>
+</div>
+<p class="caption">The PMS section in your SMARTEST GUIDE portal.</p>
+
+<img class="consent" src="Auth.png" alt="Apaleo consent screen">
+<p class="caption">Apaleo consent screen — read-only access to reservations.</p>
+
+<h2><span class="n">Step 3</span> — Enter your property code</h2>
+<p>After authorizing you're taken back to your portal automatically. Type your Apaleo property code — visible in your Apaleo URL, e.g. app.apaleo.com/<b>BER</b>/... — and click <b>Save</b>.</p>
+
+<div class="box connected">
+  <div class="plug"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0a9d86" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="2.5" x2="9" y2="7.5"/><line x1="15" y1="2.5" x2="15" y2="7.5"/><path d="M6.2 7.5h11.6v2.1a5.8 5.8 0 0 1-11.6 0z"/><line x1="12" y1="15.5" x2="12" y2="22"/></svg></div>
+  <div class="body">
+    <h3>Hotel system connected (Apaleo)</h3>
+    <p class="txt">Property: <b>BER</b>. Alex knows your guests' stays and answers personally (check-out, package, length of stay).</p>
+  </div>
+  <div class="disc">Disconnect Apaleo</div>
+</div>
+<p class="caption">Connected — Alex now reads live in-house reservations.</p>
+
+<h2><span class="n">Step 4</span> — Test it</h2>
+<p>Open your guest chat with <code>?room=&lt;unit number&gt;</code> appended (this is what your room QR codes will carry) and ask: "When is my check-out?" Alex answers from the live reservation. If a guest asks about their bill, Alex politely defers to reception — SMARTEST GUIDE never reads any billing or payment data.</p>
+
+<div class="phone">
+  <div class="top">
+    <div class="av"></div>
+    <div><div class="h">DEMO Hotel</div><div class="s">AI Concierge · SMARTEST GUIDE</div></div>
+  </div>
+  <div class="msgs">
+    <div class="bot"><b>Check-out:</b> 10:00 AM on <b>July 8, 2026</b><br><br>You're staying with us for <b>3 nights</b> in room <b>1.003</b>.<br><br>If you need an earlier check-in or a later check-out, feel free to contact our reception.</div>
+    <div class="time">21:34</div>
+    <div class="user">what is my balance?</div>
+    <div class="time r">21:34</div>
+    <div class="bot">I don't have access to account, billing, or payment information. For details about your balance, charges, or any payments, please contact reception directly:<br><br>– <b>Phone:</b> +420 123 123 123<br>– <b>Email:</b> reception@hotel.com<br>– <b>WhatsApp:</b> +420 123 123 123<br><br>They'll be happy to help you with all account-related matters!</div>
+  </div>
+</div>
+<p class="caption">A personalised answer from the reservation — billing questions always go to reception.</p>
+
+<h2 class="keep">Day-to-day</h2>
+<p>Nothing to maintain. Alex reads a guest's reservation only when the guest asks a stay-related question — no polling, no background sync, no data stored. If Apaleo is unreachable, Alex falls back to your hotel profile; the chat never breaks.</p>
+
+<h2>Disconnecting</h2>
+<p>In the portal PMS section, click <b>Disconnect Apaleo</b>. Your refresh token is deleted immediately and access ends. SMARTEST GUIDE keeps no reservation data — it never stored any.</p>
+
+<p class="footnote"><b>Support:</b> support@smartestguide.com — we reply within one business day. More: www.smartestguide.com/apaleo<br>
+<b>Privacy by design:</b> single read-only scope (reservations.read), all PII omitted, data fetched on demand, zero retention.</p>
+
+</body>
+</html>

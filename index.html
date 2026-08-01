@@ -428,6 +428,36 @@
         </div>
       </div>
 
+      <div class="card settings-section" style="margin-top:20px">
+        <h3>💳 Platby &amp; obnovy <small style="font-weight:400;color:var(--muted);font-size:12px">co, kdy a proč platíme</small></h3>
+
+        <!-- Živý stav AI kreditů -->
+        <div style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <span style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Živý stav AI kreditů</span>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px" onclick="loadAiStatus(true)">🔄 Zkontrolovat teď</button>
+          </div>
+          <div class="key-status" id="ai-anthropic-status" style="margin-bottom:8px">
+            <span class="key-dot missing" id="ai-anthropic-dot"></span>
+            <span style="flex:1"><strong>Anthropic</strong> <span style="color:var(--muted)">(chat Alex)</span> — <span id="ai-anthropic-msg">načítám…</span></span>
+            <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent);font-size:12px;text-decoration:none">otevřít →</a>
+          </div>
+          <div class="key-status" id="ai-openai-status" style="margin-bottom:0">
+            <span class="key-dot missing" id="ai-openai-dot"></span>
+            <span style="flex:1"><strong>OpenAI</strong> <span style="color:var(--muted)">(hlas Alex — TTS)</span> — <span id="ai-openai-msg">načítám…</span></span>
+            <a href="https://platform.openai.com/settings/organization/billing/overview" target="_blank" style="color:var(--accent);font-size:12px;text-decoration:none">otevřít →</a>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px" id="ai-status-checked"></div>
+        </div>
+
+        <!-- Seznam plateb -->
+        <div id="payment-tasks-list" style="display:flex;flex-direction:column;gap:8px"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+          <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px" onclick="addPaymentTask()">＋ Přidat platbu</button>
+          <span style="font-size:11px;color:var(--muted)">Odškrtnutí posune termín o periodu · zdroj: EXPIRACE_HLIDAT.md</span>
+        </div>
+      </div>
+
       </div><!-- konec sloupce 1 -->
       <div><!-- SLOUPEC 2 -->
 
@@ -638,7 +668,12 @@ const API = '';  // prázdné = stejná origin (backend servíruje frontend)
 window.fetch = (function(orig){
   return async function(){
     const r = await orig.apply(this, arguments);
-    try{ if(r.status===401 && String(arguments[0]||'').indexOf('/api/')>=0) showAdminLogin(); }catch(e){}
+    try{
+      const u=String(arguments[0]||'');
+      // 401 z /api/danger/* = špatné DRUHÉ heslo (citlivé akce) a 401 z /api/admin/login = špatné admin heslo
+      // — ani jedno neznamená odhlášení, admin login se pro ně nesmí otvírat (jinak vznikne smyčka).
+      if(r.status===401 && u.indexOf('/api/')>=0 && u.indexOf('/api/danger/')<0 && u.indexOf('/api/admin/login')<0) showAdminLogin();
+    }catch(e){}
     return r;
   };
 })(window.fetch);
@@ -734,7 +769,7 @@ function _renderPage(name){
   if(name==='log')renderLog();
   if(name==='analytics')loadAnalytics();
   if(name==='dashboard'||name==='hotels')loadHotels();
-  if(name==='settings'){loadKeyStatus();loadCompanySettings();}
+  if(name==='settings'){loadKeyStatus();loadCompanySettings();loadPaymentTasks();loadAiStatus(false);}
   if(name==='billing')loadBilling();
   if(name==='commissions')loadCommissionsPage();
   if(name==='pricing')loadPricingForm();
@@ -836,6 +871,136 @@ async function deleteApiKey(){
   addLog('warn','API klíč odstraněn','settings');
   toast('API klíč odstraněn','warn');
   loadKeyStatus();
+}
+
+// ── Platby & obnovy (checklist) + živý stav AI kreditů ──────────────
+let _paymentTasks=[];
+const _PT_DOT={ok:'var(--success)',empty:'var(--danger)',bad:'var(--danger)',warn:'var(--warn)',missing:'var(--warn)'};
+
+async function loadAiStatus(force){
+  const set=(id,st)=>{
+    document.getElementById('ai-'+id+'-msg').textContent=st.msg;
+    const dot=document.getElementById('ai-'+id+'-dot');
+    dot.style.background=_PT_DOT[st.state]||'var(--warn)';
+    const box=document.getElementById('ai-'+id+'-status');
+    box.style.borderColor=(st.state==='ok')?'rgba(46,204,135,.4)':(st.state==='empty'||st.state==='bad')?'rgba(255,90,90,.5)':'rgba(255,170,51,.4)';
+  };
+  try{
+    if(force){document.getElementById('ai-anthropic-msg').textContent='kontroluji…';document.getElementById('ai-openai-msg').textContent='kontroluji…';}
+    const r=await fetch(API+'/api/settings/ai-status'+(force?'?force=1':''));
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    set('anthropic',d.anthropic);set('openai',d.openai);
+    document.getElementById('ai-status-checked').textContent='Naposledy zkontrolováno: '+d.checked_at+' · Přesný zůstatek API nevystavují — tohle je živý test klíče a kreditu.';
+    if(d.anthropic.state==='empty')addLog('error','Anthropic kredit vyčerpán — chat Alex neodpovídá!','settings');
+    if(d.openai.state==='empty')addLog('warn','OpenAI kredit vyčerpán/nedobito — Alex mluví robotem (fallback)','settings');
+  }catch(e){
+    document.getElementById('ai-anthropic-msg').textContent='kontrola nedostupná';
+    document.getElementById('ai-openai-msg').textContent='kontrola nedostupná';
+  }
+}
+
+async function loadPaymentTasks(){
+  try{
+    const r=await fetch(API+'/api/settings/payment-tasks');
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    _paymentTasks=(await r.json()).tasks||[];
+    renderPaymentTasks();
+  }catch(e){addLog('error','Nelze načíst platby & obnovy: '+e.message,'settings');}
+}
+
+function renderPaymentTasks(){
+  const box=document.getElementById('payment-tasks-list');
+  if(!box)return;
+  const today=new Date();today.setHours(0,0,0,0);
+  const sorted=[..._paymentTasks].sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));
+  box.innerHTML=sorted.map(t=>{
+    const due=t.due?new Date(t.due+'T00:00:00'):null;
+    const days=due?Math.round((due-today)/86400000):null;
+    const state=days===null?'':days<0?'over':days<=14?'soon':'ok';
+    const col=state==='over'?'var(--danger)':state==='soon'?'var(--warn)':'var(--muted)';
+    const dueTxt=due?due.toLocaleDateString('cs-CZ'):'—';
+    const daysTxt=days===null?'':days<0?` · ${-days} dní PO TERMÍNU!`:days===0?' · DNES':` · za ${days} dní`;
+    const per=t.period_months>0?`↻ à ${t.period_months} měs.`:'jednorázově';
+    return `<div style="border:1px solid ${state==='over'?'rgba(255,90,90,.5)':state==='soon'?'rgba(255,170,51,.4)':'var(--border)'};border-radius:8px;padding:10px 12px;background:var(--card)">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <input type="checkbox" onclick="tickPaymentTask('${t.id}');return false" style="width:16px;height:16px;margin-top:2px;cursor:pointer" title="Odškrtnout = zaplaceno/zkontrolováno → posune termín"/>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600">${t.url?`<a href="${t.url}" target="_blank" style="color:var(--text);text-decoration:none">${t.title} ↗</a>`:t.title}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.5">${t.why||''}</div>
+          <div style="font-size:11px;margin-top:4px;color:${col};font-weight:${state==='over'||state==='soon'?'700':'400'}">📅 ${dueTxt}${daysTxt} <span style="color:var(--muted);font-weight:400">· ${per}${t.last_done?` · naposledy ${new Date(t.last_done+'T00:00:00').toLocaleDateString('cs-CZ')}`:''}</span></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <button class="btn btn-secondary" style="font-size:10px;padding:2px 7px" onclick="editPaymentTaskDate('${t.id}')" title="Změnit termín">✏️</button>
+          <button class="btn btn-secondary" style="font-size:10px;padding:2px 7px" onclick="deletePaymentTask('${t.id}')" title="Smazat">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('')||'<div style="font-size:12px;color:var(--muted)">Žádné položky</div>';
+}
+
+async function savePaymentTasks(){
+  try{
+    const r=await fetch(API+'/api/settings/payment-tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tasks:_paymentTasks})});
+    if(!r.ok){const e=await r.json();throw new Error(e.detail||('HTTP '+r.status));}
+    _paymentTasks=(await r.json()).tasks||_paymentTasks;
+    renderPaymentTasks();
+  }catch(e){toast('Chyba ukládání: '+e.message,'err');}
+}
+
+function _isoLocal(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+
+function _isoAddMonths(iso,months){
+  const d=iso?new Date(iso+'T00:00:00'):new Date();
+  const base=(d<new Date())?new Date():d;   // posun od dneška, ať se termín nekupí v minulosti
+  base.setMonth(base.getMonth()+months);
+  return _isoLocal(base);
+}
+
+async function tickPaymentTask(id){
+  const t=_paymentTasks.find(x=>x.id===id);if(!t)return;
+  const todayIso=_isoLocal(new Date());
+  if(t.period_months>0){
+    t.last_done=todayIso;
+    t.due=_isoAddMonths(t.due,t.period_months);
+    toast(`✅ ${t.title.split('—')[0].trim()} — nový termín ${new Date(t.due+'T00:00:00').toLocaleDateString('cs-CZ')}`);
+  }else{
+    const nd=prompt('Jednorázová položka (např. výměna karty).\nZadej NOVÝ termín kontroly (RRRR-MM-DD), nebo nech prázdné pro smazání:',t.due||'');
+    if(nd===null)return;
+    if(!nd.trim()){_paymentTasks=_paymentTasks.filter(x=>x.id!==id);}
+    else if(/^\d{4}-\d{2}-\d{2}$/.test(nd.trim())){t.last_done=todayIso;t.due=nd.trim();}
+    else{toast('Špatný formát data — použij RRRR-MM-DD','err');return;}
+  }
+  await savePaymentTasks();
+  addLog('ok',`Platba odškrtnuta: ${t.title}`,'settings');
+}
+
+async function editPaymentTaskDate(id){
+  const t=_paymentTasks.find(x=>x.id===id);if(!t)return;
+  const nd=prompt(`Termín pro: ${t.title}\n(RRRR-MM-DD)`,t.due||'');
+  if(nd===null)return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(nd.trim())){toast('Špatný formát data — použij RRRR-MM-DD','err');return;}
+  t.due=nd.trim();
+  await savePaymentTasks();
+}
+
+async function deletePaymentTask(id){
+  const t=_paymentTasks.find(x=>x.id===id);if(!t)return;
+  if(!confirm(`Smazat položku „${t.title}"?`))return;
+  _paymentTasks=_paymentTasks.filter(x=>x.id!==id);
+  await savePaymentTasks();
+}
+
+async function addPaymentTask(){
+  const title=prompt('Název platby (co platíme):');if(!title||!title.trim())return;
+  const why=prompt('Proč to máme / co se stane bez toho:')||'';
+  const due=prompt('Termín (RRRR-MM-DD):','');
+  if(due===null||!/^\d{4}-\d{2}-\d{2}$/.test((due||'').trim())){toast('Špatný formát data — použij RRRR-MM-DD','err');return;}
+  const perRaw=prompt('Perioda v měsících (12 = ročně, 1 = měsíčně, 0 = jednorázově):','12');
+  const per=parseInt(perRaw,10);
+  const url=prompt('Odkaz kde se platí (nepovinné):')||'';
+  _paymentTasks.push({id:'pt'+Date.now().toString(36),title:title.trim(),why:why.trim(),due:due.trim(),period_months:isNaN(per)?0:per,url:url.trim(),last_done:''});
+  await savePaymentTasks();
 }
 
 function toggleKeyVisibility(){
