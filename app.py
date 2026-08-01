@@ -5657,15 +5657,16 @@ def apaleo_connect(token: str, request: Request):
 @app.get("/api/pms/apaleo/callback")
 async def apaleo_callback(request: Request, code: str = "", state: str = "", error: str = ""):
     """Návrat z Apaleo: výměna kódu za tokeny, uložení k hotelu dle state."""
-    def _page(title, body, ok=True, portal_url=""):
+    def _page(title, body, ok=True, portal_url="", extra=""):
         color = "#2ecc87" if ok else "#ff4f6a"
         back = (f'<a href="{portal_url}" style="display:inline-block;margin-top:22px;background:#2c5fae;color:#fff;'
                 f'text-decoration:none;padding:11px 24px;border-radius:9px;font-weight:700;font-size:14px">← Back to your portal</a>'
                 if portal_url else
                 '<p style="margin-top:22px;font-size:13px;color:#6b6f8e">You can close this window and return to your SMARTEST GUIDE portal.</p>')
+        # Auto-redirect vynechat, když stránka obsahuje interakci (výběr property)
         redirect = (f'<p style="margin-top:10px;font-size:12px;color:#6b6f8e">Returning automatically in <span id="cd">6</span> s…</p>'
                     f'<script>var c=6,e=document.getElementById("cd");setInterval(function(){{c--;if(e)e.textContent=c;'
-                    f'if(c<=0)location.href="{portal_url}";}},1000);</script>' if (portal_url and ok) else "")
+                    f'if(c<=0)location.href="{portal_url}";}},1000);</script>' if (portal_url and ok and not extra) else "")
         return HTMLResponse(f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title></head>
 <body style="font-family:sans-serif;background:#15161a;color:#e6e4df;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0">
@@ -5674,6 +5675,7 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
 <div style="font-size:40px;margin-bottom:12px">{"✅" if ok else "⚠️"}</div>
 <h2 style="color:{color};margin:0 0 10px">{title}</h2>
 <p style="line-height:1.6;color:#a9adc1">{body}</p>
+{extra}
 {back}
 {redirect}
 </div></body></html>""")
@@ -5722,7 +5724,7 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
     # a předvyplň prázdná pole profilu (lůžka, check-in/out). Více properties → hotel
     # vybere z dropdownu v portálu (žádné ruční opisování kódu). Graceful: selhání
     # auto-setupu nikdy nezablokuje samotné připojení.
-    prop_note = ""
+    prop_note, picker_html = "", ""
     try:
         _ph = _pms_hotel_ctx(db["hotels"][hid], s)
         props = await pms_layer.apaleo_list_properties(_ph) or []
@@ -5737,7 +5739,36 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
                     {"bed_count": "bed count", "checkin_time": "check-in time",
                      "checkout_time": "check-out time"}.get(k, k) for k in filled) + "."
         elif len(props) > 1 and not db["hotels"][hid].get("pms_property_id"):
-            prop_note = f" Your account has {len(props)} properties — please pick yours from the list in the PMS section of your portal."
+            # Více properties → výběr ROVNOU tady na potvrzovací stránce (žádné hledání
+            # v portálu). Uloží se přes /api/pms/apaleo/select-property (validace + prefill).
+            prop_note = f" One last step: your account has {len(props)} properties — select yours below."
+            _opts = "".join(
+                f'<option value="{p["code"]}">{(p["name"] or p["code"])} ({p["code"]})'
+                + (" — test" if p.get("status") == "Test" else "") + "</option>"
+                for p in props)
+            _tok = h.get("hotel_token", "")
+            picker_html = f"""
+<div style="margin-top:20px;background:#15161a;border:1px solid #2a2c36;border-radius:12px;padding:16px">
+<div style="font-size:13px;font-weight:700;margin-bottom:10px">Select your property</div>
+<select id="prp" style="width:100%;background:#1e1f25;border:1px solid #2a2c36;border-radius:8px;color:#e6e4df;font-size:14px;padding:10px">
+<option value="">— select your hotel —</option>{_opts}</select>
+<button onclick="saveProp()" style="margin-top:12px;background:#2c5fae;color:#fff;border:none;padding:10px 22px;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer">Save property</button>
+<p id="prp-msg" style="font-size:12px;color:#a9adc1;margin:8px 0 0"></p>
+<script>
+async function saveProp(){{
+  var v=document.getElementById('prp').value, m=document.getElementById('prp-msg');
+  if(!v){{m.textContent='Please select your hotel first.';return;}}
+  m.textContent='Saving…';
+  try{{
+    var r=await fetch('/api/pms/apaleo/select-property',{{method:'POST',
+      headers:{{'Content-Type':'application/json'}},
+      body:JSON.stringify({{token:'{_tok}',property_code:v}})}});
+    var d=await r.json();
+    if(d.status==='ok'&&d.valid){{m.textContent='Saved ✓ Redirecting…';location.href='{portal_url}';}}
+    else{{m.textContent=d.message||'Saving failed — please try again.';}}
+  }}catch(e){{m.textContent='Saving failed: '+e.message;}}
+}}
+</script></div>"""
         elif not db["hotels"][hid].get("pms_property_id"):
             prop_note = " One last step: select your property in the PMS section of your portal."
         if _ph.get("_new_refresh_token"):
@@ -5748,7 +5779,7 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
         if not h.get("pms_property_id"):
             prop_note = " One last step: select your property in the PMS section of your portal."
     logging.info("Apaleo Connect: hotel %s připojen.", hid)
-    return _page("Apaleo connected", f"{h.get('name','Your hotel')} is now connected to SMARTEST GUIDE. Alex, the AI concierge, can answer your guests using their reservation details (check-out time, length of stay, package).{prop_note}", portal_url=portal_url)
+    return _page("Apaleo connected", f"{h.get('name','Your hotel')} is now connected to SMARTEST GUIDE. Alex, the AI concierge, can answer your guests using their reservation details (check-out time, length of stay, package).{prop_note}", portal_url=portal_url, extra=picker_html)
 
 @app.get("/api/pms/apaleo/properties")
 async def apaleo_properties(token: str):
