@@ -88,19 +88,29 @@ def format_extension_block(ext: dict) -> str:
     return "\n".join(lines)
 
 def format_services_block(services: list) -> str:
-    """Blok SLUŽBY HOTELU do promptu — nabídka z PMS (availability.read)."""
+    """Blok SLUŽBY HOTELU do promptu — nabídka z PMS (service-offers na míru pobytu)."""
     if not services:
         return ""
-    lines = ["SLUŽBY HOTELU K DOKOUPENÍ (živá nabídka z hotelového systému):"]
+    _UNIT_LBL = {"Person": "za osobu", "Room": "za pokoj"}
+    lines = ["SLUŽBY HOTELU K DOKOUPENÍ (živá nabídka z hotelového systému, na míru pobytu hosta):"]
     for s in services[:12]:
         row = f"- {s.get('name','')}"
+        cur = s.get("currency", "")
         if s.get("price") is not None:
-            row += f" — {s['price']} {s.get('currency','')}"
+            row += f" — {s['price']} {cur}"
+            u = _UNIT_LBL.get(s.get("pricing_unit") or "")
+            if u and not s.get("price_is_total"):
+                row += f" {u}"
+            if s.get("price_is_total"):
+                row += " CELKEM za celý pobyt hosta"
+            elif s.get("price_total") is not None and s.get("price_total") != s.get("price"):
+                row += f" (celkem za celý pobyt hosta: {s['price_total']} {cur})"
         if s.get("description"):
             row += f" ({s['description'][:120]})"
         lines.append(row)
     lines.append("Tyto služby přirozeně nabídni, když se hodí k tématu (snídaně, wellness, pozdní check-out…) — "
-                 "jako přátelský tip concierge, ne jako reklamu. Ceny uváděj přesně. Objednání vyřídí recepce.")
+                 "jako přátelský tip concierge, ne jako reklamu. Ceny uváděj PŘESNĚ vč. rozlišení "
+                 "jednotkové ceny a součtu za pobyt — nic nedopočítávej. Objednání vyřídí recepce.")
     return "\n".join(lines)
 
 # ── Tolerantní párování čísla pokoje ─────────────────────────────────────────
@@ -470,12 +480,19 @@ async def apaleo_service_offers(hotel: dict, stay: "Stay") -> Optional[list]:
         if not name or name.lower() in seen:
             continue
         seen.add(name.lower())
-        price_obj = (item.get("totalAmount") or svc.get("defaultGrossPrice")
-                     or item.get("price") or {})
-        price = price_obj.get("grossAmount", price_obj.get("amount"))
+        # Jednotková cena (defaultGrossPrice služby) vs. SOUČET za celý pobyt (totalAmount)
+        # — totalAmount je např. 105 EUR = 15 EUR × 7 nocí; bez popisku by mátl hosty.
+        _unit_obj = svc.get("defaultGrossPrice") or {}
+        _total_obj = item.get("totalAmount") or item.get("price") or {}
+        unit_price = _unit_obj.get("amount", _unit_obj.get("grossAmount"))
+        total_price = _total_obj.get("grossAmount", _total_obj.get("amount"))
         desc = str(svc.get("description") or "").strip()
         out.append({"name": name, "description": desc[:200],
-                    "price": price, "currency": price_obj.get("currency") or ""})
+                    "price": unit_price if unit_price is not None else total_price,
+                    "price_is_total": unit_price is None and total_price is not None,
+                    "price_total": total_price,
+                    "pricing_unit": str(svc.get("pricingUnit") or ""),
+                    "currency": (_unit_obj.get("currency") or _total_obj.get("currency") or "")})
         if len(out) >= 12:
             break
     if not out:
