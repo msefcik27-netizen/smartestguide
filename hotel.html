@@ -378,7 +378,7 @@ const EN_MAP = {
   "Opravdu odpojit hotelový systém (Apaleo)?\n\nAlex přestane znát pobyty hostů a bude odpovídat jen z profilu hotelu. Připojit ho můžete kdykoli znovu jedním kliknutím.":"Really disconnect your hotel system (Apaleo)?\n\nAlex will stop knowing guest stays and answer only from the hotel profile. You can reconnect anytime with one click.",
   "Zadejte kód property (např. BER)":"Enter the property code (e.g. BER)",
   "Uložení se nepovedlo: ":"Saving failed: ","Odpojení se nepovedlo: ":"Disconnecting failed: ",
-  "Načítám seznam properties…":"Loading your properties…","Změnit":"Change",
+  "Načítám seznam properties…":"Loading your properties…","Změnit":"Change","Zrušit":"Cancel",
   "— vyberte svůj hotel —":"— select your hotel —",
   "Vyberte svůj hotel ze seznamu":"Select your hotel from the list",
   "Vyberte svůj hotel ze seznamu — načítá se přímo z vašeho Apaleo účtu, žádné opisování kódů.":"Select your hotel from the list — loaded directly from your Apaleo account, no copying codes.",
@@ -1616,29 +1616,32 @@ function loadPmsSection(){
     const failInfo=failing?`<div style="margin-top:10px;background:rgba(255,90,90,.1);border:1px solid rgba(255,90,90,.35);border-radius:9px;padding:10px 14px;font-size:12px;color:#ff8a8a"><b>⚠️ Spojení s Apaleo aktuálně selhává</b>${h.pms_last_fail_at?` (naposledy ${new Date(h.pms_last_fail_at).toLocaleString('cs-CZ')})`:''} — Alex hostům dočasně odpovídá jen z profilu hotelu. Zkuste <b>Odpojit Apaleo</b> a hned poté znovu <b>Connect to Apaleo</b>. Pokud problém přetrvá, napište nám na support@smartestguide.com.</div>`:'';
     const discBtn = `<button onclick="disconnectPms()" style="background:transparent;border:none;color:var(--muted);font-size:11px;text-decoration:underline;cursor:pointer;font-family:var(--font-body);white-space:nowrap;padding:4px 2px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--muted)'">Odpojit Apaleo</button>`;
     const showPicker=!prop||window._pmsPickProp;
+    // Picker se zobrazuje NA MÍSTĚ štítku Property (ne na druhém konci řádku) — edituje se to, na co host kliknul
     const picker=`
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" id="pms-prop-picker">
-            <select id="pms-prop-select" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;min-width:220px;outline:none">
-              <option value="">Načítám seznam properties…</option>
-            </select>
-            <button onclick="savePmsProperty()" style="background:var(--accent);color:#0a0b0f;border:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Uložit</button>
-          </div>`;
+            <div style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;background:rgba(46,204,135,.1);border:1px solid rgba(46,204,135,.35);border-radius:9px;padding:7px 12px;margin-top:8px" id="pms-prop-picker">
+              <span style="font-size:14px;color:var(--text);font-weight:600">Property:</span>
+              <select id="pms-prop-select" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13.5px;padding:8px 12px;min-width:230px;outline:none">
+                <option value="">Načítám seznam properties…</option>
+              </select>
+              <button onclick="savePmsProperty()" style="background:var(--accent);color:#0a0b0f;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Uložit</button>
+              ${prop?`<button onclick="window._pmsPickProp=false;loadPmsSection()" style="background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);padding:8px 12px;font-size:12.5px;cursor:pointer">Zrušit</button>`:''}
+            </div>
+            <div style="font-size:11.5px;color:var(--muted);margin-top:5px">Vyberte svůj hotel ze seznamu — načítá se přímo z vašeho Apaleo účtu, žádné opisování kódů.</div>`;
+    const badge=`<div style="display:inline-flex;align-items:center;gap:10px;background:rgba(46,204,135,.1);border:1px solid rgba(46,204,135,.35);border-radius:9px;padding:7px 12px;margin-top:8px">
+              <span style="font-size:14px;color:var(--text)">Property: <b style="font-size:15px">${prop}</b></span>
+              <button onclick="window._pmsPickProp=true;loadPmsSection()" style="background:transparent;border:1px solid var(--border);border-radius:7px;color:var(--accent);font-size:12.5px;font-weight:700;text-decoration:none;cursor:pointer;padding:4px 10px">Změnit</button>
+            </div>`;
     el.innerHTML=`
       <div style="background:${failing?'rgba(255,90,90,.06)':'rgba(46,204,135,.08)'};border:1px solid ${failing?'rgba(255,90,90,.3)':'rgba(46,204,135,.3)'};border-radius:12px;padding:18px 22px;margin-bottom:24px">
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
           <div style="font-size:26px">🔌</div>
           <div style="flex:1;min-width:220px">
             <div style="font-family:var(--font-head);font-size:15px;font-weight:700;color:${failing?'#ff8a8a':'#2ecc87'}">${failing?'Hotelový systém připojen — spojení selhává':'Hotelový systém připojen (Apaleo)'}</div>
-            ${prop?`<div style="display:inline-flex;align-items:center;gap:10px;background:rgba(46,204,135,.1);border:1px solid rgba(46,204,135,.35);border-radius:9px;padding:7px 12px;margin-top:8px">
-              <span style="font-size:14px;color:var(--text)">Property: <b style="font-size:15px">${prop}</b></span>
-              <button onclick="window._pmsPickProp=true;loadPmsSection()" style="background:transparent;border:1px solid var(--border);border-radius:7px;color:var(--accent);font-size:12.5px;font-weight:700;text-decoration:none;cursor:pointer;padding:4px 10px">Změnit</button>
-            </div>`:''}
+            ${showPicker?picker:(prop?badge:'')}
             <div style="font-size:13px;color:var(--muted);margin-top:7px">Alex zná pobyty hostů a odpovídá jim osobně — check-out z rezervace, balíček, délka pobytu, prodloužení s cenou i služby hotelu.</div>
           </div>
-          ${showPicker?picker:discBtn}
+          ${discBtn}
         </div>
-        ${showPicker?`<div style="font-size:11px;color:var(--muted);margin-top:10px">Vyberte svůj hotel ze seznamu — načítá se přímo z vašeho Apaleo účtu, žádné opisování kódů.</div>
-        <div style="margin-top:8px;text-align:right">${discBtn}</div>`:''}
         ${failInfo}
       </div>`;
     if(showPicker)loadPmsProperties();

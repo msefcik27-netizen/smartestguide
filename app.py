@@ -5771,6 +5771,14 @@ async function saveProp(){{
 </script></div>"""
         elif not db["hotels"][hid].get("pms_property_id"):
             prop_note = " One last step: select your property in the PMS section of your portal."
+        else:
+            # Property už byla nastavená (reconnect) — ŘÍCT to explicitně, jinak to vypadá,
+            # že se výběr přeskočil (zpětná vazba Martina 1. 8.)
+            _cur = db["hotels"][hid]["pms_property_id"]
+            _cur_name = next((p["name"] for p in props if p["code"] == _cur), "")
+            prop_note = (f" Connected property: {_cur_name + ' ' if _cur_name else ''}({_cur})"
+                         f" — kept from your previous connection. You can change it anytime"
+                         f" via the Change button in the PMS section of your portal.")
         if _ph.get("_new_refresh_token"):
             db["hotels"][hid]["pms_refresh_token"] = _ph["_new_refresh_token"]
             db_save(db)
