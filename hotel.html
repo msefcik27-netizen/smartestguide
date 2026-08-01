@@ -232,7 +232,7 @@ const EN_MAP = {
   "Popis a další informace":"Description & additional info","Co byste chtěli hostům sdělit navíc":"Anything else you want guests to know",
   "Embed widget — vložit na web":"Embed widget — add to your website","Přidejte chat tlačítko na web vašeho hotelu":"Add a chat button to your hotel website",
   "Vyzkoušet Alexe":"Try Alex","Otevřete chat přesně tak, jak ho uvidí váš host":"Open the chat exactly as your guest will see it",
-  "Tiskové materiály":"Print materials","QR plakát a letáky pro hosty — kdykoli ke stažení a tisku":"QR poster and flyers for guests — download and print anytime",
+  "Tiskové materiály":"Print materials","🚪 QR kartičky na pokoje":"🚪 Room QR cards","🖨️ Vygenerovat kartičky":"🖨️ Generate cards","QR plakát a letáky pro hosty — kdykoli ke stažení a tisku":"QR poster and flyers for guests — download and print anytime",
   "Aktivní nabídka pro hosty":"Active offer for guests","Alex ji zmíní hostům když se ptají na relevantní téma":"Alex mentions it when guests ask about a related topic",
   "Vlastní informace pro Alexe":"Custom info for Alex","Přidejte cokoliv co hosté chtějí vědět — Alex to použije při odpovědích":"Add anything guests want to know — Alex will use it in answers",
   "Faktury":"Invoices","Historie plateb a faktury ke stažení":"Payment history and downloadable invoices",
@@ -829,6 +829,14 @@ function renderPortal() {
         <br><br>🔒 QR kód je <strong style="color:var(--text)">jedinečný pro váš hotel a neměnný</strong> — jednou vytištěný plakát platí napořád, nikdy se nemění.
       </div>
       <a href="/api/hotels/${h.id}/qr-poster" target="_blank" rel="noopener" style="display:inline-block;background:var(--accent);color:#ffffff;text-decoration:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700">🖨️ Otevřít tiskové materiály</a>
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px">🚪 QR kartičky na pokoje</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">Kartičky 85×54 mm s QR kódem nesoucím číslo pokoje — host po naskenování dostane odpovědi přímo ke svému pobytu (check-out, délka pobytu). Zadejte pokoje: rozsahy i jednotlivě, např. <code>101-110, 201, 3.001</code></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input type="text" id="rc-rooms" placeholder="101-110, 201, 3.001" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;flex:1;min-width:200px;outline:none">
+          <button onclick="openRoomCards('${h.id}')" style="background:var(--accent);color:#ffffff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer">🖨️ Vygenerovat kartičky</button>
+        </div>
+      </div>
     `, [])}
 
     ${renderSection('⭐', 'Aktivní nabídka pro hosty', 'Alex ji zmíní hostům když se ptají na relevantní téma', `
@@ -1572,6 +1580,11 @@ async function loadInvoicesSection(){
   }catch(e){}
 }
 
+function openRoomCards(hid){
+  const v=(document.getElementById('rc-rooms')||{}).value||'';
+  if(!v.trim()){alert('Zadejte čísla pokojů — např. 101-110, 201');return;}
+  window.open('/api/hotels/'+hid+'/room-cards?rooms='+encodeURIComponent(v.trim()),'_blank');
+}
 function loadPmsSection(){
   // Propojení s hotelovým systémem (PMS) — zatím Apaleo (OAuth Connect)
   const el=document.getElementById('pms-section');

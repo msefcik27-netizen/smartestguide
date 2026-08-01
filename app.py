@@ -85,6 +85,7 @@ async def _reminder_background_loop():
     await asyncio.sleep(60)
     while True:
         try:
+            await _check_abandoned_registrations()
             await _check_and_send_reminders()
             await _deactivate_expired_subscriptions()
             await _backup_data()
@@ -227,6 +228,80 @@ async def _email_backup(src) -> bool:
     except Exception as e:
         logging.warning("E-mail zálohy selhal: %s", e)
         return False
+
+async def _check_abandoned_registrations():
+    """Nedokončená registrace: hoteliér vyplnil formulář, ale u Stripe checkoutu odpadl.
+    Pošle JEDNOU e-mail s původním checkout odkazem (Stripe session platí 24 h).
+    Okno 3-20 h od registrace: dost pozdě, aby nerušil běžící platbu; dost brzy, aby odkaz platil.
+    Kill-switch: settings.abandoned_reg_emails_enabled=False vypne (default zapnuto).
+    BEZPEČNOST: nikdy neposílá aktivním hotelům, jen 1× per hotel (flag), přeskakuje E2E testy."""
+    brevo_key = os.getenv("BREVO_API_KEY", "")
+    if not brevo_key:
+        return
+    if db_get_settings().get("abandoned_reg_emails_enabled", True) is False:
+        return
+    db = db_load()
+    now = datetime.utcnow()
+    for hid, h in db["hotels"].items():
+        try:
+            if h.get("subscription_active") or h.get("archived") or h.get("is_free"):
+                continue
+            if h.get("abandoned_reg_email_sent"):
+                continue
+            if not h.get("checkout_url"):
+                continue
+            if (h.get("name") or "").strip().upper().startswith("E2E"):
+                continue
+            created_str = h.get("checkout_created_at") or h.get("created_at") or ""
+            try:
+                created = datetime.fromisoformat(str(created_str).replace("Z", ""))
+            except Exception:
+                continue
+            age_h = (now - created).total_seconds() / 3600.0
+            if not (3 <= age_h <= 20):
+                # po 20 h checkout odkaz brzy expiruje — neposílat mrtvý odkaz
+                if age_h > 20 and not h.get("abandoned_reg_email_sent"):
+                    h["abandoned_reg_email_sent"] = "expired-window"
+                    db_save(db)
+                continue
+            email = (h.get("registration_email") or h.get("email") or "").strip()
+            if not email:
+                continue
+            name = h.get("name", "your hotel")
+            payload = {
+                "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
+                "to": [{"email": email}],
+                "bcc": _admin_notify_bcc(exclude=email) or None,
+                "subject": f"Your SMARTEST GUIDE registration for {name} is one click away",
+                "htmlContent": (
+                    f"<p>Hello{(' ' + h.get('contact_name')) if h.get('contact_name') else ''},</p>"
+                    f"<p>you started setting up the AI concierge for <b>{name}</b> — the only step left is "
+                    f"activating your <b>14-day free trial</b> (no charge today).</p>"
+                    f"<p style='margin:22px 0'><a href='{h['checkout_url']}' "
+                    f"style='background:#2c5fae;color:#ffffff;text-decoration:none;padding:12px 26px;"
+                    f"border-radius:10px;font-weight:700'>Finish registration →</a></p>"
+                    f"<p>Your details are saved — this takes under a minute. Alex will start answering "
+                    f"your guests' questions in 100+ languages the same day.</p>"
+                    f"<p style='color:#888;font-size:12px'>The link is valid for 24 hours from your registration. "
+                    f"If it has expired, just register again at smartestguide.com — it only takes a moment. "
+                    f"Didn't request this? Simply ignore this e-mail and nothing will be created or charged.</p>"
+                    f"<p>Questions? Just reply.<br>— SMARTEST GUIDE · support@smartestguide.com</p>"),
+                "textContent": f"Finish your SMARTEST GUIDE registration for {name}: {h['checkout_url']} (link valid 24h; no charge today - 14-day free trial)",
+            }
+            if not payload["bcc"]:
+                payload.pop("bcc")
+            import httpx as _hx
+            async with _hx.AsyncClient() as client:
+                r = await client.post("https://api.brevo.com/v3/smtp/email", json=payload,
+                    headers={"api-key": brevo_key, "Content-Type": "application/json"}, timeout=30)
+            if r.status_code in (200, 201):
+                h["abandoned_reg_email_sent"] = now.isoformat()
+                db_save(db)
+                logging.info("Abandoned-registration e-mail odeslán: %s (%s)", hid, email)
+            else:
+                logging.warning("Abandoned-registration e-mail selhal %s: %s %s", hid, r.status_code, r.text[:120])
+        except Exception as e:
+            logging.warning("Abandoned-registration check selhal (%s): %s", hid, e)
 
 async def _check_and_send_reminders():
     """Zkontroluje všechny hotely a pošle reminder pokud splňují podmínky."""
@@ -486,7 +561,7 @@ def _is_public_api(path: str) -> bool:
         if path.startswith(p):
             return True
     if path.startswith("/api/hotels/"):
-        for s in ("/qr", "/qr-poster", "/qr-poster-print", "/manifest.webmanifest",
+        for s in ("/qr", "/qr-poster", "/qr-poster-print", "/manifest.webmanifest", "/room-cards",
                   "/rollup", "/flyer", "/flyer-en", "/flyer-cz", "/flyer-local",
                   "/flyer-a5-en", "/flyer-a5-cz", "/flyer-a5-local"):
             if path.endswith(s):
@@ -1180,17 +1255,35 @@ async def scrape_hotel_data(url: str, api_key: str) -> dict:
         pages_text = [f"=== HLAVNI STRANKA ===\n{main_text}"]
 
         # Podstránky – zkusíme jen 5, každá max 1500 znaků
+        # Hotel může žít v podadresáři (řetězce: orea.cz/hotel-concertino) → hinty zkoušej
+        # NEJDŘÍV vůči plné cestě, pak vůči kořeni domény. (Zjištěno 2. 8. 2026 na Concertinu:
+        # /wellness mířilo na orea.cz/wellness místo orea.cz/hotel-concertino/wellness.)
+        path_base = url if url.endswith("/") else url + "/"
         async def try_sub(hint):
-            sub_url = urljoin(base, hint)
-            html = await fetch_page(client, sub_url)
-            if html:
-                t = extract_text(html, 1500)
-                if len(t) > 100:  # ignoruj prázdné stránky
-                    return f"=== {hint.upper()} ===\n{t}"
+            for sub_url in (urljoin(path_base, hint.lstrip("/")), urljoin(base, hint)):
+                html = await fetch_page(client, sub_url)
+                if html:
+                    t = extract_text(html, 1500)
+                    if len(t) > 100:  # ignoruj prázdné stránky
+                        return f"=== {hint.upper()} ===\n{t}"
             return None
 
         results = await asyncio.gather(*[try_sub(h) for h in SUBPAGE_HINTS[:8]])
         pages_text += [r for r in results if r]
+
+        # FIX 2: strukturovaná data (JSON-LD, schema.org) — přesně to, co čte Google.
+        # Hotelové weby v nich často mají check-in/out, telefon, adresu, otevíračky.
+        try:
+            _soup_ld = BeautifulSoup(main_html, "html.parser")
+            _lds = []
+            for _tag in _soup_ld.find_all("script", type="application/ld+json"):
+                _raw = (_tag.string or "").strip()
+                if _raw and len(_raw) > 20:
+                    _lds.append(_raw[:2000])
+            if _lds:
+                pages_text.append("=== STRUKTUROVANA DATA WEBU (JSON-LD / schema.org) ===\n" + "\n".join(_lds[:3]))
+        except Exception:
+            pass
 
     # Celkový limit znaků – Haiku zvládne víc, lepší pokrytí praktických info (WiFi, FAQ, pravidla)
     combined = "\n\n".join(pages_text)[:12000]
@@ -2138,6 +2231,83 @@ function setFlyerTheme(t){{
 
     return HTMLResponse(content=html)
 
+@app.get("/api/hotels/{hotel_id}/room-cards")
+def room_qr_cards(hotel_id: str, request: Request, rooms: str = ""):
+    """Arch QR kartiček per pokoj (tisk). ?rooms=101-110,201,3.001 — rozsahy i jednotlivé,
+    max 200 kartiček. Každá karta nese guest URL s ?room=<pokoj> (personalizace z PMS)."""
+    db = db_load()
+    hotel = db["hotels"].get(hotel_id)
+    if not hotel:
+        _hid, hotel = _resolve_hotel(db, hotel_id)
+        if not hotel:
+            raise HTTPException(404, "Hotel nenalezen")
+        hotel_id = _hid
+    base = get_base_url(request)
+    guest_url = _guest_url(base, hotel_id, hotel)
+    hotel_name = hotel.get("name", "Hotel")
+    # parsování seznamu pokojů
+    room_list = []
+    for part in (rooms or "").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        m = re.match(r"^(\d+)\s*-\s*(\d+)$", part)
+        if m:
+            lo, hi = int(m.group(1)), int(m.group(2))
+            if hi >= lo and hi - lo < 500:
+                room_list.extend(str(x) for x in range(lo, hi + 1))
+        else:
+            room_list.append(part[:20])
+    room_list = room_list[:200]
+    if not room_list:
+        return HTMLResponse("<meta charset='utf-8'><body style='font-family:sans-serif;padding:40px'>Zadejte pokoje v URL: <code>?rooms=101-110,201,3.001</code></body>")
+    is_cs = (hotel.get("country") or "").upper() in ("CZ", "SK")
+    scan_txt = "Naskenujte — váš AI concierge" if is_cs else "Scan me — your AI concierge"
+    room_lbl = "Pokoj" if is_cs else "Room"
+    sep = "&" if "?" in guest_url else "?"
+    cards = "".join(f"""
+    <div class="cardx">
+      <div class="ctop"><div class="cbrand">{hotel_name}</div></div>
+      <div class="cqr"><div class="qrh" data-url="{guest_url}{sep}room={r}"></div></div>
+      <div class="croom">{room_lbl} <b>{r}</b></div>
+      <div class="cscan">{scan_txt}</div>
+      <div class="csg" translate="no"><img src="/static/img/logo-inverse.svg" alt=""/>SmartestGuide</div>
+    </div>""" for r in room_list)
+    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg"/>
+<link rel="stylesheet" href="/static/fonts/fonts.css">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+body{{margin:0;background:#f6f8fc;font-family:'Manrope',sans-serif;padding:24px}}
+.btn{{position:fixed;top:16px;right:16px;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer;background:#2c5fae;color:#fff;z-index:10}}
+.hint{{max-width:760px;margin:0 auto 16px;font-size:13px;color:#51617e}}
+.sheet{{display:grid;grid-template-columns:repeat(2, 85mm);gap:6mm;justify-content:center}}
+.cardx{{width:85mm;height:54mm;background:#0c1b33;border-radius:4mm;padding:5mm;display:flex;flex-direction:column;align-items:center;position:relative;overflow:hidden;break-inside:avoid;page-break-inside:avoid}}
+.ctop{{display:flex;align-items:center;gap:2.5mm;align-self:flex-start}}
+.ctop img{{width:6mm;height:6mm;display:block}}
+.cbrand{{font-family:'Sora',sans-serif;font-weight:800;font-size:4.4mm;color:#fff;line-height:1.15;max-width:46mm}}
+.csg{{position:absolute;right:5mm;bottom:3.5mm;display:flex;align-items:center;gap:1.2mm;font-family:'Sora',sans-serif;font-weight:700;font-size:2.2mm;color:#8ea3c4;opacity:.9}}
+.csg img{{width:3mm;height:3mm;display:block;opacity:.85}}
+.cqr{{position:absolute;right:5mm;top:50%;transform:translateY(-50%);background:#fff;border-radius:2.5mm;padding:2mm}}
+.qrh{{width:26mm;height:26mm}}
+.croom{{position:absolute;left:5mm;top:20mm;font-family:'Sora',sans-serif;font-size:5.6mm;color:#fff;font-weight:400}}
+.croom b{{font-weight:800;color:#2fd0d8}}
+.cscan{{position:absolute;left:5mm;bottom:5mm;font-size:2.8mm;color:#c6d4ec;max-width:44mm;line-height:1.35}}
+@media print{{.btn,.hint{{display:none}}body{{background:#fff;padding:0}}.sheet{{gap:4mm}}@page{{margin:8mm}}}}
+</style></head><body>
+<button class="btn" onclick="window.print()">🖨️ Tisknout / PDF</button>
+<div class="hint">{'Kartičky 85×54 mm (vizitkový formát) — vytiskněte, rozstříhejte a umístěte na pokoje. QR každé kartičky nese číslo pokoje → Alex zná pobyt hosta.' if is_cs else 'Cards 85×54 mm (business-card size) — print, cut and place in rooms. Each QR carries the room number → Alex knows the guest stay.'} ({len(room_list)})</div>
+<div class="sheet">{cards}</div>
+<script>
+(function(){{function draw(){{if(!window.qrcode){{setTimeout(draw,120);return;}}
+document.querySelectorAll('.qrh').forEach(function(h){{
+var qr=window.qrcode(0,'M');qr.addData(h.getAttribute('data-url'));qr.make();
+var n=qr.getModuleCount(),S=98,cell=S/n,r='';
+for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="#0c1b33"/>';
+h.innerHTML='<svg width="100%" height="100%" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}});}}draw();}})();
+</script></body></html>"""
+    return HTMLResponse(content=html)
+
 # QR Plakát — print view
 @app.get("/api/hotels/{hotel_id}/qr-poster-print")
 def qr_poster_print(hotel_id: str, request: Request, theme: str = "dark"):
@@ -2176,9 +2346,8 @@ def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark") -> s
   <div style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
   <div style="position:absolute;top:300px;left:50%;width:620px;height:620px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.14),transparent 70%);pointer-events:none"></div>
   <div style="height:100%;display:flex;flex-direction:column;align-items:center;padding:58px 48px 48px;position:relative">
-    <div translate="no" style="font-family:'Sora',sans-serif;font-weight:800;font-size:34px;color:{c_ink};display:flex;align-items:center;gap:10px"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:36px;height:36px;display:block"/>SmartestGuide</div>
-    <div style="margin-top:10px;font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:{c_teal}">AI Concierge for Hotels</div>
-    <div style="margin-top:26px;font-family:'Sora',sans-serif;font-weight:700;font-size:22px;color:{c_ink};text-align:center">{hotel_name}</div>
+    <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:36px;line-height:1.15;color:{c_ink};text-align:center;max-width:640px">{hotel_name}</div>
+    <div style="margin-top:12px;font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:{c_teal}">Your personal AI concierge</div>
     <div style="position:relative;margin-top:22px;padding:22px;background:{c_qrcard};border:1px solid rgba(44,95,174,.4);border-radius:20px;box-shadow:0 0 40px rgba(44,95,174,.12)">
       <div id="qr" style="width:420px;height:420px;display:flex;align-items:center;justify-content:center"></div>
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:16px;overflow:hidden;box-shadow:0 0 0 4px #ffffff"><img src="/static/img/favicon.svg" alt="" style="width:100%;height:100%;display:block"/></div>
@@ -2187,7 +2356,7 @@ def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark") -> s
     <div style="margin-top:10px;font-size:15px;color:{c_dim}">100+ languages · No app needed · 24/7</div>
     <div style="flex:1"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(47,208,216,.55),transparent)"></div>
-    <div style="margin-top:18px;font-size:14px;font-weight:600;color:{c_teal}">smartestguide.com</div>
+    <div translate="no" style="margin-top:16px;display:flex;align-items:center;gap:8px;font-size:13px;color:{c_dim}"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:16px;height:16px;display:block;opacity:.85"/><span style="font-family:'Sora',sans-serif;font-weight:700;color:{c_dim}">SmartestGuide</span><span style="opacity:.7">· smartestguide.com</span></div>
   </div>
 </div>
 <script>
@@ -2387,9 +2556,8 @@ body{{margin:0;background:#f6f8fc;display:flex;justify-content:center;padding:32
   <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
   <div style="position:absolute;top:80px;left:50%;width:500px;height:500px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.10),transparent 70%);pointer-events:none"></div>
   <div style="padding:{pad};display:flex;flex-direction:column;align-items:center;text-align:center;min-height:{page_h}">
-    <div translate="no" style="font-family:'Sora',sans-serif;font-weight:800;font-size:26px;color:{c_ink};display:flex;align-items:center;gap:9px"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:28px;height:28px;display:block"/>SmartestGuide</div>
-    <div style="margin-top:6px;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">AI Concierge for Hotels</div>
-    <div style="margin-top:8px;font-size:13px;color:{c_dim}">{hotel_name}</div>
+    <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:28px;line-height:1.2;color:{c_ink};text-align:center;max-width:560px">{hotel_name}</div>
+    <div style="margin-top:8px;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">Your personal AI concierge</div>
     <h1 style="font-family:'Sora',sans-serif;font-weight:800;font-size:{h1_size};line-height:1.05;letter-spacing:-.02em;margin:36px 0 0;color:{c_orange}">{headline}</h1>
     <p style="font-size:17px;line-height:1.6;color:{c_sub};max-width:480px;margin:18px 0 0">{subline}</p>
     <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:28px;max-width:500px">{flags_html}</div>
@@ -2402,7 +2570,7 @@ body{{margin:0;background:#f6f8fc;display:flex;justify-content:center;padding:32
     <div style="margin-top:6px;font-size:14px;color:{c_dim}">{no_app} · 100+ languages · 24/7</div>
     <div style="flex:1;min-height:32px"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,{c_teal},transparent);margin-top:32px;opacity:.5"></div>
-    <div style="margin-top:14px;font-size:13px;font-weight:600;color:{c_teal}">smartestguide.com</div>
+    <div translate="no" style="margin-top:12px;display:flex;align-items:center;gap:7px;font-size:12px;color:{c_dim}"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:14px;height:14px;display:block;opacity:.85"/><span style="font-family:'Sora',sans-serif;font-weight:700;color:{c_dim}">SmartestGuide</span><span style="opacity:.7">· smartestguide.com</span></div>
   </div>
 </div>
 <script>
@@ -2443,9 +2611,8 @@ body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:3
   <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
   <div style="position:absolute;top:120px;left:50%;width:400px;height:400px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.10),transparent 70%);pointer-events:none"></div>
   <div style="padding:36px 28px;display:flex;flex-direction:column;align-items:center;text-align:center">
-    <div translate="no" style="font-family:'Sora',sans-serif;font-weight:800;font-size:20px;color:{c_ink};display:flex;align-items:center;gap:8px"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:22px;height:22px;display:block"/>SmartestGuide</div>
-    <div style="margin-top:5px;font-size:9px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">AI CONCIERGE FOR HOTELS</div>
-    <div style="margin-top:6px;font-size:12px;color:{c_dim}">{hotel_name}</div>
+    <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:24px;line-height:1.2;color:{c_ink};text-align:center;max-width:290px">{hotel_name}</div>
+    <div style="margin-top:6px;font-size:9px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">YOUR PERSONAL AI CONCIERGE</div>
     <h1 style="font-family:'Sora',sans-serif;font-weight:800;font-size:36px;line-height:1.05;letter-spacing:-.02em;margin:28px 0 0;color:#2fd0d8">Your<br>personal<br>AI<br>concierge</h1>
     <p style="font-size:14px;line-height:1.6;color:{c_sub};margin:16px 0 0">Let <span style="color:{c_orange};font-weight:600">Alex</span> answer every question — instantly, in your language, around the clock.</p>
     <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:5px;margin-top:22px;max-width:300px">{flags_html}</div>
@@ -2456,7 +2623,7 @@ body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:3
     <div style="margin-top:18px;font-family:'Sora',sans-serif;font-weight:700;font-size:18px;color:{c_ink}">Scan me</div>
     <div style="margin-top:5px;font-size:13px;color:{c_dim}">100+ languages · No app needed · 24/7</div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,170,.4),transparent);margin-top:32px"></div>
-    <div style="margin-top:12px;font-size:12px;font-weight:600;color:{c_teal}">smartestguide.com</div>
+    <div translate="no" style="margin-top:10px;display:flex;align-items:center;gap:6px;font-size:11px;color:{c_dim}"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:13px;height:13px;display:block;opacity:.85"/><span style="font-family:'Sora',sans-serif;font-weight:700;color:{c_dim}">SmartestGuide</span><span style="opacity:.7">· smartestguide.com</span></div>
   </div>
 </div>
 <script>
@@ -2876,6 +3043,17 @@ async def register_hotel(req: RegistrationRequest, request: Request):
         if not checkout_url:
             raise ValueError("Stripe nevrátil checkout URL")
 
+        # Ulož checkout URL na (zatím neaktivní) hotel — kdyby hoteliér u platby odpadl,
+        # připomínkový e-mail mu pošle TENTÝŽ odkaz (Stripe session platí 24 h).
+        try:
+            _db2 = db_load()
+            if hid in _db2["hotels"]:
+                _db2["hotels"][hid]["checkout_url"] = checkout_url
+                _db2["hotels"][hid]["checkout_created_at"] = datetime.utcnow().isoformat()
+                db_save(_db2)
+        except Exception as _e:
+            logging.warning("Uložení checkout_url selhalo (%s): %s", hid, _e)
+
         return {"status": "ok", "checkout_url": checkout_url, "hotel_id": hid}
 
     except Exception as e:
@@ -2974,8 +3152,9 @@ def _build_invoice_pdf_bytes(inv: dict, s: dict) -> bytes:
     W, H = A4
     buf = BytesIO()
     c = rl_canvas.Canvas(buf, pagesize=A4)
-    ORANGE = colors.HexColor("#2fd0d8")
-    INK = colors.HexColor("#1a1a1a")
+    ORANGE = colors.HexColor("#2c5fae")   # brand modra (nazev promenne historicky)
+    TEAL2 = colors.HexColor("#2fd0d8")
+    INK = colors.HexColor("#0c1b33")      # navy
     GREY = colors.HexColor("#666666")
     LINE = colors.HexColor("#dddddd")
     BOXBG = colors.HexColor("#f7f6f4")
@@ -2995,8 +3174,18 @@ def _build_invoice_pdf_bytes(inv: dict, s: dict) -> bytes:
 
     # ── Hlavička ──
     c.setFillColor(ORANGE); c.rect(0, H - 6*mm, W, 6*mm, fill=1, stroke=0)
-    c.setFillColor(INK); c.setFont(FB, 20); c.drawString(ML, H - 22*mm, "SMARTEST GUIDE")
-    c.setFillColor(GREY); c.setFont(FN, 9); c.drawString(ML, H - 27*mm, "AI concierge for hotels")
+    c.setFillColor(TEAL2); c.rect(W * 0.62, H - 6*mm, W * 0.38, 6*mm, fill=1, stroke=0)  # tyrkysovy konec pruhu
+    # Logo F1 vedle nazvu (logo.png v koreni aplikace; kdyz chybi, jen text)
+    _tx = ML
+    try:
+        _lp = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "logo.png")
+        if _os.path.exists(_lp):
+            c.drawImage(_lp, ML, H - 24.5*mm, width=8*mm, height=8*mm, mask="auto")
+            _tx = ML + 10*mm
+    except Exception:
+        _tx = ML
+    c.setFillColor(INK); c.setFont(FB, 20); c.drawString(_tx, H - 22*mm, "SMARTEST GUIDE")
+    c.setFillColor(GREY); c.setFont(FN, 9); c.drawString(_tx, H - 27*mm, "AI concierge for hotels")
     c.setFillColor(INK); c.setFont(FB, 22); c.drawRightString(MR, H - 20*mm, "INVOICE")
     c.setFillColor(INK); c.setFont(FB, 12); c.drawRightString(MR, H - 28*mm, "No. " + inv.get("invoice_number", ""))
 
@@ -3968,6 +4157,43 @@ def serve_widget(hotel_id: str, request: Request, lang: str = "auto"):
 # ─────────────────────────────────────────────
 # Analytics
 # ─────────────────────────────────────────────
+_TOPIC_RULES = [
+    ("🍳 Snídaně / strava", ["snídan", "breakfast", "frühstück", "menu", "jídel", "restaur", "večeř", "oběd", "lunch", "dinner", "essen", "colazione", "desayuno"]),
+    ("⏰ Check-in/out", ["check", "odjezd", "příjezd", "ubytov", "vystěhov", "anreise", "abreise"]),
+    ("🅿️ Parkování", ["park", "garáž", "garage", "parcheggio"]),
+    ("💆 Wellness / spa", ["wellness", "spa", "saun", "masáž", "massage", "bazén", "pool", "vířivk", "jacuzzi"]),
+    ("📶 WiFi / internet", ["wifi", "wi-fi", "internet", "heslo", "password", "passwort"]),
+    ("🗺 Okolí / tipy", ["okolí", "tip", "výlet", "navštívit", "vidět", "visit", "around", "doporuč", "recommend", "sehenswürdig", "attraction", "muzeum", "museum", "hrad", "castle"]),
+    ("🚕 Doprava", ["taxi", "bus", "vlak", "train", "letiště", "airport", "mhd", "tram", "uber"]),
+    ("🛏 Pokoj / služby", ["pokoj", "room", "zimmer", "klimatizac", "ručník", "towel", "úklid", "cleaning", "povlečen", "klíč", "key"]),
+    ("💳 Účet / platby", ["účet", "balance", "plat", "bill", "invoice", "rechnung", "zaplat", "cena", "price", "kolik stojí"]),
+]
+
+def _classify_topic(q: str) -> str:
+    low = (q or "").lower()
+    for label, kws in _TOPIC_RULES:
+        if any(k in low for k in kws):
+            return label
+    return "💬 Ostatní"
+
+@app.get("/api/hotels/{hotel_id}/questions")
+def get_hotel_questions(hotel_id: str):
+    """Posledních 50 reálných dotazů hostů + rozpad podle témat (pro admin analytiku)."""
+    db = db_load()
+    if hotel_id not in db.get("hotels", {}):
+        raise HTTPException(404, "Hotel nenalezen")
+    a = db.get("analytics", {}).get(hotel_id, {}) or {}
+    out = []
+    topics = {}
+    for q in (a.get("recent_questions") or [])[:50]:
+        t = _classify_topic(q.get("q", ""))
+        topics[t] = topics.get(t, 0) + 1
+        out.append({"q": q.get("q", ""), "lang": q.get("lang", ""), "flagged": bool(q.get("flagged")),
+                    "at": q.get("at", ""), "topic": t})
+    topic_list = sorted(topics.items(), key=lambda x: -x[1])
+    return {"status": "ok", "questions": out, "topics": [{"topic": t, "count": c} for t, c in topic_list],
+            "note": "Posledních 50 dotazů (starší se neuchovávají — jen agregáty)."}
+
 @app.get("/api/hotels/{hotel_id}/analytics")
 def get_analytics(hotel_id: str):
     db = db_load()

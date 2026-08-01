@@ -11,17 +11,17 @@
   <meta name="theme-color" content="#ffffff"/>
   <title>SMARTEST GUIDE</title>
   <!-- PWA manifest: link se vytvoří v JS s per-hotel URL (placeholder dělal v konzoli syntax error) -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/fonts/fonts.css"/>
   <style>
     :root {
-  --bg:#0a0b0f;--bg2:#0f1018;--bg3:#181920;
-  --ink:#f0ece0;--ink2:#c0bdb8;--border:#222330;
-  --muted:#6b6f8e;--text:#f0ece0;--dim:#9ba0c0;
-  --teal:#00d4aa;--teal-light:rgba(0,212,170,.08);
-  --accent:#FF6B00;--accent2:#00d4aa;
-  --gold:#FF6B00;--gold-light:rgba(255,107,0,.08);
-  --surface:#0f1018;--surface2:#181920;
-  --font-head:'Syne',sans-serif;--font-body:'Inter',sans-serif;
+  --bg:#090e1c;--bg2:#0e1426;--bg3:#151c30;
+  --ink:#eef2fa;--ink2:#c6d0e4;--border:#20294a;
+  --muted:#6b7699;--text:#eef2fa;--dim:#8ea3c4;
+  --teal:#2fd0d8;--teal-light:rgba(47,208,216,.08);
+  --accent:#2c5fae;--accent2:#2fd0d8;
+  --gold:#2c5fae;--gold-light:rgba(44,95,174,.14);
+  --surface:#0e1426;--surface2:#151c30;
+  --font-head:'Sora',sans-serif;--font-body:'Manrope',sans-serif;
 }
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     html,body{height:100%;overflow:hidden;-webkit-tap-highlight-color:transparent}
@@ -41,13 +41,13 @@
 
     .ob-hero{
       width:100%;padding:48px 24px 32px;
-      background:linear-gradient(160deg, #faf9f5 0%, #15120b 58%, #0a1320 100%);
+      background:linear-gradient(160deg, #1a2b52 0%, #0d1730 58%, #090e1c 100%);
       display:flex;flex-direction:column;align-items:center;text-align:center;
       position:relative;overflow:hidden;
     }
     .ob-hero::before{
       content:'';position:absolute;inset:0;
-      background:radial-gradient(ellipse at 50% 0%, rgba(255,107,0,.25) 0%, transparent 70%);
+      background:radial-gradient(ellipse at 50% 0%, rgba(44,95,174,.25) 0%, transparent 70%);
     }
 
     /* Animovaný avatar */
@@ -57,16 +57,16 @@
       background:linear-gradient(135deg,var(--accent),var(--accent2));
       display:flex;align-items:center;justify-content:center;
       font-size:44px;
-      box-shadow:0 0 0 0 rgba(255,107,0,.5);
+      box-shadow:0 0 0 0 rgba(44,95,174,.5);
       animation:avatarPulse 2.5s ease-in-out infinite;
     }
     @keyframes avatarPulse{
-      0%,100%{box-shadow:0 0 0 0 rgba(255,107,0,.5),0 0 40px rgba(255,107,0,.2)}
-      50%{box-shadow:0 0 0 16px rgba(255,107,0,.0),0 0 60px rgba(255,107,0,.35)}
+      0%,100%{box-shadow:0 0 0 0 rgba(44,95,174,.5),0 0 40px rgba(44,95,174,.2)}
+      50%{box-shadow:0 0 0 16px rgba(44,95,174,.0),0 0 60px rgba(44,95,174,.35)}
     }
     .ob-avatar-ring{
       position:absolute;inset:-8px;border-radius:50%;
-      border:2px solid rgba(255,107,0,.3);
+      border:2px solid rgba(44,95,174,.3);
       animation:ringRotate 8s linear infinite;
     }
     .ob-avatar-ring::after{
@@ -97,7 +97,7 @@
       transition:all .15s;text-align:center;
     }
     .lang-btn:hover{border-color:var(--accent);color:var(--text)}
-    .lang-btn.selected{background:rgba(255,107,0,.15);border-color:var(--accent);color:var(--accent)}
+    .lang-btn.selected{background:rgba(44,95,174,.15);border-color:var(--accent);color:var(--accent)}
     .lang-btn .flag{font-size:16px}
     .lang-btn .lname{font-size:10px}
     .lang-btn.lang-more{border-style:dashed;grid-column:1/-1;flex-direction:row;justify-content:center;gap:8px}
@@ -126,17 +126,17 @@
       font-size:14px;cursor:pointer;text-align:left;
     }
     .lang-row:hover{border-color:var(--accent)}
-    .lang-row.selected{background:rgba(255,107,0,.15);border-color:var(--accent);color:var(--accent)}
+    .lang-row.selected{background:rgba(44,95,174,.15);border-color:var(--accent);color:var(--accent)}
     .lang-row .flag{font-size:18px}
     .lang-row .lrname{flex:1}
     .lang-row .lcheck{color:var(--accent);font-weight:700}
 
     .ob-start-btn{
-      background:linear-gradient(135deg,var(--accent) 0%,#d4a843 100%);
+      background:linear-gradient(135deg,var(--accent) 0%,#2fd0d8 100%);
       color:#ffffff;border:none;border-radius:14px;
       font-family:var(--font-body);font-size:16px;font-weight:700;
       padding:18px;cursor:pointer;transition:all .2s;
-      box-shadow:0 4px 24px rgba(255,107,0,.4),0 -12px 28px rgba(10,11,15,.55);
+      box-shadow:0 4px 24px rgba(44,95,174,.4),0 -12px 28px rgba(10,11,15,.55);
       display:flex;align-items:center;justify-content:center;gap:10px;
       /* Sticky: tlačítko je vidět hned, i když je mřížka jazyků delší než obrazovka */
       position:sticky;bottom:14px;z-index:5;
@@ -231,7 +231,7 @@
       color:var(--text);font-size:13px;padding:7px 14px;cursor:pointer;
       white-space:nowrap;flex-shrink:0;transition:all .15s;
     }
-    .qr-btn:active{background:rgba(255,107,0,.2);border-color:var(--accent)}
+    .qr-btn:active{background:rgba(44,95,174,.2);border-color:var(--accent)}
 
     /* Input */
     .input-area{
@@ -257,7 +257,7 @@
     #voice-btn.listening{background:var(--danger);border-color:var(--danger);color:#fff;animation:voicePulse 1s infinite}
     @keyframes voicePulse{0%,100%{box-shadow:0 0 0 0 rgba(255,79,106,.4)}70%{box-shadow:0 0 0 8px rgba(255,79,106,0)}}
     #send-btn{background:var(--accent);color:#ffffff;flex:1;border-radius:22px;width:auto}
-    #send-btn:active{background:#d4a843}
+    #send-btn:active{background:#2fd0d8}
     #send-btn:disabled{opacity:.35}
 
     /* ══ INFO SHEET ══ */
@@ -276,7 +276,7 @@
     .info-label{font-size:11px;color:var(--muted);margin-bottom:2px}
     .info-val{font-size:13px;font-weight:500}
     .tag-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-    .tag{background:rgba(255,107,0,.12);color:var(--accent);border:1px solid rgba(255,107,0,.25);border-radius:20px;padding:3px 10px;font-size:11px}
+    .tag{background:rgba(44,95,174,.12);color:var(--accent);border:1px solid rgba(44,95,174,.25);border-radius:20px;padding:3px 10px;font-size:11px}
     .close-sheet{width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:13px;color:var(--text);font-size:14px;font-weight:600;cursor:pointer;margin-top:16px}
 
     /* ══ ERROR PAGE ══ */
@@ -284,13 +284,13 @@
     .err-page h2{font-family:var(--font-head);font-size:20px;margin-bottom:10px}
     .err-page p{color:var(--muted);font-size:14px;line-height:1.7}
   /* PWA install banner */
-#pwa-banner{position:fixed;bottom:0;left:0;right:0;background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#ffffff;padding:14px 18px;display:none;align-items:center;justify-content:space-between;gap:12px;z-index:500;box-shadow:0 -4px 20px rgba(0,0,0,.3)}
+#pwa-banner{position:fixed;bottom:0;left:0;right:0;background:linear-gradient(90deg,#2fd0d8 0%,#2fd0d8 60%,#2c5fae 100%);color:#ffffff;padding:14px 18px;display:none;align-items:center;justify-content:space-between;gap:12px;z-index:500;box-shadow:0 -4px 20px rgba(0,0,0,.3)}
 #pwa-banner.show{display:flex}
 .pwa-banner-text{font-size:13px;font-weight:500;flex:1}
 .pwa-banner-text strong{display:block;font-size:14px;margin-bottom:2px}
 .pwa-btn{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#ffffff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
 .pwa-btn-dismiss{background:none;border:none;color:rgba(255,255,255,.55);font-size:18px;cursor:pointer;padding:4px}
-  #sg-topbar{position:fixed;top:0;left:0;right:0;height:3px;z-index:1000;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#FF6B00);box-shadow:0 0 14px rgba(0,212,170,.45)}
+  #sg-topbar{position:fixed;top:0;left:0;right:0;height:3px;z-index:1000;background:linear-gradient(90deg,#2fd0d8,#2fd0d8 60%,#2c5fae);box-shadow:0 0 14px rgba(47,208,216,.45)}
 </style>
 </head>
 <body>
@@ -349,7 +349,7 @@
 <!-- CHAT -->
 <div id="chat-screen">
   <div class="chat-header">
-    <div class="hdr-avatar" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#ffffff;font-weight:800;font-size:14px">✦<span class="hdr-status" id="hdr-status"></span></div>
+    <div class="hdr-avatar" style="background:linear-gradient(90deg,#2fd0d8 0%,#2fd0d8 60%,#2c5fae 100%);color:#ffffff;font-weight:800;font-size:14px">✦<span class="hdr-status" id="hdr-status"></span></div>
     <div class="hdr-info">
       <div class="hdr-name" id="hdr-hotel-name" style="font-size:15px;font-weight:700;color:var(--text)">–</div>
       <div class="hdr-sub" style="font-size:11px;color:var(--accent2)">AI Concierge · SMARTEST GUIDE</div>
@@ -655,6 +655,20 @@ function _ttsPlain(text){
 function _ttsReset(btn){ if(btn){btn.classList.remove('speaking');btn.textContent='🔊';} }
 
 let _ttsAudio=null;  // právě přehrávané serverové MP3
+// Mobilní prohlížeče blokují audio.play() mimo dotyk uživatele. Trik: při dotyku
+// (mikrofon/odeslat) přehrajeme na sdíleném elementu tichý zvuk → element je „odemčený"
+// a pozdější programové přehrání odpovědi (po fetch řetězci) už projde.
+let _ttsEl=null, _audioUnlocked=false;
+function _unlockAudio(){
+  try{
+    if(!_ttsEl) _ttsEl=new Audio();
+    if(_audioUnlocked) return;
+    _ttsEl.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+    const p=_ttsEl.play();
+    if(p&&p.then) p.then(()=>{try{_ttsEl.pause();}catch(e){} _audioUnlocked=true;}).catch(()=>{});
+    else _audioUnlocked=true;
+  }catch(e){}
+}
 
 function _ttsStopAll(){
   if(_ttsAudio){ try{_ttsAudio.pause();}catch(e){} _ttsAudio=null; }
@@ -693,10 +707,12 @@ async function speakText(text, btn){
     if(!r.ok) throw new Error('tts '+r.status);
     const blob=await r.blob();
     if(_ttsBtn!==btn) return;  // mezitím kliknuto jinam/zastaveno
-    const a=new Audio(URL.createObjectURL(blob));
+    const a=_ttsEl||new Audio(); _ttsEl=a;   // sdílený (odemčený) element — projde i autoplay policy
+    const src=URL.createObjectURL(blob);
+    a.src=src;
     _ttsAudio=a;
-    a.onended=()=>{ URL.revokeObjectURL(a.src); if(_ttsAudio===a)_ttsAudio=null; _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null; };
-    a.onerror=()=>{ URL.revokeObjectURL(a.src); if(_ttsAudio===a)_ttsAudio=null; _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null; };
+    a.onended=()=>{ URL.revokeObjectURL(src); if(_ttsAudio===a)_ttsAudio=null; _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null; };
+    a.onerror=()=>{ URL.revokeObjectURL(src); if(_ttsAudio===a)_ttsAudio=null; _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null; };
     await a.play();
   }catch(e){
     if(_ttsBtn!==btn) return;
@@ -1035,7 +1051,7 @@ function startChat(){
 function _linkStayBtnHtml(){
   if(!(hotelData&&hotelData.pms_connected)) return '';
   if(!roomNumber)
-    return `<button class="qr-btn" style="border-color:rgba(255,107,0,.5);color:var(--accent);font-weight:600" onclick="linkStay()">${uiT('link_stay')}</button>`;
+    return `<button class="qr-btn" style="border-color:rgba(44,95,174,.5);color:var(--accent);font-weight:600" onclick="linkStay()">${uiT('link_stay')}</button>`;
   // Pobyt je propojený → nabídni odpojení (ochrana soukromí na sdíleném zařízení)
   return `<button class="qr-btn" style="border-color:rgba(255,255,255,.22);color:var(--dim)" onclick="unlinkStay()">${uiT('unlink_stay')}</button>`;
 }
@@ -1076,7 +1092,7 @@ function linkStay(){
   const d=document.createElement('div');
   d.id='linkstay-form';
   d.className='msg bot';
-  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#fff;font-weight:800">✦</div>
+  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#2fd0d8 0%,#2fd0d8 60%,#2c5fae 100%);color:#fff;font-weight:800">✦</div>
     <div class="msg-body"><div class="msg-bubble" style="min-width:250px;max-width:320px">
       <div style="font-weight:700;font-size:14px;margin-bottom:12px">🛎 ${uiT('ls_title')}</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:5px">${uiT('ls_room_label')}</div>
@@ -1084,7 +1100,7 @@ function linkStay(){
       <div style="font-size:12px;color:var(--muted);margin-bottom:5px">${uiT('ls_arrival_label')}</div>
       <input id="ls-arrival" type="date" style="${inp};margin-bottom:14px">
       <div style="display:flex;gap:8px">
-        <button onclick="submitLinkStay()" style="flex:1;background:var(--accent);color:#0a0b0f;border:none;border-radius:10px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font-body,inherit)">${uiT('ls_submit')}</button>
+        <button onclick="submitLinkStay()" style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font-body,inherit)">${uiT('ls_submit')}</button>
         <button onclick="document.getElementById('linkstay-form').remove()" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:10px;padding:11px 14px;font-size:13px;cursor:pointer;font-family:var(--font-body,inherit)">${uiT('ls_cancel')}</button>
       </div>
       <div id="ls-err" style="display:none;margin-top:10px;font-size:12px;line-height:1.5;color:#ff4f6a"></div>
@@ -1138,7 +1154,7 @@ function quickSend(t){
 function formatBotText(text){
   // 1. Bold **text**
   let h = text.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
-  h = h.replace(/\b(Alex)\b/g,'<span style="color:#FF6B00;font-weight:600">$1</span>');
+  h = h.replace(/\b(Alex)\b/g,'<span style="color:#2c5fae;font-weight:600">$1</span>');
   // 2. Klikatelné URL — otevřít v nové záložce
   h = h.replace(/(https?:\/\/[^\s<>"']+)/g, function(url){
     let trail = '';
@@ -1157,7 +1173,7 @@ function formatBotText(text){
         const city = hotelData.address ? hotelData.address.split(',').slice(-1)[0].trim() : '';
         const q = encodeURIComponent(name + (city ? ', ' + city : ''));
         const navUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + q;
-        h = h.replace(regex, `$1 <a href="${navUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:3px;background:rgba(0,212,170,.12);color:var(--teal);border:1px solid rgba(0,212,170,.25);border-radius:12px;padding:1px 7px;font-size:11px;text-decoration:none;font-weight:600;vertical-align:middle">🧭</a>`);
+        h = h.replace(regex, `$1 <a href="${navUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:3px;background:rgba(47,208,216,.12);color:var(--teal);border:1px solid rgba(47,208,216,.25);border-radius:12px;padding:1px 7px;font-size:11px;text-decoration:none;font-weight:600;vertical-align:middle">🧭</a>`);
       }
     });
   }
@@ -1172,7 +1188,7 @@ function addBot(text){
   const html=formatBotText(text);
   const d=document.createElement('div');
   d.className='msg bot';
-  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#ffffff;font-weight:800;font-size:16px">✦</div><div class="msg-body"><div class="msg-bubble">${html}</div><div class="msg-meta"><span class="msg-time">${time}</span></div></div>`;
+  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#2fd0d8 0%,#2fd0d8 60%,#2c5fae 100%);color:#ffffff;font-weight:800;font-size:16px">✦</div><div class="msg-body"><div class="msg-bubble">${html}</div><div class="msg-meta"><span class="msg-time">${time}</span></div></div>`;
   const meta=d.querySelector('.msg-meta');
   const btn=document.createElement('button');
   btn.type='button'; btn.className='speak-btn'; btn.textContent='🔊';
@@ -1214,7 +1230,7 @@ function showTyping(){
   const msgs=document.getElementById('messages');
   const d=document.createElement('div');
   d.id='typing';d.className='msg bot';
-  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#ffffff;font-weight:800;font-size:16px">✦</div><div class="msg-body"><div class="msg-bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div></div>`;
+  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#2fd0d8 0%,#2fd0d8 60%,#2c5fae 100%);color:#ffffff;font-weight:800;font-size:16px">✦</div><div class="msg-body"><div class="msg-bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div></div>`;
   msgs.appendChild(d);msgs.scrollTop=msgs.scrollHeight;
   document.getElementById('hdr-status').className='hdr-status typing';
 }
@@ -1249,6 +1265,7 @@ function detectLangFromText(text){
 }
 
 async function sendMsg(){
+  _unlockAudio();   // klik na odeslat = gesto — odemkne audio pro automatické přehrání odpovědi
   const inp=document.getElementById('msg-input');
   const text=inp.value.trim();
   if(!text||isTyping)return;
@@ -1335,7 +1352,7 @@ function openWhatsAppMenu(){
   popup.id = 'wa-dept-popup';
   popup.style.cssText = 'position:fixed;bottom:80px;right:16px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:8px;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.5);min-width:200px';
   popup.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:4px 8px 8px;text-transform:uppercase;letter-spacing:.6px">'+uiT('wa_title')+'</div>'
-    + depts.map(d => `<button onclick="openWhatsApp('${d.key}');document.getElementById('wa-dept-popup').remove()" style="display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;color:var(--text);padding:8px 10px;border-radius:8px;cursor:pointer;font-size:14px;text-align:left" onmouseover="this.style.background='rgba(255,107,0,.1)'" onmouseout="this.style.background='none'">${d.label}</button>`).join('');
+    + depts.map(d => `<button onclick="openWhatsApp('${d.key}');document.getElementById('wa-dept-popup').remove()" style="display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;color:var(--text);padding:8px 10px;border-radius:8px;cursor:pointer;font-size:14px;text-align:left" onmouseover="this.style.background='rgba(44,95,174,.1)'" onmouseout="this.style.background='none'">${d.label}</button>`).join('');
   document.body.appendChild(popup);
   setTimeout(() => document.addEventListener('click', function h(e){ if(!popup.contains(e.target)){popup.remove();document.removeEventListener('click',h);} }), 100);
 }
@@ -1451,7 +1468,7 @@ async function fetchWeather(){
     const time=new Date().toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
     const d=document.createElement('div');
     d.className='msg bot';
-    d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#ffffff;font-weight:800;font-size:16px">✦</div><div class="msg-body">
+    d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#2fd0d8 0%,#2fd0d8 60%,#2c5fae 100%);color:#ffffff;font-weight:800;font-size:16px">✦</div><div class="msg-body">
       <div class="msg-bubble">
         <div class="chat-card">
           <div class="chat-card-title">🌤 Počasí — ${esc(loc)}</div>
@@ -1491,7 +1508,7 @@ async function fetchWeather(){
 // řeší situaci „vybraná čeština, host mluví německy" (prohlížečové rozpoznávání to neumí).
 // Fallback: když MediaRecorder/endpoint není k dispozici, jede původní Web Speech API.
 let _sttAvailable = null;   // null = nevyzkoušeno, false = server STT nejede (spadni na prohlížeč)
-let _mediaRec = null, _mediaChunks = [], _mediaStream = null, _recTimer = null;
+let _mediaRec = null, _mediaChunks = [], _mediaStream = null, _recTimer = null, _sttCtx = null;
 
 function _sttSupported(){
   return _sttAvailable !== false && typeof MediaRecorder !== 'undefined'
@@ -1517,6 +1534,7 @@ async function _startServerRec(){
     clearTimeout(_recTimer);
     isListening = false; b.classList.remove('listening'); b.textContent = '🎤';
     try{ _mediaStream.getTracks().forEach(t=>t.stop()); }catch(e){}
+    try{ if(_sttCtx){_sttCtx.close(); _sttCtx=null;} }catch(e){}
     const blob = new Blob(_mediaChunks, {type: _mediaRec.mimeType || 'audio/webm'});
     if(blob.size < 1200) return;   // moc krátké (omylem ťuknuto)
     const fmt = (blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm');
@@ -1543,8 +1561,29 @@ async function _startServerRec(){
   };
   _mediaRec.start();
   _recTimer = setTimeout(()=>{ try{ _mediaRec.state!=='inactive' && _mediaRec.stop(); }catch(e){} }, 20000); // strop 20 s
+  // Detekce ticha → auto-stop (host nemusí mačkat ⏹): po začátku řeči 1,7 s ticha = konec
+  try{
+    const _ctx=new (window.AudioContext||window.webkitAudioContext)();
+    _sttCtx=_ctx;
+    const srcNode=_ctx.createMediaStreamSource(_mediaStream);
+    const an=_ctx.createAnalyser(); an.fftSize=512;
+    srcNode.connect(an);
+    const buf=new Uint8Array(an.frequencyBinCount);
+    let spoke=false, silentMs=0, last=Date.now();
+    const tick=()=>{
+      if(!isListening){ try{_ctx.close();}catch(e){} return; }
+      an.getByteTimeDomainData(buf);
+      let peak=0; for(let i=0;i<buf.length;i++){const v=Math.abs(buf[i]-128); if(v>peak)peak=v;}
+      const now=Date.now(); silentMs=(peak>10)?0:silentMs+(now-last); last=now;
+      if(peak>10) spoke=true;
+      if(spoke && silentMs>1700){ try{ _mediaRec.state!=='inactive' && _mediaRec.stop(); }catch(e){} try{_ctx.close();}catch(e){} return; }
+      requestAnimationFrame(tick);
+    };
+    tick();
+  }catch(e){}
 }
 function toggleVoice(){
+  _unlockAudio();   // odemkni audio v dotyku — odpověď se pak přehraje automaticky
   // 1) Preferuj serverové STT s autodetekcí jazyka (funguje i na iOS Safari přes MediaRecorder)
   if(_sttSupported()){
     if(isListening){ try{ _mediaRec && _mediaRec.state!=='inactive' && _mediaRec.stop(); }catch(e){} return; }
@@ -1629,8 +1668,8 @@ function showInfo(){
         return '<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;gap:8px">'
           +'<span style="font-size:13px;color:var(--text)">📍 '+esc(p)+'</span>'
           +'<div style="display:flex;gap:6px;flex-shrink:0">'
-          +'<a href="'+searchUrl+'" target="_blank" style="background:rgba(255,107,0,.15);color:var(--accent);border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🔍 Mapa</a>'
-          +'<a href="'+navUrl+'" target="_blank" style="background:rgba(0,212,170,.15);color:var(--teal);border:1px solid rgba(0,212,170,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🧭 Navigovat</a>'
+          +'<a href="'+searchUrl+'" target="_blank" style="background:rgba(44,95,174,.15);color:var(--accent);border:1px solid rgba(44,95,174,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🔍 Mapa</a>'
+          +'<a href="'+navUrl+'" target="_blank" style="background:rgba(47,208,216,.15);color:var(--teal);border:1px solid rgba(47,208,216,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🧭 Navigovat</a>'
           +'</div></div>';
       }).join('')}</div></div></div>`;
   }
