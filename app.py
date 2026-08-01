@@ -5654,19 +5654,22 @@ def apaleo_connect(token: str, request: Request):
                    "prompt": "consent"})  # vynutí consent obrazovku i při opakovaném připojení
     return RedirectResponse(f"{_APALEO_AUTHORIZE_URL}?{q}")
 
-def _apaleo_picker_html(props: list, hotel_token: str, portal_url: str) -> str:
-    """Výběr property přímo na potvrzovací stránce po OAuth (více properties v účtu,
-    nebo dřívější volba už v účtu neexistuje). Ukládá přes select-property (validace+prefill)."""
+def _apaleo_picker_html(props: list, hotel_token: str, portal_url: str, selected: str = "") -> str:
+    """Výběr property přímo na potvrzovací stránce po OAuth. U účtu s více properties se
+    zobrazuje VŽDY a hotel ho musí POTVRDIT (rozhodnutí Martina 1. 8. — stránka dřív jen
+    blikla a přesměrovala, řetězec neměl šanci volbu zkontrolovat). Dřívější volba je
+    předvybraná → potvrzení = 1 klik. Ukládá přes select-property (validace+prefill)."""
     _opts = "".join(
-        f'<option value="{p["code"]}">{(p["name"] or p["code"])} ({p["code"]})'
+        f'<option value="{p["code"]}"{" selected" if p["code"] == selected else ""}>'
+        + f'{(p["name"] or p["code"])} ({p["code"]})'
         + (" — test" if p.get("status") == "Test" else "") + "</option>"
         for p in props)
     return f"""
 <div style="margin-top:20px;background:#15161a;border:1px solid #2a2c36;border-radius:12px;padding:16px">
-<div style="font-size:13px;font-weight:700;margin-bottom:10px">Select your property</div>
+<div style="font-size:13px;font-weight:700;margin-bottom:10px">{"Confirm your property" if selected else "Select your property"}</div>
 <select id="prp" style="width:100%;background:#1e1f25;border:1px solid #2a2c36;border-radius:8px;color:#e6e4df;font-size:14px;padding:10px">
 <option value="">— select your hotel —</option>{_opts}</select>
-<button onclick="saveProp()" style="margin-top:12px;background:#2c5fae;color:#fff;border:none;padding:10px 22px;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer">Save property</button>
+<button onclick="saveProp()" style="margin-top:12px;background:#2c5fae;color:#fff;border:none;padding:10px 22px;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer">{"Confirm property" if selected else "Save property"}</button>
 <p id="prp-msg" style="font-size:12px;color:#a9adc1;margin:8px 0 0"></p>
 <script>
 async function saveProp(){{
@@ -5784,13 +5787,17 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
                 prop_note = (f" ⚠ Your previously selected property ({_cur}) is NO LONGER available"
                              f" in your Apaleo account — please select the current one below.")
                 picker_html = _apaleo_picker_html(props, h.get("hotel_token", ""), portal_url)
+            elif len(props) > 1:
+                # Účet s více hotely → seznam se ukáže VŽDY a musí se POTVRDIT
+                # (žádný auto-redirect); dřívější volba je předvybraná.
+                _cur_name = next((p["name"] for p in props if p["code"] == _cur), "")
+                prop_note = (f" Your account has {len(props)} properties. Please confirm below that"
+                             f" {_cur_name + ' ' if _cur_name else ''}({_cur}) is the right one for this connection.")
+                picker_html = _apaleo_picker_html(props, h.get("hotel_token", ""), portal_url, selected=_cur)
             else:
                 _cur_name = next((p["name"] for p in props if p["code"] == _cur), "")
                 prop_note = (f" Connected property: {_cur_name + ' ' if _cur_name else ''}({_cur})"
                              f" — kept from your previous connection.")
-                if len(props) > 1:
-                    prop_note += (f" Your account has {len(props)} properties — you can switch anytime"
-                                  f" via the Change button in the PMS section of your portal.")
         if _ph.get("_new_refresh_token"):
             db["hotels"][hid]["pms_refresh_token"] = _ph["_new_refresh_token"]
             db_save(db)
