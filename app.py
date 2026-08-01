@@ -2174,10 +2174,11 @@ def room_qr_cards(hotel_id: str, request: Request, rooms: str = ""):
     sep = "&" if "?" in guest_url else "?"
     cards = "".join(f"""
     <div class="cardx">
-      <div class="ctop"><img src="/static/img/logo-inverse.svg" alt=""/><div><div class="cbrand">SmartestGuide</div><div class="chot">{hotel_name}</div></div></div>
+      <div class="ctop"><div class="cbrand">{hotel_name}</div></div>
       <div class="cqr"><div class="qrh" data-url="{guest_url}{sep}room={r}"></div></div>
       <div class="croom">{room_lbl} <b>{r}</b></div>
       <div class="cscan">{scan_txt}</div>
+      <div class="csg" translate="no"><img src="/static/img/logo-inverse.svg" alt=""/>SmartestGuide</div>
     </div>""" for r in room_list)
     html = f"""<!DOCTYPE html><html><head><meta charset="utf-8">
 <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg"/>
@@ -2191,11 +2192,12 @@ body{{margin:0;background:#f6f8fc;font-family:'Manrope',sans-serif;padding:24px}
 .cardx{{width:85mm;height:54mm;background:#0c1b33;border-radius:4mm;padding:5mm;display:flex;flex-direction:column;align-items:center;position:relative;overflow:hidden;break-inside:avoid;page-break-inside:avoid}}
 .ctop{{display:flex;align-items:center;gap:2.5mm;align-self:flex-start}}
 .ctop img{{width:6mm;height:6mm;display:block}}
-.cbrand{{font-family:'Sora',sans-serif;font-weight:800;font-size:3.4mm;color:#fff;line-height:1.1}}
-.chot{{font-size:2.6mm;color:#a9cbe8}}
+.cbrand{{font-family:'Sora',sans-serif;font-weight:800;font-size:4.4mm;color:#fff;line-height:1.15;max-width:46mm}}
+.csg{{position:absolute;right:5mm;bottom:3.5mm;display:flex;align-items:center;gap:1.2mm;font-family:'Sora',sans-serif;font-weight:700;font-size:2.2mm;color:#8ea3c4;opacity:.9}}
+.csg img{{width:3mm;height:3mm;display:block;opacity:.85}}
 .cqr{{position:absolute;right:5mm;top:50%;transform:translateY(-50%);background:#fff;border-radius:2.5mm;padding:2mm}}
 .qrh{{width:26mm;height:26mm}}
-.croom{{position:absolute;left:5mm;top:18mm;font-family:'Sora',sans-serif;font-size:5.6mm;color:#fff;font-weight:400}}
+.croom{{position:absolute;left:5mm;top:20mm;font-family:'Sora',sans-serif;font-size:5.6mm;color:#fff;font-weight:400}}
 .croom b{{font-weight:800;color:#2fd0d8}}
 .cscan{{position:absolute;left:5mm;bottom:5mm;font-size:2.8mm;color:#c6d4ec;max-width:44mm;line-height:1.35}}
 @media print{{.btn,.hint{{display:none}}body{{background:#fff;padding:0}}.sheet{{gap:4mm}}@page{{margin:8mm}}}}
@@ -2251,9 +2253,8 @@ def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark") -> s
   <div style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
   <div style="position:absolute;top:300px;left:50%;width:620px;height:620px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.14),transparent 70%);pointer-events:none"></div>
   <div style="height:100%;display:flex;flex-direction:column;align-items:center;padding:58px 48px 48px;position:relative">
-    <div translate="no" style="font-family:'Sora',sans-serif;font-weight:800;font-size:34px;color:{c_ink};display:flex;align-items:center;gap:10px"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:36px;height:36px;display:block"/>SmartestGuide</div>
-    <div style="margin-top:10px;font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:{c_teal}">AI Concierge for Hotels</div>
-    <div style="margin-top:26px;font-family:'Sora',sans-serif;font-weight:700;font-size:22px;color:{c_ink};text-align:center">{hotel_name}</div>
+    <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:36px;line-height:1.15;color:{c_ink};text-align:center;max-width:640px">{hotel_name}</div>
+    <div style="margin-top:12px;font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:{c_teal}">Your personal AI concierge</div>
     <div style="position:relative;margin-top:22px;padding:22px;background:{c_qrcard};border:1px solid rgba(44,95,174,.4);border-radius:20px;box-shadow:0 0 40px rgba(44,95,174,.12)">
       <div id="qr" style="width:420px;height:420px;display:flex;align-items:center;justify-content:center"></div>
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:16px;overflow:hidden;box-shadow:0 0 0 4px #ffffff"><img src="/static/img/favicon.svg" alt="" style="width:100%;height:100%;display:block"/></div>
@@ -2262,7 +2263,7 @@ def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark") -> s
     <div style="margin-top:10px;font-size:15px;color:{c_dim}">100+ languages · No app needed · 24/7</div>
     <div style="flex:1"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(47,208,216,.55),transparent)"></div>
-    <div style="margin-top:18px;font-size:14px;font-weight:600;color:{c_teal}">smartestguide.com</div>
+    <div translate="no" style="margin-top:16px;display:flex;align-items:center;gap:8px;font-size:13px;color:{c_dim}"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:16px;height:16px;display:block;opacity:.85"/><span style="font-family:'Sora',sans-serif;font-weight:700;color:{c_dim}">SmartestGuide</span><span style="opacity:.7">· smartestguide.com</span></div>
   </div>
 </div>
 <script>
@@ -2462,9 +2463,8 @@ body{{margin:0;background:#f6f8fc;display:flex;justify-content:center;padding:32
   <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
   <div style="position:absolute;top:80px;left:50%;width:500px;height:500px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.10),transparent 70%);pointer-events:none"></div>
   <div style="padding:{pad};display:flex;flex-direction:column;align-items:center;text-align:center;min-height:{page_h}">
-    <div translate="no" style="font-family:'Sora',sans-serif;font-weight:800;font-size:26px;color:{c_ink};display:flex;align-items:center;gap:9px"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:28px;height:28px;display:block"/>SmartestGuide</div>
-    <div style="margin-top:6px;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">AI Concierge for Hotels</div>
-    <div style="margin-top:8px;font-size:13px;color:{c_dim}">{hotel_name}</div>
+    <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:28px;line-height:1.2;color:{c_ink};text-align:center;max-width:560px">{hotel_name}</div>
+    <div style="margin-top:8px;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">Your personal AI concierge</div>
     <h1 style="font-family:'Sora',sans-serif;font-weight:800;font-size:{h1_size};line-height:1.05;letter-spacing:-.02em;margin:36px 0 0;color:{c_orange}">{headline}</h1>
     <p style="font-size:17px;line-height:1.6;color:{c_sub};max-width:480px;margin:18px 0 0">{subline}</p>
     <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:28px;max-width:500px">{flags_html}</div>
@@ -2477,7 +2477,7 @@ body{{margin:0;background:#f6f8fc;display:flex;justify-content:center;padding:32
     <div style="margin-top:6px;font-size:14px;color:{c_dim}">{no_app} · 100+ languages · 24/7</div>
     <div style="flex:1;min-height:32px"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,{c_teal},transparent);margin-top:32px;opacity:.5"></div>
-    <div style="margin-top:14px;font-size:13px;font-weight:600;color:{c_teal}">smartestguide.com</div>
+    <div translate="no" style="margin-top:12px;display:flex;align-items:center;gap:7px;font-size:12px;color:{c_dim}"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:14px;height:14px;display:block;opacity:.85"/><span style="font-family:'Sora',sans-serif;font-weight:700;color:{c_dim}">SmartestGuide</span><span style="opacity:.7">· smartestguide.com</span></div>
   </div>
 </div>
 <script>
@@ -2518,9 +2518,8 @@ body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:3
   <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
   <div style="position:absolute;top:120px;left:50%;width:400px;height:400px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.10),transparent 70%);pointer-events:none"></div>
   <div style="padding:36px 28px;display:flex;flex-direction:column;align-items:center;text-align:center">
-    <div translate="no" style="font-family:'Sora',sans-serif;font-weight:800;font-size:20px;color:{c_ink};display:flex;align-items:center;gap:8px"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:22px;height:22px;display:block"/>SmartestGuide</div>
-    <div style="margin-top:5px;font-size:9px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">AI CONCIERGE FOR HOTELS</div>
-    <div style="margin-top:6px;font-size:12px;color:{c_dim}">{hotel_name}</div>
+    <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:24px;line-height:1.2;color:{c_ink};text-align:center;max-width:290px">{hotel_name}</div>
+    <div style="margin-top:6px;font-size:9px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">YOUR PERSONAL AI CONCIERGE</div>
     <h1 style="font-family:'Sora',sans-serif;font-weight:800;font-size:36px;line-height:1.05;letter-spacing:-.02em;margin:28px 0 0;color:#2fd0d8">Your<br>personal<br>AI<br>concierge</h1>
     <p style="font-size:14px;line-height:1.6;color:{c_sub};margin:16px 0 0">Let <span style="color:{c_orange};font-weight:600">Alex</span> answer every question — instantly, in your language, around the clock.</p>
     <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:5px;margin-top:22px;max-width:300px">{flags_html}</div>
@@ -2531,7 +2530,7 @@ body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:3
     <div style="margin-top:18px;font-family:'Sora',sans-serif;font-weight:700;font-size:18px;color:{c_ink}">Scan me</div>
     <div style="margin-top:5px;font-size:13px;color:{c_dim}">100+ languages · No app needed · 24/7</div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,170,.4),transparent);margin-top:32px"></div>
-    <div style="margin-top:12px;font-size:12px;font-weight:600;color:{c_teal}">smartestguide.com</div>
+    <div translate="no" style="margin-top:10px;display:flex;align-items:center;gap:6px;font-size:11px;color:{c_dim}"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:13px;height:13px;display:block;opacity:.85"/><span style="font-family:'Sora',sans-serif;font-weight:700;color:{c_dim}">SmartestGuide</span><span style="opacity:.7">· smartestguide.com</span></div>
   </div>
 </div>
 <script>
