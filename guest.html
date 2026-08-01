@@ -688,7 +688,7 @@ async function speakText(text, btn){
   try{
     const r=await fetch(`${API}/api/guest/tts`,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({text:say,language:guestLang})
+      body:JSON.stringify({text:say,language:guestLang,hotel_id:hotelId})
     });
     if(!r.ok) throw new Error('tts '+r.status);
     const blob=await r.blob();
@@ -1522,7 +1522,7 @@ async function _startServerRec(){
     const fmt = (blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm');
     b.textContent = '…';
     try{
-      const r = await fetch(`${API}/api/guest/stt?fmt=${fmt}`, {method:'POST', body: blob});
+      const r = await fetch(`${API}/api/guest/stt?fmt=${fmt}&hotel_id=${encodeURIComponent(hotelId)}`, {method:'POST', body: blob});
       b.textContent = '🎤';
       if(r.status === 503 || r.status === 404){ _sttAvailable = false; return; }
       if(!r.ok) return;
