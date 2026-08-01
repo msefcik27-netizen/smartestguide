@@ -172,7 +172,7 @@
 <div class="shell">
 
   <aside class="sidebar">
-    <div class="logo">SmartestGuide<span style="width:7px;height:7px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:3px;margin-bottom:1px;box-shadow:0 0 8px rgba(255,107,0,.8)"></span><sub>Admin</sub></div>
+    <div class="logo" style="display:flex;align-items:center;gap:7px"><img src="/static/img/logo.svg" alt="" style="width:20px;height:20px;display:block"/>SmartestGuide<sub>Admin</sub></div>
     <div class="nav-item active" onclick="showPage('dashboard')"><span class="nav-icon">📊</span> Dashboard</div>
     <div class="nav-item" onclick="showPage('analytics')"><span class="nav-icon">📈</span> Analytika</div>
     <div class="nav-item" onclick="showPage('scrape')"><span class="nav-icon">🔍</span> Přidat hotel</div>
@@ -2265,7 +2265,7 @@ function generatePdf(inv, co={}){
 <div style="position:fixed;top:0;left:0;right:0;height:3px;z-index:200;background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);box-shadow:0 0 10px rgba(0,212,170,.35)"></div>
 <div style="position:fixed;top:0;left:0;right:0;height:3px;z-index:9999;background:linear-gradient(90deg,#00d4aa,#00d4aa 60%,#FF6B00);box-shadow:0 0 10px rgba(0,212,170,.3)"></div>
 <div class="header">
-  <div><div class="logo">SmartestGuide<span style="width:6px;height:6px;border-radius:50%;background:#FF6B00;display:inline-block;margin-left:3px;box-shadow:0 0 6px rgba(255,107,0,.8)"></span></div><div style="font-size:12px;color:#9a9088;margin-top:4px">smartestguide.com</div></div>
+  <div><div class="logo" style="display:flex;align-items:center;gap:7px"><img src="/static/img/logo.svg" alt="" style="width:18px;height:18px;display:block"/>SmartestGuide</div><div style="font-size:12px;color:#9a9088;margin-top:4px">smartestguide.com</div></div>
   <div style="text-align:right">
     <div class="invoice-title">FAKTURA / INVOICE</div>
     <div class="invoice-number">${inv.invoice_number}</div>

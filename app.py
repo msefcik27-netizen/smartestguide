@@ -366,6 +366,7 @@ async def lifespan(app):
         pass
 
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), check_dir=False), name="static")  # self-host fotek, fontů a log (GDPR — nic z Google/Pexels CDN)
 
 # Verze aplikace — zvyš při každém deployi
 APP_VERSION = "0.5.25"
@@ -4500,7 +4501,7 @@ def app_icon(size: int):
         p = os.path.join(os.path.dirname(__file__), "logo.png")
         img = Image.open(p).convert("RGBA").resize((size, size), Image.LANCZOS)
     except Exception:
-        img = Image.new("RGBA", (size, size), (255, 107, 0, 255))  # fallback
+        img = Image.new("RGBA", (size, size), (44, 95, 174, 255))  # fallback (brand modrá #2c5fae)
     buf = BytesIO()
     img.save(buf, "PNG")
     return Response(content=buf.getvalue(), media_type="image/png",
@@ -5107,7 +5108,7 @@ LEGAL_CSS = """
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#0f0f1a;color:#e0e0f0;line-height:1.8;padding:0}
   .topbar{background:#1a1a2e;border-bottom:1px solid rgba(255,255,255,.08);padding:16px 32px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
-  .logo{font-weight:800;font-size:18px;color:#fff}.logo span{color:#00d4aa}
+  .logo{font-weight:800;font-size:18px;color:#fff;display:flex;align-items:center;gap:8px}.logo span{color:#2fd0d8}.logo img{width:20px;height:20px;display:block}
   .lang-switch{display:flex;gap:8px}
   .lang-switch a{color:#7a7fa8;font-size:13px;text-decoration:none;padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.1)}
   .lang-switch a:hover,.lang-switch a.active{background:rgba(108,99,255,.2);color:#fff;border-color:rgba(108,99,255,.4)}
@@ -5128,7 +5129,7 @@ LEGAL_CSS = """
 
 PRIVACY_CS = LEGAL_CSS + """
 <div class="topbar">
-  <div class="logo">Smartest<span>Guide</span></div>
+  <div class="logo"><img src="/static/img/logo-inverse.svg" alt=""/>Smartest<span>Guide</span></div>
   <div class="lang-switch">
     <a href="/privacy?lang=cs" class="active">🇨🇿 CZ</a>
     <a href="/privacy?lang=en">🇬🇧 EN</a>
@@ -5208,7 +5209,7 @@ PRIVACY_CS = LEGAL_CSS + """
 
 PRIVACY_EN = LEGAL_CSS + """
 <div class="topbar">
-  <div class="logo">Smartest<span>Guide</span></div>
+  <div class="logo"><img src="/static/img/logo-inverse.svg" alt=""/>Smartest<span>Guide</span></div>
   <div class="lang-switch">
     <a href="/privacy?lang=cs">🇨🇿 CZ</a>
     <a href="/privacy?lang=en" class="active">🇬🇧 EN</a>
@@ -5288,7 +5289,7 @@ PRIVACY_EN = LEGAL_CSS + """
 
 TERMS_CS = LEGAL_CSS + """
 <div class="topbar">
-  <div class="logo">Smartest<span>Guide</span></div>
+  <div class="logo"><img src="/static/img/logo-inverse.svg" alt=""/>Smartest<span>Guide</span></div>
   <div class="lang-switch">
     <a href="/terms?lang=cs" class="active">🇨🇿 CZ</a>
     <a href="/terms?lang=en">🇬🇧 EN</a>
@@ -5354,7 +5355,7 @@ TERMS_CS = LEGAL_CSS + """
 
 TERMS_EN = LEGAL_CSS + """
 <div class="topbar">
-  <div class="logo">Smartest<span>Guide</span></div>
+  <div class="logo"><img src="/static/img/logo-inverse.svg" alt=""/>Smartest<span>Guide</span></div>
   <div class="lang-switch">
     <a href="/terms?lang=cs">🇨🇿 CZ</a>
     <a href="/terms?lang=en" class="active">🇬🇧 EN</a>
