@@ -87,8 +87,10 @@ def format_extension_block(ext: dict) -> str:
                  "hosta vždy vyzvi, ať se pro potvrzení zastaví na recepci nebo zavolá. Ty sám NIC nerezervuješ.")
     return "\n".join(lines)
 
-def format_services_block(services: list) -> str:
-    """Blok SLUŽBY HOTELU do promptu — nabídka z PMS (service-offers na míru pobytu)."""
+def format_services_block(services: list, nights: int = 0) -> str:
+    """Blok SLUŽBY HOTELU do promptu — nabídka z PMS (service-offers na míru pobytu).
+    nights = počet nocí pobytu → umožní přesný popisek periodicity („za osobu a noc"
+    vs. „jednorázově") místo Alexova domýšlení."""
     if not services:
         return ""
     _UNIT_LBL = {"Person": "za osobu", "Room": "za pokoj"}
@@ -101,10 +103,21 @@ def format_services_block(services: list) -> str:
             u = _UNIT_LBL.get(s.get("pricing_unit") or "")
             if u and not s.get("price_is_total"):
                 row += f" {u}"
+            # Periodicita PŘESNĚ z čísel (nedomýšlet!): součet = jednotka × noci → „a noc";
+            # součet = jednotka → jednorázově; jinak periodicitu vůbec neuvádět.
+            _tot, _p = s.get("price_total"), s.get("price")
+            if not s.get("price_is_total") and _tot is not None and _p is not None:
+                try:
+                    if nights and abs(float(_tot) - float(_p) * nights) < 0.05:
+                        row += " a noc"
+                    elif abs(float(_tot) - float(_p)) < 0.005:
+                        row += " (jednorázově)"
+                except (TypeError, ValueError):
+                    pass
             if s.get("price_is_total"):
                 row += " CELKEM za celý pobyt hosta"
-            elif s.get("price_total") is not None and s.get("price_total") != s.get("price"):
-                row += f" (celkem za celý pobyt hosta: {s['price_total']} {cur})"
+            elif _tot is not None and _tot != s.get("price"):
+                row += f" (celkem za celý pobyt hosta: {_tot} {cur})"
         if s.get("description"):
             row += f" ({s['description'][:120]})"
         lines.append(row)

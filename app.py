@@ -4489,6 +4489,16 @@ _EXTENSION_INTENT_RE = re.compile(
     r"przed[łl]u[żz]|jeszcze jedn[ąa] noc|продлить|продлени|еще одну ночь|ещё одну ночь|"
     r"продовжити|ще одну ніч", re.IGNORECASE)
 
+# Slovní číslovky pro počet nocí prodloužení („two more nights", „o dvě noci")
+_NIGHT_WORDS = {
+    "jednu": 1, "jedné": 1, "jednou": 1, "dvě": 2, "dve": 2, "tři": 3, "tri": 3,
+    "čtyři": 4, "ctyri": 4, "pět": 5, "pet": 5,
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "eine": 1, "einer": 1, "zwei": 2, "drei": 3, "vier": 4,
+    "une": 1, "deux": 2, "trois": 3, "una": 1, "dos": 2, "tres": 3,
+    "un'altra": 1, "due": 2, "tre": 3,
+}
+
 # Fráze naznačující, že Alexovi chyběla informace (heuristika napříč jazyky)
 _LOW_INFO_MARKERS = [
     "i don't have", "i do not have", "i'm not sure", "i am not sure", "no information",
@@ -5474,13 +5484,19 @@ Guest name: {req.guest_name or 'Guest'}"""
             # (/availability/v1/services vrací jen kapacitně omezené služby → 204, nepoužívat.)
             _svcs = await pms_layer.apaleo_service_offers(_ph_x, _stay_obj)
             if _svcs:
-                pms_extra_blocks.append(pms_layer.format_services_block(_svcs))
+                pms_extra_blocks.append(pms_layer.format_services_block(
+                    _svcs, getattr(_stay_obj, "nights", 0) or 0))
             if _EXTENSION_INTENT_RE.search(req.message or ""):
-                _n = 1
-                _m = re.search(r"(\d{1,2})\s*(?:noc|näch|nach|night|nuit|noche|nott|noci|ночь|ночи|ноче|ніч|ноч)",
-                               (req.message or "").lower())
+                # Počet nocí: číslo kdekoli ve zprávě (i „2 MORE nights"), pak slovní číslovky
+                _n, _low_msg = 1, (req.message or "").lower()
+                _m = re.search(r"\b(\d{1,2})\b", _low_msg)
                 if _m:
                     _n = max(1, min(int(_m.group(1)), 7))
+                else:
+                    for _w, _v in _NIGHT_WORDS.items():
+                        if re.search(r"\b" + _w + r"\b", _low_msg):
+                            _n = _v
+                            break
                 _ext = await pms_layer.apaleo_extension_offer(_ph_x, _stay_obj, _n)
                 if _ext:
                     pms_extra_blocks.append(pms_layer.format_extension_block(_ext))
