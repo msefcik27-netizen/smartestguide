@@ -5258,12 +5258,17 @@ def serve_sw():
     return Response(content=sw, media_type="application/javascript")
 
 @app.get("/api/app-icon/{size}")
-def app_icon(size: int):
-    """Brandová ikona (logo) — favicon + PWA. Načítá logo.png (průhledné pozadí)."""
+def app_icon(size: str):
+    """Brandová ikona (logo) — favicon + PWA. Načítá logo.png (průhledné pozadí).
+    Přijímá i '256.png' — Apaleo Console vyžaduje URL s obrázkovou koncovkou."""
     from PIL import Image
     from io import BytesIO
     from fastapi.responses import Response
-    size = max(16, min(int(size), 512))
+    try:
+        _n = int(str(size).lower().removesuffix(".png"))
+    except Exception:
+        _n = 256
+    size = max(16, min(_n, 512))
     try:
         p = os.path.join(os.path.dirname(__file__), "logo.png")
         img = Image.open(p).convert("RGBA").resize((size, size), Image.LANCZOS)
