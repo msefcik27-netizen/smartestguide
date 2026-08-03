@@ -91,9 +91,34 @@ async def _reminder_background_loop():
             await _backup_data()
             await _send_monthly_reports_if_due()
             await _apaleo_daily_health_check()
+            _cleanup_pending_apaleo_regs()
         except Exception as e:
             logging.error("Background loop error: %s", e)
         await asyncio.sleep(6 * 60 * 60)
+
+def _cleanup_pending_apaleo_regs():
+    """Smaže pending registrace přes Apaleo starší 24 h — VČETNĚ refresh tokenu
+    (bezpečnost: token nedokončené registrace nesmí ležet v DB donekonečna)."""
+    try:
+        db = db_load()
+        regs = db.get("pending_apaleo_regs") or {}
+        if not regs:
+            return
+        now = datetime.utcnow()
+        stale = []
+        for rid, r in regs.items():
+            try:
+                if (now - datetime.fromisoformat(r.get("created_at", "2000-01-01"))).total_seconds() > 24 * 3600:
+                    stale.append(rid)
+            except Exception:
+                stale.append(rid)
+        for rid in stale:
+            regs.pop(rid, None)
+        if stale:
+            db_save(db)
+            logging.info("Uklizeno %d starých pending Apaleo registrací", len(stale))
+    except Exception as e:
+        logging.warning("Úklid pending Apaleo registrací selhal: %s", e)
 
 async def _apaleo_daily_health_check():
     """Denní proaktivní kontrola PMS spojení (1. 8. 2026, na Martinovo přání).
@@ -1751,6 +1776,40 @@ def hotel_completeness(hotel_id: str):
         "missing_required": missing_req,
         "missing_bonus": missing_bon,
     }
+
+@app.get("/api/hotel-portal/group")
+def hotel_portal_group(token: str):
+    """Skupinový přehled pro vlastníka více hotelů (rozhodnutí Martina 1. 8. 2026).
+    Skupina = hotely se STEJNÝM registračním e-mailem. Vrací seznam jen když jsou
+    aspoň 2 (jinak prázdno — jednotlivé hotely sekci nevidí). Tokeny sourozenců smí
+    vidět: držitel tokenu jednoho hotelu vlastníka = vlastník (stejný e-mail)."""
+    h = find_hotel_by_token(token)
+    if not h:
+        raise HTTPException(403, "Neplatný přístupový token")
+    email = (h.get("registration_email") or h.get("email") or "").lower().strip()
+    if not email:
+        return {"status": "ok", "hotels": []}
+    db = db_load()
+    out = []
+    for hid, hh in db["hotels"].items():
+        he = (hh.get("registration_email") or hh.get("email") or "").lower().strip()
+        if he != email or hh.get("archived"):
+            continue
+        a = (db.get("analytics", {}) or {}).get(hid, {}) or {}
+        try:
+            comp_score = hotel_profile_completeness(hh).get("score", 0)
+        except Exception:
+            comp_score = 0
+        out.append({"id": hid, "name": hh.get("name", ""),
+                    "property": hh.get("pms_property_id") or "",
+                    "active": bool(hh.get("subscription_active")),
+                    "beds": int(hh.get("bed_count") or 0),
+                    "questions_total": int(a.get("total", 0)),
+                    "completeness": comp_score,
+                    "token": hh.get("hotel_token", ""),
+                    "is_current": hid == h.get("id")})
+    out.sort(key=lambda x: (not x["is_current"], x["name"].lower()))
+    return {"status": "ok", "hotels": out if len(out) > 1 else []}
 
 @app.get("/api/hotel-portal/completeness")
 def portal_completeness(token: str):
@@ -4150,6 +4209,89 @@ async def stripe_checkout(hotel_id: str, request: Request):
         logging.error("Stripe checkout (portal) výjimka: %s", e)
         raise HTTPException(502, "Chyba při vytváření platby")
 
+def _handle_apaleo_group_checkout(obj: dict, reg_id: str) -> dict:
+    """FLOW 3 fáze 2: dokončený skupinový checkout → založ VŠECHNY vybrané hotely.
+    První hotel = vlastník PMS tokenu a nositel Stripe subscription (billing parent);
+    ostatní odkazují přes pms_token_ref + group_parent. Onboarding e-mail per hotel."""
+    db = db_load()
+    reg = (db.get("pending_apaleo_regs") or {}).get(reg_id)
+    if not reg or reg.get("status") == "done":
+        logging.info("Skupinový checkout %s: registrace nenalezena/hotova (duplicitní event?)", reg_id)
+        return {"status": "ok", "note": "already_processed"}
+    from datetime import timedelta
+    now = datetime.utcnow()
+    customer_id = obj.get("customer", "")
+    subscription_id = obj.get("subscription", "")
+    trial = (obj.get("metadata") or {}).get("trial_used", "0") == "0"
+    period_end = (now + timedelta(days=44 if trial else 30)).isoformat()
+    _by_code = {p["code"]: p for p in reg.get("properties") or []}
+    codes = [c for c in (reg.get("selected_codes") or []) if c in _by_code]
+    if not codes:
+        logging.error("Skupinový checkout %s: žádné platné property", reg_id)
+        return {"status": "ok", "note": "no_codes"}
+    created = []
+    parent_id = None
+    for i, code in enumerate(codes):
+        p = _by_code[code]
+        nid = str(uuid.uuid4())
+        hotel = {
+            "id": nid, "created_at": now.isoformat(), "updated_at": now.isoformat(),
+            "qr_code_id": str(uuid.uuid4()),
+            "hotel_token": str(uuid.uuid4()).replace("-", ""),
+            "name": p["name"] or p["code"],
+            "origin": "apaleo_group", "origin_source": "apaleo_registration",
+            "subscription_active": True,
+            "subscription_start": now.isoformat(),
+            "subscription_period_end": period_end,
+            "stripe_customer_id": customer_id,
+            "email": reg.get("contact_email", ""), "registration_email": reg.get("contact_email", ""),
+            "phone": reg.get("contact_phone", ""), "contact_name": reg.get("contact_name", ""),
+            "country": reg.get("country", ""), "ico": reg.get("ico", ""),
+            "dic": reg.get("dic", ""), "billing_name": reg.get("billing_name", ""),
+            "acquired_by": "auto", "acquisition_channel": "apaleo_store",
+            "acquired_at": now.isoformat(),
+            "source": "apaleo", "group_discount_pct": reg.get("group_discount_pct", 0),
+            "pms_type": "apaleo", "pms_property_id": p["code"],
+            "bed_count": int(p.get("beds") or 0), "registered_bed_count": int(p.get("beds") or 0),
+        }
+        if p.get("checkin_time"):
+            hotel["checkin_time"] = p["checkin_time"]
+        if p.get("checkout_time"):
+            hotel["checkout_time"] = p["checkout_time"]
+        if p.get("unit_count"):
+            hotel["pms_unit_count"] = int(p["unit_count"])
+        if trial:
+            hotel["trial_used"] = True
+            hotel["trial_start"] = now.isoformat()
+        if i == 0:
+            parent_id = nid
+            hotel["pms_refresh_token"] = reg.get("refresh_token", "")
+            hotel["stripe_subscription_id"] = subscription_id
+        else:
+            hotel["pms_token_ref"] = parent_id
+            hotel["group_parent"] = parent_id
+        _ensure_slug(db, nid, hotel)
+        db["hotels"][nid] = hotel
+        created.append(hotel)
+    # Trial záznam na billing parentovi (skupinová částka na Stripe faktuře; interní
+    # záznam nese cenu parenta — známé zjednodušení, dořeší se s ekonomikou skupin)
+    if trial and parent_id:
+        try:
+            _first_pay = (now + timedelta(days=14)).date().isoformat()
+            _create_invoice_record(db, parent_id, db["hotels"][parent_id], trial=True, payment_due=_first_pay)
+        except Exception as e:
+            logging.warning("Trial záznam skupiny selhal: %s", e)
+    reg["status"] = "done"
+    reg.pop("refresh_token", None)   # token už žije na parent hotelu
+    db_save(db)
+    logging.warning("SKUPINOVÁ registrace %s: založeno %d hotelů (%s), parent %s",
+                    reg_id, len(created), ", ".join(h["pms_property_id"] for h in created), parent_id)
+    _base = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app")
+    for h in created:
+        _purl = f"{_base}/portal?token={h['hotel_token']}"
+        _spawn(send_onboarding_email(h["id"], _purl, h["name"], h.get("email", "")))
+    return {"status": "ok", "created": len(created)}
+
 @app.post("/api/stripe/webhook")
 async def stripe_webhook(request: Request):
     """Zpracuje Stripe webhook – aktivuje předplatné po úspěšné platbě."""
@@ -4178,6 +4320,14 @@ async def stripe_webhook(request: Request):
         raise HTTPException(400, "Neplatny JSON")
 
     event_type = event.get("type", "")
+
+    # SKUPINOVÁ registrace přes Apaleo (metadata apaleo_reg_id) → vlastní větev,
+    # generická logika níže se jí netýká (client_reference_id není hotel)
+    if event_type == "checkout.session.completed":
+        _grp_obj = event.get("data", {}).get("object", {})
+        _reg_id = (_grp_obj.get("metadata") or {}).get("apaleo_reg_id", "")
+        if _reg_id:
+            return _handle_apaleo_group_checkout(_grp_obj, _reg_id)
 
     # checkout.session.completed – jednorázová platba nebo první platba subscription
     if event_type in ("checkout.session.completed", "invoice.payment_succeeded"):
@@ -4241,6 +4391,12 @@ async def stripe_webhook(request: Request):
                     except Exception:
                         new_end = now + timedelta(days=30)
                     db["hotels"][hotel_id]["subscription_period_end"] = new_end.isoformat()
+                    # Skupina: obnova parenta prodlužuje i všechny jeho hotely (jedna faktura platí za celou skupinu)
+                    for _cid, _ch in db["hotels"].items():
+                        if _ch.get("group_parent") == hotel_id:
+                            _ch["subscription_period_end"] = new_end.isoformat()
+                            _ch["subscription_active"] = True
+                            _ch["updated_at"] = now.isoformat()
 
                     # Faktura JEN když Stripe reálně strhl peníze (amount_paid > 0).
                     # Nulové trialové faktury (amount_paid=0) přeskoč — trial má vlastní
@@ -4297,11 +4453,17 @@ async def stripe_webhook(request: Request):
         obj = event.get("data", {}).get("object", {})
         customer_id = obj.get("customer", "")
         db = db_load()
-        for hid, h in db["hotels"].items():
+        for hid, h in list(db["hotels"].items()):
             if h.get("stripe_customer_id") == customer_id:
                 db["hotels"][hid]["subscription_active"] = False
                 db["hotels"][hid]["subscription_end"] = datetime.utcnow().isoformat()
                 db["hotels"][hid]["updated_at"] = datetime.utcnow().isoformat()
+                # Skupina: zrušení subscription deaktivuje i všechny hotely parenta
+                for _cid, _ch in db["hotels"].items():
+                    if _ch.get("group_parent") == hid:
+                        _ch["subscription_active"] = False
+                        _ch["subscription_end"] = datetime.utcnow().isoformat()
+                        _ch["updated_at"] = datetime.utcnow().isoformat()
                 db_save(db)
                 break
 
@@ -5787,6 +5949,102 @@ def _apaleo_activate_section(props: list, selected: str) -> str:
 <div id="act-res" style="font-size:12.5px;margin-top:8px"></div>
 </div>"""
 
+def _pricing_price_for_beds(beds: int, s: dict) -> int:
+    """Měsíční cena hotelu dle počtu lůžek (stejný vzorec jako registrace/faktury)."""
+    base = int(s.get("pricing_base", 199))
+    threshold = int(s.get("pricing_threshold", 100))
+    per_bed = float(s.get("pricing_per_bed", 2))
+    return int(base if (beds or 0) <= threshold else base + (beds - threshold) * per_bed)
+
+def _group_discount_pct(n_hotels: int, s: dict) -> int:
+    """Množstevní sleva pro skupiny. Rozhodnutí Martina 1. 8. 2026: ZATÍM ŽÁDNÁ
+    (výchozí 0 %) — mechanismus zůstává, zapne se nastavením group_discount_pct
+    (+ group_discount_min_hotels) v Settings."""
+    try:
+        min_h = int(s.get("group_discount_min_hotels", 3))
+        pct = int(s.get("group_discount_pct", 0))
+    except (TypeError, ValueError):
+        min_h, pct = 3, 0
+    return pct if n_hotels >= min_h and pct > 0 else 0
+
+@app.get("/api/pms/apaleo/connect-register")
+def apaleo_connect_register(request: Request):
+    """FLOW 3 fáze 2 — „Registrovat přes Apaleo": OAuth PŘED vyplněním formuláře.
+    Založí pending registraci (drží state; po callbacku token + seznam properties,
+    TTL 24 h, pak se maže vč. tokenu) a pošle na Apaleo souhlas."""
+    s = db_get_settings()
+    client_id = (s.get("apaleo_client_id") or "").strip()
+    if not client_id:
+        raise HTTPException(400, "Apaleo Connect není nakonfigurováno (APALEO_CLIENT_ID)")
+    reg_id = str(uuid.uuid4())
+    state = "reg" + uuid.uuid4().hex
+    db = db_load()
+    regs = db.setdefault("pending_apaleo_regs", {})
+    regs[reg_id] = {"id": reg_id, "state": state, "status": "oauth",
+                    "created_at": datetime.utcnow().isoformat()}
+    db_save(db)
+    from fastapi.responses import RedirectResponse
+    from urllib.parse import urlencode
+    q = urlencode({"response_type": "code", "client_id": client_id,
+                   "redirect_uri": f"{get_base_url(request)}/api/pms/apaleo/callback",
+                   "scope": _APALEO_SCOPES, "state": state, "prompt": "consent"})
+    return RedirectResponse(f"{_APALEO_AUTHORIZE_URL}?{q}")
+
+async def _apaleo_registration_callback(request: Request, code: str, reg: dict, db: dict, _page):
+    """Callback větev pro registraci přes Apaleo: výměna kódu, načtení properties
+    (vč. lůžek ze setup.read pro férovou cenu na formuláři) a přesměrování na
+    /apaleo-register. Token žije v pending registraci max 24 h."""
+    from fastapi.responses import RedirectResponse
+    try:
+        started = datetime.fromisoformat(reg.get("created_at", "2000-01-01"))
+        if (datetime.utcnow() - started).total_seconds() > 900:
+            return _page("Session expired", "The sign-up took too long. Please start again.", ok=False)
+    except Exception:
+        pass
+    s = db_get_settings()
+    client_id = (s.get("apaleo_client_id") or "").strip()
+    client_secret = (s.get("apaleo_client_secret") or "").strip()
+    basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.post("https://identity.apaleo.com/connect/token",
+            headers={"Authorization": f"Basic {basic}", "Content-Type": "application/x-www-form-urlencoded"},
+            data={"grant_type": "authorization_code", "code": code,
+                  "redirect_uri": f"{get_base_url(request)}/api/pms/apaleo/callback"})
+    if r.status_code != 200:
+        logging.warning("Apaleo reg-callback token exchange selhal: %s %s", r.status_code, r.text[:200])
+        return _page("Sign-up failed", "Apaleo did not accept the authorization. Please try again.", ok=False)
+    tok = r.json()
+    refresh_token = tok.get("refresh_token", "")
+    if not refresh_token:
+        return _page("Missing refresh token", "Apaleo did not grant offline access. Please contact support@smartestguide.com.", ok=False)
+    # Pseudo-hotel kontext jen pro čtení properties/setup přes pending token
+    _ph = {"id": "reg:" + reg["id"], "pms_refresh_token": refresh_token,
+           "_apaleo_app_client_id": client_id, "_apaleo_app_client_secret": client_secret}
+    props = await pms_layer.apaleo_list_properties(_ph) or []
+    if not props:
+        return _page("No properties found", "We could not read any properties from your Apaleo account. Please contact support@smartestguide.com.", ok=False)
+    # Lůžka + časy pro prvních 20 properties (cena na formuláři); víc = doplní se po založení
+    async def _enrich(p):
+        try:
+            setup = await pms_layer.apaleo_get_setup(dict(_ph), p["code"])
+        except Exception:
+            setup = None
+        return {**p, "beds": (setup or {}).get("beds") or 0,
+                "checkin_time": (setup or {}).get("checkin_time") or "",
+                "checkout_time": (setup or {}).get("checkout_time") or "",
+                "unit_count": (setup or {}).get("unit_count") or 0}
+    enriched = list(await asyncio.gather(*[_enrich(p) for p in props[:20]]))
+    enriched += [{**p, "beds": 0, "checkin_time": "", "checkout_time": "", "unit_count": 0}
+                 for p in props[20:]]
+    if _ph.get("_new_refresh_token"):
+        refresh_token = _ph["_new_refresh_token"]
+    reg.update({"status": "form", "refresh_token": refresh_token, "properties": enriched,
+                "token_at": datetime.utcnow().isoformat()})
+    reg.pop("state", None)   # state je jednorázový
+    db["pending_apaleo_regs"][reg["id"]] = reg
+    db_save(db)
+    return RedirectResponse(f"{get_base_url(request)}/apaleo-register?reg={reg['id']}")
+
 @app.get("/api/pms/apaleo/callback")
 async def apaleo_callback(request: Request, code: str = "", state: str = "", error: str = ""):
     """Návrat z Apaleo: výměna kódu za tokeny, uložení k hotelu dle state."""
@@ -5818,6 +6076,10 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
         return _page("Invalid request", "Missing authorization code or state. Please start the connection again from your portal.", ok=False)
     # Najdi hotel podle state (a zkontroluj stáří)
     db = db_load()
+    # Registrace přes Apaleo (FLOW 3 fáze 2): state může patřit PENDING REGISTRACI, ne hotelu
+    for _r in list((db.get("pending_apaleo_regs") or {}).values()):
+        if _r.get("state") == state:
+            return await _apaleo_registration_callback(request, code, _r, db, _page)
     hid, h = None, None
     for _id, _h in db["hotels"].items():
         if _h.get("pms_oauth_state") == state:
@@ -6099,6 +6361,180 @@ def _persist_rotated_refresh_token(hid: str, ph: dict):
             db_save(db)
     except Exception as e:
         logging.warning("Uložení rotovaného refresh tokenu selhalo: %s", e)
+
+@app.get("/apaleo-register", response_class=HTMLResponse)
+def apaleo_register_page(reg: str = ""):
+    """Registrační formulář po OAuth „Registrovat přes Apaleo": checkboxy properties
+    s lůžky a cenou per hotel, skupinová sleva, JEDNA sada kontaktních údajů.
+    Odesílá na /api/register-apaleo → Stripe checkout s položkou za každý hotel."""
+    db = db_load()
+    r = (db.get("pending_apaleo_regs") or {}).get((reg or "").strip())
+    if not r or r.get("status") not in ("form", "awaiting_payment") or not r.get("properties"):
+        return HTMLResponse("<h3 style='font-family:sans-serif;padding:40px'>This sign-up link is invalid or expired. "
+                            "Please start again from <a href='/apaleo'>smartestguide.com/apaleo</a>.</h3>", status_code=404)
+    s = db_get_settings()
+    props = r["properties"]
+    disc_min = int(s.get("group_discount_min_hotels", 3) or 3)
+    disc_pct = int(s.get("group_discount_pct", 0) or 0)
+    rows = "".join(
+        f"""<label class="prow"><input type="checkbox" class="psel" value="{p['code']}" data-price="{_pricing_price_for_beds(p.get('beds') or 0, s)}" checked>
+<span class="pname">{(p['name'] or p['code'])} <span class="pcode">({p['code']})</span></span>
+<span class="pmeta">{(str(p['beds']) + ' beds · ') if p.get('beds') else ''}€{_pricing_price_for_beds(p.get('beds') or 0, s)}/mo</span></label>"""
+        for p in props)
+    return HTMLResponse(f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign up with Apaleo — SMARTEST GUIDE</title>
+<link rel="icon" href="/static/img/favicon.svg">
+<style>
+body{{font-family:sans-serif;background:#15161a;color:#e6e4df;margin:0;display:flex;justify-content:center;padding:30px 14px}}
+.card{{max-width:560px;width:100%;background:#1e1f25;border-radius:16px;padding:30px}}
+h1{{font-size:19px;margin:0 0 4px}} .sub{{color:#a9adc1;font-size:13px;margin:0 0 18px}}
+.prow{{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid #2a2c36;border-radius:9px;margin:6px 0;cursor:pointer;font-size:14px}}
+.pname{{flex:1}} .pcode,.pmeta{{color:#a9adc1;font-size:12.5px}}
+input[type=text],input[type=email],input[type=tel]{{width:100%;box-sizing:border-box;background:#15161a;border:1px solid #2a2c36;border-radius:8px;color:#e6e4df;font-size:14px;padding:10px 12px;margin:5px 0 12px}}
+label.f{{font-size:12.5px;color:#a9adc1}}
+.total{{background:#15161a;border:1px solid #2a2c36;border-radius:10px;padding:12px 16px;margin:16px 0;font-size:14px}}
+button{{width:100%;background:#2c5fae;color:#fff;border:none;padding:13px;border-radius:9px;font-weight:700;font-size:15px;cursor:pointer;margin-top:6px}}
+#msg{{font-size:13px;color:#ff8a8a;margin-top:10px}}
+.logo{{font-weight:800;font-size:15px;letter-spacing:.02em;margin-bottom:16px}}
+.logo b{{display:inline-block;width:6px;height:6px;border-radius:50%;background:#2fd0d8;margin-left:3px}}
+</style></head><body><div class="card">
+<div class="logo">SMARTEST GUIDE<b></b></div>
+<h1>Choose the hotels to activate</h1>
+<p class="sub">Loaded from your Apaleo account. Each hotel gets its own AI concierge, guest app, portal and print materials — profiles pre-filled from Apaleo. One subscription, one monthly invoice.</p>
+{rows}
+<div class="total" id="total"></div>
+<h1 style="font-size:16px">Your contact &amp; billing details</h1>
+<label class="f">Contact name *</label><input type="text" id="f-name">
+<label class="f">E-mail *</label><input type="email" id="f-email">
+<label class="f">Phone</label><input type="tel" id="f-phone">
+<label class="f">Country (e.g. DE, CZ)</label><input type="text" id="f-country" maxlength="2">
+<label class="f">Company / billing name</label><input type="text" id="f-billing">
+<label class="f">Company ID (IČO/registration no.)</label><input type="text" id="f-ico">
+<label class="f">VAT ID</label><input type="text" id="f-dic">
+<button onclick="submitReg()">Continue to payment — 14-day free trial</button>
+<div id="msg"></div>
+<p style="font-size:11.5px;color:#6b6f8e">By continuing you agree to our <a href="/terms" style="color:#7fb2ff">Terms</a> and <a href="/privacy" style="color:#7fb2ff">Privacy Policy</a>. The trial is free; cancel anytime.</p>
+</div>
+<script>
+var DISC_MIN={disc_min},DISC_PCT={disc_pct};
+function recalc(){{
+  var sel=[].slice.call(document.querySelectorAll('.psel:checked'));
+  var sum=sel.reduce(function(a,c){{return a+parseInt(c.dataset.price||'0');}},0);
+  var n=sel.length,disc=(n>=DISC_MIN&&DISC_PCT>0)?DISC_PCT:0;
+  var after=Math.round(sum*(100-disc)/100);
+  document.getElementById('total').innerHTML=n?('<b>'+n+'</b> hotel(s) — <b>€'+after+'/month</b>'+(disc?(' <span style="color:#2ecc87">(incl. '+disc+'% group discount, was €'+sum+')</span>'):'')+'<br><span style="color:#a9adc1;font-size:12px">First 14 days free. One invoice for the whole group.</span>'):'Select at least one hotel.';
+}}
+[].slice.call(document.querySelectorAll('.psel')).forEach(function(c){{c.addEventListener('change',recalc);}});
+recalc();
+async function submitReg(){{
+  var m=document.getElementById('msg');m.textContent='';
+  var codes=[].slice.call(document.querySelectorAll('.psel:checked')).map(function(c){{return c.value;}});
+  var name=document.getElementById('f-name').value.trim(),email=document.getElementById('f-email').value.trim();
+  if(!codes.length){{m.textContent='Select at least one hotel.';return;}}
+  if(!name||!email||email.indexOf('@')<0){{m.textContent='Please fill in your contact name and a valid e-mail.';return;}}
+  m.style.color='#a9adc1';m.textContent='Creating your subscription…';
+  try{{
+    var r=await fetch('/api/register-apaleo',{{method:'POST',headers:{{'Content-Type':'application/json'}},
+      body:JSON.stringify({{reg_id:'{r["id"]}',property_codes:codes,contact_name:name,contact_email:email,
+        contact_phone:document.getElementById('f-phone').value.trim(),
+        country:document.getElementById('f-country').value.trim(),
+        billing_name:document.getElementById('f-billing').value.trim(),
+        ico:document.getElementById('f-ico').value.trim(),dic:document.getElementById('f-dic').value.trim()}})}});
+    var d=await r.json();
+    if(d.checkout_url){{location.href=d.checkout_url;}}
+    else{{m.style.color='#ff8a8a';m.textContent=d.detail||d.message||'Something went wrong — please try again.';}}
+  }}catch(e){{m.style.color='#ff8a8a';m.textContent='Failed: '+e.message;}}
+}}
+</script></body></html>""")
+
+class RegisterApaleoRequest(BaseModel):
+    reg_id: str
+    property_codes: list
+    contact_name: str
+    contact_email: str
+    contact_phone: Optional[str] = ""
+    country: Optional[str] = ""
+    billing_name: Optional[str] = ""
+    ico: Optional[str] = ""
+    dic: Optional[str] = ""
+
+@app.post("/api/register-apaleo")
+async def register_apaleo(req: RegisterApaleoRequest, request: Request):
+    """Skupinová registrace přes Apaleo → JEDEN Stripe checkout s položkou za každý
+    hotel (jedna měsíční hromadná faktura, skupinová sleva). Hotely se zakládají
+    až po dokončení checkoutu (webhook, metadata apaleo_reg_id)."""
+    db = db_load()
+    r = (db.get("pending_apaleo_regs") or {}).get((req.reg_id or "").strip())
+    if not r or not r.get("refresh_token") or not r.get("properties"):
+        raise HTTPException(404, "Registrace vypršela — začněte prosím znovu.")
+    email = (req.contact_email or "").strip()
+    if not email or "@" not in email or not (req.contact_name or "").strip():
+        raise HTTPException(400, "Vyplňte jméno a platný e-mail.")
+    s = db_get_settings()
+    stripe_key = s.get("stripe_secret_key", "")
+    if not stripe_key:
+        raise HTTPException(400, "Platby nejsou nakonfigurovány")
+    _by_code = {p["code"].lower(): p for p in r["properties"]}
+    chosen = []
+    for c in [str(c).strip() for c in (req.property_codes or [])][:20]:
+        p = _by_code.get(c.lower())
+        if p and p["code"] not in [x["code"] for x in chosen]:
+            chosen.append(p)
+    if not chosen:
+        raise HTTPException(400, "Vyberte alespoň jeden hotel.")
+    disc = _group_discount_pct(len(chosen), s)
+    # Trial dedupe podle e-mailu (stejná logika jako běžná registrace)
+    email_l = email.lower()
+    trial_already_used = any(
+        h.get("trial_used") and ((h.get("email") or "").lower().strip() == email_l
+                                 or (h.get("registration_email") or "").lower().strip() == email_l)
+        for h in db["hotels"].values())
+    base = get_base_url(request)
+    data = {
+        "mode": "subscription",
+        "client_reference_id": "apaleoreg_" + r["id"],
+        "customer_email": email,
+        "success_url": f"{base}/success?apaleo_group=1",
+        "cancel_url": f"{base}/apaleo-register?reg={r['id']}",
+        "metadata[apaleo_reg_id]": r["id"],
+        "metadata[trial_used]": "0" if not trial_already_used else "1",
+    }
+    if not trial_already_used:
+        data["subscription_data[trial_period_days]"] = "14"
+    for i, p in enumerate(chosen):
+        price = _pricing_price_for_beds(p.get("beds") or 0, s)
+        price_after = int(round(price * (100 - disc) / 100))
+        data[f"line_items[{i}][price_data][currency]"] = "eur"
+        data[f"line_items[{i}][price_data][product_data][name]"] = f"SmartestGuide – {p['name'] or p['code']}"
+        data[f"line_items[{i}][price_data][product_data][description]"] = (
+            f"AI concierge ({p.get('beds') or '?'} beds)" + (f", group discount −{disc}%" if disc else ""))
+        data[f"line_items[{i}][price_data][recurring][interval]"] = "month"
+        data[f"line_items[{i}][price_data][unit_amount]"] = str(price_after * 100)
+        data[f"line_items[{i}][quantity]"] = "1"
+    async with httpx.AsyncClient() as client:
+        resp = await client.post("https://api.stripe.com/v1/checkout/sessions",
+            headers={"Authorization": f"Bearer {stripe_key}",
+                     "Content-Type": "application/x-www-form-urlencoded"},
+            data=data, timeout=30.0)
+    if resp.status_code != 200:
+        logging.error("Stripe skupinový checkout selhal: %s", resp.text[:300])
+        raise HTTPException(502, "Vytvoření platby selhalo — zkuste to prosím znovu.")
+    session = resp.json()
+    if not session.get("url"):
+        raise HTTPException(502, "Stripe nevrátil checkout URL")
+    # Ulož výběr + kontakty na pending registraci (webhook z nich hotely založí)
+    r.update({"status": "awaiting_payment",
+              "selected_codes": [p["code"] for p in chosen],
+              "contact_name": req.contact_name.strip(), "contact_email": email,
+              "contact_phone": (req.contact_phone or "").strip(),
+              "country": (req.country or "").upper().strip(),
+              "billing_name": (req.billing_name or "").strip(),
+              "ico": (req.ico or "").strip(), "dic": (req.dic or "").strip(),
+              "group_discount_pct": disc, "trial_used_flag": trial_already_used,
+              "checkout_url": session.get("url"), "checkout_created_at": datetime.utcnow().isoformat()})
+    db["pending_apaleo_regs"][r["id"]] = r
+    db_save(db)
+    return {"status": "ok", "checkout_url": session.get("url")}
 
 @app.post("/api/pms/apaleo/disconnect")
 def apaleo_disconnect(token: str):

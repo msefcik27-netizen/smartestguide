@@ -379,6 +379,9 @@ const EN_MAP = {
   "Zadejte kód property (např. BER)":"Enter the property code (e.g. BER)",
   "Uložení se nepovedlo: ":"Saving failed: ","Odpojení se nepovedlo: ":"Disconnecting failed: ",
   "Načítám seznam properties…":"Loading your properties…","Změnit":"Change","Zrušit":"Cancel",
+  "Vaše hotely":"Your hotels","(tento portál)":"(this portal)","Otevřít portál":"Open portal",
+  "Skupinový přehled — všechny hotely pod vaším účtem. Kliknutím otevřete portál konkrétního hotelu.":"Group overview — all hotels under your account. Click to open a hotel's portal.",
+  "Lůžka":"Beds","Profil":"Profile","Dotazy":"Questions","Stav":"Status","Hotel":"Hotel",
   "— vyberte svůj hotel —":"— select your hotel —",
   "Vyberte svůj hotel ze seznamu":"Select your hotel from the list",
   "Vyberte svůj hotel ze seznamu — načítá se přímo z vašeho Apaleo účtu, žádné opisování kódů.":"Select your hotel from the list — loaded directly from your Apaleo account, no copying codes.",
@@ -508,7 +511,7 @@ function setPortalLang(lang){
   refreshStaticTexts();
   if(hotelData){
     renderPortal(); renderOnboarding(); loadCompleteness(); loadPaymentSection();
-    loadPmsSection(); loadInvoicesSection(); loadMonthlyReport();
+    loadPmsSection(); loadGroupSection(); loadInvoicesSection(); loadMonthlyReport();
     setTimeout(initEmbedCode, 100);
   }
 }
@@ -661,6 +664,7 @@ function renderPortal() {
       bude avatar sloužit. Po každé úpravě klikněte na <strong>Uložit změny</strong>.
     </div>
 
+    <div id="group-section"></div>
     <div id="pms-section"></div>
 
     <div id="onboarding-wizard"></div>
@@ -1602,6 +1606,50 @@ function openRoomCards(hid){
   if(!v.trim()){alert('Zadejte čísla pokojů — např. 101-110, 201');return;}
   window.open('/api/hotels/'+hid+'/room-cards?rooms='+encodeURIComponent(v.trim()),'_blank');
 }
+async function loadGroupSection(){
+  // Skupinový přehled — jen pro vlastníky VÍCE hotelů (stejný registrační e-mail)
+  const el=document.getElementById('group-section');
+  if(!el)return;
+  try{
+    const r=await fetch(`${API}/api/hotel-portal/group?token=${token}`);
+    const d=await r.json();
+    const hs=d.hotels||[];
+    if(hs.length<2){el.innerHTML='';return;}
+    const rows=hs.map(h=>`
+      <tr style="${h.is_current?'background:rgba(44,95,174,.10)':''}">
+        <td style="padding:9px 10px;font-weight:${h.is_current?'800':'600'};font-size:13px">${esc(h.name)}${h.is_current?' <span style="font-size:10.5px;color:var(--accent)">'+tr('(tento portál)')+'</span>':''}</td>
+        <td style="padding:9px 10px;font-size:12.5px;color:var(--muted)">${esc(h.property||'—')}</td>
+        <td style="padding:9px 10px;font-size:12.5px;text-align:right">${h.beds||'—'}</td>
+        <td style="padding:9px 10px;font-size:12.5px;text-align:right;color:${h.completeness>=80?'#2ecc87':'#ffaa33'}">${h.completeness}%</td>
+        <td style="padding:9px 10px;font-size:12.5px;text-align:right">${h.questions_total}</td>
+        <td style="padding:9px 10px;text-align:center;font-size:12px">${h.active?'<span style="color:#2ecc87">●</span>':'<span style="color:#ff5a5a">●</span>'}</td>
+        <td style="padding:9px 10px;text-align:right">${h.is_current?'':`<a href="/portal?token=${h.token}" style="font-size:12px;color:var(--accent);font-weight:700;text-decoration:none;border:1px solid var(--border);border-radius:7px;padding:5px 10px;white-space:nowrap">${tr('Otevřít portál')} →</a>`}</td>
+      </tr>`).join('');
+    el.innerHTML=`
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:24px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+          <div style="font-size:24px">🏨</div>
+          <div>
+            <div style="font-family:var(--font-head);font-size:15px;font-weight:700">${tr('Vaše hotely')} <span style="color:var(--muted);font-weight:600">(${hs.length})</span></div>
+            <div style="font-size:12px;color:var(--muted)">${tr('Skupinový přehled — všechny hotely pod vaším účtem. Kliknutím otevřete portál konkrétního hotelu.')}</div>
+          </div>
+        </div>
+        <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+          <thead><tr style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">
+            <th style="text-align:left;padding:4px 10px">${tr('Hotel')}</th>
+            <th style="text-align:left;padding:4px 10px">Property</th>
+            <th style="text-align:right;padding:4px 10px">${tr('Lůžka')}</th>
+            <th style="text-align:right;padding:4px 10px">${tr('Profil')}</th>
+            <th style="text-align:right;padding:4px 10px">${tr('Dotazy')}</th>
+            <th style="text-align:center;padding:4px 10px">${tr('Stav')}</th>
+            <th></th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>
+      </div>`;
+  }catch(e){el.innerHTML='';}
+}
+
 function loadPmsSection(){
   // Propojení s hotelovým systémem (PMS) — zatím Apaleo (OAuth Connect)
   const el=document.getElementById('pms-section');
@@ -1685,6 +1733,12 @@ async function savePmsProperty(){
   const inp=document.getElementById('pms-prop-input');
   const val=((sel&&sel.value)||(inp&&inp.value)||'').trim();
   if(!val){alert(tr('Vyberte svůj hotel ze seznamu'));return;}
+  // Pojistka: přepnutí na JINOU property u už nastaveného hotelu = skoro vždy omyl.
+  // Alex by začal číst rezervace jiného hotelu, zatímco QR kódy visí v tomto.
+  const cur=(hotelData&&hotelData.pms_property_id)||'';
+  if(cur&&val.toLowerCase()!==cur.toLowerCase()){
+    if(!confirm(tr('POZOR: Měníte property z ')+cur+tr(' na ')+val+tr('.\n\nAlex začne hostům odpovídat z rezervací JINÉHO hotelu, zatímco QR kódy v pokojích patří tomuto hotelu. Dělejte to POUZE pokud jste při připojení vybrali omylem špatný hotel.\n\nOpravdu změnit?')))return;
+  }
   try{
     const r=await fetch(`${API}/api/pms/apaleo/select-property`,{method:'POST',
       headers:{'Content-Type':'application/json'},body:JSON.stringify({token:token,property_code:val})});
