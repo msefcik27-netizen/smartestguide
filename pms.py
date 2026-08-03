@@ -348,6 +348,24 @@ async def apaleo_list_properties(hotel: dict) -> Optional[list]:
             out.append({"code": code, "name": str(name), "status": p.get("status") or ""})
     return out
 
+async def apaleo_get_property(hotel: dict, property_id: str) -> Optional[dict]:
+    """Detail property (bez zvláštního scope): adresa a země — pro předvyplnění
+    profilu u skupinové registrace. Vrací {address, city, country} nebo None."""
+    d = await _apaleo_get(hotel, f"/inventory/v1/properties/{property_id}",
+                          {"languages": "all"}, quiet=True)
+    if not d:
+        return None
+    loc = d.get("location") or {}
+    addr = ", ".join(str(x) for x in (loc.get("addressLine1"), loc.get("postalCode"), loc.get("city")) if x)
+    def _lang_pick(v):
+        if isinstance(v, dict):
+            return str(v.get("en") or next(iter(v.values()), "") or "")
+        return str(v or "")
+    return {"address": addr, "city": str(loc.get("city") or ""),
+            "country": (loc.get("countryCode") or "").upper(),
+            "description": _lang_pick(d.get("description")).strip(),
+            "currency": str(d.get("currencyCode") or "")}
+
 async def apaleo_get_setup(hotel: dict, property_id: str = "") -> Optional[dict]:
     """Konfigurace property (scope setup.read): seznam units, počet lůžek,
     check-in/out časy z time slice definitions. Cache 10 min. Vrací None při selhání
@@ -399,8 +417,23 @@ async def apaleo_get_setup(hotel: dict, property_id: str = "") -> Optional[dict]
             checkout = (ts.get("checkOutTime") or "")[:5]
             if checkin or checkout:
                 break
+    # Typy pokojů (unit groups BedRoom): název, kapacita, počet pokojů — do profilu
+    room_types = []
+    if ug_d:
+        _per_group_count = {}
+        for u in units_d.get("units") or []:
+            _gid = (u.get("unitGroup") or {}).get("id") or u.get("unitGroupId")
+            _per_group_count[_gid] = _per_group_count.get(_gid, 0) + 1
+        for g in ug_d.get("unitGroups") or []:
+            _nm = g.get("name")
+            if isinstance(_nm, dict):
+                _nm = _nm.get("en") or next(iter(_nm.values()), "")
+            if _nm:
+                room_types.append({"name": str(_nm), "maxPersons": int(g.get("maxPersons") or 0),
+                                   "units": _per_group_count.get(g.get("id"), 0)})
     data = {"property_id": pid, "units": units, "unit_count": len(units),
-            "beds": beds, "checkin_time": checkin, "checkout_time": checkout}
+            "beds": beds, "checkin_time": checkin, "checkout_time": checkout,
+            "room_types": room_types}
     _setup_cache[ck] = {"data": data, "expires": now + 600}
     return data
 

@@ -4273,6 +4273,28 @@ def _handle_apaleo_group_checkout(obj: dict, reg_id: str) -> dict:
             hotel["checkout_time"] = p["checkout_time"]
         if p.get("unit_count"):
             hotel["pms_unit_count"] = int(p["unit_count"])
+        if p.get("address"):
+            hotel["address"] = p["address"]
+        if p.get("country") and not hotel.get("country"):
+            hotel["country"] = p["country"]
+        if p.get("description"):
+            hotel["description"] = str(p["description"])[:1200]
+        # Typy pokojů + měna z Apalea → sekce „další informace" (Martin: vytáhnout maximum)
+        _extra_bits = []
+        if p.get("room_types"):
+            _rt = "; ".join(
+                f"{r['name']} ({r['maxPersons']} pers.)" + (f" × {r['units']}" if r.get("units") else "")
+                for r in p["room_types"][:12] if r.get("name"))
+            if _rt:
+                _extra_bits.append(f"Room types (from Apaleo): {_rt}")
+        if p.get("currency"):
+            _extra_bits.append(f"Hotel currency: {p['currency']}")
+        if _extra_bits:
+            hotel["extra_info"] = "\n".join(_extra_bits)
+        _web = (reg.get("property_websites") or {}).get(p["code"], "")
+        if _web:
+            hotel["url"] = _web
+            hotel["source_url"] = _web
         if trial:
             hotel["trial_used"] = True
             hotel["trial_start"] = now.isoformat()
@@ -4303,6 +4325,9 @@ def _handle_apaleo_group_checkout(obj: dict, reg_id: str) -> dict:
     for h in created:
         _purl = f"{_base}/portal?token={h['hotel_token']}"
         _spawn(send_onboarding_email(h["id"], _purl, h["name"], h.get("email", "")))
+        if h.get("url"):
+            # Vlastník zadal web → standardní scraping profilu jako u běžné registrace
+            _spawn(auto_scrape_after_payment(h["id"], h["url"]))
     return {"status": "ok", "created": len(created)}
 
 @app.post("/api/stripe/webhook")
@@ -6047,10 +6072,20 @@ async def _apaleo_registration_callback(request: Request, code: str, reg: dict, 
             setup = await pms_layer.apaleo_get_setup(dict(_ph), p["code"])
         except Exception:
             setup = None
+        try:
+            detail = await pms_layer.apaleo_get_property(dict(_ph), p["code"])
+        except Exception:
+            detail = None
         return {**p, "beds": (setup or {}).get("beds") or 0,
                 "checkin_time": (setup or {}).get("checkin_time") or "",
                 "checkout_time": (setup or {}).get("checkout_time") or "",
-                "unit_count": (setup or {}).get("unit_count") or 0}
+                "unit_count": (setup or {}).get("unit_count") or 0,
+                "room_types": (setup or {}).get("room_types") or [],
+                "address": (detail or {}).get("address") or "",
+                "city": (detail or {}).get("city") or "",
+                "country": (detail or {}).get("country") or "",
+                "description": (detail or {}).get("description") or "",
+                "currency": (detail or {}).get("currency") or ""}
     enriched = list(await asyncio.gather(*[_enrich(p) for p in props[:20]]))
     enriched += [{**p, "beds": 0, "checkin_time": "", "checkout_time": "", "unit_count": 0}
                  for p in props[20:]]
@@ -6397,7 +6432,8 @@ def apaleo_register_page(reg: str = ""):
     rows = "".join(
         f"""<label class="prow"><input type="checkbox" class="psel" value="{p['code']}" data-price="{_pricing_price_for_beds(p.get('beds') or 0, s)}" checked>
 <span class="pname">{(p['name'] or p['code'])} <span class="pcode">({p['code']})</span></span>
-<span class="pmeta">{(str(p['beds']) + ' beds · ') if p.get('beds') else ''}€{_pricing_price_for_beds(p.get('beds') or 0, s)}/mo</span></label>"""
+<span class="pmeta">{(str(p['beds']) + ' beds · ') if p.get('beds') else ''}€{_pricing_price_for_beds(p.get('beds') or 0, s)}/mo</span></label>
+<input type="text" class="pweb" data-code="{p['code']}" placeholder="{(p['name'] or p['code'])} — website (optional, we auto-import the profile from it)" style="width:100%;box-sizing:border-box;background:#15161a;border:1px solid #2a2c36;border-radius:8px;color:#e6e4df;font-size:12.5px;padding:8px 12px;margin:-2px 0 8px">"""
         for p in props)
     return HTMLResponse(f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign up with Apaleo — SMARTEST GUIDE</title>
@@ -6471,7 +6507,9 @@ async function submitReg(){{
   m.style.color='#a9adc1';m.textContent='Creating your subscription…';
   try{{
     var r=await fetch('/api/register-apaleo',{{method:'POST',headers:{{'Content-Type':'application/json'}},
-      body:JSON.stringify({{reg_id:'{r["id"]}',property_codes:codes,contact_name:name,contact_email:email,
+      body:JSON.stringify({{reg_id:'{r["id"]}',property_codes:codes,
+        property_websites:Object.fromEntries([].slice.call(document.querySelectorAll('.pweb')).filter(function(w){{return w.value.trim();}}).map(function(w){{return [w.dataset.code,w.value.trim()];}})),
+        contact_name:name,contact_email:email,
         contact_phone:document.getElementById('f-phone').value.trim(),
         ico:document.getElementById('f-ico').value.trim()}})}});
     var d=await r.json();
@@ -6484,6 +6522,7 @@ async function submitReg(){{
 class RegisterApaleoRequest(BaseModel):
     reg_id: str
     property_codes: list
+    property_websites: Optional[dict] = None
     contact_name: str
     contact_email: str
     contact_phone: Optional[str] = ""
@@ -6558,8 +6597,16 @@ async def register_apaleo(req: RegisterApaleoRequest, request: Request):
     if not session.get("url"):
         raise HTTPException(502, "Stripe nevrátil checkout URL")
     # Ulož výběr + kontakty na pending registraci (webhook z nich hotely založí)
+    _webs = {}
+    for _k, _v in (req.property_websites or {}).items():
+        _v = str(_v or "").strip()
+        if _v:
+            if not _v.startswith("http"):
+                _v = "https://" + _v
+            _webs[str(_k)] = _v[:300]
     r.update({"status": "awaiting_payment",
               "selected_codes": [p["code"] for p in chosen],
+              "property_websites": _webs,
               "contact_name": req.contact_name.strip(), "contact_email": email,
               "contact_phone": (req.contact_phone or "").strip(),
               "country": (req.country or "").upper().strip(),
