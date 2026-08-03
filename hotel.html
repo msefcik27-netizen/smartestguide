@@ -1803,7 +1803,8 @@ async function loadPmsProperties(){
     // Fallback: seznam nejde načíst (starší souhlas bez nových oprávnění) → ruční zadání
     const wrap=document.getElementById('pms-prop-picker');
     if(wrap)wrap.innerHTML=`<input type="text" id="pms-prop-input" placeholder="${tr('Kód property (např. BER)')}" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;width:180px;outline:none">
-      <button onclick="savePmsProperty()" style="background:var(--accent);color:#0a0b0f;border:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">${tr('Uložit')}</button>`;
+      <button onclick="savePmsProperty()" style="background:var(--accent);color:#0a0b0f;border:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">${tr('Uložit')}</button>
+      ${(hotelData&&hotelData.pms_property_id)?`<button onclick="window._pmsPickProp=false;loadPmsSection()" style="background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);padding:9px 12px;font-size:12.5px;cursor:pointer">${tr('Zrušit')}</button>`:''}`;
   }
 }
 
