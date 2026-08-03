@@ -348,7 +348,15 @@
         </div>
       </div>
       <div class="card">
-        <div class="table-wrap"><table><thead><tr><th>Název / URL</th><th>Lůžka</th><th>Cena</th><th>Stav / předplatné</th><th>PMS</th><th>Akce</th></tr></thead><tbody id="hotels-tbody"></tbody></table></div>
+        <div id="bulk-bar" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(44,95,174,.10);border:1px solid rgba(44,95,174,.4);border-radius:10px;padding:10px 14px;margin-bottom:12px">
+          <span style="font-size:12.5px;font-weight:700">Vybráno: <span id="bulk-count">0</span></span>
+          <button class="btn btn-secondary" style="padding:6px 12px;font-size:11px;border-color:rgba(46,204,135,.4);color:var(--success)" onclick="bulkAction('activate')">✓ Aktivovat</button>
+          <button class="btn btn-secondary" style="padding:6px 12px;font-size:11px" onclick="bulkAction('deactivate')">○ Deaktivovat předplatné</button>
+          <button class="btn btn-secondary" style="padding:6px 12px;font-size:11px;border-color:rgba(255,170,51,.45);color:var(--warn)" onclick="bulkAction('archive')">⏸ Archivovat</button>
+          <button class="btn btn-danger" style="padding:6px 12px;font-size:11px" onclick="bulkAction('harddelete')">🗑 Smazat natrvalo</button>
+          <button class="btn btn-secondary" style="padding:6px 12px;font-size:11px;margin-left:auto" onclick="clearBulkSel()">Zrušit výběr</button>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th style="width:30px"><input type="checkbox" id="hsel-all" onchange="toggleSelAll(this.checked)" title="Vybrat vše (dle filtru)"></th><th>Název / URL</th><th>Lůžka</th><th>Cena</th><th>Stav / předplatné</th><th>PMS</th><th>Akce</th></tr></thead><tbody id="hotels-tbody"></tbody></table></div>
       </div>
     </div>
 
@@ -1364,10 +1372,10 @@ function pmsHtml(h){
 function renderHotelsTable(){
   const tb=document.getElementById('hotels-tbody');
   const cnt=document.getElementById('hotel-count');
-  if(!all_hotels.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Žádné hotely. <a href="#" onclick="showPage(\'scrape\')" style="color:var(--accent)">Přidej první →</a></td></tr>';if(cnt)cnt.textContent='';return;}
+  if(!all_hotels.length){tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Žádné hotely. <a href="#" onclick="showPage(\'scrape\')" style="color:var(--accent)">Přidej první →</a></td></tr>';if(cnt)cnt.textContent='';return;}
   const rows=getFilteredHotels();
   if(cnt)cnt.textContent=`Zobrazeno ${rows.length} z ${all_hotels.length}`;
-  if(!rows.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Žádný hotel neodpovídá filtru.</td></tr>';return;}
+  if(!rows.length){tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Žádný hotel neodpovídá filtru.</td></tr>';return;}
   tb.innerHTML=rows.map(h=>{
     // Trial badge
     let trialHtml='';
@@ -1377,6 +1385,7 @@ function renderHotelsTable(){
       else if(diff<=0&&diff>-3) trialHtml=`<span style="font-size:10px;color:var(--danger);white-space:nowrap">⚠️ Trial vypršel</span>`;
     }
     return`<tr style="border-bottom:1px solid var(--border)">
+    <td style="padding:10px 4px;vertical-align:top"><input type="checkbox" class="hsel" value="${h.id}" onchange="updateBulkBar()" ${_bulkSel.has(h.id)?'checked':''}></td>
     <!-- NÁZEV + ZEMĚ + HVĚZDY -->
     <td style="padding:10px 8px;min-width:190px;max-width:280px">
       <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px;word-break:break-word">${esc(h.name||'Bez názvu')}</div>
@@ -1674,6 +1683,8 @@ function openEdit(id){
     ['lunch_hours','Oběd (hodiny)','text'],['dinner_hours','Večeře (hodiny)','text'],
     ['whatsapp_number','WhatsApp','text'],['restaurant_name','Restaurace','text'],
     ['wellness_info','Wellness / Spa','text'],['parking_info','Parkování','text'],
+    ['parking_fee','Cena parkování','text'],['pet_policy','Mazlíčci (pravidla)','text'],['pet_fee','Poplatek za mazlíčka','text'],
+    ['tourist_tax','Turistický poplatek','text'],['payment_methods','Platební metody','text'],['staff_languages','Jazyky personálu','text'],
     ['country','Kód země (CZ/SK/AT...)','text'],['description','Popis','textarea'],
     ['extra_info','Další informace','textarea'],
   ];
@@ -1759,6 +1770,7 @@ async function saveEdit(id){
   const fields=['name','address','phone','email','bed_count','room_count','star_rating',
     'checkin_time','checkout_time','breakfast_hours','lunch_hours','dinner_hours',
     'whatsapp_number','restaurant_name','wellness_info','parking_info','country',
+    'parking_fee','pet_policy','pet_fee','tourist_tax','payment_methods','staff_languages',
     'description','extra_info'];
   const numFields=['bed_count','room_count','star_rating'];
   const data={};
@@ -1872,6 +1884,53 @@ async function toggleFree(id, makeFree){
 }
 
 // ══ SMAZÁNÍ ══════════════════════════════════
+// ── Hromadné akce nad hotely (checkboxy) ──
+const _bulkSel = new Set();
+function updateBulkBar(){
+  document.querySelectorAll('.hsel').forEach(c=>{ if(c.checked)_bulkSel.add(c.value); else _bulkSel.delete(c.value); });
+  // vyhoď z výběru hotely, které už nejsou v tabulce (změna filtru)
+  const visible=new Set([].map.call(document.querySelectorAll('.hsel'),c=>c.value));
+  [..._bulkSel].forEach(id=>{ if(!visible.has(id))_bulkSel.delete(id); });
+  const bar=document.getElementById('bulk-bar');
+  const n=_bulkSel.size;
+  if(bar){ bar.style.display=n?'flex':'none'; const c=document.getElementById('bulk-count'); if(c)c.textContent=n; }
+  const all=document.getElementById('hsel-all');
+  if(all){ const tot=document.querySelectorAll('.hsel').length; all.checked=tot>0&&n===tot; }
+}
+function toggleSelAll(on){
+  document.querySelectorAll('.hsel').forEach(c=>{ c.checked=on; });
+  updateBulkBar();
+}
+function clearBulkSel(){ _bulkSel.clear(); document.querySelectorAll('.hsel').forEach(c=>c.checked=false); updateBulkBar(); }
+async function bulkAction(kind){
+  const ids=[..._bulkSel];
+  if(!ids.length)return;
+  const names=ids.map(id=>{const h=all_hotels.find(x=>x.id===id);return '• '+(h?.name||id);}).join('\n');
+  const LBL={activate:'AKTIVOVAT předplatné', deactivate:'DEAKTIVOVAT předplatné', archive:'ARCHIVOVAT', harddelete:'NATRVALO SMAZAT'};
+  let msg=`${LBL[kind]} ${ids.length} hotelů?\n\n${names}`;
+  if(kind==='harddelete')msg+='\n\n⚠ NEVRATNÉ! Nejdřív se hotely archivují a pak smažou. Faktury zůstávají.';
+  if(kind==='archive')msg+='\n\nHotely se NESMAŽOU — jen archivují (filtr „Archivované").';
+  if(!confirm(msg))return;
+  if(kind==='harddelete'&&!(await ensureUnlocked()))return;
+  let ok=0,fail=0;
+  for(const id of ids){
+    try{
+      if(kind==='activate'){ await fetch(`${API}/api/hotels/${id}/subscription?active=true`,{method:'POST'}); }
+      else if(kind==='deactivate'){ await fetch(`${API}/api/hotels/${id}/subscription?active=false`,{method:'POST'}); }
+      else if(kind==='archive'){ await fetch(`${API}/api/hotels/${id}`,{method:'DELETE'}); }
+      else if(kind==='harddelete'){
+        await fetch(`${API}/api/hotels/${id}`,{method:'DELETE'});   // hard maže jen archivované → nejdřív archivace
+        const r=await fetch(`${API}/api/hotels/${id}?hard=1`,{method:'DELETE',headers:dangerHeaders()});
+        if(!r.ok)throw new Error('HTTP '+r.status);
+      }
+      ok++;
+    }catch(e){ fail++; addLog('error',`Hromadná akce ${kind} selhala u ${id}: `+e.message,'hotels'); }
+  }
+  addLog(fail?'warn':'ok',`Hromadná akce ${LBL[kind]}: ${ok} OK${fail?', '+fail+' chyb':''}`,'hotels');
+  toast(`${LBL[kind]}: ${ok} hotelů${fail?' ('+fail+' chyb)':''}`, fail?'err':undefined);
+  clearBulkSel(); loadHotels();
+}
+
 async function deleteHotel(id){
   const h=all_hotels.find(x=>x.id===id);
   if(!confirm(`Deaktivovat hotel "${h?.name||id}"?\n\nHotel se NESMAŽE — jen se archivuje. Data i faktury zůstávají a hotel můžeš kdykoli obnovit (filtr „Archivované").`))return;
