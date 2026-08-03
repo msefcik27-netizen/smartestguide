@@ -6623,6 +6623,118 @@ async def register_apaleo(req: RegisterApaleoRequest, request: Request):
     db_save(db)
     return {"status": "ok", "checkout_url": session.get("url")}
 
+class PortalAddHotelRequest(BaseModel):
+    token: str
+    name: str
+    beds: int
+    url: Optional[str] = ""
+
+@app.post("/api/hotel-portal/add-hotel")
+async def portal_add_hotel(req: PortalAddHotelRequest, request: Request):
+    """FLOW 4 — „Přidat další hotel" z portálu (skupiny BEZ Apalea).
+    Nový hotel vznikne pod stejným vlastníkem: kontakty a fakturace se dědí,
+    platba = nová položka na vlastníkově Stripe subscription → JEDNA hromadná
+    faktura za celou skupinu (stejná mechanika jako FLOW 3). Volitelný web se
+    hned scrapuje, onboarding e-mail s materiály odchází okamžitě."""
+    h = find_hotel_by_token(req.token)
+    if not h:
+        raise HTTPException(403, "Neplatný přístupový token")
+    name = (req.name or "").strip()
+    if len(name) < 2:
+        raise HTTPException(400, "Zadejte název hotelu")
+    try:
+        beds = int(req.beds or 0)
+    except Exception:
+        beds = 0
+    if not (1 <= beds <= 5000):
+        raise HTTPException(400, "Zadejte počet lůžek (1–5000)")
+    url = (req.url or "").strip()[:300]
+    if url and not url.startswith("http"):
+        url = "https://" + url
+    db = db_load()
+    parent_id = h.get("group_parent") or h.get("id")
+    parent = db["hotels"].get(parent_id) or h
+    sub_id = parent.get("stripe_subscription_id", "")
+    if not (parent.get("subscription_active") and sub_id):
+        raise HTTPException(400, "Pro přidání hotelu je potřeba aktivní online předplatné. "
+                                 "Napište nám na support@smartestguide.com — přidáme hotel ručně.")
+    s = db_get_settings()
+    stripe_key = s.get("stripe_secret_key", "")
+    if not stripe_key:
+        raise HTTPException(503, "Platby nejsou nakonfigurovány")
+    price = _pricing_price_for_beds(beds, s)
+    _sh = {"Authorization": f"Bearer {stripe_key}",
+           "Content-Type": "application/x-www-form-urlencoded"}
+    async with httpx.AsyncClient() as client:
+        # Subscription item vyžaduje existující product → založíme per hotel
+        rp = await client.post("https://api.stripe.com/v1/products", headers=_sh,
+            data={"name": f"SmartestGuide – {name}",
+                  "description": f"AI concierge ({beds} beds)"}, timeout=30.0)
+        if rp.status_code != 200:
+            logging.error("FLOW4 Stripe product selhal: %s", rp.text[:300])
+            raise HTTPException(502, "Přidání do předplatného selhalo — zkuste to prosím znovu.")
+        ri = await client.post("https://api.stripe.com/v1/subscription_items", headers=_sh,
+            data={"subscription": sub_id,
+                  "price_data[currency]": "eur",
+                  "price_data[product]": rp.json().get("id", ""),
+                  "price_data[recurring][interval]": "month",
+                  "price_data[unit_amount]": str(int(price) * 100),
+                  "quantity": "1",
+                  "proration_behavior": "create_prorations"}, timeout=30.0)
+        if ri.status_code != 200:
+            logging.error("FLOW4 Stripe subscription_item selhal: %s", ri.text[:300])
+            raise HTTPException(502, "Přidání do předplatného selhalo — zkuste to prosím znovu.")
+    now = datetime.utcnow().isoformat()
+    nid = str(uuid.uuid4())
+    hotel = {
+        "id": nid, "created_at": now, "updated_at": now,
+        "qr_code_id": str(uuid.uuid4()),
+        "hotel_token": str(uuid.uuid4()).replace("-", ""),
+        "name": name,
+        "origin": "standard_group", "origin_source": f"portal_add_via_{h.get('id')}",
+        "subscription_active": True,
+        "subscription_start": now,
+        "subscription_period_end": parent.get("subscription_period_end", ""),
+        "subscription_price": price,
+        "stripe_customer_id": parent.get("stripe_customer_id", ""),
+        "stripe_subscription_item_id": ri.json().get("id", ""),
+        "group_parent": parent_id,
+        "email": parent.get("email", ""),
+        "registration_email": parent.get("registration_email", ""),
+        "phone": parent.get("phone", ""), "contact_name": parent.get("contact_name", ""),
+        "country": parent.get("country", ""), "ico": parent.get("ico", ""),
+        "dic": parent.get("dic", ""), "billing_name": parent.get("billing_name", ""),
+        "acquired_by": parent.get("acquired_by", "auto"),
+        "referral_code": parent.get("referral_code", ""),
+        "acquisition_channel": "portal_add", "acquired_at": now,
+        "bed_count": beds, "registered_bed_count": beds,
+    }
+    if parent.get("trial_used"):
+        hotel["trial_used"] = True
+    if url:
+        hotel["url"] = url
+        hotel["source_url"] = url
+    _ensure_slug(db, nid, hotel)
+    db["hotels"][nid] = hotel
+    db_save(db)
+    logging.warning("FLOW4: hotel %s přidal do skupiny nový hotel '%s' (%d lůžek, %d EUR/měs, parent %s)",
+                    h.get("id"), name, beds, price, parent_id)
+    base = get_base_url(request)
+    purl = f"{base}/portal?token={hotel['hotel_token']}"
+    owner_email = parent.get("registration_email") or parent.get("email") or ""
+    if owner_email:
+        try:
+            _spawn(send_onboarding_email(nid, purl, name, owner_email))
+        except Exception as e:
+            logging.warning("FLOW4 onboarding e-mail selhal: %s", e)
+    if url:
+        try:
+            _spawn(auto_scrape_after_payment(nid, url))
+        except Exception as e:
+            logging.warning("FLOW4 auto-scrape selhal: %s", e)
+    return {"status": "ok", "hotel_id": nid, "portal_url": purl,
+            "monthly_price_eur": price, "name": name}
+
 @app.post("/api/pms/apaleo/disconnect")
 def apaleo_disconnect(token: str):
     """Offboarding: hotel odpojí Apaleo z portálu — smažeme refresh token i vazbu.
