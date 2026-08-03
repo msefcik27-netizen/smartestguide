@@ -5815,14 +5815,26 @@ _TTS_VOICE = os.getenv("TTS_VOICE", "coral")
 _TTS_MODEL = os.getenv("TTS_MODEL", "gpt-4o-mini-tts")
 _TTS_INSTRUCTIONS = os.getenv(
     "TTS_INSTRUCTIONS",
-    "Calm, warm and friendly hotel concierge. Natural, brisk pace — slightly faster than normal, not dramatic. Speak in the language of the text.",
+    # Klíčová páka na přirozenost (3. 8. 2026 — tester: „hlas je nepřirozený").
+    # Dřívější verze tlačila na rychlejší tempo, což znělo uspěchaně a roboticky.
+    "Speak as a NATIVE speaker of the language of the text, with correct native "
+    "pronunciation, natural intonation and natural sentence melody — never a foreign "
+    "accent. You are a warm, professional hotel receptionist talking to a guest face "
+    "to face. Relaxed conversational pace, never rushed and never dragging. Make real "
+    "pauses at commas and full stops. Read times, prices and numbers the way a person "
+    "says them out loud, not digit by digit. Friendly and reassuring, with a light "
+    "smile in the voice — no theatrical or advertising tone, no robotic flatness.",
 )
+# Povolené hlasy (A/B test bez zásahu do kódu — ?voice= v požadavku nebo TTS_VOICE v env)
+_TTS_VOICES_OK = {"alloy", "ash", "ballad", "coral", "echo", "fable",
+                  "nova", "onyx", "sage", "shimmer", "verse"}
 _TTS_MAX_CHARS = 700  # bezpečnostní strop; frontend beztak čte jen krátké odpovědi (~600)
 
 class GuestTTSRequest(BaseModel):
     text: str
     language: Optional[str] = None  # informativní; hlas je vícejazyčný
     hotel_id: Optional[str] = None  # pro měření nákladů per hotel
+    voice: Optional[str] = None     # jen pro ladění/A-B test, jinak výchozí _TTS_VOICE
 
 @app.post("/api/guest/tts")
 async def guest_tts(req: GuestTTSRequest, request: Request):
@@ -5843,7 +5855,7 @@ async def guest_tts(req: GuestTTSRequest, request: Request):
             headers={"Authorization": f"Bearer {api_key}"},
             json={
                 "model": _TTS_MODEL,
-                "voice": _TTS_VOICE,
+                "voice": (req.voice or "").strip().lower() if (req.voice or "").strip().lower() in _TTS_VOICES_OK else _TTS_VOICE,
                 "input": text,
                 "instructions": _TTS_INSTRUCTIONS,
                 "response_format": "mp3",
