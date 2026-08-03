@@ -93,9 +93,9 @@ footer a{color:var(--muted)}
   <div class="grid">
     <div class="card"><span class="ic">🎯</span><h3>No AI guessing</h3><p>Alex answers only from your hotel profile and live Apaleo data. When it doesn't know, it says so and points to reception.</p></div>
     <div class="card"><span class="ic">🌍</span><h3>Every guest's language</h3><p>Alex detects the guest's language and answers in 100+ of them; interface and voice input are fully localised in 16.</p></div>
-    <div class="card"><span class="ic">🔒</span><h3>Nothing that can leak</h3><p>One read-only scope, all PII omitted, data fetched only at the moment a guest asks — never stored, never synced.</p></div>
+    <div class="card"><span class="ic">🔒</span><h3>Nothing that can leak</h3><p>Read-only scopes only, all PII omitted, data fetched only at the moment a guest asks — never stored, never synced.</p></div>
     <div class="card"><span class="ic">📱</span><h3>Zero friction for guests</h3><p>Scan a QR code and chat — no app download, no login, no in-room hardware, no WhatsApp account.</p></div>
-    <div class="card"><span class="ic">💶</span><h3>Flat pricing</h3><p>One price per property, no per-room fees — predictable at any hotel size. Apaleo integration included in every plan.</p></div>
+    <div class="card"><span class="ic">💶</span><h3>Fair pricing</h3><p>€199/month up to 100 beds, then just €2 per extra bed. Apaleo integration included in every plan, no setup fees.</p></div>
     <div class="card"><span class="ic">📊</span><h3>Guest analytics</h3><p>See what guests ask and where your info has gaps — so your profile keeps getting better.</p></div>
   </div>
 </section>
@@ -106,8 +106,8 @@ footer a{color:var(--muted)}
   <p class="sub">No API keys, no IT project.</p>
   <div class="steps">
     <div class="step"><h3>Connect to Apaleo</h3><p>In your SMARTEST GUIDE portal, click <strong>Connect to Apaleo</strong>.</p></div>
-    <div class="step"><h3>Approve access</h3><p>Approve in Apaleo — read-only access to reservations, nothing else.</p></div>
-    <div class="step"><h3>Enter your property code</h3><p>Type your Apaleo property code. Done — Alex now knows each guest's stay.</p></div>
+    <div class="step"><h3>Approve access</h3><p>Approve in Apaleo — read-only access, nothing is ever written to your PMS.</p></div>
+    <div class="step"><h3>Confirm your property</h3><p>Pick your property from the list read live from your account — no codes to type. Done — Alex now knows each guest's stay.</p></div>
   </div>
   <p style="margin-top:24px"><a href="/apaleo/guide.pdf" style="color:var(--tealdark);font-weight:600;text-decoration:none;border-bottom:1px solid rgba(10,157,134,.4)">📄 Download the step-by-step onboarding guide (PDF)</a></p>
 </section>
@@ -117,7 +117,7 @@ footer a{color:var(--muted)}
     <span class="eyebrow">Privacy by design</span>
     <h2>Read-only. On demand. Never stored.</h2>
     <ul>
-      <li>Single read-only scope: <code>reservations.read</code></li>
+      <li>Read-only scopes only: <code>reservations.read</code>, <code>setup.read</code>, <code>availability.read</code>, <code>offers.read</code></li>
       <li>All personally identifiable information omitted</li>
       <li>Data fetched only when a guest asks</li>
       <li>Zero data retention — nothing to sync or maintain</li>
@@ -129,7 +129,7 @@ footer a{color:var(--muted)}
 
 <div class="cta-end">
   <h2>Give every guest a personal concierge</h2>
-  <p>Included in every SMARTEST GUIDE plan. From €199/month flat per property, 14-day free trial.</p>
+  <p>Included in every SMARTEST GUIDE plan. €199/month up to 100 beds, +€2 per extra bed. 14-day free trial.</p>
   <a class="btn-primary" href="/api/pms/apaleo/connect-register">Sign up with Apaleo →</a>
 </div>
 
