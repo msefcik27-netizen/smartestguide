@@ -3309,6 +3309,7 @@ async def register_hotel(req: RegistrationRequest, request: Request):
                 },
                 data={
                     "mode": "subscription",
+                    "locale": "en",   # potvrzení/účtenky Stripe vždy anglicky (rozhodnutí 1. 8. 2026)
                     "client_reference_id": hid,
                     "customer_email": req.contact_email,
                     "success_url": f"{base}/success?hotel_id={hid}",
@@ -3690,6 +3691,9 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
     country = (hotel.get("country") or "").upper()
     base_url = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app")
     widget_code = f'<script src="{base_url}/widget.js?hotel_id={hotel_id}"></script>'
+    # HTML-escape pro zobrazení V e-mailu — bez toho Gmail kód spolkne jako skutečný tag
+    _esc_html = lambda x: x.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    widget_code_html = _esc_html(widget_code)
     local_lang = COUNTRY_LANG_MAP.get(country, "en")
 
     # Texty emailu dle jazyka hotelu
@@ -3828,14 +3832,22 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
           <p style="color:#9ba0c0;font-size:13px;line-height:1.6;margin-bottom:16px">{qr_desc}</p>
           <a href="{poster_url}" style="display:inline-block;background:#2c5fae;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:14px">🖨️ {qr_btn_text}</a>
           <p style="color:#555;font-size:11px;margin-top:12px">{qr_attach_note}</p>
+          <p style="margin:16px 0 4px;color:#9ba0c0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px">More print materials</p>
+          <p style="font-size:13px;line-height:2.1;margin:0">
+            <a href="{base_url}/api/hotels/{hotel_id}/flyer-en" style="color:#2fd0d8">A4 flyer (EN)</a> &nbsp;·&nbsp;
+            <a href="{base_url}/api/hotels/{hotel_id}/flyer-local" style="color:#2fd0d8">A4 flyer (local language)</a> &nbsp;·&nbsp;
+            <a href="{base_url}/api/hotels/{hotel_id}/flyer-a5-en" style="color:#2fd0d8">A5 flyer</a> &nbsp;·&nbsp;
+            <a href="{base_url}/api/hotels/{hotel_id}/rollup" style="color:#2fd0d8">Roll-up banner</a> &nbsp;·&nbsp;
+            <a href="{portal_url}" style="color:#2fd0d8">Room QR cards &amp; more — in your portal</a>
+          </p>
         </div>
 
         <div style="background:#1a1a2e;border-radius:10px;padding:24px;margin-bottom:24px">
           <h3 style="color:#2fd0d8;margin-bottom:8px">💻 {it_title}</h3>
           <p style="color:#b0b4cc;font-size:13px;line-height:1.7;margin-bottom:12px">{it_intro}</p>
           <p style="color:#b0b4cc;font-size:13px;margin-bottom:8px">1. {it_step1}</p>
-          <p style="color:#b0b4cc;font-size:13px;margin-bottom:8px">2. {it_step2}</p>
-          <div style="background:#0d1117;border-radius:6px;padding:12px;margin:10px 0;font-family:monospace;font-size:12px;color:#2fd0d8;word-break:break-all">{widget_code}</div>
+          <p style="color:#b0b4cc;font-size:13px;margin-bottom:8px">2. {_esc_html(it_step2)}</p>
+          <div style="background:#0d1117;border-radius:6px;padding:12px;margin:10px 0;font-family:monospace;font-size:12px;color:#2fd0d8;word-break:break-all">{widget_code_html}</div>
           <p style="color:#b0b4cc;font-size:13px;margin-bottom:4px">3. {it_step3}</p>
           <p style="color:#7a7fa8;font-size:12px;margin-top:8px;font-style:italic">{it_note}</p>
         </div>
@@ -4182,6 +4194,7 @@ async def stripe_checkout(hotel_id: str, request: Request):
                          "Content-Type": "application/x-www-form-urlencoded"},
                 data={
                     "mode": "subscription",
+                    "locale": "en",   # Stripe komunikace vždy anglicky
                     "client_reference_id": hotel_id,
                     "customer_email": hotel.get("email", ""),
                     "success_url": f"{base_url}/success?hotel_id={hotel_id}",
@@ -4339,10 +4352,14 @@ async def stripe_webhook(request: Request):
         # Pro invoice.payment_succeeded najdi hotel dle customer_id pokud chybí hotel_id
         if not hotel_id and customer_id and event_type == "invoice.payment_succeeded":
             db_tmp = db_load()
-            for hid, h in db_tmp["hotels"].items():
-                if h.get("stripe_customer_id") == customer_id:
-                    hotel_id = hid
-                    break
+            # Skupina: všech N hotelů sdílí customer_id → fakturu/obnovu řeší BILLING
+            # PARENT (hotel bez group_parent, ideálně se shodným subscription_id)
+            _cands = [(hid, h) for hid, h in db_tmp["hotels"].items()
+                      if h.get("stripe_customer_id") == customer_id]
+            _cands.sort(key=lambda kv: (bool(kv[1].get("group_parent")),
+                                        kv[1].get("stripe_subscription_id") != subscription_id))
+            if _cands:
+                hotel_id = _cands[0][0]
 
         if hotel_id:
             db = db_load()
@@ -4404,7 +4421,8 @@ async def stripe_webhook(request: Request):
                     amount_paid_cents = obj.get("amount_paid", 0) or 0
                     if amount_paid_cents > 0:
                         try:
-                            inv = _create_invoice_record(db, hotel_id, db["hotels"][hotel_id], status="paid")
+                            inv = _create_invoice_record(db, hotel_id, db["hotels"][hotel_id], status="paid",
+                                                         amount_net=amount_paid_cents / 100.0)
                             logging.info("Auto-faktura %s (PAID) vytvořena pro hotel %s", inv.get("invoice_number"), hotel_id)
                             # Pošli fakturu hotelu e-mailem (PDF v příloze)
                             _h = db["hotels"][hotel_id]
@@ -6409,10 +6427,7 @@ button{{width:100%;background:#2c5fae;color:#fff;border:none;padding:13px;border
 <label class="f">Contact name *</label><input type="text" id="f-name">
 <label class="f">E-mail *</label><input type="email" id="f-email">
 <label class="f">Phone</label><input type="tel" id="f-phone">
-<label class="f">Country (e.g. DE, CZ)</label><input type="text" id="f-country" maxlength="2">
-<label class="f">Company / billing name</label><input type="text" id="f-billing">
-<label class="f">Company ID (IČO/registration no.)</label><input type="text" id="f-ico">
-<label class="f">VAT ID</label><input type="text" id="f-dic">
+<label class="f">Company ID</label><input type="text" id="f-ico">
 <button onclick="submitReg()">Continue to payment — 14-day free trial</button>
 <div id="msg"></div>
 <p style="font-size:11.5px;color:#6b6f8e">By continuing you agree to our <a href="/terms" style="color:#7fb2ff">Terms</a> and <a href="/privacy" style="color:#7fb2ff">Privacy Policy</a>. The trial is free; cancel anytime.</p>
@@ -6458,9 +6473,7 @@ async function submitReg(){{
     var r=await fetch('/api/register-apaleo',{{method:'POST',headers:{{'Content-Type':'application/json'}},
       body:JSON.stringify({{reg_id:'{r["id"]}',property_codes:codes,contact_name:name,contact_email:email,
         contact_phone:document.getElementById('f-phone').value.trim(),
-        country:document.getElementById('f-country').value.trim(),
-        billing_name:document.getElementById('f-billing').value.trim(),
-        ico:document.getElementById('f-ico').value.trim(),dic:document.getElementById('f-dic').value.trim()}})}});
+        ico:document.getElementById('f-ico').value.trim()}})}});
     var d=await r.json();
     if(d.checkout_url){{location.href=d.checkout_url;}}
     else{{m.style.color='#ff8a8a';m.textContent=d.detail||d.message||'Something went wrong — please try again.';}}
@@ -6513,6 +6526,7 @@ async def register_apaleo(req: RegisterApaleoRequest, request: Request):
     base = get_base_url(request)
     data = {
         "mode": "subscription",
+        "locale": "en",   # Stripe komunikace vždy anglicky
         "client_reference_id": "apaleoreg_" + r["id"],
         "customer_email": email,
         "success_url": f"{base}/success?apaleo_group=1",
@@ -7554,7 +7568,7 @@ def _compute_invoice_vat(price: float, hotel: dict, s: dict) -> dict:
     return {"vat_rate": 0, "vat_amount": 0.0, "amount_total": round(price, 2),
             "vat_note": "Mimo EU — bez DPH (vývoz služby)."}
 
-def _create_invoice_record(db: dict, hotel_id: str, hotel: dict, status: str = "issued", trial: bool = False, payment_due: str = None) -> dict:
+def _create_invoice_record(db: dict, hotel_id: str, hotel: dict, status: str = "issued", trial: bool = False, payment_due: str = None, amount_net: float = None) -> dict:
     """Vytvoří fakturu / trial záznam pro hotel a vloží do db['invoices']. Volá db_save volající.
     trial=True → nulový záznam (status 'trial') s budoucí částkou a datem první platby."""
     import calendar, re as _re
@@ -7565,6 +7579,8 @@ def _create_invoice_record(db: dict, hotel_id: str, hotel: dict, status: str = "
     threshold = int(s.get("pricing_threshold", 100))
     per_bed = float(s.get("pricing_per_bed", 2))
     price = base if beds <= threshold else base + (beds - threshold) * per_bed
+    if amount_net is not None:
+        price = float(amount_net)   # skutečně stržená částka (skupinová faktura ze Stripe)
     now = datetime.utcnow()
     if "invoices" not in db:
         db["invoices"] = {}
