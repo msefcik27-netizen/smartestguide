@@ -6392,6 +6392,8 @@ h1{{font-size:19px;margin:0 0 4px}} .sub{{color:#a9adc1;font-size:13px;margin:0 
 .pname{{flex:1}} .pcode,.pmeta{{color:#a9adc1;font-size:12.5px}}
 input[type=text],input[type=email],input[type=tel]{{width:100%;box-sizing:border-box;background:#15161a;border:1px solid #2a2c36;border-radius:8px;color:#e6e4df;font-size:14px;padding:10px 12px;margin:5px 0 12px}}
 label.f{{font-size:12.5px;color:#a9adc1}}
+.err{{border-color:#ff5a5a !important;box-shadow:0 0 0 2px rgba(255,90,90,.25)}}
+.errlbl{{color:#ff8a8a !important}}
 .total{{background:#15161a;border:1px solid #2a2c36;border-radius:10px;padding:12px 16px;margin:16px 0;font-size:14px}}
 button{{width:100%;background:#2c5fae;color:#fff;border:none;padding:13px;border-radius:9px;font-weight:700;font-size:15px;cursor:pointer;margin-top:6px}}
 #msg{{font-size:13px;color:#ff8a8a;margin-top:10px}}
@@ -6426,12 +6428,31 @@ function recalc(){{
 }}
 [].slice.call(document.querySelectorAll('.psel')).forEach(function(c){{c.addEventListener('change',recalc);}});
 recalc();
+function markErr(id,on){{
+  var i=document.getElementById(id);if(!i)return;
+  i.classList[on?'add':'remove']('err');
+  var l=i.previousElementSibling;if(l&&l.classList.contains('f'))l.classList[on?'add':'remove']('errlbl');
+}}
+['f-name','f-email'].forEach(function(id){{
+  var i=document.getElementById(id);
+  if(i)i.addEventListener('input',function(){{markErr(id,false);}});
+}});
 async function submitReg(){{
-  var m=document.getElementById('msg');m.textContent='';
+  var m=document.getElementById('msg');m.textContent='';m.style.color='#ff8a8a';
   var codes=[].slice.call(document.querySelectorAll('.psel:checked')).map(function(c){{return c.value;}});
   var name=document.getElementById('f-name').value.trim(),email=document.getElementById('f-email').value.trim();
-  if(!codes.length){{m.textContent='Select at least one hotel.';return;}}
-  if(!name||!email||email.indexOf('@')<0){{m.textContent='Please fill in your contact name and a valid e-mail.';return;}}
+  // Validace s ČERVENÝM zvýrazněním chybějících polí + scroll na první chybu
+  var bad=[];
+  markErr('f-name',!name);if(!name)bad.push('f-name');
+  var emailOk=email&&email.indexOf('@')>0&&email.indexOf('.')>0;
+  markErr('f-email',!emailOk);if(!emailOk)bad.push('f-email');
+  var tot=document.getElementById('total');
+  if(!codes.length){{tot.classList.add('err');bad.push('total');}}else{{tot.classList.remove('err');}}
+  if(bad.length){{
+    m.textContent=!codes.length?'Select at least one hotel and fill in the highlighted fields.':'Please fill in the highlighted fields.';
+    document.getElementById(bad[0]).scrollIntoView({{behavior:'smooth',block:'center'}});
+    return;
+  }}
   m.style.color='#a9adc1';m.textContent='Creating your subscription…';
   try{{
     var r=await fetch('/api/register-apaleo',{{method:'POST',headers:{{'Content-Type':'application/json'}},
