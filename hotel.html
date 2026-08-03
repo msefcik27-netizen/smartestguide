@@ -379,7 +379,12 @@ const EN_MAP = {
   "Zadejte kód property (např. BER)":"Enter the property code (e.g. BER)",
   "Uložení se nepovedlo: ":"Saving failed: ","Odpojení se nepovedlo: ":"Disconnecting failed: ",
   "Načítám seznam properties…":"Loading your properties…","Změnit":"Change","Zrušit":"Cancel",
-  "Vaše hotely":"Your hotels","(tento portál)":"(this portal)","Otevřít portál":"Open portal",
+  "Vaše hotely":"Your hotels","(tento portál)":"(this portal)","Otevřít portál":"Open portal","Skupinový portál":"Group portal",
+  "Přidat další hotel":"Add another hotel","Provozujete více hotelů? Přidejte další — kontakty i fakturace se převezmou, vše bude na jedné měsíční faktuře.":"Running more hotels? Add another one — contacts and billing carry over, everything on one monthly invoice.",
+  "Název hotelu":"Hotel name","Web hotelu (volitelné — předvyplníme profil)":"Hotel website (optional — we prefill the profile)","Počet lůžek":"Number of beds",
+  "Přidat hotel":"Add hotel","Přidávám…":"Adding…","měsíčně navíc k vaší faktuře":"per month added to your invoice",
+  "Hotel přidán! Onboarding e-mail s materiály jsme poslali na váš registrační e-mail.":"Hotel added! We sent the onboarding e-mail with materials to your registration e-mail.",
+  "Otevřít portál nového hotelu":"Open the new hotel's portal","Zrušit":"Cancel",
   "Skupinový přehled — všechny hotely pod vaším účtem. Kliknutím otevřete portál konkrétního hotelu.":"Group overview — all hotels under your account. Click to open a hotel's portal.",
   "Lůžka":"Beds","Profil":"Profile","Dotazy":"Questions","Stav":"Status","Hotel":"Hotel",
   "— vyberte svůj hotel —":"— select your hotel —",
@@ -511,7 +516,7 @@ function setPortalLang(lang){
   refreshStaticTexts();
   if(hotelData){
     renderPortal(); renderOnboarding(); loadCompleteness(); loadPaymentSection();
-    loadPmsSection(); loadGroupSection(); loadInvoicesSection(); loadMonthlyReport();
+    loadPmsSection(); loadGroupSection(); loadAddHotelSection(); loadInvoicesSection(); loadMonthlyReport();
     setTimeout(initEmbedCode, 100);
   }
 }
@@ -547,6 +552,8 @@ async function loadHotel() {
     loadCompleteness();
     loadPaymentSection();
     loadPmsSection();
+    loadGroupSection();
+    loadAddHotelSection();
     loadInvoicesSection();
     loadMonthlyReport();
     setTimeout(initEmbedCode, 100);
@@ -665,6 +672,7 @@ function renderPortal() {
     </div>
 
     <div id="group-section"></div>
+    <div id="add-hotel-section"></div>
     <div id="pms-section"></div>
 
     <div id="onboarding-wizard"></div>
@@ -1627,12 +1635,13 @@ async function loadGroupSection(){
       </tr>`).join('');
     el.innerHTML=`
       <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:24px">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
           <div style="font-size:24px">🏨</div>
-          <div>
+          <div style="flex:1;min-width:220px">
             <div style="font-family:var(--font-head);font-size:15px;font-weight:700">${tr('Vaše hotely')} <span style="color:var(--muted);font-weight:600">(${hs.length})</span></div>
             <div style="font-size:12px;color:var(--muted)">${tr('Skupinový přehled — všechny hotely pod vaším účtem. Kliknutím otevřete portál konkrétního hotelu.')}</div>
           </div>
+          <a href="/group?token=${token}" style="font-size:12.5px;color:var(--accent);font-weight:700;text-decoration:none;border:1px solid var(--border);border-radius:8px;padding:7px 12px;white-space:nowrap">${tr('Skupinový portál')} →</a>
         </div>
         <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
           <thead><tr style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">
@@ -1648,6 +1657,79 @@ async function loadGroupSection(){
         </table></div>
       </div>`;
   }catch(e){el.innerHTML='';}
+}
+
+function loadAddHotelSection(){
+  // FLOW 4 — „Přidat další hotel": skupiny bez Apalea. Kontakty a fakturace se dědí,
+  // platba = nová položka na vlastníkově subscription (jedna hromadná faktura).
+  const el=document.getElementById('add-hotel-section');
+  if(!el||!hotelData)return;
+  if(!hotelData.subscription_active){el.innerHTML='';return;}
+  if(window._addHotelDone){return;}
+  const open=window._addHotelOpen;
+  if(!open){
+    el.innerHTML=`<div style="margin:-8px 0 24px;text-align:right">
+      <button onclick="window._addHotelOpen=true;loadAddHotelSection()" style="background:transparent;border:1px dashed var(--border);border-radius:9px;color:var(--muted);font-size:12.5px;font-weight:600;padding:8px 14px;cursor:pointer;font-family:var(--font-body)" onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">➕ ${tr('Přidat další hotel')}</button>
+    </div>`;
+    return;
+  }
+  el.innerHTML=`
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:24px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+        <div style="font-size:24px">➕</div>
+        <div>
+          <div style="font-family:var(--font-head);font-size:15px;font-weight:700">${tr('Přidat další hotel')}</div>
+          <div style="font-size:12px;color:var(--muted)">${tr('Provozujete více hotelů? Přidejte další — kontakty i fakturace se převezmou, vše bude na jedné měsíční faktuře.')}</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:12px 0">
+        <div><label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase">${tr('Název hotelu')} *</label>
+          <input id="ah-name" type="text" style="width:100%;margin-top:5px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13.5px;padding:9px 12px;outline:none"/></div>
+        <div><label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase">${tr('Web hotelu (volitelné — předvyplníme profil)')}</label>
+          <input id="ah-url" type="text" placeholder="www.hotel.com" style="width:100%;margin-top:5px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13.5px;padding:9px 12px;outline:none"/></div>
+        <div><label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase">${tr('Počet lůžek')} *</label>
+          <input id="ah-beds" type="number" min="1" max="5000" oninput="_ahPrice()" style="width:100%;margin-top:5px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13.5px;padding:9px 12px;outline:none"/></div>
+      </div>
+      <div id="ah-price" style="font-size:12.5px;color:var(--muted);margin-bottom:12px"></div>
+      <div id="ah-msg" style="display:none;font-size:12.5px;margin-bottom:10px;border-radius:8px;padding:9px 12px"></div>
+      <button id="ah-submit" onclick="submitAddHotel()" style="background:var(--accent);color:#0a0b0f;border:none;padding:9px 18px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">${tr('Přidat hotel')}</button>
+      <button onclick="window._addHotelOpen=false;loadAddHotelSection()" style="background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);padding:9px 14px;font-size:12.5px;cursor:pointer;margin-left:8px">${tr('Zrušit')}</button>
+    </div>`;
+}
+async function _ahPrice(){
+  const beds=parseInt(document.getElementById('ah-beds')?.value)||0;
+  const el=document.getElementById('ah-price');
+  if(!el)return;
+  if(beds<1){el.textContent='';return;}
+  try{
+    const r=await fetch(`${API}/api/pricing?beds=${beds}`);
+    const d=await r.json();
+    el.innerHTML=`💶 <b style="color:var(--text)">${d.monthly_eur} EUR</b> ${tr('měsíčně navíc k vaší faktuře')}`;
+  }catch(e){el.textContent='';}
+}
+async function submitAddHotel(){
+  const name=(document.getElementById('ah-name')?.value||'').trim();
+  const url=(document.getElementById('ah-url')?.value||'').trim();
+  const beds=parseInt(document.getElementById('ah-beds')?.value)||0;
+  const msg=document.getElementById('ah-msg');
+  const btn=document.getElementById('ah-submit');
+  const showMsg=(t,ok)=>{msg.style.display='block';msg.style.background=ok?'rgba(46,204,135,.1)':'rgba(255,90,90,.1)';msg.style.border=ok?'1px solid rgba(46,204,135,.35)':'1px solid rgba(255,90,90,.35)';msg.style.color=ok?'#2ecc87':'#ff8a8a';msg.innerHTML=t;};
+  if(name.length<2){showMsg(tr('Název hotelu')+' — *',false);return;}
+  if(beds<1){showMsg(tr('Počet lůžek')+' — *',false);return;}
+  btn.disabled=true;btn.textContent=tr('Přidávám…');
+  try{
+    const r=await fetch(`${API}/api/hotel-portal/add-hotel`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({token,name,url,beds})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||('HTTP '+r.status));
+    window._addHotelDone=true;
+    document.getElementById('add-hotel-section').innerHTML=`
+      <div style="background:rgba(46,204,135,.08);border:1px solid rgba(46,204,135,.35);border-radius:12px;padding:16px 20px;margin-bottom:24px;font-size:13px;color:var(--text)">
+        ✅ <b>${esc(d.name)}</b> — ${tr('Hotel přidán! Onboarding e-mail s materiály jsme poslali na váš registrační e-mail.')}
+        <div style="margin-top:8px"><a href="${d.portal_url}" target="_blank" style="color:var(--accent);font-weight:700;text-decoration:none">${tr('Otevřít portál nového hotelu')} →</a></div>
+      </div>`;
+    loadGroupSection();
+  }catch(e){showMsg('❌ '+e.message,false);btn.disabled=false;btn.textContent=tr('Přidat hotel');}
 }
 
 function loadPmsSection(){
@@ -1677,7 +1759,7 @@ function loadPmsSection(){
             <div style="font-size:11.5px;color:var(--muted);margin-top:5px">Vyberte svůj hotel ze seznamu — načítá se přímo z vašeho Apaleo účtu, žádné opisování kódů.</div>`;
     const badge=`<div style="display:inline-flex;align-items:center;gap:10px;background:rgba(46,204,135,.1);border:1px solid rgba(46,204,135,.35);border-radius:9px;padding:7px 12px;margin-top:8px">
               <span style="font-size:14px;color:var(--text)">Property: <b style="font-size:15px">${prop}</b></span>
-              <button onclick="window._pmsPickProp=true;loadPmsSection()" style="background:transparent;border:1px solid var(--border);border-radius:7px;color:var(--accent);font-size:12.5px;font-weight:700;text-decoration:none;cursor:pointer;padding:4px 10px">Změnit</button>
+              ${h.pms_token_ref?'':`<button onclick="window._pmsPickProp=true;loadPmsSection()" style="background:transparent;border:1px solid var(--border);border-radius:7px;color:var(--accent);font-size:12.5px;font-weight:700;text-decoration:none;cursor:pointer;padding:4px 10px">Změnit</button>`}
             </div>`;
     el.innerHTML=`
       <div style="background:${failing?'rgba(255,90,90,.06)':'rgba(46,204,135,.08)'};border:1px solid ${failing?'rgba(255,90,90,.3)':'rgba(46,204,135,.3)'};border-radius:12px;padding:18px 22px;margin-bottom:24px">
@@ -1724,7 +1806,8 @@ async function loadPmsProperties(){
     // Fallback: seznam nejde načíst (starší souhlas bez nových oprávnění) → ruční zadání
     const wrap=document.getElementById('pms-prop-picker');
     if(wrap)wrap.innerHTML=`<input type="text" id="pms-prop-input" placeholder="${tr('Kód property (např. BER)')}" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;width:180px;outline:none">
-      <button onclick="savePmsProperty()" style="background:var(--accent);color:#0a0b0f;border:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">${tr('Uložit')}</button>`;
+      <button onclick="savePmsProperty()" style="background:var(--accent);color:#0a0b0f;border:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">${tr('Uložit')}</button>
+      ${(hotelData&&hotelData.pms_property_id)?`<button onclick="window._pmsPickProp=false;loadPmsSection()" style="background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);padding:9px 12px;font-size:12.5px;cursor:pointer">${tr('Zrušit')}</button>`:''}`;
   }
 }
 
