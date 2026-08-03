@@ -450,6 +450,7 @@ try{
 // Obnov jméno a jazyk z předchozí návštěvy
 const _savedName = localStorage.getItem('sg_guest_name_'+hotelId);
 const _savedLang = localStorage.getItem('sg_lang_'+hotelId);
+const _onboarded = localStorage.getItem('sg_onboarded_'+hotelId) === '1';
 let guestName = _savedName || '';
 let guestLang = _savedLang || 'cs';
 let hotelData = null;
@@ -631,6 +632,11 @@ function _ttsPlain(text){
   t=t.replace(/\[([^\]]+)\]\((?:[^)]+)\)/g,'$1'); // [text](url) -> text
   t=t.replace(/https?:\/\/\S+/g,'');                // holé URL pryč
   t=t.replace(/[*_`#>|~]/g,'');                       // markdown znaky
+  // Emoji a piktogramy — hlas je jinak čte nebo o ně zakopne
+  try{ t=t.replace(/[\u{1F000}-\u{1FAFF}\u{2190}-\u{27BF}\u{FE0F}\u{2B00}-\u{2BFF}]/gu,' '); }catch(e){}
+  t=t.replace(/^[\s]*[-•]\s*/gm,'');                 // odrážky na začátku řádku
+  t=t.replace(/\n{2,}/g,'. ').replace(/\n/g,', ');    // konce řádků -> přirozené pauzy
+  t=t.replace(/([.,!?;:])\s*\1+/g,'$1');              // zdvojená interpunkce
   t=t.replace(/\s{2,}/g,' ');
   return t.trim();
 }
@@ -757,7 +763,7 @@ async function loadHotel(){
     localStorage.setItem(CACHE_KEY+'_ts', Date.now().toString());
 
     // Pokud host byl tu dříve — přeskoč onboarding
-    if(_savedName || guestName !== ''){
+    if(_savedName || _onboarded || guestName !== ''){
       // Rovnou spusť chat bez onboardingu
       document.getElementById('onboarding').style.display='none';
       document.getElementById('chat-screen').classList.add('show');
@@ -981,6 +987,13 @@ function showInstallTip(){
 function startChat(){
   if(!hotelData)return;
   guestName=document.getElementById('ob-name').value.trim();
+  // Zapamatuj si hosta — bez toho by onboarding nabihal pri kazde navsteve
+  // (a s nim mizela i historie konverzace). Flag drzi i hosty bez jmena.
+  try{
+    if(guestName) localStorage.setItem('sg_guest_name_'+hotelId, guestName);
+    localStorage.setItem('sg_lang_'+hotelId, guestLang);
+    localStorage.setItem('sg_onboarded_'+hotelId, '1');
+  }catch(e){}
   document.getElementById('onboarding').style.opacity='0';
   document.getElementById('onboarding').style.transform='scale(.95)';
   document.getElementById('onboarding').style.transition='all .3s ease';
