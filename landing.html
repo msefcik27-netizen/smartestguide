@@ -547,6 +547,7 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
       <span class="eyebrow" id="reg-eyebrow">Get started</span>
       <h2 id="reg-h2">Register your hotel <span class="grad-text">today</span></h2>
       <p id="reg-p">Fill in your details below. After registration, we'll import your hotel data and send you access to your hotel portal within minutes.</p>
+      <p style="margin-top:10px"><a href="/api/pms/apaleo/connect-register" class="notranslate" style="display:inline-block;padding:10px 20px;border:1px solid rgba(169,203,232,.45);border-radius:99px;color:#a9cbe8;text-decoration:none;font-size:14px;font-weight:600">🔌 <span id="reg-apaleo-cta">Using Apaleo? Sign up with one click — we pre-fill everything</span></a></p>
     </div>
     <div class="register-wrap">
       <form id="reg-form" onsubmit="return false;">
@@ -971,12 +972,19 @@ async function aresAutofill(){
 }
 
 // ── Registrace – volá /api/register → backend vytvoří hotel + Stripe Checkout Session ──
+function _regMarkErr(id,on){
+  const i=document.getElementById(id);if(!i)return;
+  i.style.borderColor=on?'#e0245e':'';
+  i.style.boxShadow=on?'0 0 0 3px rgba(224,36,94,.18)':'';
+  const g=i.closest('.form-group');
+  const l=g?g.querySelector('label'):null;
+  if(l)l.style.color=on?'#e0245e':'';
+}
+['reg-name','reg-url','reg-email','reg-beds','reg-country'].forEach(id=>{
+  const i=document.getElementById(id);
+  if(i){i.addEventListener('input',()=>_regMarkErr(id,false));i.addEventListener('change',()=>_regMarkErr(id,false));}
+});
 async function submitForm(){
-  const gdpr = document.getElementById('reg-gdpr');
-  if(gdpr && !gdpr.checked){
-    alert('Please agree to the Privacy Policy and Terms of Service to continue.');
-    gdpr.focus(); return;
-  }
   const name  = document.getElementById('reg-name').value.trim();
   let url     = document.getElementById('reg-url').value.trim();
   if(url && !url.startsWith('http')) url = 'https://' + url;
@@ -987,10 +995,25 @@ async function submitForm(){
   const ico = (document.getElementById('reg-ico')||{}).value ? document.getElementById('reg-ico').value.trim() : '';
   const dic = (document.getElementById('reg-dic')||{}).value ? document.getElementById('reg-dic').value.trim() : '';
 
-  if(!name||!url||!email||!beds||!country){
-    alert('Please fill in all required fields.');
+  // ČERVENÉ zvýraznění chybějících/neplatných povinných polí + scroll na první chybu
+  const emailOk = email && email.indexOf('@')>0 && email.indexOf('.')>1;
+  const bad=[];
+  _regMarkErr('reg-name',!name); if(!name)bad.push('reg-name');
+  _regMarkErr('reg-url',!url); if(!url)bad.push('reg-url');
+  _regMarkErr('reg-email',!emailOk); if(!emailOk)bad.push('reg-email');
+  _regMarkErr('reg-beds',!beds); if(!beds)bad.push('reg-beds');
+  _regMarkErr('reg-country',!country); if(!country)bad.push('reg-country');
+  const gdpr = document.getElementById('reg-gdpr');
+  if(gdpr && !gdpr.checked){
+    const gl=gdpr.closest('label')||gdpr.parentElement;
+    if(gl){gl.style.color='#e0245e';gdpr.addEventListener('change',()=>{gl.style.color='';},{once:true});}
+    if(!bad.length){gdpr.scrollIntoView({behavior:'smooth',block:'center'});return;}
+  }
+  if(bad.length){
+    document.getElementById(bad[0]).scrollIntoView({behavior:'smooth',block:'center'});
     return;
   }
+  if(gdpr && !gdpr.checked){return;}
 
   const btn = document.getElementById('reg-btn');
   btn.disabled = true;
@@ -1099,7 +1122,7 @@ const TRANSLATIONS={
     stat_card4:"installation cost<br>no hardware, no IT required",
     about_eyebrow:"About us",about_h2:"Built for hoteliers,<br><span class=\"grad-text\">by people who travel</span>",
     about_p:"SMARTEST GUIDE was born from our own frustration: why do guests still have to call reception to ask what time breakfast starts, where the parking is, or where the best local ice cream is? Every hotel has this information — it just is not available 24/7 from a guest phone. We are a small team based in Prague, focused exclusively on the European hospitality market.",
-    reg_eyebrow:"Get started",reg_h2:"Register your hotel <span class=\"grad-text\">today</span>",reg_p:"Fill in your details below. After registration, we will prepare your hotel profile and send you access to your hotel portal.",
+    reg_apaleo:"Using Apaleo? Sign up with one click — we pre-fill everything",reg_eyebrow:"Get started",reg_h2:"Register your hotel <span class=\"grad-text\">today</span>",reg_p:"Fill in your details below. After registration, we will prepare your hotel profile and send you access to your hotel portal.",
     reg_btn:"Continue to registration & payment →",reg_note:"14-day free trial · Secure payment via Stripe · Cancel anytime",
     contact_eyebrow:"Contact",contact_h2:"Got a question?<br><span class=\"grad-text\">Let us talk.</span>",contact_p:"We are a small team and we respond to every message personally.",
     reg_name_hint:"⚠️ This name will appear on all print materials and QR posters — enter it exactly as you want it printed.",
@@ -1169,7 +1192,7 @@ const TRANSLATIONS={
     stat_card4:"náklady na instalaci<br>žádný hardware, žádné IT",
     about_eyebrow:"O nás",about_h2:"Vytvořeno pro hoteliéry<br><span class=\"grad-text\">lidmi, kteří cestují</span>",
     about_p:"SMARTEST GUIDE vznikl z naší vlastní frustrace: proč hosté stále musí volat na recepci, aby se zeptali, v kolik hodin začíná snídaně, kde je parkoviště nebo kde je nejlepší místní zmrzlina? Každý hotel tuto informaci má — jen není 24/7 dostupná z telefonu hosta. Jsme malý tým se sídlem v Praze, zaměřený výhradně na evropský trh pohostinství.",
-    reg_eyebrow:"Začít",reg_h2:"Zaregistrujte svůj hotel <span class=\"grad-text\">dnes</span>",reg_p:"Vyplňte údaje níže. Po registraci připravíme profil vašeho hotelu a zašleme vám přístup do portálu.",
+    reg_apaleo:"Používáte Apaleo? Registrace jedním kliknutím — vše předvyplníme",reg_eyebrow:"Začít",reg_h2:"Zaregistrujte svůj hotel <span class=\"grad-text\">dnes</span>",reg_p:"Vyplňte údaje níže. Po registraci připravíme profil vašeho hotelu a zašleme vám přístup do portálu.",
     reg_btn:"Pokračovat k registraci a platbě →",reg_note:"Bezpečná platba přes Stripe · Bez dlouhodobé smlouvy · Zrušení kdykoliv",
     reg_name_hint:"⚠️ Tento název se zobrazí na všech tiskových materiálech a QR plakátech — zadejte ho přesně tak, jak chcete mít vytištěno.",
     contact_eyebrow:"Kontakt",contact_h2:"Máte dotaz?<br><span class=\"grad-text\">Napište nám.</span>",contact_p:"Jsme malý tým a odpovídáme na každou zprávu osobně.",
@@ -1232,7 +1255,7 @@ const TRANSLATIONS={
     stat_card4:"Installationskosten<br>keine Hardware, keine IT nötig",
     about_eyebrow:"Über uns",about_h2:"Entwickelt für Hoteliers,<br><span class=\"grad-text\">von Menschen die reisen</span>",
     about_p:"SMARTEST GUIDE entstand aus unserer eigenen Frustration: Warum müssen Gäste noch immer die Rezeption anrufen, um zu fragen, wann das Frühstück endet oder wo der Parkplatz ist? Wir sind ein kleines Team in Prag, das sich ausschließlich auf den europäischen Hotelmarkt konzentriert.",
-    reg_eyebrow:"Loslegen",reg_h2:"Registrieren Sie Ihr Hotel <span class=\"grad-text\">heute</span>",reg_p:"Füllen Sie das Formular aus. Nach der Registrierung bereiten wir Ihr Hotelprofil vor und senden Ihnen Zugang zum Portal.",
+    reg_apaleo:"Sie nutzen Apaleo? Ein Klick — wir füllen alles vor",reg_eyebrow:"Loslegen",reg_h2:"Registrieren Sie Ihr Hotel <span class=\"grad-text\">heute</span>",reg_p:"Füllen Sie das Formular aus. Nach der Registrierung bereiten wir Ihr Hotelprofil vor und senden Ihnen Zugang zum Portal.",
     reg_btn:"Weiter zu Registrierung & Zahlung →",reg_note:"14 Tage kostenlos · Sichere Zahlung via Stripe · Jederzeit kündbar",
     contact_eyebrow:"Kontakt",contact_h2:"Haben Sie eine Frage?<br><span class=\"grad-text\">Schreiben Sie uns.</span>",contact_p:"Wir sind ein kleines Team und antworten auf jede Nachricht persönlich.",
     reg_name_hint:"⚠️ Dieser Name erscheint auf allen Druckmaterialien und QR-Postern — geben Sie ihn genau so ein, wie er gedruckt werden soll.",
@@ -1273,7 +1296,7 @@ const TRANSLATIONS={
     stat_card4:"coste de instalación<br>sin hardware, sin IT",
     about_eyebrow:"Nosotros",about_h2:"Creado para hoteleros,<br><span class=\"grad-text\">por personas que viajan</span>",
     about_p:"SMARTEST GUIDE nació de nuestra propia frustración: ¿por qué los huéspedes siguen teniendo que llamar a recepción para preguntar cuándo termina el desayuno? Somos un pequeño equipo en Praga, centrado exclusivamente en el mercado hotelero europeo.",
-    reg_eyebrow:"Empezar",reg_h2:"Registre su hotel <span class=\"grad-text\">hoy</span>",reg_p:"Complete el formulario. Tras el registro, prepararemos su perfil y le enviaremos acceso al portal.",
+    reg_apaleo:"¿Usa Apaleo? Regístrese con un clic — lo rellenamos todo",reg_eyebrow:"Empezar",reg_h2:"Registre su hotel <span class=\"grad-text\">hoy</span>",reg_p:"Complete el formulario. Tras el registro, prepararemos su perfil y le enviaremos acceso al portal.",
     reg_btn:"Continuar al registro y pago →",reg_note:"14 días gratis · Pago seguro via Stripe · Cancelación cuando quiera",
     contact_eyebrow:"Contacto",contact_h2:"¿Tiene alguna pregunta?<br><span class=\"grad-text\">Escríbanos.</span>",contact_p:"Somos un equipo pequeño y respondemos a cada mensaje personalmente.",
     reg_name_hint:"⚠️ Este nombre aparecerá en todos los materiales impresos y carteles QR — introdúzcalo exactamente como quiere que se imprima.",
@@ -1314,7 +1337,7 @@ const TRANSLATIONS={
     stat_card4:"安装成本<br>无需硬件，无需 IT",
     about_eyebrow:"关于我们",about_h2:"为酒店经营者打造，<br><span class=\"grad-text\">由旅行者创建</span>",
     about_p:"SMARTEST GUIDE 源于我们自身的困惑：为什么客人还需要打电话到前台询问早餐时间或停车场在哪里？我们是一个总部位于布拉格的小团队，专注于欧洲酒店市场。",
-    reg_eyebrow:"开始使用",reg_h2:"立即<span class=\"grad-text\">注册您的酒店</span>",reg_p:"填写以下表格。注册后，我们将准备您的酒店资料并发送门户访问权限。",
+    reg_apaleo:"使用Apaleo？一键注册 — 我们为您预填所有信息",reg_eyebrow:"开始使用",reg_h2:"立即<span class=\"grad-text\">注册您的酒店</span>",reg_p:"填写以下表格。注册后，我们将准备您的酒店资料并发送门户访问权限。",
     reg_btn:"继续注册并付款 →",reg_note:"14 天免费试用 · Stripe 安全支付 · 随时取消",
     contact_eyebrow:"联系我们",contact_h2:"有问题？<br><span class=\"grad-text\">给我们留言。</span>",contact_p:"我们是一个小团队，会亲自回复每一条消息。",
     reg_name_hint:"⚠️ 此名称将出现在所有印刷材料和二维码海报上 — 请按照您希望打印的样子准确输入。",
@@ -1355,7 +1378,7 @@ const TRANSLATIONS={
     stat_card4:"導入コスト<br>ハードウェア不要、IT 不要",
     about_eyebrow:"私たちについて",about_h2:"ホテル経営者のために、<br><span class=\"grad-text\">旅行者が作った</span>",
     about_p:"SMARTEST GUIDE は私たち自身の不満から生まれました。なぜゲストは朝食の時間や駐車場の場所を知るためにフロントに電話しなければならないのか？私たちはプラハを拠点とする小さなチームで、欧州のホテル市場に特化しています。",
-    reg_eyebrow:"始めましょう",reg_h2:"今日<span class=\"grad-text\">ホテルを登録する</span>",reg_p:"以下のフォームに記入してください。ご登録後、ホテルプロファイルを準備してポータルへのアクセスをお送りします。",
+    reg_apaleo:"Apaleoをご利用ですか？ワンクリックで登録 — すべて自動入力",reg_eyebrow:"始めましょう",reg_h2:"今日<span class=\"grad-text\">ホテルを登録する</span>",reg_p:"以下のフォームに記入してください。ご登録後、ホテルプロファイルを準備してポータルへのアクセスをお送りします。",
     reg_btn:"登録とお支払いへ進む →",reg_note:"14 日間無料 · Stripe による安全な支払い · いつでも解約可能",
     contact_eyebrow:"お問い合わせ",contact_h2:"ご質問がありますか？<br><span class=\"grad-text\">お気軽にご連絡ください。</span>",contact_p:"私たちは小さなチームで、すべてのメッセージに直接返信しています。",
     reg_name_hint:"⚠️ この名前はすべての印刷物とQRポスターに表示されます — 印刷したいとおりに正確に入力してください。",
@@ -1450,7 +1473,7 @@ function setLang(lang){
   setText('reviews-eyebrow',T.reviews_eyebrow);set('reviews-h2',T.reviews_h2);
   set('stat-card1',T.stat_card1);set('stat-card2',T.stat_card2);set('stat-card3',T.stat_card3);set('stat-card4',T.stat_card4);
   setText('about-eyebrow',T.about_eyebrow);set('about-h2',T.about_h2);
-  setText('reg-eyebrow',T.reg_eyebrow);set('reg-h2',T.reg_h2);setText('reg-p',T.reg_p);
+  setText('reg-eyebrow',T.reg_eyebrow);if(T.reg_apaleo)setText('reg-apaleo-cta',T.reg_apaleo);set('reg-h2',T.reg_h2);setText('reg-p',T.reg_p);
   setText('reg-btn',T.reg_btn);setText('reg-note',T.reg_note);
   if(T.reg_name_hint) setText('reg-name-hint', T.reg_name_hint);
   // Registrační formulář — fallback na EN pro jazyky bez překladu (de/es/zh/ja)
