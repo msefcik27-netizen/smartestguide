@@ -379,7 +379,7 @@ const EN_MAP = {
   "Zadejte kód property (např. BER)":"Enter the property code (e.g. BER)",
   "Uložení se nepovedlo: ":"Saving failed: ","Odpojení se nepovedlo: ":"Disconnecting failed: ",
   "Načítám seznam properties…":"Loading your properties…","Změnit":"Change","Zrušit":"Cancel",
-  "Vaše hotely":"Your hotels","(tento portál)":"(this portal)","Otevřít portál":"Open portal",
+  "Vaše hotely":"Your hotels","(tento portál)":"(this portal)","Otevřít portál":"Open portal","Skupinový portál":"Group portal",
   "Přidat další hotel":"Add another hotel","Provozujete více hotelů? Přidejte další — kontakty i fakturace se převezmou, vše bude na jedné měsíční faktuře.":"Running more hotels? Add another one — contacts and billing carry over, everything on one monthly invoice.",
   "Název hotelu":"Hotel name","Web hotelu (volitelné — předvyplníme profil)":"Hotel website (optional — we prefill the profile)","Počet lůžek":"Number of beds",
   "Přidat hotel":"Add hotel","Přidávám…":"Adding…","měsíčně navíc k vaší faktuře":"per month added to your invoice",
@@ -1633,12 +1633,13 @@ async function loadGroupSection(){
       </tr>`).join('');
     el.innerHTML=`
       <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:24px">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
           <div style="font-size:24px">🏨</div>
-          <div>
+          <div style="flex:1;min-width:220px">
             <div style="font-family:var(--font-head);font-size:15px;font-weight:700">${tr('Vaše hotely')} <span style="color:var(--muted);font-weight:600">(${hs.length})</span></div>
             <div style="font-size:12px;color:var(--muted)">${tr('Skupinový přehled — všechny hotely pod vaším účtem. Kliknutím otevřete portál konkrétního hotelu.')}</div>
           </div>
+          <a href="/group?token=${token}" style="font-size:12.5px;color:var(--accent);font-weight:700;text-decoration:none;border:1px solid var(--border);border-radius:8px;padding:7px 12px;white-space:nowrap">${tr('Skupinový portál')} →</a>
         </div>
         <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
           <thead><tr style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">
@@ -1756,7 +1757,7 @@ function loadPmsSection(){
             <div style="font-size:11.5px;color:var(--muted);margin-top:5px">Vyberte svůj hotel ze seznamu — načítá se přímo z vašeho Apaleo účtu, žádné opisování kódů.</div>`;
     const badge=`<div style="display:inline-flex;align-items:center;gap:10px;background:rgba(46,204,135,.1);border:1px solid rgba(46,204,135,.35);border-radius:9px;padding:7px 12px;margin-top:8px">
               <span style="font-size:14px;color:var(--text)">Property: <b style="font-size:15px">${prop}</b></span>
-              <button onclick="window._pmsPickProp=true;loadPmsSection()" style="background:transparent;border:1px solid var(--border);border-radius:7px;color:var(--accent);font-size:12.5px;font-weight:700;text-decoration:none;cursor:pointer;padding:4px 10px">Změnit</button>
+              ${h.pms_token_ref?'':`<button onclick="window._pmsPickProp=true;loadPmsSection()" style="background:transparent;border:1px solid var(--border);border-radius:7px;color:var(--accent);font-size:12.5px;font-weight:700;text-decoration:none;cursor:pointer;padding:4px 10px">Změnit</button>`}
             </div>`;
     el.innerHTML=`
       <div style="background:${failing?'rgba(255,90,90,.06)':'rgba(46,204,135,.08)'};border:1px solid ${failing?'rgba(255,90,90,.3)':'rgba(46,204,135,.3)'};border-radius:12px;padding:18px 22px;margin-bottom:24px">

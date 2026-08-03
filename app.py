@@ -1806,6 +1806,7 @@ def hotel_portal_group(token: str):
                     "beds": int(hh.get("bed_count") or 0),
                     "questions_total": int(a.get("total", 0)),
                     "completeness": comp_score,
+                    "pms_fail": int(hh.get("pms_fail_count") or 0) >= 3,
                     "token": hh.get("hotel_token", ""),
                     "is_current": hid == h.get("id")})
     out.sort(key=lambda x: (not x["is_current"], x["name"].lower()))
@@ -5221,6 +5222,14 @@ def serve_frontend():
     with open(html_path, "r", encoding="utf-8") as f:
         return _staging_banner(f.read())
 
+@app.get("/group", response_class=HTMLResponse)
+def serve_group_portal():
+    """Skupinový portál — JEDEN odkaz pro vlastníka více hotelů (funguje s tokenem
+    kteréhokoli hotelu skupiny). Přehled + proklik do portálů jednotlivých hotelů."""
+    html_path = os.path.join(os.path.dirname(__file__), "group.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        return _staging_banner(f.read())
+
 @app.get("/portal", response_class=HTMLResponse)
 @app.get("/hotel", response_class=HTMLResponse)
 def serve_hotel_portal():
@@ -6235,7 +6244,7 @@ async def apaleo_properties(token: str):
     h = find_hotel_by_token(token)
     if not h:
         raise HTTPException(403, "Neplatný přístupový token")
-    if not h.get("pms_refresh_token") and not h.get("pms_client_id"):
+    if not (h.get("pms_refresh_token") or h.get("pms_client_id") or h.get("pms_token_ref")):
         return {"status": "ok", "properties": [], "current": h.get("pms_property_id") or "",
                 "note": "not_connected"}
     s = db_get_settings()
