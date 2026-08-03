@@ -972,12 +972,19 @@ async function aresAutofill(){
 }
 
 // ── Registrace – volá /api/register → backend vytvoří hotel + Stripe Checkout Session ──
+function _regMarkErr(id,on){
+  const i=document.getElementById(id);if(!i)return;
+  i.style.borderColor=on?'#e0245e':'';
+  i.style.boxShadow=on?'0 0 0 3px rgba(224,36,94,.18)':'';
+  const g=i.closest('.form-group');
+  const l=g?g.querySelector('label'):null;
+  if(l)l.style.color=on?'#e0245e':'';
+}
+['reg-name','reg-url','reg-email','reg-beds','reg-country'].forEach(id=>{
+  const i=document.getElementById(id);
+  if(i){i.addEventListener('input',()=>_regMarkErr(id,false));i.addEventListener('change',()=>_regMarkErr(id,false));}
+});
 async function submitForm(){
-  const gdpr = document.getElementById('reg-gdpr');
-  if(gdpr && !gdpr.checked){
-    alert('Please agree to the Privacy Policy and Terms of Service to continue.');
-    gdpr.focus(); return;
-  }
   const name  = document.getElementById('reg-name').value.trim();
   let url     = document.getElementById('reg-url').value.trim();
   if(url && !url.startsWith('http')) url = 'https://' + url;
@@ -988,10 +995,25 @@ async function submitForm(){
   const ico = (document.getElementById('reg-ico')||{}).value ? document.getElementById('reg-ico').value.trim() : '';
   const dic = (document.getElementById('reg-dic')||{}).value ? document.getElementById('reg-dic').value.trim() : '';
 
-  if(!name||!url||!email||!beds||!country){
-    alert('Please fill in all required fields.');
+  // ČERVENÉ zvýraznění chybějících/neplatných povinných polí + scroll na první chybu
+  const emailOk = email && email.indexOf('@')>0 && email.indexOf('.')>1;
+  const bad=[];
+  _regMarkErr('reg-name',!name); if(!name)bad.push('reg-name');
+  _regMarkErr('reg-url',!url); if(!url)bad.push('reg-url');
+  _regMarkErr('reg-email',!emailOk); if(!emailOk)bad.push('reg-email');
+  _regMarkErr('reg-beds',!beds); if(!beds)bad.push('reg-beds');
+  _regMarkErr('reg-country',!country); if(!country)bad.push('reg-country');
+  const gdpr = document.getElementById('reg-gdpr');
+  if(gdpr && !gdpr.checked){
+    const gl=gdpr.closest('label')||gdpr.parentElement;
+    if(gl){gl.style.color='#e0245e';gdpr.addEventListener('change',()=>{gl.style.color='';},{once:true});}
+    if(!bad.length){gdpr.scrollIntoView({behavior:'smooth',block:'center'});return;}
+  }
+  if(bad.length){
+    document.getElementById(bad[0]).scrollIntoView({behavior:'smooth',block:'center'});
     return;
   }
+  if(gdpr && !gdpr.checked){return;}
 
   const btn = document.getElementById('reg-btn');
   btn.disabled = true;
