@@ -711,6 +711,91 @@ def danger_verify(request: Request):
     _check_danger(request)
     return {"ok": True}
 
+# ── Registr klíčů a přístupů (3. 8. 2026) ──────────────────────────────
+# Martin měl klíče roztroušené v poznámkách. Tady je EVIDENCE, ne trezor:
+# ukazujeme jen JESTLI je klíč nastavený a poslední 4 znaky pro ověření shody.
+# Tajné hodnoty se do DB ani do odpovědi API NIKDY nedostanou — patří do
+# správce hesel (hodnota) a do Railway Variables (běhové prostředí).
+_KEYS_REGISTRY = [
+    # (env proměnná, k čemu to je, důležitost, kde obnovit / zkontrolovat, poznámka)
+    ("ANTHROPIC_API_KEY", "Mozek Alexe — veškerý chat s hosty", "kriticke",
+     "https://console.anthropic.com/settings/keys",
+     "Auto-reload kreditu zapnutý. Při nule Alex přestane odpovídat."),
+    ("DATABASE_URL", "Připojení k Postgres (hotely, rezervace, faktury)", "kriticke",
+     "https://railway.app", "Nastavuje Railway sám při propojení databáze. Neměnit ručně."),
+    ("ADMIN_PASSWORD", "Přihlášení do administrace", "kriticke",
+     "Railway → Variables", "Změna = odhlášení všech relací."),
+    ("DANGER_PASSWORD", "Druhé heslo pro citlivé sekce a mazání", "kriticke",
+     "Railway → Variables", "Chrání Nastavení, Provize, tvrdé mazání a tuto stránku."),
+    ("STRIPE_SECRET_KEY", "Platby a předplatné hotelů", "kriticke",
+     "https://dashboard.stripe.com/apikeys",
+     "POZOR na režim: sk_live_ na produkci, sk_test_ na stagingu."),
+    ("STRIPE_WEBHOOK_SECRET", "Ověření Stripe webhooků (aktivace po platbě)", "kriticke",
+     "https://dashboard.stripe.com/webhooks",
+     "Bez něj platba proběhne, ale hotel se neaktivuje a nevystaví se faktura."),
+    ("BREVO_API_KEY", "Odesílání e-mailů (onboarding, faktury, zálohy)", "dulezite",
+     "https://app.brevo.com/settings/keys/api",
+     "Hlídej i limit e-mailů v tarifu a DKIM záznamy na Forpsi."),
+    ("APALEO_CLIENT_ID", "Apaleo Connect — ID aplikace", "dulezite",
+     "https://console.apaleo.com", "Páruje se s APALEO_CLIENT_SECRET. Bez obou nejde připojit hotel."),
+    ("APALEO_CLIENT_SECRET", "Apaleo Connect — tajemství aplikace", "dulezite",
+     "https://console.apaleo.com",
+     "Zobrazí se jen jednou při vytvoření. Rotace: nový secret → přepsat v Railway → smazat starý."),
+    ("OPENAI_API_KEY", "Hlas Alexe (TTS) a přepis mikrofonu (STT)", "dulezite",
+     "https://platform.openai.com/api-keys",
+     "SAMOSTATNÝ účet, neplést s Anthropicem. Bez kreditu Alex přejde na robotický hlas prohlížeče."),
+    ("GOOGLE_PLACES_API_KEY", "Doplnění profilu hotelu z Google při scrapování", "volitelne",
+     "https://console.cloud.google.com/apis/credentials",
+     "Volitelné. Bez klíče se krok tiše přeskočí. Omezit klíč jen na Places API (New)."),
+    ("BASE_URL", "Veřejná adresa služby v odkazech a e-mailech", "dulezite",
+     "Railway → Variables", "Produkce: https://www.smartestguide.com"),
+    ("ADMIN_NOTIFY_EMAIL", "Kam chodí provozní upozornění", "volitelne",
+     "Railway → Variables", ""),
+    ("ADMIN_CC_EMAIL", "Kopie provozních e-mailů", "volitelne", "Railway → Variables", ""),
+    ("BACKUP_EMAIL", "Kam chodí zálohy databáze", "dulezite",
+     "Railway → Variables", "Když nedorazí záloha, zkontroluj i Brevo."),
+    ("CONTACT_FROM_EMAIL", "Odesílatel kontaktního formuláře", "volitelne", "Railway → Variables", ""),
+    ("CONTACT_TO_EMAIL", "Příjemce kontaktního formuláře", "volitelne", "Railway → Variables", ""),
+    ("STRIPE_PAYMENT_LINK", "Záložní platební odkaz", "volitelne",
+     "https://dashboard.stripe.com/payment-links", ""),
+    ("TTS_VOICE", "Hlas Alexe (výchozí coral)", "volitelne", "Railway → Variables",
+     "Ženské varianty: coral, nova, shimmer, sage, ballad."),
+    ("TTS_MODEL", "Model pro hlas (výchozí gpt-4o-mini-tts)", "volitelne", "Railway → Variables", ""),
+    ("STT_MODEL", "Model pro přepis řeči (výchozí whisper-1)", "volitelne", "Railway → Variables", ""),
+    ("SG_ENV", "Označení prostředí (staging zobrazí modrý pruh)", "volitelne",
+     "Railway → Variables", "Na stagingu nastav na 'staging', na produkci nechat prázdné."),
+    ("DATA_PATH", "Cesta k souborové databázi (jen bez Postgresu)", "volitelne",
+     "Railway → Variables", ""),
+]
+
+@app.get("/api/keys-registry")
+def keys_registry(request: Request):
+    """Evidence klíčů: co k čemu je, jestli je nastavené a kde se obnovuje.
+    Tajné hodnoty se NEVRACÍ — jen poslední 4 znaky pro ověření, že jde o tentýž klíč."""
+    _check_danger(request)
+    s = db_get_settings()
+    # Některé klíče si hotel může uložit i do Nastavení v adminu (DB), ne jen do env
+    _from_db = {"ANTHROPIC_API_KEY": s.get("anthropic_api_key", ""),
+                "STRIPE_SECRET_KEY": s.get("stripe_secret_key", ""),
+                "STRIPE_WEBHOOK_SECRET": s.get("stripe_webhook_secret", "")}
+    out = []
+    for var, purpose, level, url, note in _KEYS_REGISTRY:
+        raw = (os.getenv(var) or "").strip()
+        src = "env"
+        if not raw and _from_db.get(var):
+            raw = str(_from_db[var]).strip()
+            src = "db"
+        out.append({
+            "var": var, "purpose": purpose, "level": level,
+            "renew_url": url, "note": note,
+            "is_set": bool(raw),
+            "source": src if raw else "",
+            "tail": ("…" + raw[-4:]) if len(raw) >= 8 else ("nastaveno" if raw else ""),
+            "length": len(raw),
+        })
+    return {"status": "ok", "keys": out,
+            "env": ("staging" if os.getenv("SG_ENV", "").lower() == "staging" else "produkce")}
+
 # ── Migrace DB: export/import (chráněno admin_gate + DANGER_PASSWORD) ──
 # Používá se při přesunu do jiného regionu (US → EU): export ze staré DB, import do nové.
 @app.get("/api/db-export")
