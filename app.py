@@ -5676,6 +5676,51 @@ async def guest_verify_stay(req: VerifyStayRequest, request: Request):
         verified = False
     return {"status": "ok", "verified": verified}
 
+# ── Pojistka ženského rodu Alex (4. 8. 2026, tester: „mluví ženským hlasem
+# v mužském rodě" — na LIVE i PO přidání pravidla do promptu). Prompt není 100%,
+# tohle je deterministická záchranná síť: opraví jen NEZAMĚNITELNÉ tvary první
+# osoby (příčestí + „jsem/som", „rád ti/vám/bych"). Na oslovení hosta nesahá —
+# tam se „jsem" ani první osoba nevyskytuje.
+import re as _re
+_FEM_PAST = {
+    "ukázal": "ukázala", "našel": "našla", "řekl": "řekla", "poslal": "poslala",
+    "připravil": "připravila", "napsal": "napsala", "udělal": "udělala",
+    "zjistil": "zjistila", "uvedl": "uvedla", "zmínil": "zmínila",
+    "doporučil": "doporučila", "vysvětlil": "vysvětlila", "přeložil": "přeložila",
+    "vybral": "vybrala", "spočítal": "spočítala", "ověřil": "ověřila",
+    "zkontroloval": "zkontrolovala", "dohledal": "dohledala", "sepsal": "sepsala",
+    "shrnul": "shrnula", "popsal": "popsala", "byl": "byla", "mohl": "mohla",
+    "doplnil": "doplnila", "zapsal": "zapsala", "spojil": "spojila",
+    "chtěl": "chtěla", "musel": "musela", "nenašel": "nenašla",
+}
+_FEM_PAST_RE = _re.compile(
+    r"\b(" + "|".join(_FEM_PAST) + r")(\s+(?:jsem|bych|som))\b", _re.IGNORECASE)
+_FEM_PAST_AFTER_RE = _re.compile(
+    r"\b((?:jsem|bych|som)\s+)(" + "|".join(_FEM_PAST) + r")\b", _re.IGNORECASE)
+_FEM_RAD_RE = _re.compile(r"\b(r|R)ád(\s+(?:ti|vám|Vám|bych|to|tě))\b")
+
+def _alex_feminine_fix(text: str) -> str:
+    """Přepíše mužské tvary PRVNÍ osoby na ženské (jen jednoznačné vzory).
+    Cizí jazyky nezasáhne — vzory jsou ryze české/slovenské."""
+    if not text:
+        return text
+    def _past(m):
+        w = m.group(1)
+        rep = _FEM_PAST.get(w.lower())
+        if not rep:
+            return m.group(0)
+        if w[0].isupper():
+            rep = rep[0].upper() + rep[1:]
+        return rep + m.group(2)
+    text = _FEM_PAST_RE.sub(_past, text)
+    # I obrácené pořadí: „bych doplnil" / „jsem našel" — příčestí PO pomocném slovese
+    def _past_after(m):
+        rep = _FEM_PAST.get(m.group(2).lower())
+        return m.group(1) + rep if rep else m.group(0)
+    text = _FEM_PAST_AFTER_RE.sub(_past_after, text)
+    text = _FEM_RAD_RE.sub(lambda m: ("R" if m.group(1) == "R" else "r") + "áda" + m.group(2), text)
+    return text
+
 @app.post("/api/guest/chat")
 async def guest_chat(req: GuestChatRequest, request: Request):
     """AI chat pro hosta – používá Anthropic API."""
@@ -5740,7 +5785,7 @@ INPUT TOLERANCE (IMPORTANT): Guests often use voice dictation or type quickly, s
 
 CONVERSATION MEMORY (IMPORTANT): The guest may have reloaded the page, switched devices or returned after days — messages you sent earlier may NOT be visible to them anymore. NEVER claim you already showed or said something, and never refer to the position of earlier messages ("as I showed above", "ten jsem ti uz ukazal vyse", "see my previous message"). If the guest asks for something again, simply give the complete answer again, naturally, as if for the first time.
 
-VOICE & GENDER (IMPORTANT): Your replies can be read aloud by a FEMALE voice. In languages with grammatical gender, always speak about yourself in FEMININE first-person forms. Czech: "ukázala jsem", "ráda pomohu", "našla jsem", "byla bych ráda" — never "ukázal jsem", "rád pomohu", "našel jsem". Same in Slovak, Polish, Russian and other gendered languages. This applies ONLY to how you speak about yourself; when speaking about or to the guest, use the gender that fits them. The name Alex is never declined or changed.
+VOICE & GENDER (CRITICAL — applies to EVERY sentence, including casual greetings): You are a woman. Your replies can be read aloud by a FEMALE voice. In languages with grammatical gender, ALWAYS speak about yourself in FEMININE first-person forms. Czech: "Ráda ti pomohu" (NEVER "Rád ti pomohu"), "ukázala jsem", "našla jsem", "byla bych ráda". Same in Slovak ("rada ti pomôžem"), Polish, Russian and other gendered languages. This applies ONLY to how you speak about yourself; when speaking about or to the guest, use the gender that fits them. The name Alex is never declined or changed.
 
 ACCURACY RULE (CRITICAL — never break this): Answer ONLY from the hotel information provided below. If a detail is missing, empty, marked "N/A" or "neuvedeno", do NOT guess or invent it. Instead say you don't have that specific information and offer to connect the guest with reception (use the reception phone or WhatsApp number if listed). Never make up prices, opening hours, room numbers, allergen or dietary details, policies, or availability. For safety-critical topics (allergens, medical, payments, prices) always recommend confirming directly with hotel staff. It is always better to admit you don't know than to state something that might be wrong.
 
@@ -5900,7 +5945,7 @@ Guest name: {req.guest_name or 'Guest'}"""
     if r.status_code != 200:
         raise HTTPException(500, f"AI chyba: {r.text[:200]}")
     _j = r.json()
-    reply = _j["content"][0]["text"]
+    reply = _alex_feminine_fix(_j["content"][0]["text"])
     _usage = _j.get("usage", {}) or {}
     # Zaloguj reálný dotaz hosta (analytika + detekce mezer v informacích)
     try:
@@ -5922,10 +5967,11 @@ _TTS_INSTRUCTIONS = os.getenv(
     "Speak as a NATIVE speaker of the language of the text, with correct native "
     "pronunciation, natural intonation and natural sentence melody — never a foreign "
     "accent. You are a warm, professional hotel receptionist talking to a guest face "
-    "to face. Relaxed conversational pace, never rushed and never dragging. Make real "
-    "pauses at commas and full stops. Read times, prices and numbers the way a person "
-    "says them out loud, not digit by digit. Friendly and reassuring, with a light "
-    "smile in the voice — no theatrical or advertising tone, no robotic flatness.",
+    "to face. Natural, lightly brisk conversational pace — a touch faster than "
+    "neutral, but never rushed. Make real pauses at commas and full stops. Read "
+    "times, prices and numbers the way a person says them out loud, not digit by "
+    "digit. Friendly and reassuring, with a light smile in the voice — no theatrical "
+    "or advertising tone, no robotic flatness.",
 )
 # Povolené hlasy (A/B test bez zásahu do kódu — ?voice= v požadavku nebo TTS_VOICE v env)
 _TTS_VOICES_OK = {"alloy", "ash", "ballad", "coral", "echo", "fable",
@@ -5937,6 +5983,50 @@ class GuestTTSRequest(BaseModel):
     language: Optional[str] = None  # informativní; hlas je vícejazyčný
     hotel_id: Optional[str] = None  # pro měření nákladů per hotel
     voice: Optional[str] = None     # jen pro ladění/A-B test, jinak výchozí _TTS_VOICE
+
+@app.get("/voice-test", response_class=HTMLResponse)
+def voice_test_page():
+    """Interní stránka pro výběr hlasu Alex (4. 8. 2026, tester ladí hlas).
+    Přehraje stejnou českou větu ve všech ženských hlasech přes /api/guest/tts
+    (rate-limit endpointu platí i tady). Vybraný hlas se pak nastaví v Railway
+    jako TTS_VOICE. Neindexovat, neodkazovat z veřejných stránek."""
+    _voices = ["coral", "nova", "shimmer", "sage", "ballad", "alloy"]
+    _cur = _TTS_VOICE
+    _btns = "".join(
+        f"""<div class="row"><div><b>{v}</b>{' <span class="cur">aktuální</span>' if v == _cur else ''}</div>
+        <button onclick="play('{v}',this)">▶ Přehrát</button></div>"""
+        for v in _voices)
+    return f"""<!DOCTYPE html><html lang="cs"><head><meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Výběr hlasu Alex</title><style>
+body{{font-family:system-ui,sans-serif;background:#f6f8fc;color:#16233b;max-width:560px;margin:40px auto;padding:0 20px}}
+h1{{font-size:22px}} p{{color:#66748f;font-size:14px;line-height:1.5}}
+.row{{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid #e3e9f4;border-radius:10px;padding:12px 16px;margin:10px 0}}
+button{{background:#2c5fae;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:600;cursor:pointer}}
+button:disabled{{opacity:.5}} .cur{{font-size:11px;color:#1fa970;font-weight:700;margin-left:6px}}
+textarea{{width:100%;border:1px solid #e3e9f4;border-radius:8px;padding:10px;font-size:14px;box-sizing:border-box}}
+</style></head><body>
+<h1>🔊 Výběr hlasu Alex</h1>
+<p>Stejná věta ve všech dostupných hlasech. Vyber ten, který zní nejpřirozeněji —
+nastavení pak provedeme na serveru. Mezi přehráními chvíli počkej (ochrana proti přetížení:
+max 15 přehrání za minutu).</p>
+<textarea id="txt" rows="3">Dobrý den! Ráda vám pomohu. Snídaně se podává od 7:00 do 10:00 v restauraci v přízemí. Kdybyste cokoli potřebovali, recepce je vám k dispozici nonstop.</textarea>
+{_btns}
+<script>
+let cur=null;
+async function play(v,btn){{
+  if(cur){{cur.pause();cur=null;}}
+  const t=btn.textContent; btn.disabled=true; btn.textContent='…';
+  try{{
+    const r=await fetch('/api/guest/tts',{{method:'POST',headers:{{'Content-Type':'application/json'}},
+      body:JSON.stringify({{text:document.getElementById('txt').value,voice:v}})}});
+    if(!r.ok)throw new Error(r.status===429?'Příliš rychle po sobě — počkej minutu.':'Chyba '+r.status);
+    const a=new Audio(URL.createObjectURL(await r.blob()));
+    cur=a; a.onended=()=>{{if(cur===a)cur=null;}}; await a.play();
+  }}catch(e){{alert(e.message);}}
+  btn.disabled=false; btn.textContent=t;
+}}
+</script></body></html>"""
 
 @app.post("/api/guest/tts")
 async def guest_tts(req: GuestTTSRequest, request: Request):
