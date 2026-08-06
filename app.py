@@ -5983,48 +5983,109 @@ class GuestTTSRequest(BaseModel):
     language: Optional[str] = None  # informativní; hlas je vícejazyčný
     hotel_id: Optional[str] = None  # pro měření nákladů per hotel
     voice: Optional[str] = None     # jen pro ladění/A-B test, jinak výchozí _TTS_VOICE
+    instructions: Optional[str] = None  # override stylu/tempa (jen /voice-test; cap 400 znaků)
 
 @app.get("/voice-test", response_class=HTMLResponse)
 def voice_test_page():
-    """Interní stránka pro výběr hlasu Alex (4. 8. 2026, tester ladí hlas).
-    Přehraje stejnou českou větu ve všech ženských hlasech přes /api/guest/tts
-    (rate-limit endpointu platí i tady). Vybraný hlas se pak nastaví v Railway
-    jako TTS_VOICE. Neindexovat, neodkazovat z veřejných stránek."""
-    _voices = ["coral", "nova", "shimmer", "sage", "ballad", "alloy"]
+    """Interní stránka pro ladění hlasu Alex (4. 8. 2026, rozšířeno na přání Martina).
+    Hlas + tempo + styl + vlastní instrukce; výsledné nastavení se zobrazí jako
+    hodnoty TTS_VOICE / TTS_INSTRUCTIONS ke zkopírování do Railway.
+    Neindexovat, neodkazovat z veřejných stránek. Rate-limit endpointu platí."""
+    _fem = ["coral", "nova", "shimmer", "sage", "ballad"]
+    _mal = ["alloy", "ash", "echo", "fable", "onyx", "verse"]
     _cur = _TTS_VOICE
-    _btns = "".join(
-        f"""<div class="row"><div><b>{v}</b>{' <span class="cur">aktuální</span>' if v == _cur else ''}</div>
-        <button onclick="play('{v}',this)">▶ Přehrát</button></div>"""
-        for v in _voices)
+    def _rows(vs):
+        return "".join(
+            f"""<label class="row"><span><b>{v}</b>{' <span class="cur">aktuální</span>' if v == _cur else ''}</span>
+            <span><button type="button" onclick="play('{v}',this)">▶</button>
+            <input type="radio" name="voice" value="{v}"{' checked' if v == _cur else ''}></span></label>"""
+            for v in vs)
     return f"""<!DOCTYPE html><html lang="cs"><head><meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Výběr hlasu Alex</title><style>
-body{{font-family:system-ui,sans-serif;background:#f6f8fc;color:#16233b;max-width:560px;margin:40px auto;padding:0 20px}}
-h1{{font-size:22px}} p{{color:#66748f;font-size:14px;line-height:1.5}}
-.row{{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid #e3e9f4;border-radius:10px;padding:12px 16px;margin:10px 0}}
-button{{background:#2c5fae;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:600;cursor:pointer}}
+<title>Ladění hlasu Alex</title><style>
+body{{font-family:system-ui,sans-serif;background:#f6f8fc;color:#16233b;max-width:640px;margin:32px auto;padding:0 20px 60px}}
+h1{{font-size:22px}} h2{{font-size:14px;text-transform:uppercase;letter-spacing:.05em;color:#66748f;margin:22px 0 8px}}
+p{{color:#66748f;font-size:13.5px;line-height:1.5}}
+.row{{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid #e3e9f4;border-radius:10px;padding:10px 14px;margin:8px 0;cursor:pointer}}
+.row input[type=radio]{{margin-left:12px;transform:scale(1.3)}}
+button{{background:#2c5fae;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:14px;font-weight:600;cursor:pointer}}
 button:disabled{{opacity:.5}} .cur{{font-size:11px;color:#1fa970;font-weight:700;margin-left:6px}}
-textarea{{width:100%;border:1px solid #e3e9f4;border-radius:8px;padding:10px;font-size:14px;box-sizing:border-box}}
+textarea,select{{width:100%;border:1px solid #e3e9f4;border-radius:8px;padding:10px;font-size:14px;box-sizing:border-box;background:#fff}}
+.grid{{display:grid;grid-template-columns:1fr 1fr;gap:12px}}
+.samp{{display:inline-block;margin:0 6px 6px 0;background:#fff;border:1px solid #e3e9f4;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}}
+.bigplay{{width:100%;padding:14px;font-size:16px;margin-top:14px;background:#1fa970}}
+.out{{background:#0f1b2d;color:#d7e3f8;border-radius:10px;padding:14px;font-family:monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;margin-top:10px}}
+.copy{{background:transparent;color:#2c5fae;border:1px solid #e3e9f4;margin-top:6px}}
 </style></head><body>
-<h1>🔊 Výběr hlasu Alex</h1>
-<p>Stejná věta ve všech dostupných hlasech. Vyber ten, který zní nejpřirozeněji —
-nastavení pak provedeme na serveru. Mezi přehráními chvíli počkej (ochrana proti přetížení:
-max 15 přehrání za minutu).</p>
+<h1>🔊 Ladění hlasu Alex</h1>
+<p>Vyber hlas, tempo a styl, uprav větu podle potřeby a přehraj. Mezi přehráními chvíli počkej
+(max 15 za minutu). Až budeš spokojený, pošli Martinovi blok nastavení dole.</p>
+
+<h2>Věta na zkoušku</h2>
+<span class="samp" onclick="setTxt('cs')">🇨🇿 čeština</span>
+<span class="samp" onclick="setTxt('en')">🇬🇧 angličtina</span>
+<span class="samp" onclick="setTxt('de')">🇩🇪 němčina</span>
 <textarea id="txt" rows="3">Dobrý den! Ráda vám pomohu. Snídaně se podává od 7:00 do 10:00 v restauraci v přízemí. Kdybyste cokoli potřebovali, recepce je vám k dispozici nonstop.</textarea>
-{_btns}
+
+<h2>Ženské hlasy <span style="font-weight:400;text-transform:none">(ladí s ženským rodem Alex)</span></h2>
+{_rows(_fem)}
+<h2>Mužské / neutrální hlasy <span style="font-weight:400;text-transform:none">(pak by Alex musel mluvit mužsky — změna v kódu)</span></h2>
+{_rows(_mal)}
+
+<h2>Tempo</h2>
+<select id="pace">
+  <option value="Calm, unhurried pace with generous pauses.">Pomalé a klidné</option>
+  <option value="Natural conversational pace.">Přirozené</option>
+  <option value="Natural, lightly brisk conversational pace — a touch faster than neutral, but never rushed." selected>Svižné (aktuální)</option>
+  <option value="Brisk, energetic pace, still fully intelligible.">Rychlé</option>
+</select>
+
+<h2>Styl</h2>
+<select id="style">
+  <option value="Friendly and reassuring, with a light smile in the voice — no theatrical or advertising tone, no robotic flatness." selected>Vřelý a vstřícný (aktuální)</option>
+  <option value="Polished, professional and composed, like a five-star hotel receptionist.">Formální a profesionální</option>
+  <option value="Cheerful and upbeat, welcoming energy.">Veselý a energický</option>
+  <option value="Soft, calm and soothing, evening-radio warmth.">Tichý a konejšivý</option>
+</select>
+
+<h2>Vlastní doladění <span style="font-weight:400;text-transform:none">(volitelné, anglicky funguje nejlépe)</span></h2>
+<textarea id="extra" rows="2" placeholder="např. Slightly lower pitch. / Sound a bit younger."></textarea>
+
+<button class="bigplay" onclick="play(null,this)">▶ Přehrát s tímto nastavením</button>
+
+<h2>Nastavení k odeslání Martinovi</h2>
+<div class="out" id="out"></div>
+<button class="copy" onclick="navigator.clipboard.writeText(document.getElementById('out').textContent);this.textContent='✓ Zkopírováno'">Zkopírovat</button>
+
 <script>
+const SAMPLES={{
+ cs:"Dobrý den! Ráda vám pomohu. Snídaně se podává od 7:00 do 10:00 v restauraci v přízemí. Kdybyste cokoli potřebovali, recepce je vám k dispozici nonstop.",
+ en:"Good morning! I'd be happy to help. Breakfast is served from 7 to 10 a.m. in the ground-floor restaurant. If you need anything at all, reception is available around the clock.",
+ de:"Guten Morgen! Ich helfe Ihnen gern. Das Frühstück wird von 7 bis 10 Uhr im Restaurant im Erdgeschoss serviert. Bei Fragen ist die Rezeption rund um die Uhr für Sie da."
+}};
+function setTxt(l){{document.getElementById('txt').value=SAMPLES[l];}}
+const BASE="Speak as a NATIVE speaker of the language of the text, with correct native pronunciation, natural intonation and natural sentence melody — never a foreign accent. You are a warm, professional hotel receptionist talking to a guest face to face. Make real pauses at commas and full stops. Read times, prices and numbers the way a person says them out loud, not digit by digit.";
+function buildInstr(){{
+  const extra=document.getElementById('extra').value.trim();
+  return [BASE,document.getElementById('pace').value,document.getElementById('style').value,extra].filter(Boolean).join(" ");
+}}
+function selVoice(){{return document.querySelector('input[name=voice]:checked').value;}}
+function updOut(){{
+  document.getElementById('out').textContent="TTS_VOICE="+selVoice()+"\n\nTTS_INSTRUCTIONS="+buildInstr();
+}}
+document.addEventListener('change',updOut);document.addEventListener('input',updOut);updOut();
 let cur=null;
 async function play(v,btn){{
   if(cur){{cur.pause();cur=null;}}
-  const t=btn.textContent; btn.disabled=true; btn.textContent='…';
+  const t=btn.textContent;btn.disabled=true;btn.textContent='…';
   try{{
     const r=await fetch('/api/guest/tts',{{method:'POST',headers:{{'Content-Type':'application/json'}},
-      body:JSON.stringify({{text:document.getElementById('txt').value,voice:v}})}});
+      body:JSON.stringify({{text:document.getElementById('txt').value,voice:v||selVoice(),instructions:buildInstr()}})}});
     if(!r.ok)throw new Error(r.status===429?'Příliš rychle po sobě — počkej minutu.':'Chyba '+r.status);
     const a=new Audio(URL.createObjectURL(await r.blob()));
-    cur=a; a.onended=()=>{{if(cur===a)cur=null;}}; await a.play();
+    cur=a;a.onended=()=>{{if(cur===a)cur=null;}};await a.play();
   }}catch(e){{alert(e.message);}}
-  btn.disabled=false; btn.textContent=t;
+  btn.disabled=false;btn.textContent=t;
 }}
 </script></body></html>"""
 
@@ -6049,7 +6110,7 @@ async def guest_tts(req: GuestTTSRequest, request: Request):
                 "model": _TTS_MODEL,
                 "voice": (req.voice or "").strip().lower() if (req.voice or "").strip().lower() in _TTS_VOICES_OK else _TTS_VOICE,
                 "input": text,
-                "instructions": _TTS_INSTRUCTIONS,
+                "instructions": ((req.instructions or "").strip()[:400] or _TTS_INSTRUCTIONS),
                 "response_format": "mp3",
             },
         )
