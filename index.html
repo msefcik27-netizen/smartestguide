@@ -179,6 +179,7 @@
     <div class="nav-item" onclick="showPage('hotels')"><span class="nav-icon">🏨</span> Hotely</div>
     <div class="nav-item" onclick="showPage('pricing')"><span class="nav-icon">💶</span> Ceník</div>
     <div class="nav-item" onclick="showPage('settings')"><span class="nav-icon">⚙️</span> Nastavení<span class="nav-badge" id="settings-badge">!</span></div>
+    <div class="nav-item" onclick="showPage('keys')"><span class="nav-icon">🔑</span> Klíče a přístupy</div>
     <div class="nav-item" onclick="showPage('billing')"><span class="nav-icon">💰</span> Faktury</div>
     <div class="nav-item" onclick="showPage('commissions')"><span class="nav-icon">🤝</span> Provize</div>
     <div class="nav-item" onclick="showPage('economics')"><span class="nav-icon">📈</span> Ekonomika</div>
@@ -551,6 +552,24 @@
       </div><!-- konec gridu -->
     </div>
 
+    <!-- KLÍČE A PŘÍSTUPY -->
+    <div class="page" id="page-keys">
+      <div class="topbar">
+        <div class="page-title">Klíče a přístupy <small>evidence, ne trezor</small></div>
+        <button class="btn btn-secondary" onclick="loadKeysRegistry()">↻ Načíst znovu</button>
+      </div>
+      <div class="card" style="margin-bottom:18px">
+        <p style="font-size:13px;color:var(--muted);margin:0">
+          Přehled všech klíčů a přístupů, které aplikace používá — k čemu slouží, jestli jsou
+          na tomto prostředí nastavené a kde se obnovují. <strong style="color:var(--text)">Tajné
+          hodnoty se tu nikdy nezobrazují ani neukládají</strong> — vidíš jen poslední 4 znaky
+          pro ověření, že jde o tentýž klíč. Hodnoty patří do správce hesel, běhové prostředí
+          čte klíče z Railway → Variables.
+        </p>
+      </div>
+      <div class="card"><div id="keys-body"><div style="color:var(--muted);font-size:13px">Načítám…</div></div></div>
+    </div>
+
     <!-- FAKTURY -->
     <div class="page" id="page-billing">
       <div class="topbar">
@@ -778,7 +797,7 @@ function exportLog(){
 }
 
 // ══ NAV ══════════════════════════════════════
-const PAGES=['dashboard','analytics','scrape','hotels','pricing','settings','billing','commissions','economics','log'];
+const PAGES=['dashboard','analytics','scrape','hotels','pricing','settings','keys','billing','commissions','economics','log'];
 // ── Zámek citlivých sekcí (Nastavení, Provize) + nebezpečné akce ──
 // Heslo se ověří jednou, drží se v paměti pro session a přiloží se jako X-Danger-Key.
 let dangerKey=null, dangerEnabled=null;
@@ -802,7 +821,7 @@ async function ensureUnlocked(){
 function dangerHeaders(extra){ const h=Object.assign({},extra||{}); if(dangerKey) h['X-Danger-Key']=dangerKey; return h; }
 
 function showPage(name){
-  if(name==='settings'||name==='commissions'){
+  if(name==='settings'||name==='commissions'||name==='keys'){
     ensureUnlocked().then(ok=>{ if(ok) _renderPage(name); });
     return;
   }
@@ -819,6 +838,7 @@ function _renderPage(name){
   if(name==='analytics')loadAnalytics();
   if(name==='dashboard'||name==='hotels')loadHotels();
   if(name==='settings'){loadKeyStatus();loadCompanySettings();loadPaymentTasks();loadAiStatus(false);}
+  if(name==='keys')loadKeysRegistry();
   if(name==='billing')loadBilling();
   if(name==='commissions')loadCommissionsPage();
   if(name==='economics')loadEconomics();
@@ -2034,6 +2054,70 @@ async function savePricingSettings(){
     document.getElementById('pricing-threshold-label').textContent=threshold;
     document.getElementById('pricing-per-label').textContent=perBed+' EUR';
   }catch(e){toast('Chyba: '+e.message,'err');}
+}
+
+// ══ KLÍČE A PŘÍSTUPY ═════════════════════════
+// Evidence, ne trezor: ukazujeme JESTLI je klíč nastavený a poslední 4 znaky.
+async function loadKeysRegistry(){
+  const el=document.getElementById('keys-body');
+  if(!el)return;
+  el.innerHTML='<div style="color:var(--muted);font-size:13px">Načítám…</div>';
+  try{
+    const r=await fetch(API+'/api/keys-registry',{headers:dangerHeaders()});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    const LV={kriticke:['🔴','Kritické','#ff5a5a'],dulezite:['🟠','Důležité','#ffaa33'],volitelne:['🟡','Volitelné','#8aa0c0']};
+    const missing=d.keys.filter(k=>!k.is_set&&!k.fallback&&k.level!=='volitelne');
+    let html='';
+    if(missing.length){
+      html+='<div style="background:rgba(255,90,90,.08);border:1px solid rgba(255,90,90,.35);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px">'
+        +'⚠️ <b>Chybí a nemá náhradu ('+esc(d.env)+'):</b> '+missing.map(k=>esc(k.var)).join(', ')+'</div>';
+    }
+    for(const lvl of ['kriticke','dulezite','volitelne']){
+      const rows=d.keys.filter(k=>k.level===lvl);
+      if(!rows.length)continue;
+      const [ic,label,col]=LV[lvl];
+      html+='<div style="margin:18px 0 8px;font-size:12px;font-weight:700;color:'+col+';text-transform:uppercase;letter-spacing:.05em">'+ic+' '+label+'</div>'
+        +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+        +'<thead><tr style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">'
+        +'<th style="text-align:left;padding:5px 10px">Proměnná</th>'
+        +'<th style="text-align:left;padding:5px 10px">K čemu</th>'
+        +'<th style="text-align:center;padding:5px 10px">Stav</th>'
+        +'<th style="text-align:left;padding:5px 10px">Kde obnovit</th></tr></thead><tbody>';
+      for(const k of rows){
+        let badge;
+        if(k.is_set){
+          badge='<span style="color:#2ecc87;font-weight:700">● nastaveno</span>'
+            +'<div style="font-size:11px;color:var(--muted);font-family:monospace">'+esc(k.tail)+(k.source==='db'?' · v Nastavení':'')+'</div>';
+        }else if(k.fallback){
+          badge='<span style="color:#8aa0c0;font-weight:700">○ výchozí</span>';
+        }else{
+          badge='<span style="color:'+(k.level==='volitelne'?'var(--muted)':'#ff5a5a')+';font-weight:700">○ chybí</span>';
+        }
+        const link=k.renew_url.startsWith('http')
+          ? '<a href="'+esc(k.renew_url)+'" target="_blank" rel="noopener" style="color:var(--accent);font-size:12px">'+esc(k.renew_url.replace(/^https?:\/\//,'').split('/')[0])+' ↗</a>'
+          : '<span style="font-size:12px;color:var(--muted)">'+esc(k.renew_url)+'</span>';
+        html+='<tr style="border-top:1px solid var(--border)">'
+          +'<td style="padding:9px 10px;font-family:monospace;font-size:12px;font-weight:700">'+esc(k.var)+'</td>'
+          +'<td style="padding:9px 10px;font-size:12.5px">'+esc(k.purpose)
+            +(k.note?'<div style="font-size:11.5px;color:var(--muted);margin-top:3px">'+esc(k.note)+'</div>':'')
+            +((!k.is_set&&k.fallback)?'<div style="font-size:11.5px;color:#8aa0c0;margin-top:3px">↳ '+esc(k.fallback)+'</div>':'')+'</td>'
+          +'<td style="padding:9px 10px;text-align:center;font-size:12px">'+badge+'</td>'
+          +'<td style="padding:9px 10px">'+link+'</td></tr>';
+      }
+      html+='</tbody></table></div>';
+    }
+    html+='<div style="margin-top:22px;padding-top:14px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)">'
+      +'Prostředí: <b style="color:var(--text)">'+esc(d.env)+'</b> · Hodnoty klíčů najdeš ve správci hesel. '
+      +'Nastavují se v Railway → služba → Variables (staging i produkce zvlášť). '
+      +'Podrobnosti k expiracím a účtům: soubor EXPIRACE_HLIDAT.md.<br>'
+      +'<b>Stavy:</b> <span style="color:#2ecc87">● nastaveno</span> = hodnota je na tomto prostředí · '
+      +'<span style="color:#8aa0c0">○ výchozí</span> = nenastaveno, ale aplikace má náhradu (není to chyba) · '
+      +'<span style="color:#ff5a5a">○ chybí</span> = je potřeba doplnit.</div>';
+    el.innerHTML=html;
+  }catch(e){
+    el.innerHTML='<div style="color:#ff8a8a;font-size:13px">❌ Nepodařilo se načíst: '+esc(e.message)+'</div>';
+  }
 }
 
 // ══ DATA EXPORT / RESET ══════════════════════
