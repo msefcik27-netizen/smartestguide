@@ -6014,8 +6014,9 @@ def voice_test_page():
     """Ladění hlasu Alex (přepsáno 7. 8. 2026 — původní verze měla rozbitý JS
     kvůli \\n v f-stringu → žádné tlačítko nefungovalo; nyní BEZ zpětných lomítek
     v JS a sloupce vedle sebe na přání Martina). Neindexovat."""
-    _fem = ["coral", "nova", "shimmer", "sage", "ballad"]
-    _mal = ["alloy", "ash", "echo", "fable", "onyx", "verse"]
+    # Jen ženské hlasy (7. 8. 2026, Martin: „chceme jen ženské" — ballad zněl mužsky
+    # a byl špatně zařazený; mužský sloupec odstraněn úplně, ať nejde vybrat omylem)
+    _fem = ["coral", "nova", "shimmer", "sage"]
     _cur = _TTS_VOICE
     def _rows(vs):
         return "".join(
@@ -6064,7 +6065,6 @@ nastavení dole. Mezi přehráními chvíli počkej (max 30 za minutu).</p>
 
 <div class="cols">
   <div class="col"><h2>OpenAI — ženské</h2><p class="sub">ladí s ženským rodem Alex · reaguje na tempo a styl</p>{_rows(_fem)}</div>
-  <div class="col"><h2>OpenAI — mužské</h2><p class="sub">vyžadovalo by mužský rod Alex (změna v kódu)</p>{_rows(_mal)}</div>
   <div class="col"><h2>ElevenLabs — ženské</h2><p class="sub">jiný poskytovatel, nejpřirozenější čeština · tempo a styl na ně neplatí</p>{_el_note}{_el_rows}</div>
 </div>
 
@@ -6153,6 +6153,11 @@ async def guest_tts(req: GuestTTSRequest, request: Request):
         raise HTTPException(400, "Prázdný text")
     if len(text) > _TTS_MAX_CHARS:
         text = text[:_TTS_MAX_CHARS]
+    # Výslovnost časů (7. 8. 2026, tester: „7:00" četlo jako 'sedm dvojtečka nula nula').
+    # Celé hodiny zjednodušíme na číslo — „od 7:00 do 10:00" → „od 7 do 10", což zní
+    # přirozeně v každém jazyce. Necelé časy (7:30) TTS čte obstojně, ty neměníme.
+    import re as _re2
+    text = _re2.sub(r"\b0?(\d{1,2}):00\b", r"\1", text)
     prov = (req.provider or "").strip().lower() or _TTS_PROVIDER
     if prov == "elevenlabs":
         # ── ElevenLabs větev (porovnání přirozenosti; produkce přes TTS_PROVIDER) ──
