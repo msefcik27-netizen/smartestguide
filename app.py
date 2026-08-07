@@ -746,10 +746,11 @@ _KEYS_REGISTRY = [
     ("APALEO_CLIENT_SECRET", "Apaleo Connect — tajemství aplikace", "dulezite",
      "https://console.apaleo.com",
      "Zobrazí se jen jednou při vytvoření. Rotace: nový secret → přepsat v Railway → smazat starý.", ""),
-    ("OPENAI_API_KEY", "Hlas Alexe (TTS) a přepis mikrofonu (STT)", "dulezite",
+    ("OPENAI_API_KEY", "Přepis mikrofonu (Whisper) + ZÁLOŽNÍ hlas Alexe", "dulezite",
      "https://platform.openai.com/api-keys",
-     "SAMOSTATNÝ účet, neplést s Anthropicem.",
-     "Bez klíče Alex přejde na robotický hlas prohlížeče, chat jede dál."),
+     "SAMOSTATNÝ účet, neplést s Anthropicem. Hlavní hlas jede přes ElevenLabs, tenhle klíč "
+     "drží přepis řeči a zaskakuje, když ElevenLabs vypadne nebo dojdou kredity.",
+     "Bez klíče nefunguje mikrofon a při výpadku ElevenLabs Alex oněmí (psaní jede dál)."),
     ("BASE_URL", "Veřejná adresa služby v odkazech a e-mailech", "dulezite",
      "Railway → Variables", "Produkce: https://www.smartestguide.com",
      "Nenastaveno → odkazy míří na railway.app adresu. Na produkci nastavit!"),
@@ -772,8 +773,19 @@ _KEYS_REGISTRY = [
     ("STRIPE_PAYMENT_LINK", "Záložní platební odkaz", "volitelne",
      "https://dashboard.stripe.com/payment-links", "",
      "Nepovinné, platby jdou přes checkout."),
-    ("TTS_VOICE", "Hlas Alexe", "volitelne", "Railway → Variables",
-     "Ženské varianty: coral, nova, shimmer, sage, ballad.", "Výchozí: coral"),
+    ("TTS_VOICE", "Hlas ZÁLOŽNÍHO OpenAI hlasu (běžně se nepoužívá)", "volitelne",
+     "Railway → Variables",
+     "Uplatní se jen když ElevenLabs nefunguje. Ženské varianty: coral, nova, shimmer, sage.",
+     "Výchozí: coral"),
+    ("ELEVENLABS_VOICE", "ID hlasu Alexe u ElevenLabs", "volitelne", "Railway → Variables",
+     "Neměnit bez důvodu — hlas Sarah vybral tester 7. 8. 2026.",
+     "Výchozí: EXAVITQu4vr4xnSDxMaL (Sarah)"),
+    ("ELEVENLABS_MODEL", "Model hlasu ElevenLabs", "volitelne", "Railway → Variables",
+     "Multilingual v2 umí češtinu i 28 dalších jazyků.",
+     "Výchozí: eleven_multilingual_v2"),
+    ("TTS_PROVIDER", "Kdo mluví — elevenlabs / openai", "volitelne", "Railway → Variables",
+     "Nastavuj jen při potížích s ElevenLabs; jinak nech nenastavené.",
+     "Výchozí: elevenlabs (hlas Sarah)"),
     ("ELEVENLABS_API_KEY", "HLAVNÍ hlas Alex (ElevenLabs, hlas Sarah — vybráno 7. 8. 2026)", "dulezite",
      "https://elevenlabs.io/app/settings/api-keys",
      "Hlídej kredity/tarif — free tarif vyžaduje atribuci, na produkci placený.",
@@ -798,7 +810,8 @@ def keys_registry(request: Request):
     # Některé klíče si hotel může uložit i do Nastavení v adminu (DB), ne jen do env
     _from_db = {"ANTHROPIC_API_KEY": s.get("anthropic_api_key", ""),
                 "STRIPE_SECRET_KEY": s.get("stripe_secret_key", ""),
-                "STRIPE_WEBHOOK_SECRET": s.get("stripe_webhook_secret", "")}
+                "STRIPE_WEBHOOK_SECRET": s.get("stripe_webhook_secret", ""),
+                "ELEVENLABS_API_KEY": s.get("elevenlabs_api_key", "")}
     out = []
     for var, purpose, level, url, note, fallback in _KEYS_REGISTRY:
         raw = (os.getenv(var) or "").strip()
@@ -1142,6 +1155,9 @@ def get_settings():
         "stripe_mode": ("live" if s.get("stripe_secret_key","").startswith("sk_live_") else "test" if s.get("stripe_secret_key","").startswith("sk_test_") else None),
         "has_webhook_secret": bool(s.get("stripe_webhook_secret")),
         "has_brevo": bool(os.getenv("BREVO_API_KEY")),
+        "has_elevenlabs": bool(_eleven_key()),
+        "elevenlabs_source": ("env" if (os.getenv("ELEVENLABS_API_KEY") or "").strip() else ("db" if s.get("elevenlabs_api_key") else "")),
+        "elevenlabs_preview": ("…" + _eleven_key()[-4:]) if len(_eleven_key()) >= 8 else None,
         "pricing_base": s.get("pricing_base", 199),
         "pricing_threshold": s.get("pricing_threshold", 100),
         "pricing_per_bed": s.get("pricing_per_bed", 2),
@@ -1228,6 +1244,27 @@ def delete_api_key(request: Request):
     db_save_settings({"anthropic_api_key": ""})
     return {"status": "ok"}
 
+class ElevenKeyRequest(BaseModel):
+    api_key: str = ""
+
+@app.post("/api/settings/elevenlabs-key")
+def save_elevenlabs_key(req: ElevenKeyRequest, request: Request):
+    """Klíč hlasu lze uložit i sem; Railway proměnná ELEVENLABS_API_KEY má přednost."""
+    _check_danger(request)
+    key = (req.api_key or "").strip()
+    if len(key) < 20 or " " in key:
+        raise HTTPException(400, "Tohle nevypadá jako klíč ElevenLabs")
+    db_save_settings({"elevenlabs_api_key": key})
+    _AI_STATUS_CACHE["ts"] = 0      # ať se stav kreditů načte hned znovu
+    return {"status": "ok", "tail": "…" + key[-4:]}
+
+@app.delete("/api/settings/elevenlabs-key")
+def delete_elevenlabs_key(request: Request):
+    _check_danger(request)
+    db_save_settings({"elevenlabs_api_key": ""})
+    _AI_STATUS_CACHE["ts"] = 0
+    return {"status": "ok"}
+
 # ─────────────────────────────────────────────
 # Platby & obnovy — checklist v Nastavení (viz EXPIRACE_HLIDAT.md)
 # + živý stav AI kreditů (Anthropic = chat, OpenAI = hlas/TTS)
@@ -1237,7 +1274,8 @@ def _seed_payment_tasks() -> list:
     today = datetime.now().date()
     in_days = lambda n: (today + timedelta(days=n)).isoformat()
     return [
-        {"id": "openai", "title": "OpenAI kredit — HLAS Alex (TTS)", "why": "Samostatný účet (org Travel) — NEPLÉST s Anthropicem! Bez kreditu Alex tiše přejde na robotický hlas prohlížeče (chat jede dál). Stav 31. 7. 2026: $0, nikdy nedobito → dobít $5 + klíč do Railway.", "due": today.isoformat(), "period_months": 1, "url": "https://platform.openai.com/settings/organization/billing/overview", "last_done": ""},
+        {"id": "elevenlabs", "title": "ElevenLabs — předplatné (HLAS Alexe, Sarah)", "why": "Hlavní hlas Alexe od 7. 8. 2026. FREE tarif na komerční provoz nestačí (povinná atribuce) a 10k kreditů dojde za pár dní — nutný placený tarif (Starter 6 $/měs = 30k kreditů). Při vyčerpání kreditů Alex tiše přepne na záložní hlas OpenAI.", "due": today.isoformat(), "period_months": 1, "url": "https://elevenlabs.io/app/subscription", "last_done": ""},
+        {"id": "openai", "title": "OpenAI kredit — mikrofon (Whisper) + záložní hlas", "why": "Samostatný účet (org Travel) — NEPLÉST s Anthropicem! Drží přepis mluvené řeči a zaskakuje za ElevenLabs. Bez kreditu nefunguje mikrofon a při výpadku ElevenLabs Alex oněmí (psaní jede dál).", "due": today.isoformat(), "period_months": 1, "url": "https://platform.openai.com/settings/organization/billing/overview", "last_done": ""},
         {"id": "anthropic", "title": "Anthropic kredit — CHAT Alex (auto-reload)", "why": "Mozek Alexe. Auto-reload zapnutý, strhává se z karty sám (na výpisu ANTHROPIC ... SAN FRANCISCO) — kontrola = že platby prochází.", "due": in_days(30), "period_months": 1, "url": "https://console.anthropic.com", "last_done": ""},
         {"id": "railway", "title": "Railway — billing (app + Postgres-EU)", "why": "Neplacení = pozastavení aplikace i databáze → úplný výpadek všeho.", "due": in_days(30), "period_months": 1, "url": "https://railway.com", "last_done": ""},
         {"id": "brevo", "title": "Brevo — API klíč + limit e-mailů", "why": "Bez něj nechodí onboarding, faktury, zálohy ani upomínky.", "due": in_days(30), "period_months": 1, "url": "https://app.brevo.com", "last_done": ""},
@@ -1254,6 +1292,12 @@ def get_payment_tasks():
     tasks = s.get("payment_tasks")
     if not tasks:
         tasks = _seed_payment_tasks()
+        db_save_settings({"payment_tasks": tasks})
+    elif not any((t or {}).get("id") == "elevenlabs" for t in tasks if isinstance(t, dict)):
+        # Doplnění do už uloženého seznamu (7. 8. 2026 — nový poskytovatel hlasu).
+        # Seed se pouští jen jednou, jinak by tenhle záznam na produkci nikdy nenaskočil.
+        _new = [t for t in _seed_payment_tasks() if t.get("id") == "elevenlabs"]
+        tasks = _new + list(tasks)
         db_save_settings({"payment_tasks": tasks})
     return {"tasks": tasks}
 
@@ -1313,10 +1357,74 @@ async def _check_anthropic_credit(key: str) -> dict:
     except Exception as e:
         return {"state": "warn", "msg": f"Kontrola selhala: {str(e)[:80]}"}
 
+def _eleven_key() -> str:
+    """Klíč ElevenLabs: nejdřív Railway proměnná, pak Nastavení v adminu (DB)."""
+    k = (os.getenv("ELEVENLABS_API_KEY") or "").strip()
+    if k:
+        return k
+    try:
+        return str((db_get_settings() or {}).get("elevenlabs_api_key", "") or "").strip()
+    except Exception:
+        return ""
+
+
+async def _check_elevenlabs_credit(key: str) -> dict:
+    """ElevenLabs jako JEDINÝ z našich AI účtů vystavuje přesný zůstatek kreditů —
+    čteme ho z /v1/user/subscription. Klíč na to potřebuje oprávnění „User"."""
+    if not key:
+        return {"state": "missing",
+                "msg": "Klíč není nastaven → Alex mluví záložním hlasem OpenAI"}
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get("https://api.elevenlabs.io/v1/user/subscription",
+                                 headers={"xi-api-key": key}, timeout=15.0)
+    except Exception as e:
+        return {"state": "warn", "msg": f"Kontrola selhala: {str(e)[:80]}"}
+    if r.status_code in (401, 403):
+        low = (r.text or "").lower()
+        if "permission" in low or "missing_permission" in low:
+            return {"state": "warn",
+                    "msg": "Klíč nemá oprávnění číst stav účtu — v ElevenLabs u klíče povol „User\". Hlas funguje dál."}
+        return {"state": "bad", "msg": "Neplatný klíč — Alex mluví záložním hlasem OpenAI"}
+    if r.status_code != 200:
+        return {"state": "warn", "msg": f"HTTP {r.status_code}: {(r.text or '')[:80]}"}
+    try:
+        d = r.json()
+    except Exception:
+        return {"state": "warn", "msg": "Nečekaná odpověď účtu ElevenLabs"}
+    used = int(d.get("character_count") or 0)
+    limit = int(d.get("character_limit") or 0)
+    tier = (str(d.get("tier") or "").strip() or "?")
+    left = max(limit - used, 0)
+    pct = int(round(used * 100.0 / limit)) if limit else 0
+    reset = ""
+    try:
+        _ts = int(d.get("next_character_count_reset_unix") or 0)
+        if _ts:
+            reset = datetime.utcfromtimestamp(_ts).strftime("%d.%m.")
+    except Exception:
+        reset = ""
+    def _g(n): return f"{n:,}".replace(",", " ")
+    base = f"tarif {tier} · zbývá {_g(left)} z {_g(limit)} kreditů ({pct} % vyčerpáno)"
+    if reset:
+        base += f" · obnova {reset}"
+    info = {"used": used, "limit": limit, "left": left, "pct": pct, "tier": tier, "reset": reset}
+    if limit and used >= limit:
+        return {"state": "empty",
+                "msg": "KREDITY VYČERPÁNY — Alex mluví záložním hlasem OpenAI. " + base, **info}
+    if tier.lower() == "free":
+        return {"state": "warn",
+                "msg": "FREE tarif — pro komerční provoz je nutný placený (jinak povinná atribuce). " + base,
+                **info}
+    if pct >= 80:
+        return {"state": "warn", "msg": "Dochází kredity — " + base, **info}
+    return {"state": "ok", "msg": "Hlas Sarah funguje — " + base, **info}
+
+
 async def _check_openai_credit(key: str) -> dict:
     """Miniaturní dotaz (1 token) — ověří klíč i kredit. Zbývající zůstatek OpenAI přes API nevystavuje."""
     if not key:
-        return {"state": "missing", "msg": "OPENAI_API_KEY není v env — hlas jede na fallback prohlížeče (robot)"}
+        return {"state": "missing", "msg": "OPENAI_API_KEY není nastaven — nefunguje mikrofon (přepis řeči) ani záložní hlas"}
     try:
         async with httpx.AsyncClient() as client:
             r = await client.post(
@@ -1326,7 +1434,7 @@ async def _check_openai_credit(key: str) -> dict:
                       "messages": [{"role": "user", "content": "ok"}]},
                 timeout=15.0)
         if r.status_code == 200:
-            return {"state": "ok", "msg": "Klíč funguje, kredit je — Alex mluví hlasem Coral"}
+            return {"state": "ok", "msg": "Klíč funguje, kredit je — mikrofon i záložní hlas připraveny"}
         if r.status_code == 401:
             return {"state": "bad", "msg": "Neplatný klíč"}
         detail = ""
@@ -1339,7 +1447,7 @@ async def _check_openai_credit(key: str) -> dict:
             detail = r.text[:120]
         low = (detail + " " + err_code).lower()
         if "insufficient_quota" in low or "quota" in low or "billing" in low:
-            return {"state": "empty", "msg": "KREDIT VYČERPÁN/NEDOBITO — Alex mluví robotem. Dobít na platform.openai.com (org Travel)"}
+            return {"state": "empty", "msg": "KREDIT VYČERPÁN/NEDOBITO — nefunguje mikrofon ani záložní hlas. Dobít na platform.openai.com (org Travel)"}
         if r.status_code == 429:
             return {"state": "warn", "msg": "Rate limit — zkus kontrolu za chvíli"}
         return {"state": "warn", "msg": f"HTTP {r.status_code}: {detail[:80]}"}
@@ -1353,10 +1461,11 @@ async def ai_status(force: int = 0):
     if not force and _AI_STATUS_CACHE["data"] and now - _AI_STATUS_CACHE["ts"] < 600:
         return _AI_STATUS_CACHE["data"]
     s = db_get_settings()
-    anth, oai = await asyncio.gather(
+    anth, oai, el = await asyncio.gather(
         _check_anthropic_credit(s.get("anthropic_api_key", "")),
-        _check_openai_credit(os.getenv("OPENAI_API_KEY", "")))
-    data = {"anthropic": anth, "openai": oai,
+        _check_openai_credit(os.getenv("OPENAI_API_KEY", "")),
+        _check_elevenlabs_credit(_eleven_key()))
+    data = {"anthropic": anth, "openai": oai, "elevenlabs": el,
             "checked_at": datetime.now().strftime("%d.%m. %H:%M")}
     _AI_STATUS_CACHE["ts"] = now
     _AI_STATUS_CACHE["data"] = data
@@ -6090,14 +6199,16 @@ Guest name: {req.guest_name or 'Guest'}"""
     return {"status": "ok", "reply": reply, "lang": reply_lang if _lang_forced else None}
 
 # ─────────────────────────────────────────────
-# TTS — Alex čte odpověď nahlas (OpenAI gpt-4o-mini-tts, hlas Coral)
-# Frontend (guest.html) volá po hlasovém dotazu; fallback na Web Speech API řeší klient.
+# TTS — Alex čte odpověď nahlas. HLAVNÍ: ElevenLabs, hlas „Sarah" (rozhodnuto 7. 8. 2026).
+# ZÁLOHA: OpenAI gpt-4o-mini-tts (hlas coral) — naskočí sama při chybějícím klíči,
+# vyčerpaných kreditech i výpadku ElevenLabs. Hlas prohlížeče se už nepoužívá.
 # ─────────────────────────────────────────────
 _TTS_VOICE = os.getenv("TTS_VOICE", "coral")
 # ── ROZHODNUTO 7. 8. 2026 (výběr testera): hlas Alex = ElevenLabs „Sarah". ──
 # OpenAI TTS zůstává jen jako tichá automatická záloha (chybějící klíč / TTS_PROVIDER=openai).
 _TTS_PROVIDER = os.getenv("TTS_PROVIDER", "elevenlabs").strip().lower()
-_ELEVEN_KEY = os.getenv("ELEVENLABS_API_KEY", "").strip()
+# Klíč se čte funkcí _eleven_key() (env → Nastavení v adminu), ne konstantou —
+# jinak by šel změnit jen restartem služby.
 _ELEVEN_MODEL = os.getenv("ELEVENLABS_MODEL", "eleven_multilingual_v2")   # 29 jazyků vč. češtiny
 _ELEVEN_VOICE = os.getenv("ELEVENLABS_VOICE", "EXAVITQu4vr4xnSDxMaL")     # Sarah (výchozí ženský)
 _TTS_MODEL = os.getenv("TTS_MODEL", "gpt-4o-mini-tts")
@@ -6138,11 +6249,13 @@ async def guest_tts(req: GuestTTSRequest, request: Request):
     # přirozeně v každém jazyce. Necelé časy (7:30) TTS čte obstojně, ty neměníme.
     import re as _re2
     text = _re2.sub(r"\b0?(\d{1,2}):00\b", r"\1", text)
+    _ek = _eleven_key()   # Railway proměnná, jinak klíč uložený v Nastavení administrace
+
     async def _say_eleven():
         async with httpx.AsyncClient(timeout=30) as client:
             return await client.post(
                 f"https://api.elevenlabs.io/v1/text-to-speech/{_ELEVEN_VOICE}",
-                headers={"xi-api-key": _ELEVEN_KEY, "Content-Type": "application/json"},
+                headers={"xi-api-key": _ek, "Content-Type": "application/json"},
                 json={"text": text, "model_id": _ELEVEN_MODEL,
                       "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}},
             )
@@ -6160,7 +6273,7 @@ async def guest_tts(req: GuestTTSRequest, request: Request):
             )
 
     prov = _TTS_PROVIDER
-    if prov == "elevenlabs" and not _ELEVEN_KEY:
+    if prov == "elevenlabs" and not _ek:
         prov = "openai"   # záloha: bez ElevenLabs klíče mluví OpenAI — hosté nikdy bez hlasu
     r = None
     if prov == "elevenlabs":
@@ -7786,8 +7899,12 @@ def economics_overview():
     ]
     fixed_m_items = round(sum(float(i.get("monthly_czk", 0) or 0) for i in cost_items), 2)
     fixed_m = fixed_m_items if cost_items else fixed_m_legacy
-    # Ceníky API (USD): Claude Haiku 4.5 $1/M in + $5/M out; TTS ~$15/M znaků; Whisper $0.006/min
-    _P_IN, _P_OUT, _P_TTS, _P_STT = 1.0, 5.0, 15.0, 0.006
+    # Ceníky API (USD): Claude Haiku 4.5 $1/M in + $5/M out; Whisper $0.006/min.
+    # HLAS: od 7. 8. 2026 mluví Alex přes ElevenLabs, což je řádově dražší než OpenAI TTS
+    # (Starter 6 $ / 30k kreditů ≈ 200 $ za milion znaků; OpenAI bylo ~15 $). Sazba je proto
+    # v Nastavení ekonomiky editovatelná — po změně tarifu ji přepočítej: cena tarifu / kredity × 1 000 000.
+    _P_TTS = float(s.get("eco_tts_usd_per_1m", 200.0))
+    _P_IN, _P_OUT, _P_STT = 1.0, 5.0, 0.006
     invoices = db.get("invoices", {})
     comms = db.get("commissions", {})
     analytics = db.get("analytics", {})
@@ -7851,6 +7968,7 @@ def economics_overview():
             "params": {"eur_czk": rate, "ai_cost_per_question_czk": cost_q,
                        "fixed_monthly_czk": fixed_m, "usd_czk": usd_czk,
                        "stripe_pct": stripe_pct, "stripe_fix_eur": stripe_fix_eur,
+                       "tts_usd_per_1m": _P_TTS,
                        "cost_items": cost_items}}
 
 class EconomicsSettingsRequest(BaseModel):
@@ -7860,6 +7978,7 @@ class EconomicsSettingsRequest(BaseModel):
     usd_czk: float = 23.0
     stripe_pct: float = 1.5
     stripe_fix_eur: float = 0.25
+    tts_usd_per_1m: float = 200.0     # ElevenLabs Starter (6 $ / 30k kreditů)
     cost_items: Optional[List[dict]] = None
 
 @app.post("/api/economics/settings")
@@ -7871,6 +7990,7 @@ def save_economics_settings(req: EconomicsSettingsRequest):
         "eco_usd_czk": max(1.0, float(req.usd_czk)),
         "eco_stripe_pct": max(0.0, float(req.stripe_pct)),
         "eco_stripe_fix_eur": max(0.0, float(req.stripe_fix_eur)),
+        "eco_tts_usd_per_1m": max(0.0, float(req.tts_usd_per_1m)),
         "eco_cost_items": [
             {"name": str(i.get("name", ""))[:60], "monthly_czk": max(0.0, float(i.get("monthly_czk", 0) or 0))}
             for i in (req.cost_items or [])[:20] if isinstance(i, dict) and str(i.get("name", "")).strip()
