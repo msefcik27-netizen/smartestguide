@@ -792,8 +792,9 @@ _KEYS_REGISTRY = [
      "Bez klíče automaticky mluví záložní OpenAI hlas."),
     ("TTS_MODEL", "Model pro hlas", "volitelne", "Railway → Variables", "",
      "Výchozí: gpt-4o-mini-tts"),
-    ("STT_MODEL", "Model pro přepis řeči", "volitelne", "Railway → Variables", "",
-     "Výchozí: whisper-1"),
+    ("STT_MODEL", "Model pro přepis mluvené řeči", "volitelne", "Railway → Variables",
+     "Nastavuj jen při potížích. Při chybě modelu se automaticky použije whisper-1.",
+     "Výchozí: gpt-4o-transcribe (přesnější na krátké české dotazy)"),
     ("SG_ENV", "Označení prostředí (staging zobrazí modrý pruh)", "volitelne",
      "Railway → Variables", "",
      "Prázdné = produkce. Na stagingu nastav na 'staging'."),
@@ -5617,6 +5618,43 @@ def _lock_language(selected: str, message: str):
     return sel, False
 
 
+# ─────────────────────────────────────────────
+# PŘEPIS ŘEČI — slovníková nápověda (7. 8. 2026)
+# Tester: „Kolik je v tomhle hotelu pokojů?" → „Koleky v tomhle je to nepokojí."
+# Model dostane krátký seznam typických hotelových výrazů v jazyce hosta; tím se
+# přepis vychýlí správným směrem místo fonetického hádání.
+# ─────────────────────────────────────────────
+_STT_VOCAB = {
+    "cs": ("Dotaz hosta v hotelu. Kolik je v hotelu pokojů? Kdy je snídaně? Check-in, check-out, "
+           "recepce, heslo na wi-fi, parkování, garáž, bazén, wellness, sauna, restaurace, "
+           "jídelní lístek, úschovna zavazadel, letiště, taxi, klimatizace, ručníky, úklid, "
+           "pozdní odjezd, výtah, snídaně formou bufetu."),
+    "sk": ("Otázka hosťa v hoteli. Koľko je v hoteli izieb? Kedy sú raňajky? Check-in, check-out, "
+           "recepcia, heslo na wi-fi, parkovanie, garáž, bazén, wellness, sauna, reštaurácia, "
+           "jedálny lístok, úschovňa batožiny, letisko, taxi, klimatizácia, uteráky, upratovanie."),
+    "en": ("A hotel guest question. How many rooms does the hotel have? What time is breakfast? "
+           "Check-in, check-out, reception, wi-fi password, parking, garage, pool, wellness, sauna, "
+           "restaurant, menu, luggage storage, airport, taxi, air conditioning, towels, housekeeping, "
+           "late checkout, lift."),
+    "de": ("Frage eines Hotelgastes. Wie viele Zimmer hat das Hotel? Wann gibt es Frühstück? "
+           "Check-in, Check-out, Rezeption, WLAN-Passwort, Parkplatz, Garage, Schwimmbad, Wellness, "
+           "Sauna, Restaurant, Speisekarte, Gepäckaufbewahrung, Flughafen, Taxi, Klimaanlage, "
+           "Handtücher, Zimmerservice, später Check-out, Aufzug."),
+    "pl": ("Pytanie gościa hotelowego. Ile pokoi ma hotel? O której jest śniadanie? Zameldowanie, "
+           "wymeldowanie, recepcja, hasło wi-fi, parking, garaż, basen, wellness, sauna, restauracja, "
+           "menu, przechowalnia bagażu, lotnisko, taksówka, klimatyzacja, ręczniki, sprzątanie."),
+    "es": ("Pregunta de un huésped del hotel. ¿Cuántas habitaciones tiene el hotel? ¿A qué hora es el "
+           "desayuno? Check-in, check-out, recepción, contraseña wifi, aparcamiento, garaje, piscina, "
+           "spa, sauna, restaurante, carta, consigna de equipaje, aeropuerto, taxi, aire acondicionado."),
+    "it": ("Domanda di un ospite dell'hotel. Quante camere ha l'hotel? A che ora è la colazione? "
+           "Check-in, check-out, reception, password wi-fi, parcheggio, garage, piscina, wellness, "
+           "sauna, ristorante, menù, deposito bagagli, aeroporto, taxi, aria condizionata, asciugamani."),
+    "fr": ("Question d'un client de l'hôtel. Combien de chambres a l'hôtel ? À quelle heure est le "
+           "petit-déjeuner ? Check-in, check-out, réception, mot de passe wifi, parking, garage, "
+           "piscine, spa, sauna, restaurant, carte, bagagerie, aéroport, taxi, climatisation, serviettes."),
+}
+
+
 # Klient posílá RAW audio v těle requestu (bez multipart závislosti), ?fmt=webm|mp4|ogg.
 @app.post("/api/guest/stt")
 async def guest_stt(request: Request, fmt: str = "webm", hotel_id: str = "", device: str = "", lang: str = ""):
@@ -5634,38 +5672,68 @@ async def guest_stt(request: Request, fmt: str = "webm", hotel_id: str = "", dev
     fmt = (fmt or "webm").lower().strip()
     if fmt not in ("webm", "mp4", "m4a", "ogg", "wav"):
         fmt = "webm"
-    model = os.getenv("STT_MODEL", "whisper-1")
-    # Jazyková nápověda z klienta = jazyk, který má host vybraný. Bez ní si Whisper
+    # Jazyková nápověda z klienta = jazyk, který má host vybraný. Bez ní si model
     # u krátkých nahrávek jazyk hádal a vracel nesmysly (tester 7. 8. 2026).
-    _stt_data = {"model": model, "response_format": "verbose_json"}
     _hint = (lang or "").strip().lower()[:2]
-    if _hint.isalpha() and len(_hint) == 2:
-        _stt_data["language"] = _hint
-    try:
-        async with httpx.AsyncClient() as client:
-            r = await client.post(
-                "https://api.openai.com/v1/audio/transcriptions",
-                headers={"Authorization": f"Bearer {api_key}"},
-                files={"file": (f"audio.{fmt}", audio, f"audio/{fmt}")},
-                data=_stt_data,
-                timeout=30.0)
-    except Exception as e:
-        raise HTTPException(502, f"STT selhalo: {str(e)[:100]}")
-    if r.status_code != 200:
-        logging.warning("STT chyba %s: %s", r.status_code, r.text[:150])
+    if not (_hint.isalpha() and len(_hint) == 2):
+        _hint = ""
+    _vocab = _STT_VOCAB.get(_hint) or _STT_VOCAB["en"]
+    # gpt-4o-transcribe je na krátké dotazy v češtině znatelně přesnější než whisper-1;
+    # kdyby nebyl na účtu dostupný, spadneme automaticky zpět na whisper-1.
+    _primary = os.getenv("STT_MODEL", "gpt-4o-transcribe").strip() or "gpt-4o-transcribe"
+    _models = [_primary] + (["whisper-1"] if _primary != "whisper-1" else [])
+    r = None
+    d = {}
+    for _m in _models:
+        _stt_data = {"model": _m, "prompt": _vocab,
+                     "response_format": "verbose_json" if _m == "whisper-1" else "json"}
+        if _hint:
+            _stt_data["language"] = _hint
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.post(
+                    "https://api.openai.com/v1/audio/transcriptions",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    files={"file": (f"audio.{fmt}", audio, f"audio/{fmt}")},
+                    data=_stt_data,
+                    timeout=30.0)
+        except Exception as e:
+            logging.warning("STT (%s) nedostupné: %s", _m, str(e)[:120])
+            r = None
+            continue
+        if r.status_code == 200:
+            try:
+                d = r.json()
+            except Exception:
+                d = {}
+            break
+        logging.warning("STT chyba %s (%s): %s", r.status_code, _m, r.text[:150])
+        r = None
+    if r is None:
         raise HTTPException(502, "STT selhalo")
-    d = r.json()
     if hotel_id:
-        _log_ai_media_usage(hotel_id, stt_sec=float(d.get("duration") or 0.0))
-    lang = (d.get("language") or "")[:16]
+        # Nové modely nevrací délku nahrávky — odhadneme ji z velikosti (webm/opus ≈ 2,5 kB/s),
+        # ať ekonomika hlasu nesedí na nule.
+        _dur = float(d.get("duration") or 0.0) or min(len(audio) / 2500.0, 25.0)
+        _log_ai_media_usage(hotel_id, stt_sec=_dur)
+    _dlang = (d.get("language") or "")[:16]
     _LANG_NAME2CODE = {"czech": "cs", "slovak": "sk", "english": "en", "german": "de", "french": "fr",
                        "italian": "it", "spanish": "es", "polish": "pl", "russian": "ru", "ukrainian": "uk",
                        "dutch": "nl", "portuguese": "pt", "hungarian": "hu", "swedish": "sv", "danish": "da",
                        "norwegian": "no", "finnish": "fi", "greek": "el", "turkish": "tr", "japanese": "ja",
                        "chinese": "zh", "korean": "ko", "arabic": "ar", "hebrew": "he", "romanian": "ro",
                        "croatian": "hr", "slovenian": "sl", "bulgarian": "bg", "serbian": "sr"}
-    return {"status": "ok", "text": (d.get("text") or "").strip(),
-            "language": _LANG_NAME2CODE.get(lang.lower(), lang.lower()[:2])}
+    _text = (d.get("text") or "").strip()
+    # Když je nahrávka téměř němá, model občas odpapouškuje kus slovníkové nápovědy.
+    # Zahazujeme jen DLOUHÉ doslovné úryvky — krátká věta typu „Kdy je snídaně?" se ve
+    # slovníku taky vyskytuje, ale host ji reálně říká a zahodit ji nesmíme.
+    _echo = _text.lower().rstrip(".!? ")
+    _lead = _vocab.split(".")[0].strip().lower()      # „Dotaz hosta v hotelu" — tohle host nikdy neřekne
+    if _text and (_echo == _lead or (len(_text) >= 45 and _echo in _vocab.lower())):
+        logging.info("STT: zahozena ozvěna slovníkové nápovědy")
+        _text = ""
+    return {"status": "ok", "text": _text,
+            "language": _LANG_NAME2CODE.get(_dlang.lower(), _dlang.lower()[:2])}
 
 @app.get("/api/hotels/{hotel_id}/manifest.webmanifest")
 def hotel_manifest(hotel_id: str, request: Request):
@@ -6024,6 +6092,7 @@ lists. NEVER use Markdown headings (#, ##), tables, or code blocks — the chat 
 BRAND NAMES (IMPORTANT): "SMARTEST GUIDE" and "Alex" are a brand and product name. NEVER translate or localise them into any language — always keep them exactly as "SMARTEST GUIDE" and "Alex", regardless of the language you are speaking. NEVER decline or inflect the name "Alex" in languages with grammatical cases — in Czech always write "Alex" (never "Alexovi", "Alexe", "Alexem"; e.g. "zeptejte se Alex", "nechte to na Alex"). Do not write "Nejchytřejší průvodce", "Le guide le plus intelligent", or any translated form.
 
 INPUT TOLERANCE (IMPORTANT): Guests often use voice dictation or type quickly, so words may be misspelled or phonetically garbled — possibly transcribed in the wrong language. If a word looks like a garbled, misheard or misspelled version of a common hotel topic, infer the most likely intended meaning and answer helpfully instead of saying you don't understand. For example: "Spicycarte"/"Spajzekarte" → German "Speisekarte" (menu / jídelní lístek); "checkout"/"chekaut" → check-out; "wai-fai"/"vайфай" → WiFi; "brekfast"/"frpštyk" → breakfast. Only ask the guest to rephrase if you genuinely cannot guess the intent. Never reply that you don't know a word like "Spicycarte" — recognise it as a misheard "Speisekarte" and give the menu info.
+Whole sentences can arrive garbled from voice transcription, not just single words. Read them PHONETICALLY and reconstruct the most likely hotel question before answering. Czech example: "Koleky v tomhle je to nepokojí" sounds like "Kolik je v tomhle hotelu pokojů?" — answer the number of rooms. Prefer answering your best reconstruction (briefly naming what you understood, e.g. "Ptáš se na počet pokojů, viď?") over asking the guest to repeat themselves; being asked to repeat is the most annoying thing a voice assistant can do.
 
 CONVERSATION MEMORY (IMPORTANT): The guest may have reloaded the page, switched devices or returned after days — messages you sent earlier may NOT be visible to them anymore. NEVER claim you already showed or said something, and never refer to the position of earlier messages ("as I showed above", "ten jsem ti uz ukazal vyse", "see my previous message"). If the guest asks for something again, simply give the complete answer again, naturally, as if for the first time.
 
@@ -7933,11 +8002,17 @@ def economics_overview():
         _tts = sum(int(u.get("tts_chars", 0) or 0) for u in _usage.values())
         _stt = sum(float(u.get("stt_sec", 0) or 0) for u in _usage.values())
         measured = bool(_in or _out or _tts or _stt)
+        # Rozdělení na TEXT (mozek Alexe = Claude) a HLAS (čtení nahlas + přepis mikrofonu).
+        # Hlas je od 7. 8. 2026 řádově dražší, takže bez rozpadu není vidět, kde peníze mizí.
         if measured:
-            _usd = (_in / 1e6) * _P_IN + (_out / 1e6) * _P_OUT + (_tts / 1e6) * _P_TTS + (_stt / 60.0) * _P_STT
-            ai_cost = round(_usd * usd_czk, 2)
+            _usd_text = (_in / 1e6) * _P_IN + (_out / 1e6) * _P_OUT
+            _usd_voice = (_tts / 1e6) * _P_TTS + (_stt / 60.0) * _P_STT
+            ai_text = round(_usd_text * usd_czk, 2)
+            ai_voice = round(_usd_voice * usd_czk, 2)
+            ai_cost = round(ai_text + ai_voice, 2)
         else:
             ai_cost = round(questions * cost_q, 2)
+            ai_text, ai_voice = ai_cost, 0.0   # odhad neumí rozlišit, počítá se jako text
         revenue_czk = round(revenue_eur * rate, 2)
         profit = round(revenue_czk - comm_all - ai_cost - stripe_fee_czk, 2)
         rows.append({
@@ -7946,8 +8021,10 @@ def economics_overview():
             "questions": questions,
             "revenue_eur": round(revenue_eur, 2), "revenue_czk": revenue_czk,
             "commission_czk": round(comm_all, 2), "commission_paid_czk": round(comm_paid, 2),
-            "ai_cost_czk": ai_cost, "ai_measured": measured, "stripe_fee_czk": stripe_fee_czk, "paid_tx": paid_tx,
-            "ai_tokens_in": _in, "ai_tokens_out": _out, "profit_czk": profit,
+            "ai_cost_czk": ai_cost, "ai_text_czk": ai_text, "ai_voice_czk": ai_voice,
+            "ai_measured": measured, "stripe_fee_czk": stripe_fee_czk, "paid_tx": paid_tx,
+            "ai_tokens_in": _in, "ai_tokens_out": _out,
+            "ai_tts_chars": _tts, "ai_stt_sec": round(_stt, 1), "profit_czk": profit,
         })
     rows.sort(key=lambda r: -r["profit_czk"])
     months_active = max(len(paid_months), 1)
@@ -7957,6 +8034,10 @@ def economics_overview():
         "revenue_czk": round(sum(r["revenue_czk"] for r in rows), 2),
         "commission_czk": round(sum(r["commission_czk"] for r in rows), 2),
         "ai_cost_czk": round(sum(r["ai_cost_czk"] for r in rows), 2),
+        "ai_text_czk": round(sum(r["ai_text_czk"] for r in rows), 2),
+        "ai_voice_czk": round(sum(r["ai_voice_czk"] for r in rows), 2),
+        "ai_tts_chars": sum(r["ai_tts_chars"] for r in rows),
+        "ai_stt_sec": round(sum(r["ai_stt_sec"] for r in rows), 1),
         "stripe_fee_czk": round(sum(r["stripe_fee_czk"] for r in rows), 2),
         "profit_czk": round(sum(r["profit_czk"] for r in rows), 2),
     }
