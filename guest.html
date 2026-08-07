@@ -765,6 +765,12 @@ async function loadHotel(){
     localStorage.setItem(CACHE_KEY, JSON.stringify(hotelData));
     localStorage.setItem(CACHE_KEY+'_ts', Date.now().toString());
 
+    // Název hotelu do hlavičky HNED, jak známe data — jinak vracející se host
+    // (přeskočený onboarding) viděl v hlavičce placeholder „–" místo názvu hotelu
+    // (nález Martina 7. 8. 2026). startChat() ho pak u nového hosta nastaví znovu (neškodí).
+    const _hdrName=document.getElementById('hdr-hotel-name');
+    if(_hdrName) _hdrName.textContent=hotelData.name||'Hotel';
+
     // Pokud host byl tu dříve — přeskoč onboarding
     if(_savedName || _onboarded || guestName !== ''){
       // Rovnou spusť chat bez onboardingu
