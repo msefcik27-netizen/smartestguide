@@ -1180,9 +1180,9 @@ function addBot(text){
 function ttsWorthSpeaking(text){
   const t=String(text||'').trim();
   if(!t) return false;
-  if(t.length>600) return false;                              // dlouhé = spíš výčet/menu/návod
+  if(t.length>900) return false;                              // dlouhé = spíš výčet/menu/návod
   const lines=t.split('\n').filter(x=>x.trim());
-  if(lines.length>6) return false;                            // hodně řádků = seznam/jídelní lístek
+  if(lines.length>8) return false;                            // hodně řádků = seznam/jídelní lístek
   const bullets=(t.match(/^\s*(?:[-•*]|\d+[\.\)])\s+/gm)||[]).length;
   if(bullets>=4) return false;                                // odrážkový/číslovaný seznam
   const prices=(t.match(/(?:€|Kč|CZK|EUR|USD|\$)\s?\d|\d+\s?(?:€|Kč|CZK|EUR)/gi)||[]).length;
@@ -1248,11 +1248,12 @@ async function sendMsg(){
   document.getElementById('send-btn').disabled=true;
   isTyping=true;
 
-  // Auto-detekce jazyka z textu — pokud host píše jinak než je nastaven jazyk
+  // Auto-detekce jazyka z textu — přepne UI pro tuto návštěvu, ale NEukládá se.
+  // Uložený jazyk smí změnit jen výslovná volba hosta nebo Whisper (detekce ze zvuku) —
+  // detekce z krátkého textu se plete a špatná hodnota se pak držela napořád.
   const detected = detectLangFromText(text);
   if(detected && detected !== guestLang){
     guestLang = detected;
-    localStorage.setItem('sg_lang_' + hotelId, guestLang);
     applyGuestLangUI();
   }
 
@@ -1479,13 +1480,67 @@ async function fetchWeather(){
 
 // ══ HLAS ═════════════════════════════════════
 function toggleVoice(){
+  // Primárně serverový Whisper (/api/guest/stt): jazyk detekuje ze ZVUKU, takže
+  // čeština zůstane češtinou i když je UI přepnuté jinam. Prohlížečové rozpoznávání
+  // je jen nouzový fallback — NIKDY už nesmí přepsat uložený jazyk (4. 8. 2026:
+  // jeden špatný přepis uložil 'en' a od té chvíle byly všechny přepisy nesmysly).
+  if(navigator.mediaDevices && window.MediaRecorder){ whisperVoice(); return; }
+  browserVoice();
+}
+
+let _rec=null,_recChunks=[],_recTimer=null;
+async function whisperVoice(){
+  const b=document.getElementById('voice-btn');
+  if(_rec){ try{_rec.stop();}catch(e){} return; }   // druhé ťuknutí = stop
+  let stream;
+  try{ stream=await navigator.mediaDevices.getUserMedia({audio:true}); }
+  catch(e){ browserVoice(); return; }               // mikrofon zamítnut → fallback
+  const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
+             : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '';
+  const fmt = mime==='audio/mp4' ? 'mp4' : 'webm';
+  try{ _rec = mime ? new MediaRecorder(stream,{mimeType:mime}) : new MediaRecorder(stream); }
+  catch(e){ stream.getTracks().forEach(t=>t.stop()); browserVoice(); return; }
+  _recChunks=[]; isListening=true;
+  b.classList.add('listening'); b.textContent='⏹';
+  _rec.ondataavailable=e=>{ if(e.data && e.data.size) _recChunks.push(e.data); };
+  _rec.onstop=async ()=>{
+    clearTimeout(_recTimer);
+    stream.getTracks().forEach(t=>t.stop());
+    isListening=false; b.classList.remove('listening'); b.textContent='🎤';
+    const blob=new Blob(_recChunks,{type:mime||'audio/webm'});
+    _rec=null; _recChunks=[];
+    if(blob.size<1000) return;                       // moc krátké — nic se neřeklo
+    b.textContent='…'; b.disabled=true;
+    try{
+      const r=await fetch(`${API}/api/guest/stt?fmt=${fmt}&hotel_id=${hotelId}`,{method:'POST',body:blob});
+      if(!r.ok) throw new Error('stt '+r.status);
+      const d=await r.json();
+      const text=(d.text||'').trim();
+      if(!text){ addBot(uiT('stt_retry')||'Nerozuměla jsem ti — zkus to prosím říct znovu, klidně pomaleji. 🎤'); return; }
+      // Jazyk z Whisperu je spolehlivý (detekce ze zvuku) → smí opravit i uložený jazyk
+      if(d.language && d.language!==guestLang && LANG_SR[d.language]!==undefined){
+        guestLang=d.language;
+        localStorage.setItem('sg_lang_'+hotelId,guestLang);
+        applyGuestLangUI();
+      }
+      const inp=document.getElementById('msg-input');
+      inp.value=text; autoResize(inp);
+      _lastInputVoice=true; sendMsg();
+    }catch(e){
+      console.warn('whisper stt failed → browser fallback', e&&(e.message||e));
+      browserVoice();                                 // server nedostupný → aspoň prohlížeč
+    }finally{ b.textContent='🎤'; b.disabled=false; }
+  };
+  _rec.start();
+  _recTimer=setTimeout(()=>{ try{_rec&&_rec.stop();}catch(e){} }, 20000);  // strop 20 s
+}
+
+function browserVoice(){
   // iOS detekce - použij nativní diktát přes input focus
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
   if(isIOS || (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window))){
-    // Na iOS aktivuj nativní klávesnici s diktátem
     const inp = document.getElementById('msg-input');
     inp.focus();
-    // Zobraz nápovědu jen na iOS
     if(isIOS){
       const hint = document.createElement('div');
       hint.style.cssText='position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;z-index:999;white-space:nowrap';
@@ -1506,12 +1561,8 @@ function toggleVoice(){
     const transcript=e.results[0][0].transcript;
     document.getElementById('msg-input').value=transcript;
     autoResize(document.getElementById('msg-input'));
-    // Detekce jazyka z hlasu
-    const detected = detectLangFromText(transcript);
-    if(detected && detected !== guestLang){
-      guestLang = detected;
-      localStorage.setItem('sg_lang_' + hotelId, guestLang);
-    }
+    // POZOR: z přepisu se jazyk NIKDY nemění — fallback poslouchá jen v nastaveném
+    // jazyce, takže přepis cizí řeči je paskvil a dřív otrávil uložený jazyk.
   };
   recognition.onend=()=>{isListening=false;const b=document.getElementById('voice-btn');b.classList.remove('listening');b.textContent='🎤';if(document.getElementById('msg-input').value.trim()){_lastInputVoice=true;sendMsg();}};
   recognition.onerror=()=>{isListening=false;document.getElementById('voice-btn').classList.remove('listening');document.getElementById('voice-btn').textContent='🎤';};
