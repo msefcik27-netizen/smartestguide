@@ -1242,10 +1242,12 @@ function detectLangFromText(text){
 }
 
 async function sendMsg(){
+  const viaVoice=_lastInputVoice; _lastInputVoice=false;  // spotřebuj VŽDY hned — jinak
+  // se příznak z nedokončeného hlasového pokusu přenesl na další PSANOU zprávu
+  // a Alex ji nečekaně četla nahlas (tester 7. 8.).
   const inp=document.getElementById('msg-input');
   const text=inp.value.trim();
   if(!text||isTyping)return;
-  const viaVoice=_lastInputVoice; _lastInputVoice=false;  // host mluvil? (přečti si hned, zdroj se resetuje)
   inp.value='';inp.style.height='auto';
   document.getElementById('send-btn').disabled=true;
   isTyping=true;
@@ -1539,7 +1541,31 @@ async function whisperVoice(){
     }finally{ b.textContent='🎤'; b.disabled=false; }
   };
   _rec.start();
-  _recTimer=setTimeout(()=>{ try{_rec&&_rec.stop();}catch(e){} }, 20000);  // strop 20 s
+  _recTimer=setTimeout(()=>{ try{_rec&&_rec.stop();}catch(e){} }, 20000);  // tvrdý strop 20 s
+  // Automatický stop při tichu — staré rozpoznávání končilo samo, host to tak čeká
+  // (7. 8. 2026, tester: mluvil a „nic se nedělo", protože nahrávání běželo dál).
+  try{
+    const ac=new (window.AudioContext||window.webkitAudioContext)();
+    const src=ac.createMediaStreamSource(stream);
+    const an=ac.createAnalyser(); an.fftSize=512;
+    src.connect(an);
+    const buf=new Uint8Array(an.fftSize);
+    let spoke=false, quietMs=0, prev=Date.now();
+    const iv=setInterval(()=>{
+      if(!_rec){ clearInterval(iv); try{ac.close();}catch(e){} return; }
+      an.getByteTimeDomainData(buf);
+      let peak=0;
+      for(let i=0;i<buf.length;i++){ const d=Math.abs(buf[i]-128); if(d>peak)peak=d; }
+      const now=Date.now(), dt=now-prev; prev=now;
+      if(peak>14){ spoke=true; quietMs=0; }
+      else quietMs+=dt;
+      // domluvil (1,4 s ticha po řeči) NEBO vůbec nezačal mluvit do 5 s → stop
+      if((spoke&&quietMs>1400)||(!spoke&&quietMs>5000)){
+        clearInterval(iv); try{ac.close();}catch(e){}
+        try{_rec&&_rec.stop();}catch(e){}
+      }
+    },150);
+  }catch(e){ /* bez analyzéru zůstává ruční stop / strop 20 s */ }
 }
 
 function browserVoice(){
