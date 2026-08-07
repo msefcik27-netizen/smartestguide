@@ -439,6 +439,35 @@
       </div>
 
       <div class="card settings-section" style="margin-top:20px">
+        <h3>🔊 ElevenLabs — hlas Alexe</h3>
+        <div class="key-status missing" id="el-status">
+          <span class="key-dot missing" id="el-dot"></span>
+          <span id="el-status-text">Klíč není nastaven</span>
+        </div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
+          Hlas <strong style="color:var(--text)">Sarah</strong> (vybral tester 7. 8. 2026). Klíč potřebuje
+          jediné oprávnění <strong style="color:var(--text)">Text to Speech</strong>; pro sledování kreditů
+          v tomto adminu navíc <strong style="color:var(--text)">User</strong>.
+          Bez klíče Alex automaticky přejde na záložní hlas OpenAI — hosté nikdy nezůstanou bez hlasu.
+        </p>
+        <div class="key-input-row">
+          <input type="password" id="el-key-input" placeholder="sk_..." style="flex:1"/>
+          <button class="btn btn-primary" onclick="saveElevenKey()">Uložit klíč</button>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+          <button class="btn btn-danger" style="font-size:12px;padding:6px 12px" id="el-delete-btn" onclick="deleteElevenKey()" disabled>🗑 Odstranit klíč</button>
+          <a class="btn btn-secondary" style="font-size:12px;padding:6px 12px;text-decoration:none" href="https://elevenlabs.io/app/subscription" target="_blank">↗ Kredity a tarif</a>
+        </div>
+        <div style="margin-top:16px;padding:12px 14px;background:var(--surface);border-radius:8px;font-size:12px;color:var(--muted);line-height:1.7">
+          <strong style="color:var(--text)">Přednost má Railway.</strong> Když je proměnná
+          <code style="color:var(--accent2)">ELEVENLABS_API_KEY</code> nastavená v Railway, používá se ona
+          a klíč uložený tady se ignoruje. Tohle pole je pro rychlou výměnu bez restartu služby.<br>
+          <strong style="color:var(--text)">Free tarif nestačí</strong> — pro komerční provoz je nutný
+          placený (jinak povinná atribuce „powered by ElevenLabs") a 10k kreditů dojde během pár dní.
+        </div>
+      </div>
+
+      <div class="card settings-section" style="margin-top:20px">
         <h3>💳 Platby &amp; obnovy <small style="font-weight:400;color:var(--muted);font-size:12px">co, kdy a proč platíme</small></h3>
 
         <!-- Živý stav AI kreditů -->
@@ -452,9 +481,17 @@
             <span style="flex:1"><strong>Anthropic</strong> <span style="color:var(--muted)">(chat Alex)</span> — <span id="ai-anthropic-msg">načítám…</span></span>
             <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent);font-size:12px;text-decoration:none">otevřít →</a>
           </div>
+          <div class="key-status" id="ai-elevenlabs-status" style="margin-bottom:8px">
+            <span class="key-dot missing" id="ai-elevenlabs-dot"></span>
+            <span style="flex:1"><strong>ElevenLabs</strong> <span style="color:var(--muted)">(hlas Alex — Sarah)</span> — <span id="ai-elevenlabs-msg">načítám…</span></span>
+            <a href="https://elevenlabs.io/app/subscription" target="_blank" style="color:var(--accent);font-size:12px;text-decoration:none">otevřít →</a>
+          </div>
+          <div id="ai-elevenlabs-bar" style="display:none;height:6px;border-radius:4px;background:var(--surface);margin:0 0 8px;overflow:hidden">
+            <div id="ai-elevenlabs-fill" style="height:100%;width:0%;background:var(--success);transition:width .3s"></div>
+          </div>
           <div class="key-status" id="ai-openai-status" style="margin-bottom:0">
             <span class="key-dot missing" id="ai-openai-dot"></span>
-            <span style="flex:1"><strong>OpenAI</strong> <span style="color:var(--muted)">(hlas Alex — TTS)</span> — <span id="ai-openai-msg">načítám…</span></span>
+            <span style="flex:1"><strong>OpenAI</strong> <span style="color:var(--muted)">(přepis mikrofonu + záložní hlas)</span> — <span id="ai-openai-msg">načítám…</span></span>
             <a href="https://platform.openai.com/settings/organization/billing/overview" target="_blank" style="color:var(--accent);font-size:12px;text-decoration:none">otevřít →</a>
           </div>
           <div style="font-size:11px;color:var(--muted);margin-top:6px" id="ai-status-checked"></div>
@@ -672,8 +709,9 @@
           <div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Fallback Kč/dotaz (bez měření)</div><input type="number" id="eco-costq" step="0.01" style="width:110px"></div>
 <div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Stripe % z platby</div><input type="number" id="eco-spct" step="0.1" style="width:80px"></div>
           <div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Stripe fix €/transakce</div><input type="number" id="eco-sfix" step="0.05" style="width:90px"></div>
+          <div><div style="font-size:11px;color:var(--muted);margin-bottom:3px" title="Cena tarifu ÷ kredity × 1 000 000. ElevenLabs Starter (6 $ / 30k) = 200 $">Hlas $/1M znaků (ElevenLabs)</div><input type="number" id="eco-tts" step="1" style="width:120px"></div>
           <button class="btn btn-primary" style="font-size:12px;padding:8px 14px" onclick="saveEconomicsSettings()">💾 Uložit a přepočítat</button>
-          <span style="font-size:11px;color:var(--muted)">AI náklady se od 1. 8. 2026 <b>měří přesně</b> (tokeny Claude + znaky TTS + sekundy Whisper, ceníky API v USD). Hotely bez naměřených dat (starší provoz) = odhad dotazy × sazba.</span>
+          <span style="font-size:11px;color:var(--muted)">AI náklady se od 1. 8. 2026 <b>měří přesně</b> (tokeny Claude + znaky TTS + sekundy Whisper, ceníky API v USD). Hotely bez naměřených dat (starší provoz) = odhad dotazy × sazba.<br><b style="color:var(--warn)">Pozor:</b> od 7. 8. 2026 mluví Alex přes ElevenLabs — hlas je zhruba 13× dražší než dřívější OpenAI TTS. Po každé změně tarifu přepiš sazbu „Hlas $/1M znaků".</span>
         </div>
       </div>
 
@@ -867,6 +905,31 @@ function highlightMissing(elId, isMissing, hintText){
   }
 }
 
+async function saveElevenKey(){
+  const key=document.getElementById('el-key-input').value.trim();
+  if(!key){toast('Zadej klíč ElevenLabs','err');return;}
+  try{
+    const r=await fetch(API+'/api/settings/elevenlabs-key',{method:'POST',headers:dangerHeaders({'Content-Type':'application/json'}),body:JSON.stringify({api_key:key})});
+    if(!r.ok){const e=await r.json();throw new Error(e.detail);}
+    const d=await r.json();
+    document.getElementById('el-key-input').value='';
+    addLog('ok','Klíč ElevenLabs uložen: '+(d.tail||''),'settings');
+    toast('✅ Klíč ElevenLabs uložen');
+    loadKeyStatus(); loadAiStatus(true);
+  }catch(e){addLog('error','Chyba ukládání klíče ElevenLabs: '+e.message,'settings');toast('Chyba: '+e.message,'err');}
+}
+
+async function deleteElevenKey(){
+  if(!confirm('Opravdu odstranit klíč ElevenLabs? Alex začne mluvit záložním hlasem OpenAI.'))return;
+  try{
+    const r=await fetch(API+'/api/settings/elevenlabs-key',{method:'DELETE',headers:dangerHeaders({})});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    addLog('warn','Klíč ElevenLabs odstraněn — hlas jede na záložní OpenAI','settings');
+    toast('Klíč odstraněn');
+    loadKeyStatus(); loadAiStatus(true);
+  }catch(e){toast('Chyba: '+e.message,'err');}
+}
+
 async function loadKeyStatus(){
   try{
     const r=await fetch(API+'/api/settings');
@@ -878,6 +941,17 @@ async function loadKeyStatus(){
     document.getElementById('delete-key-btn').disabled=!has;
     document.getElementById('settings-badge').style.display=has?'none':'inline-block';
     document.getElementById('api-key-banner').className=has?'':'show';
+    // ElevenLabs — hlas Alexe (klíč může být v Railway i tady v DB)
+    const elBox=document.getElementById('el-status');
+    if(elBox){
+      const elHas=!!d.has_elevenlabs;
+      elBox.className='key-status '+(elHas?'ok':'missing');
+      document.getElementById('el-dot').className='key-dot '+(elHas?'ok':'missing');
+      document.getElementById('el-status-text').textContent = elHas
+        ? ('Klíč nastaven ('+(d.elevenlabs_source==='env'?'Railway':'uloženo zde')+'): '+(d.elevenlabs_preview||''))
+        : 'Klíč není nastaven — Alex mluví záložním hlasem OpenAI';
+      document.getElementById('el-delete-btn').disabled=(d.elevenlabs_source!=='db');
+    }
     // Zobraz webhook URL
     const whEl = document.getElementById('webhook-url-display');
     if(whEl) whEl.textContent = 'https://app.smartestguide.com/api/stripe/webhook';
@@ -956,17 +1030,28 @@ async function loadAiStatus(force){
     box.style.borderColor=(st.state==='ok')?'rgba(46,204,135,.4)':(st.state==='empty'||st.state==='bad')?'rgba(255,90,90,.5)':'rgba(255,170,51,.4)';
   };
   try{
-    if(force){document.getElementById('ai-anthropic-msg').textContent='kontroluji…';document.getElementById('ai-openai-msg').textContent='kontroluji…';}
+    if(force){['anthropic','openai','elevenlabs'].forEach(k=>{const el=document.getElementById('ai-'+k+'-msg');if(el)el.textContent='kontroluji…';});}
     const r=await fetch(API+'/api/settings/ai-status'+(force?'?force=1':''));
     if(!r.ok)throw new Error('HTTP '+r.status);
     const d=await r.json();
     set('anthropic',d.anthropic);set('openai',d.openai);
-    document.getElementById('ai-status-checked').textContent='Naposledy zkontrolováno: '+d.checked_at+' · Přesný zůstatek API nevystavují — tohle je živý test klíče a kreditu.';
+    if(d.elevenlabs){
+      set('elevenlabs',d.elevenlabs);
+      // ElevenLabs jako jediný vrací přesný zůstatek — ukaž ho i proužkem
+      const bar=document.getElementById('ai-elevenlabs-bar'), fill=document.getElementById('ai-elevenlabs-fill');
+      if(d.elevenlabs.limit){
+        const p=Math.min(100,Math.max(0,d.elevenlabs.pct||0));
+        bar.style.display='block'; fill.style.width=p+'%';
+        fill.style.background=p>=100?'var(--danger)':p>=80?'var(--warn)':'var(--success)';
+      }else{ bar.style.display='none'; }
+    }
+    document.getElementById('ai-status-checked').textContent='Naposledy zkontrolováno: '+d.checked_at+' · U Anthropicu a OpenAI jde o živý test klíče (zůstatek nevystavují), u ElevenLabs o skutečný počet kreditů.';
     if(d.anthropic.state==='empty')addLog('error','Anthropic kredit vyčerpán — chat Alex neodpovídá!','settings');
-    if(d.openai.state==='empty')addLog('warn','OpenAI kredit vyčerpán/nedobito — Alex mluví robotem (fallback)','settings');
+    if(d.openai.state==='empty')addLog('warn','OpenAI kredit vyčerpán/nedobito — nefunguje mikrofon ani záložní hlas','settings');
+    if(d.elevenlabs&&d.elevenlabs.state==='empty')addLog('error','ElevenLabs kredity vyčerpány — Alex mluví záložním hlasem OpenAI','settings');
+    if(d.elevenlabs&&d.elevenlabs.state==='warn'&&(d.elevenlabs.pct>=80))addLog('warn','ElevenLabs: dochází kredity ('+d.elevenlabs.pct+' % vyčerpáno)','settings');
   }catch(e){
-    document.getElementById('ai-anthropic-msg').textContent='kontrola nedostupná';
-    document.getElementById('ai-openai-msg').textContent='kontrola nedostupná';
+    ['anthropic','openai','elevenlabs'].forEach(k=>{const el=document.getElementById('ai-'+k+'-msg');if(el)el.textContent='kontrola nedostupná';});
   }
 }
 
@@ -2242,6 +2327,7 @@ async function loadEconomics(){
     document.getElementById('eco-usd').value=d.params.usd_czk;
     document.getElementById('eco-spct').value=d.params.stripe_pct;
     document.getElementById('eco-sfix').value=d.params.stripe_fix_eur;
+    document.getElementById('eco-tts').value=(d.params.tts_usd_per_1m!==undefined?d.params.tts_usd_per_1m:200);
     window._ecoItems=(d.params.cost_items||[]).map(i=>({name:i.name,monthly_czk:i.monthly_czk}));
     renderEcoItems();
     const t=d.totals;
@@ -2292,6 +2378,7 @@ async function saveEconomicsSettings(){
     usd_czk:parseFloat(document.getElementById('eco-usd').value)||23,
     stripe_pct:parseFloat(document.getElementById('eco-spct').value)||1.5,
     stripe_fix_eur:parseFloat(document.getElementById('eco-sfix').value)||0.25,
+    tts_usd_per_1m:parseFloat(document.getElementById('eco-tts').value)||200,
     cost_items:(window._ecoItems||[]).filter(i=>(i.name||'').trim())};
   try{ const r=await fetch(API+'/api/economics/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(!r.ok)throw new Error('HTTP '+r.status); toast('✅ Uloženo'); loadEconomics(); }catch(e){toast('Chyba: '+e.message,'err');}
