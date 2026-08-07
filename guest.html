@@ -10,7 +10,8 @@
   <meta name="theme-color" content="#ffffff"/>
   <title>SMARTEST GUIDE</title>
   <!-- PWA manifest: link se vytvoří v JS s per-hotel URL (placeholder dělal v konzoli syntax error) -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <!-- Fonty LOKÁLNĚ (GDPR: žádný request na Google Fonts) — stejné jako landing/hotel/admin: Sora + Manrope -->
+  <link rel="stylesheet" href="/static/fonts/fonts.css"/>
   <style>
     :root {
   --bg:#0a0b0f;--bg2:#0f1018;--bg3:#181920;
@@ -20,7 +21,7 @@
   --accent:#FF6B00;--accent2:#00d4aa;
   --gold:#FF6B00;--gold-light:rgba(255,107,0,.08);
   --surface:#0f1018;--surface2:#181920;
-  --font-head:'Syne',sans-serif;--font-body:'Inter',sans-serif;
+  --font-head:'Sora',sans-serif;--font-body:'Manrope',sans-serif;
 }
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     html,body{height:100%;overflow:hidden;-webkit-tap-highlight-color:transparent}
@@ -1215,6 +1216,27 @@ function ttsWorthSpeaking(text){
   return true;
 }
 
+// Host se zeptal HLASEM a odpověď je dlouhý výčet (ttsWorthSpeaking=false) →
+// nečteme celý seznam, ale krátký MLUVENÝ ÚVOD: text před prvním výčtem
+// (typicky uvítací věta + „Hlavní atrakce:"), detaily zůstanou napsané.
+// Rozhodnutí Martina 7. 8. 2026 („zeptám hlasem, jen napíše"). Čistě klientské.
+function ttsSpokenIntro(text){
+  const raw=String(text||'');
+  const bulletRe=/^\s*(?:[-•*]|\d+[\.\)])\s+/;
+  const intro=[];
+  for(const ln of raw.split('\n')){
+    if(bulletRe.test(ln)) break;      // narazili jsme na výčet → konec úvodu
+    intro.push(ln);
+  }
+  let s=intro.join('\n').trim();
+  if(!s) s=raw.trim();                 // odpověď začíná rovnou výčtem → vezmi začátek
+  if(s.length>320){                    // strop: opravdu krátký úvod (max ~2 věty)
+    const m=s.slice(0,320).match(/^[\s\S]*?[.!?](?=\s|$)/);
+    s=(m?m[0]:s.slice(0,320)).trim();
+  }
+  return s;
+}
+
 function addUser(text){
   const msgs=document.getElementById('messages');
   const time=new Date().toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
@@ -1315,8 +1337,17 @@ async function sendMsg(){
         applyGuestLangUI();
       }
       const botBtn=addBot(d.reply);
-      // Host mluvil → Alex odpoví taky hlasem, ale jen když to dává smysl (ne menu/ceník/dlouhý výčet)
-      if(viaVoice && botBtn && ttsWorthSpeaking(d.reply)) speakText(d.reply, botBtn);
+      // Host mluvil → Alex odpoví taky hlasem. Krátká odpověď se přečte celá;
+      // u dlouhého výčtu (menu/ceník/tipy) se přečte jen krátký úvod, detaily zůstanou
+      // napsané (rozhodnutí Martina 7. 8. 2026). Tlačítko 🔊 pak přehraje celou odpověď.
+      if(viaVoice && botBtn){
+        if(ttsWorthSpeaking(d.reply)){
+          speakText(d.reply, botBtn);
+        } else {
+          const intro=ttsSpokenIntro(d.reply);
+          if(intro) speakText(intro, botBtn);
+        }
+      }
       history.push({role:'assistant',content:d.reply});
       saveHistory();
     } else {
