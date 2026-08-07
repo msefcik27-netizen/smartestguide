@@ -5974,13 +5974,38 @@ _TTS_PROVIDER = os.getenv("TTS_PROVIDER", "openai").strip().lower()
 _ELEVEN_KEY = os.getenv("ELEVENLABS_API_KEY", "").strip()
 _ELEVEN_MODEL = os.getenv("ELEVENLABS_MODEL", "eleven_multilingual_v2")   # 29 jazyků vč. češtiny
 _ELEVEN_VOICE = os.getenv("ELEVENLABS_VOICE", "EXAVITQu4vr4xnSDxMaL")     # Sarah (výchozí ženský)
-# Přednastavené ženské hlasy z veřejné knihovny ElevenLabs (ID jsou stejná pro všechny účty)
-_ELEVEN_VOICES = [
-    ("Sarah", "EXAVITQu4vr4xnSDxMaL"), ("Charlotte", "XB0fDUnXU5powFXDhCwa"),
-    ("Alice", "Xb7hH8MSUJpSbSDYk0k2"), ("Jessica", "cgSgspJ2msm6clMCkdW9"),
-    ("Lily", "pFZP5JQG7iQjIQuC4Bku"), ("Aria", "9BWtsMINqrJLrRacOk9x"),
-    ("Matilda", "XrExE9yKIg1WjnnlVkGX"),
-]
+# Hlasy se NEopisují ručně — čtou se ŽIVĚ z účtu přes API (7. 8. 2026: ručně
+# opsaná ID nesedla a hraní končilo chybou 502). Cache 10 minut.
+_ELEVEN_VOICES_FALLBACK = [("Sarah", "EXAVITQu4vr4xnSDxMaL", "female")]
+_eleven_voices_cache = {"ts": 0.0, "voices": []}
+
+def _eleven_voices():
+    """Vrátí [(jméno, voice_id, gender)] z ElevenLabs účtu; při chybě fallback."""
+    import time as _t
+    if not _ELEVEN_KEY:
+        return []
+    if _eleven_voices_cache["voices"] and _t.time() - _eleven_voices_cache["ts"] < 600:
+        return _eleven_voices_cache["voices"]
+    try:
+        r = httpx.get("https://api.elevenlabs.io/v1/voices",
+                      headers={"xi-api-key": _ELEVEN_KEY}, timeout=8)
+        if r.status_code != 200:
+            logging.warning("ElevenLabs /voices chyba %s: %s", r.status_code, r.text[:150])
+            return _eleven_voices_cache["voices"] or _ELEVEN_VOICES_FALLBACK
+        out = []
+        for v in (r.json().get("voices") or []):
+            vid = v.get("voice_id") or ""
+            name = v.get("name") or vid
+            gender = ((v.get("labels") or {}).get("gender") or "").lower()
+            if vid:
+                out.append((name, vid, gender))
+        if out:
+            _eleven_voices_cache["voices"] = out
+            _eleven_voices_cache["ts"] = _t.time()
+        return out or _ELEVEN_VOICES_FALLBACK
+    except Exception as e:
+        logging.warning("ElevenLabs /voices nedostupné: %s", e)
+        return _eleven_voices_cache["voices"] or _ELEVEN_VOICES_FALLBACK
 _TTS_MODEL = os.getenv("TTS_MODEL", "gpt-4o-mini-tts")
 _TTS_INSTRUCTIONS = os.getenv(
     "TTS_INSTRUCTIONS",
@@ -6025,11 +6050,13 @@ def voice_test_page():
             <input type="radio" name="voice" value="oa:{v}"{' checked' if v == _cur else ''}></span></label>"""
             for v in vs)
     _el_ready = bool(_ELEVEN_KEY)
+    _all = _eleven_voices() if _el_ready else []
+    _fem_el = [v for v in _all if v[2] == "female"] or _all
     _el_rows = "".join(
-        f"""<label class="row"><span><b>{n}</b>{' <span class="cur">aktuální</span>' if vid == _ELEVEN_VOICE and _TTS_PROVIDER == 'elevenlabs' else ''}</span>
-        <span><button type="button" onclick="play('el:{vid}',this)"{'' if _el_ready else ' disabled'}>▶</button>
+        f"""<label class="row"><span><b>{n}</b>{(' <span style="color:#8aa0c0;font-size:11px">' + g + '</span>') if g and g != 'female' else ''}{' <span class="cur">aktuální</span>' if vid == _ELEVEN_VOICE and _TTS_PROVIDER == 'elevenlabs' else ''}</span>
+        <span><button type="button" onclick="play('el:{vid}',this)">▶</button>
         <input type="radio" name="voice" value="el:{vid}:{n}"></span></label>"""
-        for n, vid in _ELEVEN_VOICES)
+        for n, vid, g in _fem_el[:12])
     _el_note = ("" if _el_ready else
         '<p style="color:#d9534f;font-size:12px"><b>ElevenLabs není zapnuté</b> — chybí ELEVENLABS_API_KEY v Railway.</p>')
     return f"""<!DOCTYPE html><html lang="cs"><head><meta charset="utf-8">
@@ -6133,7 +6160,11 @@ async function play(v,btn){{
     var r=await fetch('/api/guest/tts',{{method:'POST',headers:{{'Content-Type':'application/json'}},
       body:JSON.stringify({{text:document.getElementById('txt').value,voice:voiceId,
         provider:isEl?'elevenlabs':'openai',instructions:isEl?null:buildInstr()}})}});
-    if(!r.ok)throw new Error(r.status===429?'Příliš rychle po sobě — počkej chvíli.':'Chyba '+r.status);
+    if(!r.ok){{
+      var msg='Chyba '+r.status;
+      try{{var j=await r.json(); if(j&&j.detail)msg=j.detail;}}catch(e2){{}}
+      throw new Error(msg);
+    }}
     var blob=await r.blob();
     var a=new Audio(URL.createObjectURL(blob));
     cur=a;a.onended=function(){{if(cur===a)cur=null;}};await a.play();
@@ -6175,7 +6206,13 @@ async def guest_tts(req: GuestTTSRequest, request: Request):
             )
         if r.status_code != 200:
             logging.warning("ElevenLabs TTS chyba %s: %s", r.status_code, r.text[:200])
-            raise HTTPException(502, "TTS selhalo (ElevenLabs)")
+            if r.status_code == 401:
+                raise HTTPException(502, "ElevenLabs odmítl API klíč — zkontroluj ELEVENLABS_API_KEY a oprávnění Text to Speech.")
+            if r.status_code == 404:
+                raise HTTPException(400, "Tento hlas na účtu ElevenLabs neexistuje.")
+            if r.status_code == 429:
+                raise HTTPException(429, "Limit ElevenLabs (souběh/kredity) — počkej chvíli a zkus znovu.")
+            raise HTTPException(502, f"ElevenLabs vrátil chybu {r.status_code}.")
     else:
         api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
         if not api_key:
