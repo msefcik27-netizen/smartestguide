@@ -697,7 +697,7 @@
 
       <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">
         <div class="stat-card"><div class="stat-label">Příjmy celkem</div><div class="stat-value green" id="eco-revenue">–</div></div>
-        <div class="stat-card"><div class="stat-label">Provize + AI náklady</div><div class="stat-value" style="color:var(--warn)" id="eco-costs">–</div></div>
+        <div class="stat-card"><div class="stat-label">Provize + AI náklady</div><div class="stat-value" style="color:var(--warn)" id="eco-costs">–</div><div style="font-size:10px;color:var(--muted);margin-top:3px" id="eco-costs-breakdown"></div></div>
         <div class="stat-card"><div class="stat-label">Fixní náklady (za dobu provozu)</div><div class="stat-value" id="eco-fixed">–</div></div>
         <div class="stat-card"><div class="stat-label">Čistý zisk</div><div class="stat-value accent" id="eco-net">–</div></div>
       </div>
@@ -725,7 +725,7 @@
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Hotel</th><th>Dotazů</th><th>Zaplatili (€)</th><th>Zaplatili (Kč)</th><th>Provize (Kč)</th><th>AI (Kč)</th><th>Stripe (Kč)</th><th>Zisk (Kč)</th></tr></thead>
+            <thead><tr><th>Hotel</th><th>Dotazů</th><th>Zaplatili (€)</th><th>Zaplatili (Kč)</th><th>Provize (Kč)</th><th title="Claude — mozek Alexe (psané odpovědi)">AI text (Kč)</th><th title="ElevenLabs čtení nahlas + Whisper přepis mikrofonu">AI hlas (Kč)</th><th>Stripe (Kč)</th><th>Zisk (Kč)</th></tr></thead>
             <tbody id="eco-tbody"></tbody>
           </table>
         </div>
@@ -2334,6 +2334,8 @@ async function loadEconomics(){
     const fmt=n=>(Math.round(n)).toLocaleString('cs-CZ');
     document.getElementById('eco-revenue').textContent=fmt(t.revenue_czk)+' Kč';
     document.getElementById('eco-costs').textContent=fmt(t.commission_czk+t.ai_cost_czk+t.stripe_fee_czk)+' Kč';
+    const _cb=document.getElementById('eco-costs-breakdown');
+    if(_cb) _cb.textContent='z toho AI text '+fmt(t.ai_text_czk||0)+' Kč · AI hlas '+fmt(t.ai_voice_czk||0)+' Kč';
     document.getElementById('eco-fixed').textContent=fmt(t.fixed_czk)+' Kč ('+t.months_active+' měs.)';
     const net=document.getElementById('eco-net');
     net.textContent=fmt(t.net_profit_czk)+' Kč';
@@ -2345,7 +2347,8 @@ async function loadEconomics(){
       <td>${r.revenue_eur.toLocaleString('cs-CZ')} €</td>
       <td>${fmt(r.revenue_czk)}</td>
       <td>${fmt(r.commission_czk)}${r.commission_paid_czk?'<div style="font-size:10px;color:var(--muted)">vyplaceno '+fmt(r.commission_paid_czk)+'</div>':''}</td>
-      <td>${r.ai_cost_czk.toLocaleString('cs-CZ')} <span style="font-size:9px;color:var(--muted)" title="${r.ai_measured?('Měřeno z reálné spotřeby: '+r.ai_tokens_in.toLocaleString('cs-CZ')+' tokenů in / '+r.ai_tokens_out.toLocaleString('cs-CZ')+' out + TTS/STT'):'Odhad (dotazy × sazba) — měření běží od nasazení'}">${r.ai_measured?'📐 měřeno':'≈ odhad'}</span></td>
+      <td>${(r.ai_text_czk!==undefined?r.ai_text_czk:r.ai_cost_czk).toLocaleString('cs-CZ')} <span style="font-size:9px;color:var(--muted)" title="${r.ai_measured?('Claude: '+r.ai_tokens_in.toLocaleString('cs-CZ')+' tokenů in / '+r.ai_tokens_out.toLocaleString('cs-CZ')+' out'):'Odhad (dotazy × sazba) — měření běží od nasazení'}">${r.ai_measured?'📐 měřeno':'≈ odhad'}</span></td>
+      <td>${(r.ai_voice_czk||0).toLocaleString('cs-CZ')}${r.ai_measured&&(r.ai_tts_chars||r.ai_stt_sec)?'<div style="font-size:9px;color:var(--muted)">'+(r.ai_tts_chars||0).toLocaleString('cs-CZ')+' znaků · '+Math.round(r.ai_stt_sec||0)+' s mikrofon</div>':''}</td>
       <td>${fmt(r.stripe_fee_czk)}<div style="font-size:9px;color:var(--muted)">${r.paid_tx}× platba</div></td>
       <td style="font-weight:700;color:${r.profit_czk>=0?'#2ecc87':'#ff6b6b'}">${fmt(r.profit_czk)}</td>
     </tr>`).join('');
@@ -2355,7 +2358,8 @@ async function loadEconomics(){
       <td><strong>${t.revenue_eur.toLocaleString('cs-CZ')} €</strong></td>
       <td><strong>${fmt(t.revenue_czk)}</strong></td>
       <td><strong>${fmt(t.commission_czk)}</strong></td>
-      <td><strong>${fmt(t.ai_cost_czk)}</strong></td>
+      <td><strong>${fmt(t.ai_text_czk!==undefined?t.ai_text_czk:t.ai_cost_czk)}</strong></td>
+      <td><strong>${fmt(t.ai_voice_czk||0)}</strong>${t.ai_tts_chars?'<div style="font-size:9px;color:var(--muted)">'+t.ai_tts_chars.toLocaleString('cs-CZ')+' znaků</div>':''}</td>
       <td><strong>${fmt(t.stripe_fee_czk)}</strong></td>
       <td style="font-weight:700">${fmt(t.profit_czk)}</td>
     </tr>`;
