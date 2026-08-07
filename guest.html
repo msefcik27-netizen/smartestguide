@@ -787,17 +787,40 @@ async function loadHotel(){
         history.forEach(m => { if(m.role==='user') addUser(m.content); else if(m.role==='assistant') addBot(m.content); });
       }
   const greetFn=GREETINGS[guestLang]||GREETINGS['en'];
+      // Pozor: chybějící jazyk v téhle mapě = anglické uvítání i pro Čecha (tester 7. 8. 2026).
+      // Proto tu musí být VŠECHNY jazyky z mřížky i ze seznamu „Další jazyky".
       const welcomeBack = {
         cs: `Vítej zpět, ${guestName}! 👋 Jak ti mohu pomoci?`,
+        sk: `Vitaj späť, ${guestName}! 👋 Ako ti môžem pomôcť?`,
         en: `Welcome back, ${guestName}! 👋 How can I help you?`,
         de: `Willkommen zurück, ${guestName}! 👋 Wie kann ich helfen?`,
         fr: `Bienvenue de retour, ${guestName}! 👋 Comment puis-je aider?`,
         es: `¡Bienvenido de nuevo, ${guestName}! 👋 ¿En qué puedo ayudar?`,
         pl: `Witaj ponownie, ${guestName}! 👋 Jak mogę pomóc?`,
         it: `Ben tornato, ${guestName}! 👋 Come posso aiutarti?`,
+        pt: `Bem-vindo de volta, ${guestName}! 👋 Como posso ajudar?`,
+        nl: `Welkom terug, ${guestName}! 👋 Hoe kan ik helpen?`,
+        hu: `Üdv újra, ${guestName}! 👋 Miben segíthetek?`,
+        el: `Καλώς ήρθες ξανά, ${guestName}! 👋 Πώς μπορώ να βοηθήσω;`,
+        ru: `С возвращением, ${guestName}! 👋 Чем могу помочь?`,
+        uk: `З поверненням, ${guestName}! 👋 Чим можу допомогти?`,
+        bg: `Добре дошъл отново, ${guestName}! 👋 С какво мога да помогна?`,
+        sr: `Добро дошао назад, ${guestName}! 👋 Како могу да помогнем?`,
+        hr: `Dobro došao natrag, ${guestName}! 👋 Kako ti mogu pomoći?`,
+        sl: `Dobrodošel nazaj, ${guestName}! 👋 Kako ti lahko pomagam?`,
+        ro: `Bine ai revenit, ${guestName}! 👋 Cu ce te pot ajuta?`,
+        tr: `Tekrar hoş geldin, ${guestName}! 👋 Nasıl yardımcı olabilirim?`,
+        sv: `Välkommen tillbaka, ${guestName}! 👋 Hur kan jag hjälpa till?`,
+        da: `Velkommen tilbage, ${guestName}! 👋 Hvordan kan jeg hjælpe?`,
+        no: `Velkommen tilbake, ${guestName}! 👋 Hvordan kan jeg hjelpe?`,
+        fi: `Tervetuloa takaisin, ${guestName}! 👋 Miten voin auttaa?`,
+        ja: `おかえりなさい、${guestName}さん！👋 ご用件をどうぞ。`,
+        zh: `欢迎回来，${guestName}！👋 有什么可以帮您？`,
+        ko: `다시 오셨네요, ${guestName}님! 👋 무엇을 도와드릴까요?`,
+        ar: `مرحبًا بعودتك، ${guestName}! 👋 كيف يمكنني المساعدة؟`,
       };
       let _wb = welcomeBack[guestLang] || welcomeBack['en'];
-      if(!guestName) _wb=_wb.replace(', !','!').replace(' !','!');
+      if(!guestName) _wb=_wb.replace(/、\s*さん/,'').replace(/,\s*님/,'').replace(/[,，]\s*(?=[!！])/,'').replace(', !','!').replace(' !','!');
       addBot(_wb);
       showInstallTip();
       setQuickReplies();
@@ -1235,9 +1258,11 @@ function detectLangFromText(text){
   for(const [lang,re] of Object.entries(patterns)){
     if(re.test(text)) return lang;
   }
-  // Pokud text neobsahuje speciální znaky a obsahuje anglická slova → en
-  const enWords = /\b(i|you|the|is|are|can|do|have|what|where|when|how|please|help|need|want|and|or|not|park|there|here|hotel|room|breakfast|check|wifi)\b/i;
-  if(enWords.test(text)) return 'en';
+  // Bez speciálních znaků rozhoduj podle angličtiny až od DVOU různých slov —
+  // jedno „check-in" nebo „wifi" v české větě dřív přepnulo celé UI do angličtiny.
+  const enWords = /\b(i|you|the|is|are|can|do|does|have|what|where|when|how|please|help|need|want|and|with|for|my|we|there|breakfast|room)\b/gi;
+  const hits = new Set((text.toLowerCase().match(enWords)||[]));
+  if(hits.size >= 2) return 'en';
   return null;
 }
 
@@ -1282,6 +1307,13 @@ async function sendMsg(){
     hideTyping();
     if(r.ok){
       const d=await r.json();
+      // Server vrací „lang" jen při jednoznačném důkazu (písmo/diakritika/typická slova) —
+      // tím se vyléčí dřív špatně uložený jazyk (anglické „Welcome back" u Čecha).
+      if(d.lang && d.lang!==guestLang && LANG_SR[d.lang]!==undefined){
+        guestLang=d.lang;
+        try{ localStorage.setItem('sg_lang_'+hotelId, guestLang); }catch(e){}
+        applyGuestLangUI();
+      }
       const botBtn=addBot(d.reply);
       // Host mluvil → Alex odpoví taky hlasem, ale jen když to dává smysl (ne menu/ceník/dlouhý výčet)
       if(viaVoice && botBtn && ttsWorthSpeaking(d.reply)) speakText(d.reply, botBtn);
@@ -1521,17 +1553,16 @@ async function whisperVoice(){
     if(blob.size<1000) return;                       // moc krátké — nic se neřeklo
     b.textContent='…'; b.disabled=true;
     try{
-      const r=await fetch(`${API}/api/guest/stt?fmt=${fmt}&hotel_id=${hotelId}&device=${deviceId}`,{method:'POST',body:blob});
+      // Jazyk hosta posíláme Whisperu jako nápovědu — bez ní si u krátkých nahrávek
+      // jazyk hádal a vracel nesmyslné přepisy (tester 7. 8. 2026).
+      const r=await fetch(`${API}/api/guest/stt?fmt=${fmt}&hotel_id=${hotelId}&device=${deviceId}&lang=${encodeURIComponent(guestLang||'')}`,{method:'POST',body:blob});
       if(!r.ok) throw new Error('stt '+r.status);
       const d=await r.json();
       const text=(d.text||'').trim();
       if(!text){ addBot(uiT('stt_retry')||'Nerozuměla jsem ti — zkus to prosím říct znovu, klidně pomaleji. 🎤'); return; }
-      // Jazyk z Whisperu je spolehlivý (detekce ze zvuku) → smí opravit i uložený jazyk
-      if(d.language && d.language!==guestLang && LANG_SR[d.language]!==undefined){
-        guestLang=d.language;
-        localStorage.setItem('sg_lang_'+hotelId,guestLang);
-        applyGuestLangUI();
-      }
+      // Jazyk z Whisperu se ZÁMĚRNĚ neukládá. Dřív stačil jeden špatný odhad ze šumu
+      // a host měl napořád uložený třeba portugalský jazyk (tester 7. 8. 2026).
+      // Jazyk mění jen výslovná volba hosta nebo jednoznačný důkaz z textu (server).
       const inp=document.getElementById('msg-input');
       inp.value=text; autoResize(inp);
       _lastInputVoice=true; sendMsg();
