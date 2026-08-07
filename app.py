@@ -6138,34 +6138,52 @@ async def guest_tts(req: GuestTTSRequest, request: Request):
     # přirozeně v každém jazyce. Necelé časy (7:30) TTS čte obstojně, ty neměníme.
     import re as _re2
     text = _re2.sub(r"\b0?(\d{1,2}):00\b", r"\1", text)
-    prov = _TTS_PROVIDER
-    if prov == "elevenlabs" and not _ELEVEN_KEY:
-        prov = "openai"   # záloha: bez ElevenLabs klíče mluví OpenAI — hosté nikdy bez hlasu
-    if prov == "elevenlabs":
+    async def _say_eleven():
         async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.post(
+            return await client.post(
                 f"https://api.elevenlabs.io/v1/text-to-speech/{_ELEVEN_VOICE}",
                 headers={"xi-api-key": _ELEVEN_KEY, "Content-Type": "application/json"},
                 json={"text": text, "model_id": _ELEVEN_MODEL,
                       "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}},
             )
-        if r.status_code != 200:
-            logging.warning("ElevenLabs TTS chyba %s: %s", r.status_code, r.text[:200])
-            raise HTTPException(502, "TTS selhalo")
-    else:
+
+    async def _say_openai():
         api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
         if not api_key:
-            raise HTTPException(400, "TTS není nakonfigurováno")
+            return None
         async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.post(
+            return await client.post(
                 "https://api.openai.com/v1/audio/speech",
                 headers={"Authorization": f"Bearer {api_key}"},
                 json={"model": _TTS_MODEL, "voice": _TTS_VOICE, "input": text,
                       "instructions": _TTS_INSTRUCTIONS, "response_format": "mp3"},
             )
-        if r.status_code != 200:
+
+    prov = _TTS_PROVIDER
+    if prov == "elevenlabs" and not _ELEVEN_KEY:
+        prov = "openai"   # záloha: bez ElevenLabs klíče mluví OpenAI — hosté nikdy bez hlasu
+    r = None
+    if prov == "elevenlabs":
+        try:
+            r = await _say_eleven()
+        except Exception as e:
+            logging.warning("ElevenLabs TTS nedostupné: %s", str(e)[:150])
+            r = None
+        # Došlé kredity, propadlý tarif nebo výpadek ElevenLabs NESMÍ znamenat němého Alexe —
+        # okamžitě a tiše přepneme na OpenAI. Host si ničeho nevšimne, jen se změní barva hlasu.
+        if r is None or r.status_code != 200:
+            if r is not None:
+                logging.warning("ElevenLabs TTS chyba %s: %s — přepínám na OpenAI",
+                                r.status_code, r.text[:200])
+            r = await _say_openai()
+    else:
+        r = await _say_openai()
+        if r is None:
+            raise HTTPException(400, "TTS není nakonfigurováno")
+    if r is None or r.status_code != 200:
+        if r is not None:
             logging.warning("TTS chyba %s: %s", r.status_code, r.text[:200])
-            raise HTTPException(502, "TTS selhalo")
+        raise HTTPException(502, "TTS selhalo")
     if req.hotel_id:
         _log_ai_media_usage(req.hotel_id, tts_chars=len(text))
     from fastapi.responses import Response
