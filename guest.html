@@ -677,7 +677,7 @@ async function speakText(text, btn){
   try{
     const r=await fetch(`${API}/api/guest/tts`,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({text:say,language:guestLang})
+      body:JSON.stringify({text:say,language:guestLang,hotel_id:hotelId,device_id:deviceId})
     });
     if(!r.ok) throw new Error('tts '+r.status);
     const blob=await r.blob();
@@ -688,8 +688,10 @@ async function speakText(text, btn){
     a.onerror=()=>{ URL.revokeObjectURL(a.src); if(_ttsAudio===a)_ttsAudio=null; _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null; };
     await a.play();
   }catch(e){
+    // Server TTS selhal → NEpadat na robotický hlas prohlížeče (tester 4. 8.:
+    // „hlas je děsnej" — plechový fallback škodí víc než ticho). Jen reset tlačítka.
     if(_ttsBtn!==btn) return;
-    _speakLocal(say, btn);
+    _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null;
   }
 }
 
@@ -1255,6 +1257,11 @@ async function sendMsg(){
   if(detected && detected !== guestLang){
     guestLang = detected;
     applyGuestLangUI();
+    // Silný signál (jednoznačná diakritika/abeceda) smí opravit i ULOŽENÝ jazyk —
+    // tím se sám zahojí dřívější špatně uložený jazyk (anglické „Welcome back").
+    if(/[ěřůĺľŕąęłżźщыъїєґő]/i.test(text) && text.length>=8){
+      localStorage.setItem('sg_lang_'+hotelId, guestLang);
+    }
   }
 
   addUser(text);
@@ -1512,7 +1519,7 @@ async function whisperVoice(){
     if(blob.size<1000) return;                       // moc krátké — nic se neřeklo
     b.textContent='…'; b.disabled=true;
     try{
-      const r=await fetch(`${API}/api/guest/stt?fmt=${fmt}&hotel_id=${hotelId}`,{method:'POST',body:blob});
+      const r=await fetch(`${API}/api/guest/stt?fmt=${fmt}&hotel_id=${hotelId}&device=${deviceId}`,{method:'POST',body:blob});
       if(!r.ok) throw new Error('stt '+r.status);
       const d=await r.json();
       const text=(d.text||'').trim();

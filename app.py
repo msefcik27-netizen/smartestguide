@@ -5399,8 +5399,9 @@ def app_icon(size: str):
 # (německá řeč při vybrané češtině = paskvil). Whisper detekuje jazyk ze zvuku sám.
 # Klient posílá RAW audio v těle requestu (bez multipart závislosti), ?fmt=webm|mp4|ogg.
 @app.post("/api/guest/stt")
-async def guest_stt(request: Request, fmt: str = "webm", hotel_id: str = ""):
-    if not _rate_limit_ok("stt:" + _client_ip(request), max_hits=10):
+async def guest_stt(request: Request, fmt: str = "webm", hotel_id: str = "", device: str = ""):
+    _rl_key = (device or "").strip()[:64] or _client_ip(request)
+    if not _rate_limit_ok("stt:" + _rl_key, max_hits=15):
         raise HTTPException(429, "Příliš mnoho požadavků")
     api_key = os.getenv("OPENAI_API_KEY", "")
     if not api_key:
@@ -5728,8 +5729,11 @@ def _alex_feminine_fix(text: str) -> str:
 @app.post("/api/guest/chat")
 async def guest_chat(req: GuestChatRequest, request: Request):
     """AI chat pro hosta – používá Anthropic API."""
-    # Rate limit na IP — brání spamu chatu a nekontrolovaným nákladům na API
-    if not _rate_limit_ok("chat:" + _client_ip(request)):
+    # Rate limit per ZAŘÍZENÍ (device_id), IP jen jako fallback — hotel má jednu
+    # sdílenou WiFi IP, takže limit na IP by si hosté vyčerpávali navzájem
+    # (4. 8. 2026, tester: „nereaguje vůbec" po intenzivním testování).
+    _rl_key = (req.device_id or "").strip()[:64] or _client_ip(request)
+    if not _rate_limit_ok("chat:" + _rl_key):
         raise HTTPException(429, "Příliš mnoho dotazů. Zkuste to prosím za chvíli.")
     settings = db_get_settings()
     api_key = settings.get("anthropic_api_key", "")
@@ -6003,6 +6007,7 @@ class GuestTTSRequest(BaseModel):
     voice: Optional[str] = None     # jen pro ladění/A-B test, jinak výchozí _TTS_VOICE
     instructions: Optional[str] = None  # override stylu/tempa (jen /voice-test; cap 400 znaků)
     provider: Optional[str] = None      # "openai" | "elevenlabs" (jen /voice-test; jinak TTS_PROVIDER)
+    device_id: Optional[str] = None     # limit per zařízení (hotelová WiFi = jedna IP)
 
 @app.get("/voice-test", response_class=HTMLResponse)
 def voice_test_page():
@@ -6136,7 +6141,8 @@ async function play(v,btn){{
 @app.post("/api/guest/tts")
 async def guest_tts(req: GuestTTSRequest, request: Request):
     """Převede text odpovědi na řeč (MP3). Rate-limit proti zneužití nákladů."""
-    if not _rate_limit_ok("tts:" + _client_ip(request), max_hits=15):
+    _rl_key = (req.device_id or "").strip()[:64] or _client_ip(request)
+    if not _rate_limit_ok("tts:" + _rl_key, max_hits=30):
         raise HTTPException(429, "Příliš mnoho požadavků na hlas. Zkuste to za chvíli.")
     text = (req.text or "").strip()
     if not text:
