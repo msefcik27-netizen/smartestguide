@@ -774,6 +774,10 @@ _KEYS_REGISTRY = [
      "Nepovinné, platby jdou přes checkout."),
     ("TTS_VOICE", "Hlas Alexe", "volitelne", "Railway → Variables",
      "Ženské varianty: coral, nova, shimmer, sage, ballad.", "Výchozí: coral"),
+    ("ELEVENLABS_API_KEY", "Alternativní hlas Alex (ElevenLabs) — porovnání/přepnutí", "volitelne",
+     "https://elevenlabs.io/app/settings/api-keys",
+     "Aktivuje ElevenLabs sekci na /voice-test. Přepnutí celé aplikace: TTS_PROVIDER=elevenlabs + ELEVENLABS_VOICE.",
+     "Bez klíče jede hlas přes OpenAI jako dosud."),
     ("TTS_MODEL", "Model pro hlas", "volitelne", "Railway → Variables", "",
      "Výchozí: gpt-4o-mini-tts"),
     ("STT_MODEL", "Model pro přepis řeči", "volitelne", "Railway → Variables", "",
@@ -5959,6 +5963,20 @@ Guest name: {req.guest_name or 'Guest'}"""
 # Frontend (guest.html) volá po hlasovém dotazu; fallback na Web Speech API řeší klient.
 # ─────────────────────────────────────────────
 _TTS_VOICE = os.getenv("TTS_VOICE", "coral")
+# ── Druhý poskytovatel hlasu: ElevenLabs (4. 8. 2026, porovnání přirozenosti) ──
+# Přepnutí celé aplikace: TTS_PROVIDER=elevenlabs + ELEVENLABS_API_KEY (+ ELEVENLABS_VOICE).
+# Bez klíče se ElevenLabs větev jen vrátí s chybou 400 — OpenAI jede dál.
+_TTS_PROVIDER = os.getenv("TTS_PROVIDER", "openai").strip().lower()
+_ELEVEN_KEY = os.getenv("ELEVENLABS_API_KEY", "").strip()
+_ELEVEN_MODEL = os.getenv("ELEVENLABS_MODEL", "eleven_multilingual_v2")   # 29 jazyků vč. češtiny
+_ELEVEN_VOICE = os.getenv("ELEVENLABS_VOICE", "EXAVITQu4vr4xnSDxMaL")     # Sarah (výchozí ženský)
+# Přednastavené ženské hlasy z veřejné knihovny ElevenLabs (ID jsou stejná pro všechny účty)
+_ELEVEN_VOICES = [
+    ("Sarah", "EXAVITQu4vr4xnSDxMaL"), ("Charlotte", "XB0fDUnXU5powFXDhCwa"),
+    ("Alice", "Xb7hH8MSUJpSbSDYk0k2"), ("Jessica", "cgSgspJ2msm6clMCkdW9"),
+    ("Lily", "pFZP5JQG7iQjIQuC4Bku"), ("Aria", "9BWtsMINqrJLrRacOk9x"),
+    ("Matilda", "XrExE9yKIg1WjnnlVkGX"),
+]
 _TTS_MODEL = os.getenv("TTS_MODEL", "gpt-4o-mini-tts")
 _TTS_INSTRUCTIONS = os.getenv(
     "TTS_INSTRUCTIONS",
@@ -5984,6 +6002,7 @@ class GuestTTSRequest(BaseModel):
     hotel_id: Optional[str] = None  # pro měření nákladů per hotel
     voice: Optional[str] = None     # jen pro ladění/A-B test, jinak výchozí _TTS_VOICE
     instructions: Optional[str] = None  # override stylu/tempa (jen /voice-test; cap 400 znaků)
+    provider: Optional[str] = None      # "openai" | "elevenlabs" (jen /voice-test; jinak TTS_PROVIDER)
 
 @app.get("/voice-test", response_class=HTMLResponse)
 def voice_test_page():
@@ -5996,10 +6015,19 @@ def voice_test_page():
     _cur = _TTS_VOICE
     def _rows(vs):
         return "".join(
-            f"""<label class="row"><span><b>{v}</b>{' <span class="cur">aktuální</span>' if v == _cur else ''}</span>
-            <span><button type="button" onclick="play('{v}',this)">▶</button>
-            <input type="radio" name="voice" value="{v}"{' checked' if v == _cur else ''}></span></label>"""
+            f"""<label class="row"><span><b>{v}</b>{' <span class="cur">aktuální</span>' if v == _cur and _TTS_PROVIDER != 'elevenlabs' else ''}</span>
+            <span><button type="button" onclick="play('oa:{v}',this)">▶</button>
+            <input type="radio" name="voice" value="oa:{v}"{' checked' if v == _cur else ''}></span></label>"""
             for v in vs)
+    _el_ready = bool(_ELEVEN_KEY)
+    _el_rows = "".join(
+        f"""<label class="row"><span><b>{n}</b>{' <span class="cur">aktuální</span>' if vid == _ELEVEN_VOICE and _TTS_PROVIDER == 'elevenlabs' else ''}</span>
+        <span><button type="button" onclick="play('el:{vid}',this)"{'' if _el_ready else ' disabled'}>▶</button>
+        <input type="radio" name="voice" value="el:{vid}:{n}"></span></label>"""
+        for n, vid in _ELEVEN_VOICES)
+    _el_note = ("" if _el_ready else
+        '<p style="color:#d9534f"><b>ElevenLabs zatím není zapnuté</b> — chybí ELEVENLABS_API_KEY '
+        'v Railway. Po nastavení klíče se tlačítka aktivují sama.</p>')
     return f"""<!DOCTYPE html><html lang="cs"><head><meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Ladění hlasu Alex</title><style>
@@ -6031,6 +6059,10 @@ textarea,select{{width:100%;border:1px solid #e3e9f4;border-radius:8px;padding:1
 {_rows(_fem)}
 <h2>Mužské / neutrální hlasy <span style="font-weight:400;text-transform:none">(pak by Alex musel mluvit mužsky — změna v kódu)</span></h2>
 {_rows(_mal)}
+
+<h2>ElevenLabs — ženské hlasy <span style="font-weight:400;text-transform:none">(jiný poskytovatel, nejpřirozenější čeština; tempo a styl níže na ně neplatí)</span></h2>
+{_el_note}
+{_el_rows}
 
 <h2>Tempo</h2>
 <select id="pace">
@@ -6071,7 +6103,15 @@ function buildInstr(){{
 }}
 function selVoice(){{return document.querySelector('input[name=voice]:checked').value;}}
 function updOut(){{
-  document.getElementById('out').textContent="TTS_VOICE="+selVoice()+"\n\nTTS_INSTRUCTIONS="+buildInstr();
+  const v=selVoice();
+  let out;
+  if(v.startsWith('el:')){{
+    const parts=v.split(':');
+    out="TTS_PROVIDER=elevenlabs\nELEVENLABS_VOICE="+parts[1]+"   # hlas "+(parts[2]||'');
+  }}else{{
+    out="TTS_VOICE="+v.slice(3)+"\n\nTTS_INSTRUCTIONS="+buildInstr();
+  }}
+  document.getElementById('out').textContent=out;
 }}
 document.addEventListener('change',updOut);document.addEventListener('input',updOut);updOut();
 let cur=null;
@@ -6079,8 +6119,12 @@ async function play(v,btn){{
   if(cur){{cur.pause();cur=null;}}
   const t=btn.textContent;btn.disabled=true;btn.textContent='…';
   try{{
+    const sel=v||selVoice();
+    const isEl=sel.startsWith('el:');
+    const voiceId=isEl?sel.split(':')[1]:sel.slice(3);
     const r=await fetch('/api/guest/tts',{{method:'POST',headers:{{'Content-Type':'application/json'}},
-      body:JSON.stringify({{text:document.getElementById('txt').value,voice:v||selVoice(),instructions:buildInstr()}})}});
+      body:JSON.stringify({{text:document.getElementById('txt').value,voice:voiceId,
+        provider:isEl?'elevenlabs':'openai',instructions:isEl?null:buildInstr()}})}});
     if(!r.ok)throw new Error(r.status===429?'Příliš rychle po sobě — počkej minutu.':'Chyba '+r.status);
     const a=new Audio(URL.createObjectURL(await r.blob()));
     cur=a;a.onended=()=>{{if(cur===a)cur=null;}};await a.play();
@@ -6094,29 +6138,48 @@ async def guest_tts(req: GuestTTSRequest, request: Request):
     """Převede text odpovědi na řeč (MP3). Rate-limit proti zneužití nákladů."""
     if not _rate_limit_ok("tts:" + _client_ip(request), max_hits=15):
         raise HTTPException(429, "Příliš mnoho požadavků na hlas. Zkuste to za chvíli.")
-    api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
-    if not api_key:
-        raise HTTPException(400, "TTS není nakonfigurováno")
     text = (req.text or "").strip()
     if not text:
         raise HTTPException(400, "Prázdný text")
     if len(text) > _TTS_MAX_CHARS:
         text = text[:_TTS_MAX_CHARS]
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.post(
-            "https://api.openai.com/v1/audio/speech",
-            headers={"Authorization": f"Bearer {api_key}"},
-            json={
-                "model": _TTS_MODEL,
-                "voice": (req.voice or "").strip().lower() if (req.voice or "").strip().lower() in _TTS_VOICES_OK else _TTS_VOICE,
-                "input": text,
-                "instructions": ((req.instructions or "").strip()[:400] or _TTS_INSTRUCTIONS),
-                "response_format": "mp3",
-            },
-        )
-    if r.status_code != 200:
-        logging.warning("TTS chyba %s: %s", r.status_code, r.text[:200])
-        raise HTTPException(502, "TTS selhalo")
+    prov = (req.provider or "").strip().lower() or _TTS_PROVIDER
+    if prov == "elevenlabs":
+        # ── ElevenLabs větev (porovnání přirozenosti; produkce přes TTS_PROVIDER) ──
+        if not _ELEVEN_KEY:
+            raise HTTPException(400, "ElevenLabs není nakonfigurováno (ELEVENLABS_API_KEY)")
+        vid = (req.voice or "").strip() or _ELEVEN_VOICE
+        if not vid.replace("-", "").isalnum() or len(vid) > 40:
+            raise HTTPException(400, "Neplatné ID hlasu")
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                f"https://api.elevenlabs.io/v1/text-to-speech/{vid}",
+                headers={"xi-api-key": _ELEVEN_KEY, "Content-Type": "application/json"},
+                json={"text": text, "model_id": _ELEVEN_MODEL,
+                      "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}},
+            )
+        if r.status_code != 200:
+            logging.warning("ElevenLabs TTS chyba %s: %s", r.status_code, r.text[:200])
+            raise HTTPException(502, "TTS selhalo (ElevenLabs)")
+    else:
+        api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+        if not api_key:
+            raise HTTPException(400, "TTS není nakonfigurováno")
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                "https://api.openai.com/v1/audio/speech",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={
+                    "model": _TTS_MODEL,
+                    "voice": (req.voice or "").strip().lower() if (req.voice or "").strip().lower() in _TTS_VOICES_OK else _TTS_VOICE,
+                    "input": text,
+                    "instructions": ((req.instructions or "").strip()[:400] or _TTS_INSTRUCTIONS),
+                    "response_format": "mp3",
+                },
+            )
+        if r.status_code != 200:
+            logging.warning("TTS chyba %s: %s", r.status_code, r.text[:200])
+            raise HTTPException(502, "TTS selhalo")
     if req.hotel_id:
         _log_ai_media_usage(req.hotel_id, tts_chars=len(text))
     from fastapi.responses import Response
