@@ -5397,9 +5397,120 @@ def app_icon(size: str):
 # ── Serverové STT (Whisper) — mikrofon s automatickou detekcí jazyka ──
 # Řeší „jazykový mix": prohlížečové rozpoznávání poslouchá jen ve zvoleném jazyce
 # (německá řeč při vybrané češtině = paskvil). Whisper detekuje jazyk ze zvuku sám.
+# ─────────────────────────────────────────────
+# JAZYK — tvrdý zámek (oprava 7. 8. 2026, feedback testera)
+# Alex odpovídala polsky na české dotazy, portugalsky na české a vítala anglicky.
+# Příčina: model si jazyk hádal z každé zprávy a klient si špatný odhad ukládal.
+# Nově: platí jazyk, který má host vybraný. Přepneme JEN při jednoznačném důkazu
+# (cizí písmo, diakritika unikátní pro jazyk, nebo 2+ typická slova jazyka).
+# ─────────────────────────────────────────────
+_LANG_UNIQ_CHARS = [
+    # POZOR: výhradně malá písmena — porovnává se se zmenšeným textem.
+    ("cs", "řěů"),
+    ("pl", "ąćęłńśźż"),
+    ("sk", "ôľĺŕ"),
+    ("hu", "őű"),
+    ("tr", "ğış"),
+    ("ro", "ășț"),
+    ("es", "ñ¿¡"),
+    ("pt", "ãõ"),
+    ("de", "ßäöü"),        # až za hu/tr — ä/ö/ü sdílí víc jazyků
+    ("fr", "àâçèêëîïôùûœ"),
+    ("it", "àèìòù"),
+]
+
+_LANG_WORDS = {
+    "en": ("the", "what", "where", "when", "is", "are", "can", "do", "does", "you", "your",
+           "please", "thank", "thanks", "have", "how", "there", "and", "with", "for", "my", "we"),
+    "de": ("ich", "ist", "das", "und", "nicht", "wo", "wann", "wie", "kann", "bitte", "danke",
+           "der", "die", "ein", "eine", "haben", "sie", "mit", "auf", "gibt", "zimmer"),
+    "fr": ("je", "est", "les", "des", "une", "pas", "pour", "avec", "vous", "merci", "bonjour",
+           "quelle", "où", "que", "dans", "le", "la"),
+    "es": ("que", "los", "las", "una", "para", "por", "con", "hay", "gracias", "hola", "dónde",
+           "cuál", "el", "es", "en", "un"),
+    "it": ("che", "sono", "una", "per", "con", "del", "della", "non", "grazie", "ciao", "dove",
+           "quando", "il", "la", "un"),
+    "pt": ("você", "obrigado", "obrigada", "onde", "quando", "para", "com", "uma", "não",
+           "isso", "está", "por", "que", "olá"),
+    "nl": ("het", "een", "ik", "niet", "waar", "wanneer", "hoe", "kan", "dank", "alstublieft",
+           "wij", "zijn", "van", "met"),
+    "pl": ("jest", "gdzie", "kiedy", "jak", "czy", "dziękuję", "proszę", "nie", "tak",
+           "mam", "moge", "pokoj", "sniadanie"),
+    "cs": ("je", "kde", "kdy", "jak", "prosim", "dekuji", "diky", "mam", "mate", "muzu",
+           "muzete", "kolik", "pokoj", "pokoje", "snidane", "ano", "jsem", "jste", "vam", "ti"),
+    "sk": ("kde", "kedy", "ako", "prosim", "dakujem", "mozem", "mozete", "izba", "ranajky",
+           "som", "ste", "vam"),
+}
+_LANG_WORD_RE = {k: re.compile(r"\b(" + "|".join(v) + r")\b", re.I) for k, v in _LANG_WORDS.items()}
+
+
+def _script_lang(text: str):
+    """Jazyk podle písma — nejspolehlivější signál (cyrilice, řečtina, CJK, arabština…)."""
+    has_cyr = has_gr = has_cjk = has_kana = has_hangul = has_ar = has_he = False
+    for ch in text:
+        o = ord(ch)
+        if 0x0400 <= o <= 0x04FF: has_cyr = True
+        elif 0x0370 <= o <= 0x03FF: has_gr = True
+        elif 0x3040 <= o <= 0x30FF: has_kana = True
+        elif 0xAC00 <= o <= 0xD7AF: has_hangul = True
+        elif 0x4E00 <= o <= 0x9FFF: has_cjk = True
+        elif 0x0600 <= o <= 0x06FF: has_ar = True
+        elif 0x0590 <= o <= 0x05FF: has_he = True
+    if has_kana: return "ja"
+    if has_hangul: return "ko"
+    if has_cjk: return "zh"
+    if has_ar: return "ar"
+    if has_he: return "he"
+    if has_gr: return "el"
+    if has_cyr:
+        low = text.lower()
+        if any(c in low for c in "іїєґ"): return "uk"
+        return "ru"
+    return None
+
+
+def _detect_lang_strong(text: str):
+    """Vrátí kód jazyka jen tehdy, když je důkaz jednoznačný. Jinak None."""
+    t = (text or "").strip()
+    if len(t) < 3:
+        return None
+    sc = _script_lang(t)
+    if sc:
+        return sc
+    low = t.lower()
+    for code, chars in _LANG_UNIQ_CHARS:
+        if any(c in low for c in chars):
+            return code
+    # Bez diakritiky: rozhodni podle typických slov, ale až od 2 shod a s jasným náskokem
+    scores = {}
+    for code, rx in _LANG_WORD_RE.items():
+        n = len(set(m.group(0).lower() for m in rx.finditer(low)))
+        if n:
+            scores[code] = n
+    if not scores:
+        return None
+    best = max(scores, key=lambda k: scores[k])
+    second = max([v for k, v in scores.items() if k != best], default=0)
+    if scores[best] >= 2 and scores[best] > second:
+        return best
+    return None
+
+
+def _lock_language(selected: str, message: str):
+    """Jazyk odpovědi = volba hosta; přepíšeme jen při jednoznačném důkazu z textu."""
+    sel = (selected or "").strip().lower()[:5] or "en"
+    strong = _detect_lang_strong(message or "")
+    # Čeština a slovenština jsou si tak blízké, že se detekce plete — volba hosta vyhrává.
+    if strong and {strong, sel} == {"cs", "sk"}:
+        return sel, False
+    if strong and strong != sel:
+        return strong, True
+    return sel, False
+
+
 # Klient posílá RAW audio v těle requestu (bez multipart závislosti), ?fmt=webm|mp4|ogg.
 @app.post("/api/guest/stt")
-async def guest_stt(request: Request, fmt: str = "webm", hotel_id: str = "", device: str = ""):
+async def guest_stt(request: Request, fmt: str = "webm", hotel_id: str = "", device: str = "", lang: str = ""):
     _rl_key = (device or "").strip()[:64] or _client_ip(request)
     if not _rate_limit_ok("stt:" + _rl_key, max_hits=15):
         raise HTTPException(429, "Příliš mnoho požadavků")
@@ -5415,13 +5526,19 @@ async def guest_stt(request: Request, fmt: str = "webm", hotel_id: str = "", dev
     if fmt not in ("webm", "mp4", "m4a", "ogg", "wav"):
         fmt = "webm"
     model = os.getenv("STT_MODEL", "whisper-1")
+    # Jazyková nápověda z klienta = jazyk, který má host vybraný. Bez ní si Whisper
+    # u krátkých nahrávek jazyk hádal a vracel nesmysly (tester 7. 8. 2026).
+    _stt_data = {"model": model, "response_format": "verbose_json"}
+    _hint = (lang or "").strip().lower()[:2]
+    if _hint.isalpha() and len(_hint) == 2:
+        _stt_data["language"] = _hint
     try:
         async with httpx.AsyncClient() as client:
             r = await client.post(
                 "https://api.openai.com/v1/audio/transcriptions",
                 headers={"Authorization": f"Bearer {api_key}"},
                 files={"file": (f"audio.{fmt}", audio, f"audio/{fmt}")},
-                data={"model": model, "response_format": "verbose_json"},
+                data=_stt_data,
                 timeout=30.0)
     except Exception as e:
         raise HTTPException(502, f"STT selhalo: {str(e)[:100]}")
@@ -5751,9 +5868,16 @@ async def guest_chat(req: GuestChatRequest, request: Request):
         "fr": "French", "it": "Italian", "es": "Spanish", "pl": "Polish",
         "hu": "Hungarian", "ru": "Russian", "uk": "Ukrainian", "zh": "Chinese",
         "ja": "Japanese", "ko": "Korean", "nl": "Dutch", "pt": "Portuguese",
-        "ar": "Arabic", "tr": "Turkish",
+        "ar": "Arabic", "tr": "Turkish", "el": "Greek", "ro": "Romanian",
+        "sv": "Swedish", "da": "Danish", "no": "Norwegian", "fi": "Finnish",
+        "hr": "Croatian", "sl": "Slovenian", "sr": "Serbian", "bg": "Bulgarian",
+        "he": "Hebrew", "et": "Estonian", "lv": "Latvian", "lt": "Lithuanian",
+        "hi": "Hindi", "th": "Thai", "vi": "Vietnamese", "id": "Indonesian",
     }
-    lang_name = LANG_NAMES.get(req.language, req.language)
+    # Jazyk odpovědi = volba hosta; přepíšeme jen při jednoznačném důkazu z textu
+    # (oprava 7. 8. 2026 — Alex odpovídala polsky/portugalsky na české dotazy).
+    reply_lang, _lang_forced = _lock_language(req.language or "en", req.message or "")
+    lang_name = LANG_NAMES.get(reply_lang, reply_lang)
 
     # Sestav systémový prompt z dat hotelu
     # Restaurace (opakovatelné) — sestav přehled pro Alexe
@@ -5775,9 +5899,10 @@ async def guest_chat(req: GuestChatRequest, request: Request):
 
     hotel_info = f"""You are Alex, a friendly AI concierge for {h.get('name', 'this hotel')}.
 
-LANGUAGE RULE (CRITICAL): Detect the language of the guest's LATEST message and always respond in that language — even if the earlier conversation history, the selected interface language, or the hotel data is in a different language. When the guest switches language mid-conversation, switch with them immediately. The latest message ALWAYS wins over history and over the default.
-If you cannot detect the language of the latest message, use {lang_name} ({req.language}) as default.
-Never mix languages in a single response.
+LANGUAGE RULE (CRITICAL — no exceptions): Write EVERY reply in {lang_name} ({reply_lang}). Nothing else.
+The language has already been decided for you (the guest picked it, or it was reliably detected from the text). Do NOT try to detect the language yourself and do NOT switch because the latest message "looks like" another language. Czech, Slovak and Polish look alike, as do Spanish and Portuguese — guessing has repeatedly produced replies in the wrong language, which is a serious bug. If a message seems ambiguous, it is {lang_name}.
+Even a short, garbled or voice-transcribed message is {lang_name}. Even an English word inside the message (wifi, check-in, parking, spa) does NOT mean the guest switched language.
+Never mix languages in a single reply. The ONLY exception: if the guest explicitly asks in words to be answered in a different language, do so and keep that language.
 TRANSLATE HOTEL DATA: The hotel profile below may be written in a different language (often Czech).
 Always TRANSLATE the information into the guest's language — never quote raw profile text in another
 language. Example: profile says "Garáž v hotelu, 600 Kč/noc" and the guest writes English → answer
@@ -5957,10 +6082,12 @@ Guest name: {req.guest_name or 'Guest'}"""
     _usage = _j.get("usage", {}) or {}
     # Zaloguj reálný dotaz hosta (analytika + detekce mezer v informacích)
     try:
-        _log_guest_question(_hid, req.message, req.language, reply, device_id=req.device_id or "", in_tokens=int(_usage.get("input_tokens") or 0), out_tokens=int(_usage.get("output_tokens") or 0))
+        _log_guest_question(_hid, req.message, reply_lang, reply, device_id=req.device_id or "", in_tokens=int(_usage.get("input_tokens") or 0), out_tokens=int(_usage.get("output_tokens") or 0))
     except Exception as e:
         logging.warning("Log dotazu hosta selhal: %s", e)
-    return {"status": "ok", "reply": reply}
+    # „lang" vracíme jen když jsme jazyk přepsali na základě jednoznačného důkazu —
+    # klient si ho pak uloží a vyléčí tím dřív špatně uložený jazyk (anglické „Welcome back").
+    return {"status": "ok", "reply": reply, "lang": reply_lang if _lang_forced else None}
 
 # ─────────────────────────────────────────────
 # TTS — Alex čte odpověď nahlas (OpenAI gpt-4o-mini-tts, hlas Coral)
