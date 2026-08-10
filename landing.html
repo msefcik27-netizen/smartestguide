@@ -236,7 +236,9 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
   .steps{grid-template-columns:1fr}
   .about-grid,.contact-grid{grid-template-columns:1fr}
   .form-grid{grid-template-columns:1fr}
-  .stats-strip{grid-template-columns:1fr 1fr;gap:12px;margin-top:-32px}
+  .stats-strip{grid-template-columns:1fr 1fr;gap:12px;margin-top:-32px;padding:0 14px}
+  .stat{min-width:0;padding:20px 16px}
+  .stat-num{font-size:30px}
   footer{flex-direction:column;text-align:center;margin:0 12px 12px}
   .register-wrap{padding:28px 20px}
   .results-section{padding:60px 20px !important}
@@ -895,8 +897,13 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
 let currentLang='en';
 function toggleMenu(){
   document.getElementById('nav-links').classList.toggle('open');
-  document.getElementById('nav-cta').classList.toggle('open');
 }
+function closeMenu(){
+  document.getElementById('nav-links').classList.remove('open');
+}
+// Mobilní menu: zavřít po kliknutí na kterýkoli odkaz (dřív po kliku na „Ceník" zůstalo otevřené).
+// Nav-cta („Začít") se v mobilním menu už NEzobrazuje (dřív se objevila v horní liště a překrývala hamburger).
+document.getElementById('nav-links')?.addEventListener('click', function(e){ if(e.target.closest('a')) closeMenu(); });
 
 function calcSgPrice(beds){
   if(!beds||beds<1) return 0;
