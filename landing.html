@@ -239,6 +239,10 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
   .stats-strip{grid-template-columns:1fr 1fr;gap:12px;margin-top:-32px}
   footer{flex-direction:column;text-align:center;margin:0 12px 12px}
   .register-wrap{padding:28px 20px}
+  .results-section{padding:60px 20px !important}
+  .results-grid{grid-template-columns:1fr !important}
+  .footer-links{flex-wrap:wrap;justify-content:center}
+  .footer-copy{max-width:100%}
 }
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
@@ -487,7 +491,7 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
 </div>
 </section>
 
-<section style="position:relative;overflow:hidden;border-radius:32px;margin:0 24px;padding:100px 56px" data-reveal>
+<section class="results-section" style="position:relative;overflow:hidden;border-radius:32px;margin:0 24px;padding:100px 56px" data-reveal>
   <img src="/static/img/p3124079_w1920.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
   <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,16,35,.85),rgba(7,16,35,.55))"></div>
   <div class="section-inner" style="position:relative;color:#fff">
@@ -495,7 +499,7 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
       <span class="eyebrow" style="color:var(--lightblue)" id="reviews-eyebrow">Results</span>
       <h2 id="reviews-h2" style="color:#fff">What SMARTEST GUIDE <span class="grad-text">delivers</span></h2>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px">
+    <div class="results-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px">
       <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(10px);border-radius:18px;padding:30px;text-align:left">
         <div style="font-family:var(--font-display);font-size:40px;font-weight:800;color:#2fd0d8;line-height:1.1;margin-bottom:8px">24/7</div>
         <div style="font-size:14px;color:#dbe4f5;line-height:1.5" id="stat-card1">Always available<br>never sleeps, never on holiday</div>
