@@ -7377,6 +7377,8 @@ LEGAL_CSS = """
 """
 
 PRIVACY_CS = LEGAL_CSS + """
+<title>Zásady ochrany osobních údajů — SMARTEST GUIDE</title>
+<meta name="description" content="Zásady ochrany osobních údajů služby SMARTEST GUIDE — AI concierge pro hotely. Jak nakládáme s daty hotelů a jejich hostů, GDPR, sub-processoři a vaše práva.">
 <div class="topbar">
   <div class="logo"><img src="/static/img/logo-inverse.svg" alt=""/>Smartest<span>Guide</span></div>
   <div class="lang-switch">
@@ -7457,6 +7459,8 @@ PRIVACY_CS = LEGAL_CSS + """
 """
 
 PRIVACY_EN = LEGAL_CSS + """
+<title>Privacy Policy — SMARTEST GUIDE</title>
+<meta name="description" content="Privacy Policy for SMARTEST GUIDE — the AI concierge for hotels. How we handle data for hotels and their guests, GDPR, sub-processors and your rights.">
 <div class="topbar">
   <div class="logo"><img src="/static/img/logo-inverse.svg" alt=""/>Smartest<span>Guide</span></div>
   <div class="lang-switch">
@@ -7537,6 +7541,8 @@ PRIVACY_EN = LEGAL_CSS + """
 """
 
 TERMS_CS = LEGAL_CSS + """
+<title>Obchodní podmínky — SMARTEST GUIDE</title>
+<meta name="description" content="Obchodní podmínky služby SMARTEST GUIDE — AI concierge pro hotely. Předplatné, platby, storno a podmínky pro hosty.">
 <div class="topbar">
   <div class="logo"><img src="/static/img/logo-inverse.svg" alt=""/>Smartest<span>Guide</span></div>
   <div class="lang-switch">
@@ -7603,6 +7609,8 @@ TERMS_CS = LEGAL_CSS + """
 """
 
 TERMS_EN = LEGAL_CSS + """
+<title>Terms of Service — SMARTEST GUIDE</title>
+<meta name="description" content="Terms of Service for SMARTEST GUIDE — the AI concierge for hotels. Subscription, payment, cancellation and guest terms.">
 <div class="topbar">
   <div class="logo"><img src="/static/img/logo-inverse.svg" alt=""/>Smartest<span>Guide</span></div>
   <div class="lang-switch">
