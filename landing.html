@@ -4,26 +4,12 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <meta name="google" content="notranslate"/>
-<title>SmartestGuide — AI Concierge for Hotels</title>
+<title>SMARTEST GUIDE — AI concierge for hotels, answers guests 24/7</title>
 <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg"/>
-<meta name="description" content="SmartestGuide gives every hotel a personal AI concierge that answers guest questions 24/7 in 100+ languages — via QR code, no app needed."/>
-<meta property="og:title" content="SmartestGuide — AI Concierge for Hotels"/>
-<meta property="og:description" content="A personal concierge for every one of your guests — without a single extra person. 14-day free trial."/>
-<meta property="og:type" content="website"/>
-<meta name="twitter:card" content="summary_large_image"/>
-<meta name="description" content="SmartestGuide gives every hotel a personal AI concierge that answers guest questions 24/7 in 100+ languages — via QR code, no app needed."/>
-<meta property="og:title" content="SmartestGuide — AI Concierge for Hotels"/>
-<meta property="og:description" content="A personal concierge for every one of your guests — without a single extra person. 14-day free trial."/>
-<meta property="og:type" content="website"/>
-<meta property="og:url" content="https://app.smartestguide.com/"/>
-<meta name="twitter:card" content="summary_large_image"/>
-<meta name="description" content="SmartestGuide gives every hotel a personal AI concierge that answers guest questions 24/7 in 100+ languages — via QR code, no app needed."/>
-<meta property="og:title" content="SmartestGuide — AI Concierge for Hotels"/>
-<meta property="og:description" content="A personal concierge for every one of your guests — without a single extra person. 14-day free trial."/>
-<meta property="og:type" content="website"/>
-<meta property="og:url" content="https://app.smartestguide.com/"/>
-<meta property="og:image" content="https://smartestguide-production.up.railway.app/static/og-image.png"/>
-<meta name="twitter:card" content="summary_large_image"/>
+<meta name="description" content="A personal concierge for every one of your guests — without a single extra person. Alex answers in 100+ languages, 24/7, from a QR code at reception. No app. 14-day free trial."/>
+<!-- SEO blok (canonical, hreflang, og:, JSON-LD) doplňuje server podle jazyka URL — viz _render_landing() v app.py.
+     POZOR: nevkládej sem ručně duplicitní meta tagy, byly tu 3× a přepisovaly se navzájem. -->
+<!--SG-SEO-->
 <link rel="stylesheet" href="/static/fonts/fonts.css"/>
 <style>
 :root {
@@ -1439,6 +1425,10 @@ async function loadLandingPricing(){
 }
 document.addEventListener('DOMContentLoaded', ()=>{
   loadLandingPricing();
+  // Jazyk z adresy (/cs, /de…) má přednost před nastavením prohlížeče — jinak by Google
+  // na české adrese viděl anglický obsah a jazykové verze by nešlo indexovat.
+  const forced=(window.__SG_LANG||'').toLowerCase();
+  if(TRANSLATIONS[forced]){ setLang(forced); return; }
   const nav=(navigator.language||navigator.userLanguage||'en').toLowerCase();
   if(nav.startsWith('cs')||nav.startsWith('sk')) setLang('cs');
   else if(nav.startsWith('de')) setLang('de');
@@ -1452,6 +1442,18 @@ function setLang(lang){
   if(!TRANSLATIONS[lang]) lang='en';
   currentLang=lang;
   const T=TRANSLATIONS[lang];
+  // Drž jazyk stránky, kanonickou adresu i URL v souladu s vybraným jazykem
+  try{
+    document.documentElement.lang=lang;
+    const path=(lang==='en')?'/':('/'+lang);
+    const can=document.querySelector('link[rel="canonical"]');
+    if(can) can.setAttribute('href', location.origin+path);
+    const ogu=document.querySelector('meta[property="og:url"]');
+    if(ogu) ogu.setAttribute('content', location.origin+path);
+    if(location.pathname!==path && (location.pathname==='/'||location.pathname==='/landing'||/^\/(en|cs|de|es|zh|ja)$/.test(location.pathname))){
+      history.replaceState(null,'',path+location.search+location.hash);
+    }
+  }catch(e){}
   // Updatuj trigger vlajku a label
   const FLAGS={en:['https://flagcdn.com/w20/gb.png','EN'],cs:['https://flagcdn.com/w20/cz.png','CZ'],de:['https://flagcdn.com/w20/de.png','DE'],es:['https://flagcdn.com/w20/es.png','ES'],zh:['https://flagcdn.com/w20/cn.png','中文'],ja:['https://flagcdn.com/w20/jp.png','JP']};
   const f=FLAGS[lang]||FLAGS.en;
