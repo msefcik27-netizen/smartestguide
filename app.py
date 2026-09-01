@@ -7,7 +7,7 @@ Nebo použij SPUSTIT.bat
 
 from fastapi import FastAPI, HTTPException, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, List
@@ -5407,12 +5407,170 @@ def _staging_banner(html: str) -> str:
 #   /admin         → náš admin (login-gated)
 #   /portal?token= → hotelový portál  (/hotel = alias)
 #   /h/{slug}      → guest chat        (/guest/{id} = alias)
+# ─────────────────────────────────────────────
+# SEO (1. 9. 2026) — proč to tu je:
+#   • web neměl robots.txt ani sitemap.xml (404) → Google neměl mapu webu
+#   • chyběl canonical a app.smartestguide.com i www.… vracely tutéž stránku
+#     → duplicitní obsah, síla se dělila mezi dvě adresy
+#   • všech 6 jazyků žilo na JEDNÉ adrese a přepínalo se JavaScriptem, stránka
+#     měla natvrdo lang="en" → na české dotazy nebylo co zobrazit
+#   • v <head> byly 3× duplicitní meta description a og: tagy
+#   • og:image mířil na neexistující soubor → sdílený odkaz neměl náhledový obrázek
+# ─────────────────────────────────────────────
+_SEO_BASE = (os.getenv("PUBLIC_BASE_URL", "https://www.smartestguide.com") or "").rstrip("/")
+_SEO_LANGS = ("en", "cs", "de", "es", "zh", "ja")
+_SEO_IS_STAGING = os.getenv("SG_ENV", "").lower() == "staging"
+
+# Titulek a popisek = to, co uživatel reálně vidí ve výsledcích vyhledávání.
+_SEO_META = {
+    "en": ("SMARTEST GUIDE — AI concierge for hotels, answers guests 24/7",
+           "A personal concierge for every one of your guests — without a single extra person. "
+           "Alex answers in 100+ languages, 24/7, from a QR code at reception. No app. 14-day free trial."),
+    "cs": ("SMARTEST GUIDE — AI concierge pro hotely, odpoví hostům 24/7",
+           "Osobní concierge pro každého vašeho hosta — bez jediného nového člověka navíc. "
+           "Alex odpoví ve 100+ jazycích, 24/7, přímo z QR kódu u recepce. Bez aplikace. 14 dní zdarma."),
+    "de": ("SMARTEST GUIDE — KI-Concierge für Hotels, antwortet Gästen rund um die Uhr",
+           "Ein persönlicher Concierge für jeden Ihrer Gäste — ohne eine einzige zusätzliche Kraft. "
+           "Alex antwortet in über 100 Sprachen, 24/7, per QR-Code an der Rezeption. Ohne App. 14 Tage gratis."),
+    "es": ("SMARTEST GUIDE — conserje con IA para hoteles, responde 24/7",
+           "Un conserje personal para cada uno de sus huéspedes — sin una sola persona más. "
+           "Alex responde en más de 100 idiomas, 24/7, desde el código QR de recepción. Sin app. 14 días gratis."),
+    "zh": ("SMARTEST GUIDE — 酒店 AI 礼宾，全天候回答宾客提问",
+           "为您的每一位宾客配备专属礼宾，无需增加任何人手。Alex 支持 100 多种语言，全天候 24/7，"
+           "扫描前台二维码即可使用。无需应用，14 天免费试用。"),
+    "ja": ("SMARTEST GUIDE — ホテル向けAIコンシェルジュ、24時間365日対応",
+           "すべてのゲストに専属コンシェルジュを。増員はゼロのまま。Alex が100以上の言語で"
+           "24時間365日お答えします。フロントのQRコードから、アプリ不要。14日間無料。"),
+}
+
+
+def _seo_head(lang: str) -> str:
+    """Canonical + hreflang + og/twitter + JSON-LD pro konkrétní jazykovou verzi."""
+    lang = lang if lang in _SEO_LANGS else "en"
+    title, desc = _SEO_META.get(lang, _SEO_META["en"])
+    path = "/" if lang == "en" else f"/{lang}"
+    url = _SEO_BASE + path
+    img = _SEO_BASE + "/static/img/og-image.png"
+    alts = "\n".join(
+        f'<link rel="alternate" hreflang="{l}" href="{_SEO_BASE}{"/" if l == "en" else "/" + l}"/>'
+        for l in _SEO_LANGS)
+    ld = json.dumps({
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "SMARTEST GUIDE",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "url": _SEO_BASE + "/",
+        "description": _SEO_META["en"][1],
+        "inLanguage": list(_SEO_LANGS),
+        "publisher": {
+            "@type": "Organization",
+            "name": "Native Hotel Guide s.r.o.",
+            "url": _SEO_BASE + "/",
+            "logo": _SEO_BASE + "/api/app-icon/512.png",
+            "address": {
+                "@type": "PostalAddress",
+                "streetAddress": "Korunní 2569/108",
+                "postalCode": "101 00",
+                "addressLocality": "Praha",
+                "addressCountry": "CZ",
+            },
+        },
+    }, ensure_ascii=False)
+    # Staging se NESMÍ indexovat — jinak by soutěžil s produkcí o tatáž slova.
+    noindex = '<meta name="robots" content="noindex, nofollow"/>\n' if _SEO_IS_STAGING else ""
+    return (
+        f'{noindex}<link rel="canonical" href="{url}"/>\n'
+        f'{alts}\n<link rel="alternate" hreflang="x-default" href="{_SEO_BASE}/"/>\n'
+        f'<meta property="og:type" content="website"/>\n'
+        f'<meta property="og:site_name" content="SMARTEST GUIDE"/>\n'
+        f'<meta property="og:locale" content="{lang}"/>\n'
+        f'<meta property="og:url" content="{url}"/>\n'
+        f'<meta property="og:title" content="{title}"/>\n'
+        f'<meta property="og:description" content="{desc}"/>\n'
+        f'<meta property="og:image" content="{img}"/>\n'
+        f'<meta property="og:image:width" content="1200"/>\n'
+        f'<meta property="og:image:height" content="630"/>\n'
+        f'<meta name="twitter:card" content="summary_large_image"/>\n'
+        f'<meta name="twitter:title" content="{title}"/>\n'
+        f'<meta name="twitter:description" content="{desc}"/>\n'
+        f'<meta name="twitter:image" content="{img}"/>\n'
+        f'<script type="application/ld+json">{ld}</script>\n'
+        f'<script>window.__SG_LANG="{lang}";</script>'
+    )
+
+
+def _render_landing(lang: str = "en") -> str:
+    lang = lang if lang in _SEO_LANGS else "en"
+    html_path = os.path.join(os.path.dirname(__file__), "landing.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        html = f.read()
+    title, desc = _SEO_META.get(lang, _SEO_META["en"])
+    html = html.replace("<!--SG-SEO-->", _seo_head(lang), 1)
+    if lang != "en":
+        html = html.replace('<html lang="en">', f'<html lang="{lang}">', 1)
+        # lambda, ne řetězec — v náhradě by se zpětná lomítka braly jako odkazy na skupiny
+        html = re.sub(r"<title>.*?</title>", lambda m: f"<title>{title}</title>", html, count=1, flags=re.S)
+        html = re.sub(r'<meta name="description" content="[^"]*"/>',
+                      lambda m: f'<meta name="description" content="{desc}"/>', html, count=1)
+    return _staging_banner(html)
+
+
 @app.get("/", response_class=HTMLResponse)
 @app.get("/landing", response_class=HTMLResponse)
 def serve_landing():
-    html_path = os.path.join(os.path.dirname(__file__), "landing.html")
-    with open(html_path, "r", encoding="utf-8") as f:
-        return _staging_banner(f.read())
+    return _render_landing("en")
+
+
+@app.get("/en", response_class=HTMLResponse)
+@app.get("/cs", response_class=HTMLResponse)
+@app.get("/de", response_class=HTMLResponse)
+@app.get("/es", response_class=HTMLResponse)
+@app.get("/zh", response_class=HTMLResponse)
+@app.get("/ja", response_class=HTMLResponse)
+def serve_landing_lang(request: Request):
+    return _render_landing(request.url.path.strip("/").lower())
+
+
+@app.get("/robots.txt", response_class=PlainTextResponse)
+def serve_robots():
+    if _SEO_IS_STAGING:
+        return "User-agent: *\nDisallow: /\n"
+    # Admin, portály a chaty hostů do vyhledávače nepatří — jsou za tokenem
+    # a pro veřejnost nemají žádnou hodnotu.
+    return (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /admin\n"
+        "Disallow: /api/\n"
+        "Disallow: /portal\n"
+        "Disallow: /hotel\n"
+        "Disallow: /group\n"
+        "Disallow: /h/\n"
+        "Disallow: /guest/\n"
+        f"\nSitemap: {_SEO_BASE}/sitemap.xml\n"
+    )
+
+
+@app.get("/sitemap.xml")
+def serve_sitemap():
+    from fastapi.responses import Response as _Resp
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    urls = []
+    for l in _SEO_LANGS:
+        loc = _SEO_BASE + ("/" if l == "en" else "/" + l)
+        alts = "".join(
+            f'<xhtml:link rel="alternate" hreflang="{a}" href="{_SEO_BASE}{"/" if a == "en" else "/" + a}"/>'
+            for a in _SEO_LANGS)
+        urls.append(f"<url><loc>{loc}</loc><lastmod>{today}</lastmod>"
+                    f"<changefreq>weekly</changefreq><priority>{'1.0' if l == 'en' else '0.9'}</priority>"
+                    f"{alts}</url>")
+    urls.append(f"<url><loc>{_SEO_BASE}/apaleo</loc><lastmod>{today}</lastmod>"
+                f"<changefreq>monthly</changefreq><priority>0.7</priority></url>")
+    xml = ('<?xml version="1.0" encoding="UTF-8"?>'
+           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" '
+           'xmlns:xhtml="http://www.w3.org/1999/xhtml">' + "".join(urls) + "</urlset>")
+    return _Resp(content=xml, media_type="application/xml")
 
 @app.get("/apaleo", response_class=HTMLResponse)
 def serve_apaleo_landing():
