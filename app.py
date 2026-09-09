@@ -2367,6 +2367,25 @@ def purge_test_hotels(request: Request):
 # ─────────────────────────────────────────────
 # Helper – detekce base URL (lokál i Railway)
 # ─────────────────────────────────────────────
+def _fname_ascii(*parts) -> str:
+    """Název souboru do hlavičky Content-Disposition — bez diakritiky a mezer.
+    V HTTP hlavičce musí být čistě ASCII, jinak si ho prohlížeče přeloží po svém."""
+    import unicodedata as _ud
+    txt = "-".join(str(p).strip() for p in parts if str(p or "").strip())
+    txt = _ud.normalize("NFKD", txt).encode("ascii", "ignore").decode("ascii")
+    txt = re.sub(r"[^A-Za-z0-9._-]+", "-", txt).strip("-")
+    return (txt or "smartest-guide")[:100]
+
+
+def _print_title(*parts) -> str:
+    """Titulek tiskové stránky = název souboru, který prohlížeč nabídne při „Uložit jako PDF".
+    Bez něj si Chrome jméno poskládá z URL (app.smartestguide.com_api_partners_15eb063d….pdf),
+    což je u tiskovin posílaných partnerům a hotelům nepoužitelné (9. 9. 2026)."""
+    txt = " - ".join(str(p).strip() for p in parts if str(p or "").strip())
+    txt = re.sub(r'[\\/:*?"<>|]', "-", txt)      # znaky, které Windows v názvu souboru nebere
+    return re.sub(r"\s+", " ", txt).strip()[:120]
+
+
 def get_base_url(request: Request) -> str:
     base_url_env = os.getenv("BASE_URL", "").strip().rstrip("/")
     if base_url_env:
@@ -2781,6 +2800,7 @@ def room_qr_cards(hotel_id: str, request: Request, rooms: str = ""):
       <div class="csg" translate="no"><img src="/static/img/logo-inverse.svg" alt=""/>SmartestGuide</div>
     </div>""" for r in room_list)
     html = f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>{_print_title("SMARTEST GUIDE", "kartičky do pokojů", hotel_name)}</title>
 <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg"/>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
@@ -2840,6 +2860,7 @@ def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark") -> s
     _tt = "dark" if light else "light"
     _tl = "🌙 Tmavá verze" if light else "☀️ Světlá (šetří inkoust)"
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>{_print_title("SMARTEST GUIDE", "QR plakát", hotel_name)}</title>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:32px;font-family:'Manrope',sans-serif}}
@@ -3049,6 +3070,7 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
     feats_html = "".join('<div style="display:flex;gap:12px;align-items:center;font-size:16px;color:' + c_feat + '">' + check + feat + '</div>' for feat in features)
 
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>{_print_title("SMARTEST GUIDE", "leták " + str(size).upper(), hotel_name)}</title>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
@@ -3104,6 +3126,7 @@ def _render_rollup(hotel_name: str, guest_url: str, theme: str = "dark") -> str:
     _tl = "🌙 Tmavá verze" if light else "☀️ Světlá (šetří inkoust)"
 
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>{_print_title("SMARTEST GUIDE", "roll-up", hotel_name)}</title>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
@@ -5164,10 +5187,7 @@ def download_flyer(hotel_id: str, request: Request):
         raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
     pdf_bytes = generate_flyer_pdf(hotel, base)
-    raw_name = hotel.get("name","hotel")
-    safe_name = unicodedata.normalize("NFKD", raw_name).encode("ascii","ignore").decode("ascii")
-    safe_name = re.sub(r"[^a-zA-Z0-9-]", "-", safe_name).strip("-") or "hotel"
-    fname = "letak-" + safe_name + ".pdf"
+    fname = _fname_ascii("SMARTEST-GUIDE-letak", hotel.get("name", "hotel")) + ".pdf"
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
@@ -8135,7 +8155,8 @@ def partner_qr(partner_id: str, request: Request):
     url = _partner_link(p.get("referral_code", ""))
     png = _generate_qr_png_branded(url, size=600)
     return Response(content=png, media_type="image/png",
-                    headers={"Content-Disposition": f'inline; filename="qr-{p.get("referral_code","partner")}.png"'})
+                    headers={"Content-Disposition":
+                             f'inline; filename="{_fname_ascii("SMARTEST-GUIDE-QR", p.get("name", ""), p.get("referral_code", ""))}.png"'})
 
 @app.get("/api/partners/{partner_id}/qr-poster")
 def partner_qr_poster(partner_id: str, request: Request):
@@ -8148,6 +8169,7 @@ def partner_qr_poster(partner_id: str, request: Request):
     ref = p.get("referral_code", "")
     url = _partner_link(ref)
     html = f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>{_print_title("SMARTEST GUIDE", "QR plakát", p.get("name", "partner"), ref)}</title>
 <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg"/>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
