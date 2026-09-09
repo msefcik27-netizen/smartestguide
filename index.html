@@ -2413,16 +2413,16 @@ function renderPartners(){
   const base=location.origin;
   tb.innerHTML=_partners.map(p=>{
     const st=p._stats||{};
-    const link=base+'/landing?ref='+encodeURIComponent(p.referral_code);
+    const link=p._link||(base+'/?ref='+encodeURIComponent(p.referral_code));
     const pc=_commissions.filter(c=>c.partner_id===p.id);
     const commRows = pc.length ? pc.map(commissionRow).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:12px;font-size:12px">Zatím žádné provize (vzniknou po první platbě přivedeného hotelu).</td></tr>';
     return `<tr style="cursor:pointer" onclick="togglePartner('${p.id}')">
     <td><span id="pchev-${p.id}" style="display:inline-block;transition:transform .15s;color:var(--muted)">▸</span> <strong>${esc(p.name)}</strong>${p.active?'':' <span style="color:var(--danger);font-size:11px">(neaktivní)</span>'}<div style="font-size:11px;color:var(--muted)">${esc(p.email||'')}${p.ico?' · IČO '+esc(p.ico):''}</div></td>
-    <td style="font-size:11px"><code>${esc(p.referral_code)}</code>${p.contract_end?'<div style="font-size:10px;color:var(--warn)">smlouva do '+esc(p.contract_end)+' (+6 měs. doběh)</div>':''}<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px"><button class="btn btn-secondary" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();navigator.clipboard.writeText('${link}').then(()=>toast('Link zkopírován'))">📋 Link</button><a class="btn btn-secondary" style="padding:3px 8px;font-size:10px;text-decoration:none" href="${API}/api/partners/${p.id}/qr-poster" target="_blank" onclick="event.stopPropagation()">📱 QR plakát</a><button class="btn btn-secondary" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();showPartnerReport('${p.id}')">📊 Report</button></div></td>
-    <td>${st.hotels||0}<div style="font-size:10px;color:#2ecc87" title="Kolik nám přivedené hotely reálně zaplatily (zaplacené faktury, přes Stripe)">zaplatily ${st.revenue_eur||0} €</div></td>
+    <td style="font-size:11px"><code>${esc(p.referral_code)}</code>${(p._aliases&&p._aliases.length)?'<div style="font-size:10px;color:var(--muted)" title="Dřívější kódy partnera. Staré odkazy fungují dál a provizi připisují jemu.">staré kódy: '+p._aliases.map(esc).join(', ')+' ✓ fungují</div>':''}${p.contract_end?'<div style="font-size:10px;color:var(--warn)">smlouva do '+esc(p.contract_end)+' (+6 měs. doběh)</div>':''}<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px"><button class="btn btn-secondary" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();navigator.clipboard.writeText('${link}').then(()=>toast('Link zkopírován'))">📋 Link</button><a class="btn btn-secondary" style="padding:3px 8px;font-size:10px;text-decoration:none" href="${API}/api/partners/${p.id}/qr-poster" target="_blank" onclick="event.stopPropagation()">📱 QR plakát</a><button class="btn btn-secondary" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();showPartnerReport('${p.id}')">📊 Report</button></div></td>
+    <td>${st.hotels||0}<div style="font-size:10px;color:#2ecc87" title="Kolik nám přivedené hotely reálně zaplatily (zaplacené faktury, přes Stripe)">zaplatily ${st.revenue_eur||0} €</div><div style="font-size:10px;color:var(--muted)" title="Kolikrát někdo otevřel odkaz partnera. Roboti a náhledy odkazů se nepočítají. Sčítá se přes všechny jeho kódy včetně starých.">🔗 ${st.hits_total||0} otevření${st.hits_30d?' · '+st.hits_30d+' za 30 dní':''}</div></td>
     <td style="font-size:11px"><span title="Čeká v zádržné lhůtě">⏳${st.pending||0}</span> <span title="Schváleno k vyplacení">✅${st.approved||0}</span> <span title="Vyplaceno partnerovi">💸${st.paid||0}</span></td>
     <td><strong>${st.owed_czk||0} Kč</strong></td>
-    <td onclick="event.stopPropagation()"><button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="deletePartner('${p.id}','${esc(p.name)}')">✕</button></td>
+    <td onclick="event.stopPropagation()"><button class="btn btn-secondary" style="padding:4px 10px;font-size:11px;margin-right:4px" onclick="editPartner('${p.id}')">✏️</button><button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="deletePartner('${p.id}','${esc(p.name)}')">✕</button></td>
   </tr>
   <tr id="pcomm-${p.id}" style="display:none;cursor:pointer" onclick="togglePartner('${p.id}')" title="Kliknutím sbalíte"><td colspan="6" style="padding:0;background:rgba(128,128,128,.1)">
     <div style="padding:10px 16px 14px">
@@ -2432,6 +2432,27 @@ function renderPartners(){
   </td></tr>`;
   }).join('');
 }
+// Úprava partnera — hlavně kvůli změně referral kódu. Starý kód se na serveru
+// automaticky uloží jako alias, takže dřív rozeslané odkazy fungují dál.
+async function editPartner(pid){
+  const p=_partners.find(x=>x.id===pid); if(!p){toast('Partner nenalezen','err');return;}
+  const name=prompt('Jméno partnera:', p.name||''); if(name===null)return;
+  let suggested='';
+  try{ suggested=(await (await fetch(API+'/api/partners/suggest-code')).json()).code||''; }catch(e){}
+  const ref=prompt('Referral kód (jen písmena a číslice).\n\nStarý kód zůstane funkční jako alias — už rozeslané odkazy budou dál\npřipisovat provizi tomuto partnerovi.'+(suggested?'\n\nNeutrální návrh bez jména: '+suggested:''), p.referral_code||'');
+  if(ref===null)return;
+  const email=prompt('E-mail:', p.email||''); if(email===null)return;
+  const body={name:name.trim(), referral_code:ref.trim(), email:email.trim()||null,
+    ico:p.ico||null, active:p.active!==false, note:p.note||null, contract_end:p.contract_end||null};
+  try{
+    const r=await fetch(API+'/api/partners/'+pid,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error((await r.json().catch(()=>({}))).detail||('HTTP '+r.status));
+    toast('✅ Partner upraven');
+    addLog('ok','Partner '+name+' upraven (kód '+ref.trim().toUpperCase()+')','partners');
+    await loadPartners(); renderPartners();
+  }catch(e){toast('Chyba: '+e.message,'err');}
+}
+
 async function showPartnerReport(pid){
   const month=prompt('Měsíc reportu (RRRR-MM):', new Date().toISOString().slice(0,7));
   if(month===null)return;
@@ -2448,6 +2469,7 @@ async function showPartnerReport(pid){
       <style>body{font-family:sans-serif;max-width:760px;margin:32px auto;color:#0c1b33}h1{font-size:20px}h3{margin-top:24px;font-size:14px}table{width:100%;border-collapse:collapse;font-size:13px}td,th{border:1px solid #dbe3f0;padding:6px 10px;text-align:left}strong.big{font-size:18px}@media print{button{display:none}}</style></head><body>
       <h1>Měsíční přehled partnera — ${esc(d.partner.name)} (${esc(d.partner.referral_code)})</h1>
       <div>Období: <b>${d.month}</b>${d.partner.contract_end?' · smlouva ukončena '+esc(d.partner.contract_end)+' (doběh 6 měs.)':''}</div>
+      <div style="margin-top:6px">Otevření referral odkazu za měsíc: <b>${d.link_opens||0}</b> <span style="color:#6a7d9e;font-size:12px">(bez robotů a náhledů odkazů)</span></div>${(d.partner.referral_aliases&&d.partner.referral_aliases.length)?'<div style="color:#6a7d9e;font-size:12px;margin-top:4px">Dřívější kódy, které stále fungují: '+d.partner.referral_aliases.map(esc).join(', ')+'</div>':''}
       <h3>Přivedené hotely</h3><table><tr><th>Hotel</th><th>Získán</th><th>Stav</th><th>Platba v měsíci</th></tr>${rows}</table>
       <h3>Provize za ${d.month}</h3><table><tr><th>Hotel</th><th>Období</th><th>Částka</th><th>Stav</th></tr>${crows}</table>
       <p><strong class="big">Celkem provize: ${d.commission_total_czk} Kč</strong></p>

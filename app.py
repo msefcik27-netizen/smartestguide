@@ -5518,7 +5518,8 @@ def _render_landing(lang: str = "en") -> str:
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("/landing", response_class=HTMLResponse)
-def serve_landing():
+def serve_landing(request: Request):
+    _log_ref_hit(request, request.query_params.get("ref", ""))
     return _render_landing("en")
 
 
@@ -5529,6 +5530,7 @@ def serve_landing():
 @app.get("/zh", response_class=HTMLResponse)
 @app.get("/ja", response_class=HTMLResponse)
 def serve_landing_lang(request: Request):
+    _log_ref_hit(request, request.query_params.get("ref", ""))
     return _render_landing(request.url.path.strip("/").lower())
 
 
@@ -7927,14 +7929,114 @@ class PartnerRequest(BaseModel):
     note: Optional[str] = None
     contract_end: Optional[str] = None   # ISO datum ukončení smlouvy — provize běží ještě 6 měsíců (doběh)
 
+def _partner_refs(p: dict) -> list:
+    """Všechny kódy, kterými partnera lze trefit: aktuální + všechny dřívější (aliasy)."""
+    out = [_norm_ref(p.get("referral_code", ""))]
+    out += [_norm_ref(a) for a in (p.get("referral_aliases") or [])]
+    return [r for r in out if r]
+
+
 def _partner_by_ref(db: dict, ref: str):
+    """Najde partnera podle kódu. Uznává i STARÉ kódy (aliasy) — když si partner nechá
+    kód přejmenovat (např. aby v odkazu nebylo jeho jméno), dřív rozeslané odkazy
+    musí dál připisovat provizi jemu. Jinak by přejmenování tiše zabilo atribuci."""
     ref = _norm_ref(ref)
     if not ref:
         return None
     for p in db.get("partners", {}).values():
-        if _norm_ref(p.get("referral_code", "")) == ref and p.get("active", True):
+        if ref in _partner_refs(p) and p.get("active", True):
             return p
     return None
+
+
+# ── Otevření referral odkazu ────────────────────────────────────────────
+# Do 9. 9. 2026 se nesledovalo vůbec nic — vědělo se jen, který hotel se nakonec
+# zaregistroval. Partner tak neměl jak zjistit, jestli jeho odkaz vůbec někdo otevřel.
+_REF_BOT_RE = re.compile(
+    r"bot|crawl|spider|slurp|preview|facebookexternalhit|linkedinbot|slackbot|whatsapp|"
+    r"telegram|discord|embedly|quora|pinterest|python-requests|curl|wget|headless|lighthouse",
+    re.I)
+
+
+def _log_ref_hit(request, ref: str):
+    """Zapíše otevření odkazu s ?ref=. Roboty a náhledy odkazů ignoruje — jinak by
+    každé sdílení na LinkedIn samo o sobě vyrobilo několik 'návštěv'."""
+    code = _norm_ref(ref)
+    if not code:
+        return
+    try:
+        ua = (request.headers.get("user-agent") or "")
+        if not ua or _REF_BOT_RE.search(ua):
+            return
+        db = db_load()
+        if not _partner_by_ref(db, code):
+            return                      # neznámý kód nezakládáme, ať se DB neplní šumem
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        rec = db.setdefault("ref_hits", {}).setdefault(
+            code, {"total": 0, "days": {}, "first": "", "last": ""})
+        rec["total"] = int(rec.get("total", 0)) + 1
+        rec["days"][today] = int(rec["days"].get(today, 0)) + 1
+        if not rec.get("first"):
+            rec["first"] = today
+        rec["last"] = today
+        if len(rec["days"]) > 120:      # držíme jen posledních ~4 měsíce po dnech
+            for k in sorted(rec["days"])[:-120]:
+                rec["days"].pop(k, None)
+        db_save(db)
+    except Exception as e:
+        logging.warning("Zápis otevření referral odkazu selhal (%s): %s", code, e)
+
+
+def _ref_hits_for(db: dict, p: dict) -> dict:
+    """Součet otevření přes VŠECHNY kódy partnera (aktuální i staré) — jinak by
+    přejmenováním kódu partnerovi opticky zmizela dosavadní historie."""
+    hits = db.get("ref_hits", {}) or {}
+    total = 0
+    d30 = 0
+    last = ""
+    _from = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%d")
+    for code in _partner_refs(p):
+        rec = hits.get(code) or {}
+        total += int(rec.get("total", 0) or 0)
+        for day, n in (rec.get("days") or {}).items():
+            if day >= _from:
+                d30 += int(n or 0)
+        if (rec.get("last") or "") > last:
+            last = rec.get("last") or ""
+    return {"total": total, "last30": d30, "last": last}
+
+def _partner_link(code: str) -> str:
+    """Partnerský odkaz má VŽDY stejný tvar: veřejná doména + krátká cesta.
+    Dřív se bral podle toho, kde měl admin zrovna otevřené okno, takže partnerům
+    odcházely odkazy na app.smartestguide.com i s nadbytečným /landing (9. 9. 2026)."""
+    return f"{_SEO_BASE}/?ref={_norm_ref(code)}"
+
+
+def _ref_taken_by_other(partners: dict, ref: str, skip_id: str = "") -> bool:
+    """Kód nesmí kolidovat ani se STARÝM kódem jiného partnera — jinak by se
+    dřívější odkazy začaly připisovat někomu jinému."""
+    ref = _norm_ref(ref)
+    for pid, p in partners.items():
+        if pid == skip_id:
+            continue
+        if ref in _partner_refs(p):
+            return True
+    return False
+
+
+@app.get("/api/partners/suggest-code")
+def suggest_partner_code():
+    """Neutrální kód bez jména — pro partnery, kterým vadí, že mají jméno v odkazu,
+    který koluje po e-mailech a sítích."""
+    db = db_load()
+    partners = db.get("partners", {}) or {}
+    import random as _rnd
+    for _ in range(200):
+        cand = "SG" + str(_rnd.randint(1000, 9999))
+        if not _ref_taken_by_other(partners, cand):
+            return {"status": "ok", "code": cand}
+    return {"status": "ok", "code": "SG" + uuid.uuid4().hex[:6].upper()}
+
 
 @app.get("/api/partners")
 def list_partners():
@@ -7948,7 +8050,11 @@ def list_partners():
         _revenue = sum(i.get("amount_total", i.get("amount_eur", 0)) or 0
                        for i in db.get("invoices", {}).values()
                        if i.get("hotel_id") in _phids and i.get("status") == "paid")
+        _hits = _ref_hits_for(db, p)
+        p["_aliases"] = [a for a in _partner_refs(p)[1:]]
+        p["_link"] = _partner_link(p.get("referral_code", ""))
         p["_stats"] = {
+            "hits_total": _hits["total"], "hits_30d": _hits["last30"], "hits_last": _hits["last"],
             "hotels": len(_phids),
             "revenue_eur": round(_revenue, 2),
             "pending": sum(1 for c in pc if c.get("status") == "pending"),
@@ -7966,7 +8072,7 @@ def create_partner(req: PartnerRequest):
     if not ref:
         raise HTTPException(400, "Referral kód je povinný")
     for p in partners.values():
-        if _norm_ref(p.get("referral_code", "")) == ref:
+        if ref in _partner_refs(p):
             raise HTTPException(409, f"Referral kód {ref} už existuje")
     pid = str(uuid.uuid4())
     partner = {
@@ -7989,10 +8095,17 @@ def update_partner(partner_id: str, req: PartnerRequest):
     ref = _norm_ref(req.referral_code)
     if not ref:
         raise HTTPException(400, "Referral kód je povinný")
-    for pid2, p in partners.items():
-        if pid2 != partner_id and _norm_ref(p.get("referral_code", "")) == ref:
-            raise HTTPException(409, f"Referral kód {ref} už existuje")
+    if _ref_taken_by_other(partners, ref, skip_id=partner_id):
+        raise HTTPException(409, f"Referral kód {ref} už používá jiný partner (nebo ho měl dřív)")
     p = partners[partner_id]
+    # Změna kódu: starý si necháme jako alias, aby už rozeslané odkazy dál fungovaly
+    # a připisovaly provizi témuž partnerovi (9. 9. 2026).
+    _old = _norm_ref(p.get("referral_code", ""))
+    if _old and _old != ref:
+        _al = [_norm_ref(a) for a in (p.get("referral_aliases") or [])]
+        if _old not in _al:
+            _al.append(_old)
+        p["referral_aliases"] = [a for a in _al if a and a != ref][:20]
     p.update({
         "name": req.name, "email": (req.email or "").strip(), "referral_code": ref,
         "ico": (req.ico or "").strip(),
@@ -8019,8 +8132,7 @@ def partner_qr(partner_id: str, request: Request):
     p = db.get("partners", {}).get(partner_id)
     if not p:
         raise HTTPException(404, "Partner nenalezen")
-    base = get_base_url(request)
-    url = f"{base}/landing?ref={p.get('referral_code','')}"
+    url = _partner_link(p.get("referral_code", ""))
     png = _generate_qr_png_branded(url, size=600)
     return Response(content=png, media_type="image/png",
                     headers={"Content-Disposition": f'inline; filename="qr-{p.get("referral_code","partner")}.png"'})
@@ -8034,7 +8146,7 @@ def partner_qr_poster(partner_id: str, request: Request):
         raise HTTPException(404, "Partner nenalezen")
     base = get_base_url(request)
     ref = p.get("referral_code", "")
-    url = f"{base}/landing?ref={ref}"
+    url = _partner_link(ref)
     html = f"""<!DOCTYPE html><html><head><meta charset="utf-8">
 <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg"/>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
@@ -8105,10 +8217,17 @@ def partner_monthly_report(partner_id: str, month: str = ""):
                   if (h.get("acquired_by") in (None, "", "auto"))
                   and str(h.get("created_at", ""))[:7] == month
                   and (h.get("source") or "").lower() in ("linkedin", "social")]
+    # Otevření referral odkazu za daný měsíc — přes všechny kódy partnera (i staré)
+    _hits_month = 0
+    for _code in _partner_refs(p):
+        for _day, _n in ((db.get("ref_hits", {}).get(_code) or {}).get("days") or {}).items():
+            if _day[:7] == month:
+                _hits_month += int(_n or 0)
     return {"status": "ok", "partner": {"id": partner_id, "name": p.get("name", ""),
                                         "referral_code": p.get("referral_code", ""),
+                                        "referral_aliases": [a for a in _partner_refs(p)[1:]],
                                         "contract_end": p.get("contract_end", "")},
-            "month": month, "hotels": rows,
+            "month": month, "hotels": rows, "link_opens": _hits_month,
             "commissions": sorted(month_comms, key=lambda c: c.get("created_at", "")),
             "commission_total_czk": round(sum(c.get("amount", 0) for c in month_comms), 2),
             "attribution_candidates": candidates}
