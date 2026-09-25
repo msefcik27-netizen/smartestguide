@@ -6639,6 +6639,153 @@ def _cz_numbers_for_speech(text: str) -> str:
     return _CZ_NUM_RE.sub(_rep, text)
 
 
+# ─────────────────────────────────────────────
+# SLOVENŠTINA A POLŠTINA (25. 9. 2026) — tatáž vada jako v češtině. Ověřeno na produkci:
+#   sk: „na 2. poschodí"   → hlas řekl „na druhej poschodí"    (správně „na druhom")
+#   pl: „z 4 gwiazdkami"   → hlas řekl „z czterech gwiazdkami" (správně „z czterema")
+#   ru: „с 4 звёздами"     → hlas řekl „с четырёх звёздами"    (správně „с четырьмя")
+# Germánské a románské jazyky vadu NEMAJÍ — číslovka se v nich nemění (ověřeno en/de/es).
+#
+# Struktura je stejná jako u češtiny, ale mechanicky se přenést NEDÁ:
+#   • v sk/pl se skloňují i číslovky od 5 výš (čeština má jeden tvar „pěti" pro vše),
+#   • polské „z" je DVOJZNAČNÉ (2. i 7. pád) — proto ho bereme jen tehdy, když pád
+#     prozradí koncovka následujícího jména („-ami"/„-mi" = 7. pád). Jinak necháme být.
+#   • ČASY se v sk/pl říkají řadovou číslovkou („od siedmej", „o ôsmej"), ne jako v češtině
+#     („od sedmi") → časů se v těchto jazycích NEDOTÝKÁME, zůstává dnešní chování.
+#   • Ruština a ukrajinština zatím NE: nepravidelné 7. pády desítek (пятьюдесятью…) by se
+#     naslepo netrefily a rodilého mluvčího na kontrolu nemáme.
+# ─────────────────────────────────────────────
+
+_SLAV = {
+    "sk": {
+        # 2/3/4 mají vlastní tvary
+        "obl": {2: {"gen": "dvoch", "dat": "dvom", "loc": "dvoch", "ins": "dvoma"},
+                3: {"gen": "troch", "dat": "trom", "loc": "troch", "ins": "tromi"},
+                4: {"gen": "štyroch", "dat": "štyrom", "loc": "štyroch", "ins": "štyrmi"}},
+        # od 5 výš se tvoří pravidelně ze kmene: piat+ich, piat+im, piat+imi
+        "stems": {5: "piat", 6: "šiest", 7: "siedm", 8: "ôsm", 9: "deviat", 10: "desiat",
+                  11: "jedenást", 12: "dvanást", 13: "trinást", 14: "štrnást", 15: "pätnást",
+                  16: "šestnást", 17: "sedemnást", 18: "osemnást", 19: "devätnást",
+                  20: "dvadsiat", 30: "tridsiat", 40: "štyridsiat", 50: "päťdesiat",
+                  60: "šesťdesiat", 70: "sedemdesiat", 80: "osemdesiat", 90: "deväťdesiat"},
+        "ends": {"gen": "ich", "dat": "im", "loc": "ich", "ins": "imi"},
+        "prep": {"od": "gen", "do": "gen", "bez": "gen", "u": "gen", "z": "gen", "zo": "gen",
+                 "okolo": "gen", "podľa": "gen", "počas": "gen", "vedľa": "gen",
+                 "k": "dat", "ku": "dat", "vďaka": "dat", "proti": "dat", "kvôli": "dat",
+                 "v": "loc", "vo": "loc", "pri": "loc",
+                 "s": "ins", "so": "ins", "medzi": "ins", "nad": "ins", "pod": "ins",
+                 "pred": "ins"},
+        # Slovenština vokalizuje na -o, ne na -e jako čeština: so/zo/vo, a k→ku
+        "vocal": {"s": "so", "z": "zo", "v": "vo", "k": "ku"},
+        "amb": (),              # žádná dvojznačná předložka
+    },
+    "pl": {
+        "obl": {2: {"gen": "dwóch", "dat": "dwóm", "loc": "dwóch", "ins": "dwoma"},
+                3: {"gen": "trzech", "dat": "trzem", "loc": "trzech", "ins": "trzema"},
+                4: {"gen": "czterech", "dat": "czterem", "loc": "czterech", "ins": "czterema"}},
+        "stems": {5: "pięci", 6: "sześci", 7: "siedmi", 8: "ośmi", 9: "dziewięci",
+                  10: "dziesięci", 11: "jedenast", 12: "dwunast", 13: "trzynast",
+                  14: "czternast", 15: "piętnast", 16: "szesnast", 17: "siedemnast",
+                  18: "osiemnast", 19: "dziewiętnast", 20: "dwudziest", 30: "trzydziest",
+                  40: "czterdziest", 50: "pięćdziesięci", 60: "sześćdziesięci",
+                  70: "siedemdziesięci", 80: "osiemdziesięci", 90: "dziewięćdziesięci"},
+        "ends": {"gen": "u", "dat": "u", "loc": "u", "ins": "oma"},
+        "prep": {"od": "gen", "do": "gen", "bez": "gen", "u": "gen", "według": "gen",
+                 "obok": "gen", "koło": "gen", "podczas": "gen",
+                 "ku": "dat", "dzięki": "dat", "przeciw": "dat",
+                 "w": "loc", "we": "loc", "przy": "loc",
+                 "przed": "ins", "nad": "ins", "pod": "ins", "między": "ins",
+                 "z": "ins", "ze": "ins"},
+        "vocal": None,          # „z dwoma", „w dwóch" — předložka se před číslovkou nemění
+        "amb": ("z", "ze"),     # 2. i 7. pád → bereme jen při jasné koncovce jména
+    },
+}
+
+# Řadové číslovky u pater — jen slovenština („poschodie" je stejně jako české „patro"
+# střední rod a pád prozradí koncovka). Polština „na 2. piętrze" čte správně sama.
+_SK_ORD = {1: "prv", 2: "druh", 4: "štvrt", 5: "piat", 6: "šiest", 7: "siedm", 8: "ôsm",
+           9: "deviat", 10: "desiat", 11: "jedenást", 12: "dvanást"}
+# Slovenský RYTMICKÝ ZÁKON: po dlouhé slabice se koncovka krátí — „druhého", ale
+# „piateho" (ia je dlouhé), „šiesteho", „ôsmeho", „jedenásteho". Kmeny s dlouhou
+# slabikou proto berou zkrácenou sadu koncovek.
+_SK_ORD_DLOUHE = {"piat", "šiest", "siedm", "ôsm", "deviat", "desiat", "jedenást", "dvanást"}
+_SK_ORD_END = {"gen": "ého", "loc": "om", "ins": "ým", "nom": "é"}
+_SK_ORD_END_KRAT = {"gen": "eho", "loc": "om", "ins": "ym", "nom": "e"}
+_SK_ORD_3 = {"gen": "tretieho", "loc": "treťom", "ins": "tretím", "nom": "tretie"}
+_SK_POSCH_CASE = {"poschodí": "loc", "poschodia": "gen", "poschodím": "ins",
+                  "poschodie": "nom"}
+_SK_POSCH_RE = re.compile(r"\b(\d{1,2})\.\s*(poschodí|poschodia|poschodím|poschodie)\b",
+                          re.IGNORECASE)
+# 7. pád množného čísla se v sk i pl pozná podle koncovky — to je náš záchytný bod
+# u dvojznačných předložek.
+_INS_KONCOVKA_RE = re.compile(r"^[\wáäčďéíĺľňóôŕšťúýžąćęłńóśźż]+(ami|mi)$", re.IGNORECASE)
+
+
+def _slav_num_oblique(lang: str, n: int, case: str) -> str:
+    cfg = _SLAV[lang]
+    if n < 2 or n > 99:
+        return ""
+    if n in cfg["obl"]:
+        return cfg["obl"][n][case]
+    if n in cfg["stems"]:
+        return cfg["stems"][n] + cfg["ends"][case]
+    tens, unit = divmod(n, 10)
+    if unit in (0, 1):      # 21/31… závisí na rodu, nehádáme
+        return ""
+    return (cfg["stems"][tens * 10] + cfg["ends"][case] + " "
+            + _slav_num_oblique(lang, unit, case))
+
+
+def _slav_numbers_for_speech(lang: str, text: str) -> str:
+    """Pád číslovek podle předložky pro sk/pl. Časů se nedotýká (viz poznámka výše)."""
+    cfg = _SLAV.get(lang)
+    if not cfg:
+        return text
+    preps = sorted(cfg["prep"], key=len, reverse=True)
+    rx = re.compile(r"\b(" + "|".join(re.escape(p) for p in preps) + r")\s+(\d{1,2})"
+                    r"(?![\d:])(?!,\d)(?!\.\s*\w)(?!\s\d)", re.IGNORECASE)
+
+    def _rep(m):
+        prep, num = m.group(1), int(m.group(2))
+        # Dvojznačná předložka („z") — vezmeme ji jen tehdy, když následující jméno
+        # samo prozradí 7. pád koncovkou -ami/-mi. Jinak raději necháme číslici.
+        if prep.lower() in cfg["amb"]:
+            dalsi = (m.string[m.end():].strip().split(" ") or [""])[0].strip(".,;:!?")
+            if not _INS_KONCOVKA_RE.match(dalsi or ""):
+                return m.group(0)
+        word = _slav_num_oblique(lang, num, cfg["prep"][prep.lower()])
+        if not word:
+            return m.group(0)
+        out = prep.lower()
+        vocal = cfg["vocal"]
+        if vocal and out in vocal:
+            w = word.lower()
+            cluster = len(w) >= 2 and w[0] not in _CZ_VOWELS and w[1] not in _CZ_VOWELS
+            if cluster or w[0] in ("sšzž" if out in "sz" else ("v" if out == "v" else "kg")):
+                out = vocal[out]
+        if prep[0].isupper():
+            out = out.capitalize()
+        return out + " " + word
+
+    text = rx.sub(_rep, text)
+
+    if lang == "sk":
+        def _posch(m):
+            n, jmeno = int(m.group(1)), m.group(2)
+            case = _SK_POSCH_CASE[jmeno.lower()]
+            if n == 3:
+                w = _SK_ORD_3[case]
+            elif n in _SK_ORD:
+                stem = _SK_ORD[n]
+                konc = _SK_ORD_END_KRAT if stem in _SK_ORD_DLOUHE else _SK_ORD_END
+                w = stem + konc[case]
+            else:
+                return m.group(0)
+            return f"{w} {jmeno}"
+        text = _SK_POSCH_RE.sub(_posch, text)
+    return text
+
+
 class GuestTTSRequest(BaseModel):
     text: str
     language: Optional[str] = None  # informativní; hlas je vícejazyčný
@@ -6663,8 +6810,11 @@ async def guest_tts(req: GuestTTSRequest, request: Request):
     # Čeština jde PRVNÍ — potřebuje ještě vidět „23:00" jako čas, aby z toho udělala
     # „do dvaceti tří hodin". Co si vezme, to už níž nezbyde; zbytek (ostatní jazyky)
     # dořeší obecné zjednodušení celých hodin beze změny chování.
-    if (req.language or "").strip().lower().startswith("cs"):
+    _lang2 = (req.language or "").strip().lower()[:2]
+    if _lang2 == "cs":
         text = _cz_numbers_for_speech(text)
+    elif _lang2 in _SLAV:
+        text = _slav_numbers_for_speech(_lang2, text)
     text = _re2.sub(r"\b0?(\d{1,2}):00\b", r"\1", text)
     _ek = _eleven_key()   # Railway proměnná, jinak klíč uložený v Nastavení administrace
 
