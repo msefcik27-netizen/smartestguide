@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Výběr hlasu Alex — SMARTEST GUIDE</title>
+<link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; }
+  img { max-width: 100%; }
+  :root {
+    color-scheme: light;
+    --ground: #f5f8fc;
+    --card: #ffffff;
+    --card-soft: #eef3fa;
+    --ink: #10203a;
+    --muted: #5a6b87;
+    --line: #dce4f1;
+    --accent: #2c5fae;
+    --accent-soft: #e7eefb;
+    --pick: #0f8f93;
+    --pick-soft: #e2f6f6;
+    --shadow: 0 1px 2px rgba(16, 32, 58, .06);
+    --font-d: 'Sora', 'Segoe UI', system-ui, sans-serif;
+    --font-b: 'Manrope', 'Segoe UI', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #0c1421;
+      --card: #141e2f;
+      --card-soft: #1a2639;
+      --ink: #e8eef8;
+      --muted: #97a8c2;
+      --line: #25334c;
+      --accent: #7aa7e8;
+      --accent-soft: #1b2a44;
+      --pick: #4fd3d6;
+      --pick-soft: #14322f;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .35);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #0c1421;
+    --card: #141e2f;
+    --card-soft: #1a2639;
+    --ink: #e8eef8;
+    --muted: #97a8c2;
+    --line: #25334c;
+    --accent: #7aa7e8;
+    --accent-soft: #1b2a44;
+    --pick: #4fd3d6;
+    --pick-soft: #14322f;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .35);
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-b);
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  .wrap {
+    max-width: 660px;
+    margin: 0 auto;
+    padding-inline: 20px;
+    padding-block: 40px 56px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: 1.6px;
+    text-transform: uppercase; color: var(--accent);
+  }
+  h1 {
+    font-family: var(--font-d); font-weight: 700;
+    font-size: clamp(26px, 5vw, 34px); line-height: 1.15;
+    text-wrap: balance; margin: 0;
+  }
+  .lede { color: var(--muted); max-width: 54ch; }
+
+  .veta {
+    background: var(--card-soft);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 10px 10px 0;
+    padding: 16px 18px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .veta .stitek {
+    font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .veta p { margin: 0; font-size: 15px; }
+
+  .postup { display: flex; flex-direction: column; gap: 8px; }
+  .postup h2 {
+    font-family: var(--font-d); font-size: 17px; font-weight: 600; margin: 0;
+  }
+  .postup ol { margin: 0; padding-left: 20px; color: var(--muted); font-size: 15px; }
+  .postup li { margin-block: 3px; }
+
+  .varianty { display: flex; flex-direction: column; gap: 12px; }
+
+  .varianta {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 14px;
+    align-items: center;
+  }
+  .varianta[data-vybrano="1"] {
+    border-color: var(--pick);
+    background: var(--pick-soft);
+  }
+  .pismeno {
+    font-family: var(--font-d); font-weight: 700; font-size: 22px;
+    width: 44px; height: 44px; border-radius: 10px;
+    display: grid; place-items: center;
+    background: var(--accent-soft); color: var(--accent);
+  }
+  .varianta[data-vybrano="1"] .pismeno { background: var(--pick); color: #06231f; }
+  .telo { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  audio { width: 100%; }
+  .volba {
+    font-family: var(--font-b); font-size: 14px; font-weight: 600;
+    background: transparent; color: var(--accent);
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 14px; cursor: pointer; align-self: flex-start;
+  }
+  .volba:hover { border-color: var(--accent); }
+  .volba:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .varianta[data-vybrano="1"] .volba {
+    background: var(--pick); color: #06231f; border-color: var(--pick);
+  }
+
+  .vysledek {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 18px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .vysledek h2 { font-family: var(--font-d); font-size: 17px; font-weight: 600; margin: 0; }
+  .vysledek p { margin: 0; color: var(--muted); font-size: 15px; }
+  .vzkaz {
+    font-family: var(--font-b); font-size: 15px; font-weight: 600;
+    background: var(--card-soft); border: 1px solid var(--line);
+    border-radius: 8px; padding: 12px 14px; color: var(--ink);
+  }
+  .radek { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .kopirovat {
+    font-family: var(--font-b); font-size: 14px; font-weight: 600;
+    background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+    padding: 9px 16px; cursor: pointer;
+  }
+  .kopirovat:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .stav { font-size: 14px; color: var(--muted); }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: 18px;
+    color: var(--muted);
+    font-size: 13px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="eyebrow">SMARTEST GUIDE &middot; poslechový test</span>
+    <h1>Jak má znít Alex?</h1>
+    <p class="lede">Alex je hlasová AI concierge, která odpovídá hostům hotelu. Vybíráme, jak má znít.
+      Všech šest nahrávek je <strong>stejný hlas a stejná věta</strong> &mdash; liší se jen tempo
+      a nastavení projevu.</p>
+  </header>
+
+  <div class="veta">
+    <span class="stitek">Věta, kterou čte všech šest</span>
+    <p>„Dobrý den, vítejte v hotelu Concertino. Snídaně se podává od sedmi do deseti hodin
+      v restauraci v přízemí a apartmá najdete ve druhém patře.“</p>
+  </div>
+
+  <section class="postup">
+    <h2>Jak na to</h2>
+    <ol>
+      <li>Poslechněte si všech šest, ideálně na sluchátkách a víckrát za sebou.</li>
+      <li>Ptejte se sami sebe: <em>komu bych tohle pustil do hotelu?</em> Sledujte tempo, důraz a jestli to nezní uspěchaně nebo ploše.</li>
+      <li>Vyberte jednu. Záměrně nevíte, která je ta současná &mdash; ať vás to neovlivní.</li>
+    </ol>
+  </section>
+
+  <section class="varianty" id="varianty">
+    <article class="varianta" data-pismeno="A">
+      <span class="pismeno">A</span>
+      <div class="telo">
+        <audio controls preload="none" src="hlas/hlas-a.mp3"></audio>
+        <button class="volba" type="button">Vybrat A</button>
+      </div>
+    </article>
+    <article class="varianta" data-pismeno="B">
+      <span class="pismeno">B</span>
+      <div class="telo">
+        <audio controls preload="none" src="hlas/hlas-b.mp3"></audio>
+        <button class="volba" type="button">Vybrat B</button>
+      </div>
+    </article>
+    <article class="varianta" data-pismeno="C">
+      <span class="pismeno">C</span>
+      <div class="telo">
+        <audio controls preload="none" src="hlas/hlas-c.mp3"></audio>
+        <button class="volba" type="button">Vybrat C</button>
+      </div>
+    </article>
+    <article class="varianta" data-pismeno="D">
+      <span class="pismeno">D</span>
+      <div class="telo">
+        <audio controls preload="none" src="hlas/hlas-d.mp3"></audio>
+        <button class="volba" type="button">Vybrat D</button>
+      </div>
+    </article>
+    <article class="varianta" data-pismeno="E">
+      <span class="pismeno">E</span>
+      <div class="telo">
+        <audio controls preload="none" src="hlas/hlas-e.mp3"></audio>
+        <button class="volba" type="button">Vybrat E</button>
+      </div>
+    </article>
+    <article class="varianta" data-pismeno="F">
+      <span class="pismeno">F</span>
+      <div class="telo">
+        <audio controls preload="none" src="hlas/hlas-f.mp3"></audio>
+        <button class="volba" type="button">Vybrat F</button>
+      </div>
+    </article>
+  </section>
+
+  <section class="vysledek">
+    <h2>Vaše volba</h2>
+    <p id="popis">Zatím jste nevybrali. Klikněte u nahrávky na tlačítko Vybrat.</p>
+    <div class="vzkaz" id="vzkaz" hidden></div>
+    <div class="radek">
+      <button class="kopirovat" id="kopirovat" type="button" hidden>Zkopírovat vzkaz</button>
+      <span class="stav" id="stav"></span>
+    </div>
+    <p>Volba se nikam neodesílá &mdash; pošlete Martinovi to písmeno, jak jste zvyklí.
+      Klidně připište, co vám na ostatních vadilo, to je často cennější než samotný výběr.</p>
+  </section>
+
+  <footer>
+    <span>Nahrávky vznikly 25. 9. 2026, hlas „Sarah“ (ElevenLabs), model eleven_multilingual_v2.</span>
+    <span>Text je u všech šesti stejný, takže rozdíl, který slyšíte, dělá výhradně nastavení hlasu — hlavně tempo.</span>
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var KLIC = 'sg-vyber-hlasu';
+    var varianty = document.getElementById('varianty');
+    var popis = document.getElementById('popis');
+    var vzkaz = document.getElementById('vzkaz');
+    var tlacitko = document.getElementById('kopirovat');
+    var stav = document.getElementById('stav');
+
+    function vykresli(pismeno) {
+      var karty = varianty.querySelectorAll('.varianta');
+      for (var i = 0; i < karty.length; i++) {
+        var je = karty[i].getAttribute('data-pismeno') === pismeno;
+        if (je) { karty[i].setAttribute('data-vybrano', '1'); }
+        else { karty[i].removeAttribute('data-vybrano'); }
+        var b = karty[i].querySelector('.volba');
+        var p = karty[i].getAttribute('data-pismeno');
+        b.textContent = je ? ('Vybráno: ' + p) : ('Vybrat ' + p);
+      }
+      if (!pismeno) { return; }
+      popis.textContent = 'Vybrali jste variantu ' + pismeno + '. Můžete ji kdykoli změnit.';
+      vzkaz.textContent = 'Z poslechového testu hlasu Alex vybírám variantu ' + pismeno + '.';
+      vzkaz.hidden = false;
+      tlacitko.hidden = false;
+    }
+
+    varianty.addEventListener('click', function (e) {
+      var b = e.target.closest('.volba');
+      if (!b) { return; }
+      var pismeno = b.closest('.varianta').getAttribute('data-pismeno');
+      try { localStorage.setItem(KLIC, pismeno); } catch (err) { /* soukromé okno */ }
+      stav.textContent = '';
+      vykresli(pismeno);
+    });
+
+    tlacitko.addEventListener('click', function () {
+      var text = vzkaz.textContent;
+      function oznac() {
+        var r = document.createRange();
+        r.selectNodeContents(vzkaz);
+        var s = window.getSelection();
+        s.removeAllRanges();
+        s.addRange(r);
+        stav.textContent = 'Vzkaz je označený — zkopírujte ho klávesami.';
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () {
+          stav.textContent = 'Zkopírováno.';
+        }).catch(oznac);
+      } else { oznac(); }
+    });
+
+    var ulozene = null;
+    try { ulozene = localStorage.getItem(KLIC); } catch (err) { ulozene = null; }
+    vykresli(ulozene);
+  })();
+</script>
+</body>
+</html>
