@@ -2367,6 +2367,25 @@ def purge_test_hotels(request: Request):
 # ─────────────────────────────────────────────
 # Helper – detekce base URL (lokál i Railway)
 # ─────────────────────────────────────────────
+def _fname_ascii(*parts) -> str:
+    """Název souboru do hlavičky Content-Disposition — bez diakritiky a mezer.
+    V HTTP hlavičce musí být čistě ASCII, jinak si ho prohlížeče přeloží po svém."""
+    import unicodedata as _ud
+    txt = "-".join(str(p).strip() for p in parts if str(p or "").strip())
+    txt = _ud.normalize("NFKD", txt).encode("ascii", "ignore").decode("ascii")
+    txt = re.sub(r"[^A-Za-z0-9._-]+", "-", txt).strip("-")
+    return (txt or "smartest-guide")[:100]
+
+
+def _print_title(*parts) -> str:
+    """Titulek tiskové stránky = název souboru, který prohlížeč nabídne při „Uložit jako PDF".
+    Bez něj si Chrome jméno poskládá z URL (app.smartestguide.com_api_partners_15eb063d….pdf),
+    což je u tiskovin posílaných partnerům a hotelům nepoužitelné (9. 9. 2026)."""
+    txt = " - ".join(str(p).strip() for p in parts if str(p or "").strip())
+    txt = re.sub(r'[\\/:*?"<>|]', "-", txt)      # znaky, které Windows v názvu souboru nebere
+    return re.sub(r"\s+", " ", txt).strip()[:120]
+
+
 def get_base_url(request: Request) -> str:
     base_url_env = os.getenv("BASE_URL", "").strip().rstrip("/")
     if base_url_env:
@@ -2781,6 +2800,7 @@ def room_qr_cards(hotel_id: str, request: Request, rooms: str = ""):
       <div class="csg" translate="no"><img src="/static/img/logo-inverse.svg" alt=""/>SmartestGuide</div>
     </div>""" for r in room_list)
     html = f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>{_print_title("SMARTEST GUIDE", "kartičky do pokojů", hotel_name)}</title>
 <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg"/>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
@@ -2840,6 +2860,7 @@ def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark") -> s
     _tt = "dark" if light else "light"
     _tl = "🌙 Tmavá verze" if light else "☀️ Světlá (šetří inkoust)"
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>{_print_title("SMARTEST GUIDE", "QR plakát", hotel_name)}</title>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:32px;font-family:'Manrope',sans-serif}}
@@ -3049,6 +3070,7 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
     feats_html = "".join('<div style="display:flex;gap:12px;align-items:center;font-size:16px;color:' + c_feat + '">' + check + feat + '</div>' for feat in features)
 
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>{_print_title("SMARTEST GUIDE", "leták " + str(size).upper(), hotel_name)}</title>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
@@ -3104,6 +3126,7 @@ def _render_rollup(hotel_name: str, guest_url: str, theme: str = "dark") -> str:
     _tl = "🌙 Tmavá verze" if light else "☀️ Světlá (šetří inkoust)"
 
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>{_print_title("SMARTEST GUIDE", "roll-up", hotel_name)}</title>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>*{{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
@@ -5164,10 +5187,7 @@ def download_flyer(hotel_id: str, request: Request):
         raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
     pdf_bytes = generate_flyer_pdf(hotel, base)
-    raw_name = hotel.get("name","hotel")
-    safe_name = unicodedata.normalize("NFKD", raw_name).encode("ascii","ignore").decode("ascii")
-    safe_name = re.sub(r"[^a-zA-Z0-9-]", "-", safe_name).strip("-") or "hotel"
-    fname = "letak-" + safe_name + ".pdf"
+    fname = _fname_ascii("SMARTEST-GUIDE-letak", hotel.get("name", "hotel")) + ".pdf"
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
@@ -6456,6 +6476,169 @@ _TTS_INSTRUCTIONS = os.getenv(
 )
 _TTS_MAX_CHARS = 700  # bezpečnostní strop; frontend beztak čte jen krátké odpovědi (~600)
 
+# ─────────────────────────────────────────────
+# Výslovnost českých číslovek (25. 9. 2026 — nález Martina: „výslovnost čísel je divná")
+#
+# ElevenLabs čte číslici VŽDY v 1. pádě: „se 4 hvězdičkami" vysloví „se čtyři
+# hvězdičkami". Ověřeno na produkci proti hotelu Concertino; se stejnou větou
+# napsanou slovy („se čtyřmi") je výslovnost správná.
+#
+# POZOR na slepou uličku: _TTS_INSTRUCTIONS (včetně věty o čtení čísel) platí JEN
+# pro záložní OpenAI hlas. ElevenLabs API žádné instrukce nepřijímá, bere pouze
+# voice_settings — prompt tenhle problém vyřešit nemůže.
+#
+# Řešíme to tedy v TEXTU, a jen tam, kde pád jednoznačně určuje předložka.
+# Mění se pouze to, co jde do hlasu — odpověď zobrazená v chatu zůstává s číslicemi
+# („37 pokojů" se čte očima líp než „třicet sedm pokojů").
+# ─────────────────────────────────────────────
+
+# 2/3/4 mají pro každý pád vlastní tvar; od 5 výš jsou všechny nepřímé pády stejné
+# („s pěti", „od pěti", „ke pěti"), takže stačí jeden tvar.
+_CZ_NUM_OBL = {
+    2: {"gen": "dvou", "dat": "dvěma", "loc": "dvou", "ins": "dvěma"},
+    3: {"gen": "tří", "dat": "třem", "loc": "třech", "ins": "třemi"},
+    4: {"gen": "čtyř", "dat": "čtyřem", "loc": "čtyřech", "ins": "čtyřmi"},
+}
+_CZ_NUM_5_19 = {5: "pěti", 6: "šesti", 7: "sedmi", 8: "osmi", 9: "devíti",
+                10: "deseti", 11: "jedenácti", 12: "dvanácti", 13: "třinácti",
+                14: "čtrnácti", 15: "patnácti", 16: "šestnácti", 17: "sedmnácti",
+                18: "osmnácti", 19: "devatenácti"}
+_CZ_TENS = {2: "dvaceti", 3: "třiceti", 4: "čtyřiceti", 5: "padesáti",
+            6: "šedesáti", 7: "sedmdesáti", 8: "osmdesáti", 9: "devadesáti"}
+
+# Předložka určuje pád. Nejednoznačné schválně VYNECHÁVÁME — u „na 2 noci" (4. p.)
+# vs. „na 2 patrech" (6. p.) nebo „za 2 hodiny" vs. „za 2 domy" se pád z předložky
+# poznat nedá a špatně skloněná číslovka zní hůř než holá číslice.
+_CZ_PREP_CASE = {
+    "od": "gen", "do": "gen", "bez": "gen", "u": "gen", "z": "gen", "ze": "gen",
+    "kolem": "gen", "včetně": "gen", "vedle": "gen", "během": "gen", "podle": "gen",
+    "k": "dat", "ke": "dat", "kvůli": "dat", "díky": "dat", "proti": "dat",
+    "v": "loc", "ve": "loc", "při": "loc",
+    "s": "ins", "se": "ins", "mezi": "ins", "nad": "ins", "pod": "ins", "před": "ins",
+}
+
+# Číslo bereme jen 2–99 a jen když za ním nestojí dvojtečka (čas), desetinná čárka
+# ani další číslice (ceny, telefony — „od 1 250 Kč" se nesmí rozpadnout).
+# Tečka sama o sobě nestačí k vyloučení: „od 7 do 10." na konci věty je normální
+# číslovka, kdežto „ve 2. patře" je řadová (tu ElevenLabs skloňuje správně sám).
+# Rozlišíme je podle toho, co za tečkou následuje — malé písmeno = řadová číslovka.
+_CZ_NUM_RE = re.compile(
+    r"\b(od|do|bez|u|z|ze|kolem|včetně|vedle|během|podle|k|ke|kvůli|díky|proti|"
+    r"v|ve|při|s|se|mezi|nad|pod|před)\s+(\d{1,2})"
+    r"(?![\d:])(?!,\d)(?!\.\s*[a-záčďéěíňóřšťúůýž])(?!\s\d)",
+    re.IGNORECASE)
+
+_CZ_VOWELS = "aáeéěiíoóuúůyý"
+
+# ČAS je zvláštní případ a musí se řešit dřív, než obecný regex zjednoduší „23:00" na
+# „23" (nález Martina 25. 9. 2026 — „to 23 je hodina, mělo by být do 23:00"):
+#   • „do 23:00" → „do dvaceti tří HODIN"; samotné „do dvaceti tří" je useknuté
+#   • po „v" se čas říká ve 4. pádě — „v osm hodin", NIKOLI „v osmi hodin".
+#     Základní tvar čte ElevenLabs správně sám, proto u „v" číslici jen doplníme „hodin".
+# Lookahead na „hodin" brání zdvojení, když ho autor napsal sám („od 7:00 hodin").
+_CZ_TIME_PAIR_RE = re.compile(
+    r"\b(od)\s+0?(\d{1,2}):00\s+do\s+0?(\d{1,2}):00(?!\s*hodin)", re.IGNORECASE)
+_CZ_TIME_PREP_RE = re.compile(r"\b(od|do|kolem)\s+0?(\d{1,2}):00(?!\s*hodin)", re.IGNORECASE)
+_CZ_TIME_V_RE = re.compile(r"\b(v|ve)\s+0?(\d{1,2}):00(?!\s*hodin)", re.IGNORECASE)
+
+# ŘADOVÉ ČÍSLOVKY U PATER (nález Martina 25. 9. 2026: „ve 2. patře" zní „ve druhéj patře").
+# Pozor, dřívější závěr „řadové číslovky hlas zvládá sám" byl MYLNÝ — opíral se o přepis
+# Whisperem, který si nespisovný tvar sám narovnal zpátky na „ve druhém".
+# Rod tu řešit nemusíme (patro = střední) a pád poznáme z koncovky samotného jména,
+# takže není potřeba rozebírat předložku. Jiných řadových číslovek se nedotýkáme —
+# bez rodu následujícího jména („ve 2. řadě" × „ve 2. patře") by se tvar netrefil.
+_CZ_ORD_STEM = {2: "druh", 4: "čtvrt", 5: "pát", 6: "šest", 7: "sedm", 8: "osm",
+                9: "devát", 10: "desát", 11: "jedenáct", 12: "dvanáct", 13: "třináct",
+                14: "čtrnáct", 15: "patnáct", 16: "šestnáct", 17: "sedmnáct",
+                18: "osmnáct", 19: "devatenáct", 20: "dvacát"}
+_CZ_ORD_SOFT = {1: "prvn", 3: "třet"}      # měkké skloňování: prvním, třetího…
+_CZ_ORD_END = {"gen": ("ého", "ího"), "loc": ("ém", "ím"),
+               "ins": ("ým", "ím"), "nom": ("é", "í")}
+_CZ_PATRO_CASE = {"patře": "loc", "patra": "gen", "patrem": "ins", "patro": "nom"}
+_CZ_ORD_PATRO_RE = re.compile(r"\b(\d{1,2})\.\s*(patře|patra|patrem|patro)\b", re.IGNORECASE)
+
+
+def _cz_ordinal(n: int, case: str) -> str:
+    """Řadová číslovka 1–20 v daném pádě, tvar pro střední/mužský neživotný rod."""
+    if n in _CZ_ORD_SOFT:
+        return _CZ_ORD_SOFT[n] + _CZ_ORD_END[case][1]
+    if n in _CZ_ORD_STEM:
+        return _CZ_ORD_STEM[n] + _CZ_ORD_END[case][0]
+    return ""
+
+
+def _cz_num_oblique(n: int, case: str) -> str:
+    """Číslovka 2–99 v daném nepřímém pádě. Prázdný řetězec = nesaháme na to."""
+    if n < 2 or n > 99:
+        return ""
+    if n in _CZ_NUM_OBL:
+        return _CZ_NUM_OBL[n][case]
+    if n in _CZ_NUM_5_19:
+        return _CZ_NUM_5_19[n]
+    tens, unit = divmod(n, 10)
+    if unit == 0:
+        return _CZ_TENS[tens]
+    if unit == 1:
+        return ""          # „s dvaceti jedním/jednou" — tvar závisí na rodu, nehádáme
+    return _CZ_TENS[tens] + " " + _cz_num_oblique(unit, case)
+
+
+def _cz_prep_form(prep: str, word: str) -> str:
+    """Vokalizace předložky před číslovkou: „se čtyřmi", ale „s pěti"; „ve dvou",
+    ale „v šesti". Pravidlo se u „s/z" a „v/k" liší — proto dvě větve."""
+    short = prep.lower()[0]
+    if short not in "szvk":
+        return prep
+    w = word.lower()
+    cluster = len(w) >= 2 and w[0] not in _CZ_VOWELS and w[1] not in _CZ_VOWELS
+    if short in "sz":
+        vocalized = cluster or w[0] in "sšzž"
+    else:
+        vocalized = cluster or w[0] in ("v" if short == "v" else "kg")
+    return short + "e" if vocalized else short
+
+
+def _cz_numbers_for_speech(text: str) -> str:
+    """Doplní číslovkám pád podle předložky, aby je hlas nečetl v 1. pádě.
+    Volá se PŘED zjednodušením celých hodin — časy mají vlastní pravidla (viz výše)."""
+
+    def _pair(m):
+        """„od 7:00 do 10:00" → „od sedmi do deseti hodin" (hodin jen jednou, na konci)."""
+        a, b = _cz_num_oblique(int(m.group(2)), "gen"), _cz_num_oblique(int(m.group(3)), "gen")
+        return f"{m.group(1)} {a} do {b} hodin" if a and b else m.group(0)
+
+    def _prep_time(m):
+        w = _cz_num_oblique(int(m.group(2)), "gen")
+        return f"{m.group(1)} {w} hodin" if w else m.group(0)
+
+    def _v_time(m):
+        return f"{m.group(1)} {int(m.group(2))} hodin"
+
+    def _rep(m):
+        prep, num = m.group(1), int(m.group(2))
+        # „v 9 hodin" je 4. pád („v devět hodin"), ne 6. — na časy po „v/ve" nesaháme
+        if prep.lower() in ("v", "ve") and m.string[m.end():].lstrip().lower().startswith("hodin"):
+            return m.group(0)
+        case = _CZ_PREP_CASE.get(prep.lower())
+        word = _cz_num_oblique(num, case) if case else ""
+        if not word:
+            return m.group(0)
+        out = _cz_prep_form(prep, word)
+        if prep[0].isupper():
+            out = out.capitalize()
+        return out + " " + word
+
+    def _patro(m):
+        w = _cz_ordinal(int(m.group(1)), _CZ_PATRO_CASE[m.group(2).lower()])
+        return f"{w} {m.group(2)}" if w else m.group(0)
+
+    text = _CZ_TIME_PAIR_RE.sub(_pair, text)
+    text = _CZ_TIME_PREP_RE.sub(_prep_time, text)
+    text = _CZ_TIME_V_RE.sub(_v_time, text)
+    text = _CZ_ORD_PATRO_RE.sub(_patro, text)
+    return _CZ_NUM_RE.sub(_rep, text)
+
+
 class GuestTTSRequest(BaseModel):
     text: str
     language: Optional[str] = None  # informativní; hlas je vícejazyčný
@@ -6477,6 +6660,11 @@ async def guest_tts(req: GuestTTSRequest, request: Request):
     # Celé hodiny zjednodušíme na číslo — „od 7:00 do 10:00" → „od 7 do 10", což zní
     # přirozeně v každém jazyce. Necelé časy (7:30) TTS čte obstojně, ty neměníme.
     import re as _re2
+    # Čeština jde PRVNÍ — potřebuje ještě vidět „23:00" jako čas, aby z toho udělala
+    # „do dvaceti tří hodin". Co si vezme, to už níž nezbyde; zbytek (ostatní jazyky)
+    # dořeší obecné zjednodušení celých hodin beze změny chování.
+    if (req.language or "").strip().lower().startswith("cs"):
+        text = _cz_numbers_for_speech(text)
     text = _re2.sub(r"\b0?(\d{1,2}):00\b", r"\1", text)
     _ek = _eleven_key()   # Railway proměnná, jinak klíč uložený v Nastavení administrace
 
@@ -8135,7 +8323,8 @@ def partner_qr(partner_id: str, request: Request):
     url = _partner_link(p.get("referral_code", ""))
     png = _generate_qr_png_branded(url, size=600)
     return Response(content=png, media_type="image/png",
-                    headers={"Content-Disposition": f'inline; filename="qr-{p.get("referral_code","partner")}.png"'})
+                    headers={"Content-Disposition":
+                             f'inline; filename="{_fname_ascii("SMARTEST-GUIDE-QR", p.get("name", ""), p.get("referral_code", ""))}.png"'})
 
 @app.get("/api/partners/{partner_id}/qr-poster")
 def partner_qr_poster(partner_id: str, request: Request):
@@ -8148,6 +8337,7 @@ def partner_qr_poster(partner_id: str, request: Request):
     ref = p.get("referral_code", "")
     url = _partner_link(ref)
     html = f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>{_print_title("SMARTEST GUIDE", "QR plakát", p.get("name", "partner"), ref)}</title>
 <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg"/>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
