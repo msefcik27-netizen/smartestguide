@@ -5567,11 +5567,20 @@ def serve_landing_lang(request: Request):
 # Žádná IP, žádný identifikátor návštěvníka → nejde o osobní údaj.
 # ─────────────────────────────────────────────
 def _log_site_hit(request, path: str):
-    """Připíše zobrazení stránky marketingového webu. Roboty ignoruje."""
+    """Připíše zobrazení stránky marketingového webu. Roboty a infrastrukturu ignoruje.
+
+    Filtr je ZÁMĚRNĚ obrácený oproti _log_ref_hit: nestačí vyjmenovat roboty, protože
+    healthchecky a monitoring se hlásí jako „Go-http-client", „okhttp" nebo „Java/…"
+    a žádné z těch slov v seznamu robotů není. Ukázalo se to hned při testu na stagingu
+    (25. 9. 2026) — vyšlo o jedno zobrazení víc, než kolik jich bylo posláno.
+    Proto vyžadujeme, aby se návštěvník tvářil jako prohlížeč (každý posílá „Mozilla/"),
+    a teprve pak odečteme známé roboty, kteří se za prohlížeč vydávají."""
     try:
         ua = (request.headers.get("user-agent") or "")
-        if not ua or _REF_BOT_RE.search(ua):
-            return
+        if "mozilla" not in ua.lower():
+            return          # curl, Go-http-client, okhttp, Java, healthcheck…
+        if _REF_BOT_RE.search(ua):
+            return          # Googlebot, SeznamBot, náhledy odkazů…
         ref = (request.headers.get("referer") or "").strip()
         zdroj = "přímo"
         if ref:
