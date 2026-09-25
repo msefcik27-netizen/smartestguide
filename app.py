@@ -5540,6 +5540,7 @@ def _render_landing(lang: str = "en") -> str:
 @app.get("/landing", response_class=HTMLResponse)
 def serve_landing(request: Request):
     _log_ref_hit(request, request.query_params.get("ref", ""))
+    _log_site_hit(request, request.url.path or "/")
     return _render_landing("en")
 
 
@@ -5551,7 +5552,128 @@ def serve_landing(request: Request):
 @app.get("/ja", response_class=HTMLResponse)
 def serve_landing_lang(request: Request):
     _log_ref_hit(request, request.query_params.get("ref", ""))
+    _log_site_hit(request, request.url.path or "/")
     return _render_landing(request.url.path.strip("/").lower())
+
+
+# ─────────────────────────────────────────────
+# Návštěvnost marketingového webu (25. 9. 2026 — dotaz Martina „kolik a kdy jsme měli
+# na webu návštěv?"). Do té doby se neměřilo NIC: guest appka má vlastní analytiku,
+# ref_hits počítá jen odkazy s ?ref=, a Search Console vidí pouze příchody z vyhledávání.
+#
+# Schválně BEZ cookies, bez Google Analytics a bez jakékoli třetí strany — jinak by
+# přibyl sub-processor do zásad ochrany údajů a musela by se řešit cookie lišta.
+# Ukládá se jen počet zobrazení po dnech, stránka a doména odkazujícího webu.
+# Žádná IP, žádný identifikátor návštěvníka → nejde o osobní údaj.
+# ─────────────────────────────────────────────
+def _log_site_hit(request, path: str):
+    """Připíše zobrazení stránky marketingového webu. Roboty ignoruje."""
+    try:
+        ua = (request.headers.get("user-agent") or "")
+        if not ua or _REF_BOT_RE.search(ua):
+            return
+        ref = (request.headers.get("referer") or "").strip()
+        zdroj = "přímo"
+        if ref:
+            try:
+                host = (urlparse(ref).netloc or "").lower()
+                if host.startswith("www."):
+                    host = host[4:]
+                if not host:
+                    zdroj = "přímo"
+                elif host.endswith("smartestguide.com"):
+                    zdroj = "interní"      # proklik v rámci webu, ne nový příchod
+                else:
+                    zdroj = host[:60]
+            except Exception:
+                zdroj = "přímo"
+        db = db_load()
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        den = db.setdefault("site_hits", {}).setdefault(
+            today, {"total": 0, "pages": {}, "refs": {}})
+        den["total"] = int(den.get("total", 0)) + 1
+        den["pages"][path] = int(den["pages"].get(path, 0)) + 1
+        den["refs"][zdroj] = int(den["refs"].get(zdroj, 0)) + 1
+        hits = db["site_hits"]
+        if len(hits) > 180:                # držíme zhruba půl roku
+            for k in sorted(hits)[:-180]:
+                hits.pop(k, None)
+        db_save(db)
+    except Exception as e:
+        logging.warning("Zápis návštěvy webu selhal (%s): %s", path, e)
+
+
+@app.get("/api/site-stats")
+def site_stats(dnu: int = 30):
+    """Návštěvnost webu pro admina. Chráněno _admin_gate cookie (prefix /api/)."""
+    db = db_load()
+    hits = db.get("site_hits", {}) or {}
+    dnu = max(1, min(int(dnu or 30), 180))
+    od = (datetime.utcnow() - timedelta(days=dnu - 1)).strftime("%Y-%m-%d")
+    dny, pages, refs, celkem = [], {}, {}, 0
+    for d in sorted(k for k in hits if k >= od):
+        rec = hits.get(d) or {}
+        n = int(rec.get("total", 0))
+        celkem += n
+        dny.append({"den": d, "pocet": n})
+        for k, v in (rec.get("pages") or {}).items():
+            pages[k] = pages.get(k, 0) + int(v)
+        for k, v in (rec.get("refs") or {}).items():
+            refs[k] = refs.get(k, 0) + int(v)
+    return {"dnu": dnu, "celkem": celkem, "dny": dny,
+            "stranky": sorted(pages.items(), key=lambda x: -x[1]),
+            "zdroje": sorted(refs.items(), key=lambda x: -x[1]),
+            "meri_se_od": min(hits) if hits else None}
+
+
+@app.get("/admin/navstevnost", response_class=HTMLResponse)
+def site_stats_page(request: Request, dnu: int = 30):
+    """Jednoduchý přehled návštěvnosti. Vlastní kontrola cookie — _admin_gate hlídá
+    jen /api/, takže by tuhle stránku nechal projít."""
+    if _ADMIN_TOKEN and request.cookies.get("sg_admin", "") != _ADMIN_TOKEN:
+        raise HTTPException(401, "Neautorizováno — přihlaste se do administrace na /admin.")
+    d = site_stats(dnu)
+    maxi = max([x["pocet"] for x in d["dny"]] or [1]) or 1
+    radky = "".join(
+        f'<tr><td>{x["den"]}</td><td class="n">{x["pocet"]}</td>'
+        f'<td class="b"><i style="width:{max(2, round(x["pocet"] * 100 / maxi))}%"></i></td></tr>'
+        for x in reversed(d["dny"])) or '<tr><td colspan="3">Zatím žádná data.</td></tr>'
+    strn = "".join(f'<tr><td>{k}</td><td class="n">{v}</td></tr>' for k, v in d["stranky"][:15])
+    zdrj = "".join(f'<tr><td>{k}</td><td class="n">{v}</td></tr>' for k, v in d["zdroje"][:15])
+    return f"""<!DOCTYPE html><html lang="cs"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Návštěvnost webu — SMARTEST GUIDE</title>
+<link rel="stylesheet" href="/static/fonts/fonts.css">
+<style>
+body{{font-family:'Manrope',system-ui,sans-serif;max-width:900px;margin:0 auto;padding:28px 18px;
+color:#0c1b33;background:#fff}}
+h1{{font-family:'Sora',sans-serif;font-size:24px;margin:0 0 4px}}
+.sub{{color:#51617e;margin:0 0 22px}}
+.karty{{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:26px}}
+.karta{{border:1px solid #e3e9f4;border-radius:12px;padding:14px 18px;min-width:150px}}
+.karta b{{display:block;font-family:'Sora',sans-serif;font-size:26px}}
+.karta span{{color:#51617e;font-size:13px}}
+h2{{font-family:'Sora',sans-serif;font-size:16px;margin:26px 0 8px}}
+table{{border-collapse:collapse;width:100%}}
+td,th{{border-bottom:1px solid #eef2f9;padding:7px 8px;text-align:left;font-size:14px}}
+.n{{text-align:right;font-variant-numeric:tabular-nums;width:70px}}
+.b{{width:55%}} .b i{{display:block;height:9px;background:#2fd0d8;border-radius:5px}}
+nav a{{color:#2c5fae;margin-right:12px;font-size:14px}}
+</style></head><body>
+<h1>Návštěvnost webu</h1>
+<p class="sub">Marketingový web (landing a jazykové verze). Guest appka a odkazy s <code>?ref=</code>
+se počítají zvlášť v adminu.</p>
+<nav><a href="?dnu=7">7 dní</a><a href="?dnu=30">30 dní</a><a href="?dnu=90">90 dní</a>
+<a href="/admin">zpět do administrace</a></nav>
+<div class="karty">
+  <div class="karta"><b>{d['celkem']}</b><span>zobrazení za {d['dnu']} dní</span></div>
+  <div class="karta"><b>{round(d['celkem'] / max(1, len(d['dny'])), 1)}</b><span>průměr na den</span></div>
+  <div class="karta"><b>{d['meri_se_od'] or '—'}</b><span>měří se od</span></div>
+</div>
+<h2>Po dnech</h2><table>{radky}</table>
+<h2>Stránky</h2><table>{strn or '<tr><td>—</td></tr>'}</table>
+<h2>Odkud přišli</h2><table>{zdrj or '<tr><td>—</td></tr>'}</table>
+</body></html>"""
 
 
 @app.get("/robots.txt", response_class=PlainTextResponse)
@@ -5595,7 +5717,8 @@ def serve_sitemap():
     return _Resp(content=xml, media_type="application/xml")
 
 @app.get("/apaleo", response_class=HTMLResponse)
-def serve_apaleo_landing():
+def serve_apaleo_landing(request: Request):
+    _log_site_hit(request, "/apaleo")
     html_path = os.path.join(os.path.dirname(__file__), "apaleo.html")
     with open(html_path, "r", encoding="utf-8") as f:
         return _staging_banner(f.read())
