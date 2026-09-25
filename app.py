@@ -6315,6 +6315,13 @@ _FEM_RAD_RE = _re.compile(r"\b(r|R)ád(\s+(?:ti|vám|Vám|bych|to|tě))\b")
 # po něm musí následovat „ráda", ať mluvíme o komkoli. Rozsah je schválně jen pár slov,
 # aby se pravidlo netrefilo do jiného podmětu („recepční vám rád poradí" zůstane).
 _FEM_KTERA_RAD_RE = _re.compile(r"\b(která\b(?:\s+\w+){0,2}\s+)rád\b", _re.IGNORECASE)
+# Podmiňovací způsob (nález 25. 9. 2026): „Detaily byste NAJDETE nejlépe u recepce."
+# Po „byste" musí následovat minulé příčestí („byste našli"), nikdy přítomný tvar.
+# Když za ním stojí sloveso v přítomném čase (2. os. mn. č., koncovka -te), je „byste"
+# navíc — stačí ho zahodit a věta je správně. Příčestí končí na -li/-la/-lo/-ly,
+# takže „byste našli" ani „byste chtěli" se nechytí. Uvnitř „abyste/kdybyste"
+# se pravidlo neuplatní, hranice slova tam není.
+_CZ_BYSTE_RE = _re.compile(r"\bbyste\s+(\w+te)\b")
 
 def _alex_feminine_fix(text: str) -> str:
     """Přepíše mužské tvary PRVNÍ osoby na ženské (jen jednoznačné vzory)
@@ -6338,6 +6345,7 @@ def _alex_feminine_fix(text: str) -> str:
     text = _FEM_PAST_AFTER_RE.sub(_past_after, text)
     text = _FEM_RAD_RE.sub(lambda m: ("R" if m.group(1) == "R" else "r") + "áda" + m.group(2), text)
     text = _FEM_KTERA_RAD_RE.sub(lambda m: m.group(1) + "ráda", text)
+    text = _CZ_BYSTE_RE.sub(lambda m: m.group(1), text)
     return text
 
 @app.post("/api/guest/chat")
@@ -6416,7 +6424,7 @@ Whole sentences can arrive garbled from voice transcription, not just single wor
 
 CONVERSATION MEMORY (IMPORTANT): The guest may have reloaded the page, switched devices or returned after days — messages you sent earlier may NOT be visible to them anymore. NEVER claim you already showed or said something, and never refer to the position of earlier messages ("as I showed above", "ten jsem vam uz ukazal vyse", "see my previous message"). If the guest asks for something again, simply give the complete answer again, naturally, as if for the first time.
 
-VOICE & GENDER (CRITICAL — applies to EVERY sentence, including casual greetings): You are a woman. Your replies can be read aloud by a FEMALE voice. In languages with grammatical gender, ALWAYS speak about yourself in FEMININE first-person forms. Czech: "Ráda vám pomohu" (NEVER "Rád vám pomohu"), "ukázala jsem", "našla jsem", "byla bych ráda". Same in Slovak ("rada vám pomôžem"), Polish, Russian and other gendered languages. This applies ONLY to how you speak about yourself; when speaking about or to the guest, use the gender that fits them. The name Alex is never declined or changed. Also make adjectives and participles agree with the GENDER OF THE NOUN they describe: Czech "recepce" is feminine, so "recepce vám ráda poradí" and "s recepcí, která vám ráda poskytne" — never "rád" there.
+VOICE & GENDER (CRITICAL — applies to EVERY sentence, including casual greetings): You are a woman. Your replies can be read aloud by a FEMALE voice. In languages with grammatical gender, ALWAYS speak about yourself in FEMININE first-person forms. Czech: "Ráda vám pomohu" (NEVER "Rád vám pomohu"), "ukázala jsem", "našla jsem", "byla bych ráda". Same in Slovak ("rada vám pomôžem"), Polish, Russian and other gendered languages. This applies ONLY to how you speak about yourself; when speaking about or to the guest, use the gender that fits them. The name Alex is never declined or changed. Also make adjectives and participles agree with the GENDER OF THE NOUN they describe: Czech "recepce" is feminine, so "recepce vám ráda poradí" and "s recepcí, která vám ráda poskytne" — never "rád" there. Czech conditional: after "by / bys / byste" always use the past participle, never the present tense — "detaily byste našli u recepce" or simply "detaily najdete u recepce", NEVER "detaily byste najdete".
 
 FORM OF ADDRESS (CRITICAL — rozhodnuto 25. 9. 2026): Always address the guest FORMALLY, and keep it consistent within every single reply. You are a hotel receptionist speaking to a guest, not a friend. Czech and Slovak: always "vy/vám/vás/váš" — NEVER "ty/ti/tě/tvůj" ("Ráda vám pomohu", "Máte ještě nějaké otázky?", NEVER "Ráda ti pomohu", "Máš ještě otázky?"). German: "Sie", never "du". Spanish: "usted", never "tú". French: "vous", never "tu". Russian/Ukrainian/Polish: "вы"/"Pan/Pani", never "ты"/"ty". NEVER mix the two within one reply — a sentence like "Máš nějaké další otázky nebo chcete vědět víc?" is WRONG; it must be "Máte nějaké další otázky nebo chcete vědět víc?". Keep formal address even if the guest writes informally to you.
 
