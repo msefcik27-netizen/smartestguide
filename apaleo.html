@@ -13,6 +13,20 @@
 <meta property="og:description" content="One QR code, 100+ languages, zero data stored. Alex knows each guest's stay via the Apaleo integration."/>
 <meta property="og:type" content="website"/>
 <meta property="og:url" content="https://www.smartestguide.com/apaleo"/>
+<!-- og:image + twitter (25. 9. 2026): bez náhledového obrázku se odkaz sdílený
+     do LinkedInu nebo Slacku zobrazil jako holý text. -->
+<meta property="og:site_name" content="SMARTEST GUIDE"/>
+<meta property="og:locale" content="en"/>
+<meta property="og:image" content="https://www.smartestguide.com/static/img/og-image.png"/>
+<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="SMARTEST GUIDE + Apaleo — The in-stay AI concierge"/>
+<meta name="twitter:description" content="One QR code, 100+ languages, zero data stored. Alex knows each guest's stay via the Apaleo integration."/>
+<meta name="twitter:image" content="https://www.smartestguide.com/static/img/og-image.png"/>
+<!-- JSON-LD: stejná struktura jako _seo_head() v app.py, jen zúžená na integraci. -->
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"SMARTEST GUIDE for Apaleo","applicationCategory":"BusinessApplication","operatingSystem":"Web","url":"https://www.smartestguide.com/apaleo","description":"Connect SMARTEST GUIDE to Apaleo in two minutes. Alex, the AI concierge, reads each guest's live reservation and answers personally — one QR code, 100+ languages, zero data stored.","publisher":{"@type":"Organization","name":"Native Hotel Guide s.r.o.","url":"https://www.smartestguide.com/","logo":"https://www.smartestguide.com/api/app-icon/512.png","address":{"@type":"PostalAddress","streetAddress":"Korunní 2569/108","postalCode":"101 00","addressLocality":"Praha","addressCountry":"CZ"}}}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"SMARTEST GUIDE","item":"https://www.smartestguide.com/"},{"@type":"ListItem","position":2,"name":"Apaleo integration","item":"https://www.smartestguide.com/apaleo"}]}</script>
 <link rel="stylesheet" href="/static/fonts/fonts.css"/>
 <style>
 :root{--ink:#0c1b33;--border:#e3e9f4;--muted:#51617e;--text:#0c1b33;--dim:#51617e;--teal:#2fd0d8;--tealdark:#2c5fae;--gold:#2c5fae;--font-display:'Sora',sans-serif;--font-body:'Manrope',sans-serif}
@@ -69,7 +83,7 @@ footer a{color:var(--muted)}
 </head>
 <body>
 <nav>
-  <a class="nav-logo" href="/landing" style="display:flex;align-items:center;gap:8px"><img src="/static/img/logo.svg" alt="" style="width:24px;height:24px;display:block"/>SMARTEST GUIDE</a>
+  <a class="nav-logo" href="/" style="display:flex;align-items:center;gap:8px"><img src="/static/img/logo.svg" alt="" style="width:24px;height:24px;display:block"/>SMARTEST GUIDE</a>
   <a class="nav-cta" href="/api/pms/apaleo/connect-register">Sign up with Apaleo →</a>
 </nav>
 
