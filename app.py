@@ -754,10 +754,12 @@ _KEYS_REGISTRY = [
     ("BASE_URL", "Veřejná adresa služby v odkazech a e-mailech", "dulezite",
      "Railway → Variables", "Produkce: https://www.smartestguide.com",
      "Nenastaveno → odkazy míří na railway.app adresu. Na produkci nastavit!"),
-    ("GOOGLE_PLACES_API_KEY", "Doplnění profilu hotelu z Google při scrapování", "volitelne",
+    ("GOOGLE_PLACES_API_KEY", "NEPOUŽÍVÁ SE — obohacení profilu z Google je vypnuté", "volitelne",
      "https://console.cloud.google.com/apis/credentials",
-     "Omezit klíč jen na Places API (New).",
-     "Bez klíče se krok obohacení tiše přeskočí."),
+     "⛔ Od 26. 9. 2026 se Places nevolá (porušovalo zákaz cachování v Maps ToS, "
+     "viz komentář u _PLACES_ENRICHMENT_ENABLED). Klíč můžeš v Railway smazat "
+     "a v Google Cloud zrušit — nic na něm nestojí.",
+     "Nenastaveno = v pořádku, stejně se nepoužívá."),
     ("BACKUP_EMAIL", "DALŠÍ příjemce záloh databáze (nad rámec dvou pevných)", "volitelne",
      "Railway → Variables",
      "Zálohy chodí vždy na martin.1303@seznam.cz a msefcik27@gmail.com.",
@@ -1725,15 +1727,31 @@ async def scrape_hotel_data(url: str, api_key: str) -> dict:
         except Exception as _e:
             logging.warning("Crawl odkazů z menu selhal: %s", _e)
 
-        # #6 (2. 8. 2026): Google Places API (New) jako volitelný LEGÁLNÍ zdroj GBP dat
-        # (telefon, hodnocení, otevíračky, parkování, platby, psi). Aktivní jen s env
-        # GOOGLE_PLACES_API_KEY (~0,4 Kč/dotaz, volá se jen při scrapingu = jednorázově).
-        try:
-            _gp = await _google_places_block(client, main_html)
-            if _gp:
-                pages_text.append(_gp)
-        except Exception as _e:
-            logging.warning("Google Places enrichment selhal: %s", _e)
+        # #6 (2. 8. 2026): Google Places API (New) jako doplňkový zdroj GBP dat
+        # (telefon, hodnocení, otevíračky, parkování, platby, psi).
+        #
+        # ⛔ VYPNUTO 26. 9. 2026 — porušovalo to podmínky Google Maps Platform.
+        # Places API policies: „You must not pre-fetch, cache, or store Places API
+        # content beyond the allowed exceptions" — a jediná výjimka je place ID
+        # (to se držet smí neomezeně). My jsme si vytažená pole ukládali NATRVALO
+        # do profilu hotelu a do promptu Alexe, a navíc bez povinné atribuce
+        # „Google Maps", protože Alex je vysloví jako vlastní vědomost.
+        # Riziko bylo smluvní (Google může zrušit přístup ke klíči), ne GDPR.
+        # Vypnuto tady v kódu schválně, ne jen smazáním env proměnné — aby to
+        # nezáviselo na tom, jestli `GOOGLE_PLACES_API_KEY` v Railway zůstane.
+        #
+        # Funkce `_google_places_block()` zůstává i s tímhle voláním pro případ,
+        # že se obohacení předělá na model „návrh k potvrzení hoteliérem":
+        # data se nabídnou v portálu, uloží se teprve to, co hoteliér potvrdí —
+        # tím padá cachování i atribuce. Do té doby to nezapínat.
+        _PLACES_ENRICHMENT_ENABLED = False
+        if _PLACES_ENRICHMENT_ENABLED:
+            try:
+                _gp = await _google_places_block(client, main_html)
+                if _gp:
+                    pages_text.append(_gp)
+            except Exception as _e:
+                logging.warning("Google Places enrichment selhal: %s", _e)
 
         # FIX 2: strukturovaná data (JSON-LD, schema.org) — přesně to, co čte Google.
         # Hotelové weby v nich často mají check-in/out, telefon, adresu, otevíračky.
