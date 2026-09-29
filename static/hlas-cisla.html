@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Alex — čte částky správně?</title>
+<link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; }
+  :root {
+    color-scheme: light;
+    --ground: #f5f8fc; --card: #fff; --card-soft: #eef3fa;
+    --ink: #10203a; --muted: #5a6b87; --line: #dce4f1;
+    --accent: #2c5fae; --accent-soft: #e7eefb;
+    --spatne: #b23a3a; --spatne-soft: #fdeceb;
+    --font-d: 'Sora', 'Segoe UI', system-ui, sans-serif;
+    --font-b: 'Manrope', 'Segoe UI', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #0c1421; --card: #141e2f; --card-soft: #1a2639;
+      --ink: #e8eef8; --muted: #97a8c2; --line: #25334c;
+      --accent: #7aa7e8; --accent-soft: #1b2a44;
+      --spatne: #ff9b93; --spatne-soft: #3a1f1e;
+    }
+  }
+  body { background: var(--ground); color: var(--ink); font-family: var(--font-b); font-size: 16px; line-height: 1.55; }
+  .wrap { max-width: 700px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 56px;
+          display: flex; flex-direction: column; gap: 24px; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: var(--accent); }
+  h1 { font-family: var(--font-d); font-weight: 700; font-size: clamp(25px, 5vw, 32px); line-height: 1.15; margin: 0; text-wrap: balance; }
+  .lede { color: var(--muted); max-width: 56ch; margin: 0; }
+  h2 { font-family: var(--font-d); font-size: 17px; font-weight: 600; margin: 0; }
+  .postup ol { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size: 15px; }
+  .postup li { margin-block: 4px; }
+
+  .radky { display: flex; flex-direction: column; gap: 10px; }
+  .r { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px;
+       display: grid; grid-template-columns: 92px 1fr auto; gap: 14px; align-items: center; }
+  .r[data-spatne="1"] { border-color: var(--spatne); background: var(--spatne-soft); }
+  .castka { font-family: var(--font-d); font-weight: 700; font-size: 21px; font-variant-numeric: tabular-nums; }
+  .prehravace { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .p { display: flex; align-items: center; gap: 10px; }
+  .p span { font-size: 12px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase;
+            color: var(--muted); width: 62px; flex: none; }
+  audio { width: 100%; max-width: 260px; height: 36px; }
+  .oznac { font-family: var(--font-b); font-size: 14px; font-weight: 600; background: transparent;
+           color: var(--accent); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+  .oznac:hover { border-color: var(--accent); }
+  .oznac:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .r[data-spatne="1"] .oznac { background: var(--spatne); color: #fff; border-color: var(--spatne); }
+
+  .vysledek { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px;
+              display: flex; flex-direction: column; gap: 10px; }
+  .vysledek p { margin: 0; color: var(--muted); font-size: 15px; }
+  .vzkaz { font-size: 15px; font-weight: 600; background: var(--card-soft); border: 1px solid var(--line);
+           border-radius: 8px; padding: 12px 14px; color: var(--ink); }
+  .radek { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .kopirovat { font-family: var(--font-b); font-size: 14px; font-weight: 600; background: var(--accent);
+               color: #fff; border: 0; border-radius: 8px; padding: 9px 16px; cursor: pointer; }
+  .stav { font-size: 14px; color: var(--muted); }
+  footer { border-top: 1px solid var(--line); padding-top: 18px; color: var(--muted); font-size: 13px; }
+  @media (max-width: 560px) {
+    .r { grid-template-columns: 1fr; gap: 10px; }
+    .oznac { justify-self: start; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header style="display:flex;flex-direction:column;gap:10px">
+    <span class="eyebrow">SMARTEST GUIDE &middot; kontrola částek</span>
+    <h1>Čte Alex částky správně?</h1>
+    <p class="lede">Přišlo se na to, že hlas čte „250 Kč" jako <em>dvě <strong>sta</strong> padesát</em>,
+      ačkoli česky je <em>dvě <strong>stě</strong> padesát</em>. Potřebujeme vědět,
+      <strong>u kterých částek se to děje</strong>, ať víme, co opravit.</p>
+  </header>
+
+  <section class="postup">
+    <h2>Jak na to</h2>
+    <ol>
+      <li>U každé částky pusť <strong>obě</strong> nahrávky za sebou.</li>
+      <li><strong>Číslicí</strong> = jak to Alex čte dnes. <strong>Slovy</strong> = jak to má znít správně.</li>
+      <li>Když se liší, klikni na <strong>Zní špatně</strong>. Když znějí stejně, nech to být.</li>
+    </ol>
+  </section>
+
+  <section class="radky" id="radky">
+    <article class="r" data-c="150"><div class="castka">150 Kč</div>
+      <div class="prehravace">
+        <div class="p"><span>číslicí</span><audio controls preload="none" src="cisla/150-c.mp3"></audio></div>
+        <div class="p"><span>slovy</span><audio controls preload="none" src="cisla/150-s.mp3"></audio></div>
+      </div><button class="oznac" type="button">Zní špatně</button></article>
+
+    <article class="r" data-c="200"><div class="castka">200 Kč</div>
+      <div class="prehravace">
+        <div class="p"><span>číslicí</span><audio controls preload="none" src="cisla/200-c.mp3"></audio></div>
+        <div class="p"><span>slovy</span><audio controls preload="none" src="cisla/200-s.mp3"></audio></div>
+      </div><button class="oznac" type="button">Zní špatně</button></article>
+
+    <article class="r" data-c="250"><div class="castka">250 Kč</div>
+      <div class="prehravace">
+        <div class="p"><span>číslicí</span><audio controls preload="none" src="cisla/250-c.mp3"></audio></div>
+        <div class="p"><span>slovy</span><audio controls preload="none" src="cisla/250-s.mp3"></audio></div>
+      </div><button class="oznac" type="button">Zní špatně</button></article>
+
+    <article class="r" data-c="300"><div class="castka">300 Kč</div>
+      <div class="prehravace">
+        <div class="p"><span>číslicí</span><audio controls preload="none" src="cisla/300-c.mp3"></audio></div>
+        <div class="p"><span>slovy</span><audio controls preload="none" src="cisla/300-s.mp3"></audio></div>
+      </div><button class="oznac" type="button">Zní špatně</button></article>
+
+    <article class="r" data-c="400"><div class="castka">400 Kč</div>
+      <div class="prehravace">
+        <div class="p"><span>číslicí</span><audio controls preload="none" src="cisla/400-c.mp3"></audio></div>
+        <div class="p"><span>slovy</span><audio controls preload="none" src="cisla/400-s.mp3"></audio></div>
+      </div><button class="oznac" type="button">Zní špatně</button></article>
+
+    <article class="r" data-c="500"><div class="castka">500 Kč</div>
+      <div class="prehravace">
+        <div class="p"><span>číslicí</span><audio controls preload="none" src="cisla/500-c.mp3"></audio></div>
+        <div class="p"><span>slovy</span><audio controls preload="none" src="cisla/500-s.mp3"></audio></div>
+      </div><button class="oznac" type="button">Zní špatně</button></article>
+
+    <article class="r" data-c="550"><div class="castka">550 Kč</div>
+      <div class="prehravace">
+        <div class="p"><span>číslicí</span><audio controls preload="none" src="cisla/550-c.mp3"></audio></div>
+        <div class="p"><span>slovy</span><audio controls preload="none" src="cisla/550-s.mp3"></audio></div>
+      </div><button class="oznac" type="button">Zní špatně</button></article>
+
+    <article class="r" data-c="900"><div class="castka">900 Kč</div>
+      <div class="prehravace">
+        <div class="p"><span>číslicí</span><audio controls preload="none" src="cisla/900-c.mp3"></audio></div>
+        <div class="p"><span>slovy</span><audio controls preload="none" src="cisla/900-s.mp3"></audio></div>
+      </div><button class="oznac" type="button">Zní špatně</button></article>
+
+    <article class="r" data-c="1 250"><div class="castka">1 250 Kč</div>
+      <div class="prehravace">
+        <div class="p"><span>číslicí</span><audio controls preload="none" src="cisla/1250-c.mp3"></audio></div>
+        <div class="p"><span>slovy</span><audio controls preload="none" src="cisla/1250-s.mp3"></audio></div>
+      </div><button class="oznac" type="button">Zní špatně</button></article>
+  </section>
+
+  <section class="vysledek">
+    <h2>Co poslat Martinovi</h2>
+    <div class="vzkaz" id="vzkaz">Zatím jsi nic neoznačil — pusť si nahrávky a klikej na „Zní špatně".</div>
+    <div class="radek">
+      <button class="kopirovat" id="kopirovat" type="button">Zkopírovat vzkaz</button>
+      <span class="stav" id="stav"></span>
+    </div>
+    <p>Nikam se to neodesílá. Kdyby ti u některé částky vadilo něco jiného než ta číslovka
+      (třeba přízvuk nebo tempo), napiš to rovnou slovy — je to cennější než jen ta značka.</p>
+  </section>
+
+  <footer>Obě nahrávky u každé částky jsou stejným hlasem a stejným nastavením.
+    Liší se jen tím, jestli je částka napsaná číslicí, nebo slovy.</footer>
+</div>
+
+<script>
+  (function () {
+    var KLIC = 'sg-castky';
+    var box = document.getElementById('radky');
+    var vzkaz = document.getElementById('vzkaz');
+    var tl = document.getElementById('kopirovat');
+    var stav = document.getElementById('stav');
+
+    function ulozene() {
+      try { return JSON.parse(localStorage.getItem(KLIC) || '[]'); } catch (e) { return []; }
+    }
+    function uloz(v) { try { localStorage.setItem(KLIC, JSON.stringify(v)); } catch (e) {} }
+
+    function vykresli() {
+      var vybrane = ulozene();
+      var karty = box.querySelectorAll('.r');
+      for (var i = 0; i < karty.length; i++) {
+        var c = karty[i].getAttribute('data-c');
+        var je = vybrane.indexOf(c) !== -1;
+        if (je) { karty[i].setAttribute('data-spatne', '1'); } else { karty[i].removeAttribute('data-spatne'); }
+        karty[i].querySelector('.oznac').textContent = je ? 'Označeno ✓' : 'Zní špatně';
+      }
+      vzkaz.textContent = vybrane.length
+        ? ('Z kontroly částek: špatně zní ' + vybrane.join(' Kč, ') + ' Kč. Ostatní jsou v pořádku.')
+        : 'Zatím jsi nic neoznačil — pusť si nahrávky a klikej na „Zní špatně".';
+    }
+
+    box.addEventListener('click', function (e) {
+      var b = e.target.closest('.oznac');
+      if (!b) { return; }
+      var c = b.closest('.r').getAttribute('data-c');
+      var v = ulozene();
+      var i = v.indexOf(c);
+      if (i === -1) { v.push(c); } else { v.splice(i, 1); }
+      uloz(v);
+      stav.textContent = '';
+      vykresli();
+    });
+
+    tl.addEventListener('click', function () {
+      function oznac() {
+        var r = document.createRange();
+        r.selectNodeContents(vzkaz);
+        var s = window.getSelection();
+        s.removeAllRanges(); s.addRange(r);
+        stav.textContent = 'Vzkaz je označený — zkopíruj ho klávesami.';
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(vzkaz.textContent)
+          .then(function () { stav.textContent = 'Zkopírováno.'; })
+          .catch(oznac);
+      } else { oznac(); }
+    });
+
+    vykresli();
+  })();
+</script>
+</body>
+</html>
