@@ -637,7 +637,15 @@ function _ttsPlain(text){
   try{ t=t.replace(/[\u{1F000}-\u{1FAFF}\u{2190}-\u{27BF}\u{FE0F}\u{2B00}-\u{2BFF}]/gu,' '); }catch(e){}
   t=t.replace(/^[\s]*[-•]\s*/gm,'');                 // odrážky na začátku řádku
   t=t.replace(/\n{2,}/g,'. ').replace(/\n/g,', ');    // konce řádků -> přirozené pauzy
-  t=t.replace(/([.,!?;:])\s*\1+/g,'$1');              // zdvojená interpunkce
+  // Na hranicích odstavců vznikají dvojice interpunkce, protože řádek už svůj znak měl:
+  // „pomůžu!" + odstavec = „pomůžu!.", nadpis „Parkování:" + řádek = „Parkování:,".
+  // Hlas na tom slyšitelně zakopne (nález 29. 9. 2026 — proto zněla živá Alex jinak
+  // než čistá věta z poslechového testu). Ze dvou znaků necháme ten silnější.
+  // Původní pravidlo řešilo jen DVA STEJNÉ znaky za sebou, takže „!." mu proklouzlo.
+  var _sila={'.':3,'!':3,'?':3,':':2,';':2,',':1};
+  for(var i=0;i<3;i++){
+    t=t.replace(/([.,!?;:])\s*([.,!?;:])/g,function(m,a,b){return _sila[a]>=_sila[b]?a:b;});
+  }
   t=t.replace(/\s{2,}/g,' ');
   return t.trim();
 }
