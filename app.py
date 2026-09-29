@@ -6768,6 +6768,59 @@ def _cz_prep_form(prep: str, word: str) -> str:
     return short + "e" if vocalized else short
 
 
+# ČÁSTKY (29. 9. 2026 — nález Martina a testera: „hroznej přízvuk, hlavně když čte číslice").
+# Kontrola devíti částek na produkčním hlasu: verze napsaná SLOVY byla správně u všech
+# devíti, verze číslicí u tří špatně (150, 550, 1 250) — a u 250 se hlas spletl jednou
+# a podruhé ne, takže to ani není spolehlivě opakovatelné. Nemá cenu hádat, které číslo
+# hlas zvládne; posíláme mu rovnou slova a nemá co zkazit.
+# Měna se NEPŘEVÁDÍ: „Kč" hlas čte jako „korun" správně a skloňování podle počtu
+# („koruna/koruny/korun") by byla další příležitost k chybě.
+_CZ_JEDNOTKY = ("", "jedna", "dvě", "tři", "čtyři", "pět", "šest", "sedm", "osm", "devět")
+_CZ_NACT = ("deset", "jedenáct", "dvanáct", "třináct", "čtrnáct", "patnáct",
+            "šestnáct", "sedmnáct", "osmnáct", "devatenáct")
+_CZ_DESITKY = ("", "", "dvacet", "třicet", "čtyřicet", "padesát",
+               "šedesát", "sedmdesát", "osmdesát", "devadesát")
+# Stovky a tisíce mají v češtině tři různé vzory — proto vypsané, ne skládané.
+_CZ_STOVKY = ("", "sto", "dvě stě", "tři sta", "čtyři sta", "pět set",
+              "šest set", "sedm set", "osm set", "devět set")
+_CZ_TISICE = ("", "tisíc", "dva tisíce", "tři tisíce", "čtyři tisíce", "pět tisíc",
+              "šest tisíc", "sedm tisíc", "osm tisíc", "devět tisíc")
+# Číslo s mezerou/nbsp jako oddělovačem tisíců („1 250 Kč") i bez ní.
+_CZ_CASTKA_RE = re.compile(
+    r"(?<![\w.,])(\d{1,2}[  ]\d{3}|\d{3,4})\s*(Kč|CZK|korun[ay]?)\b", re.IGNORECASE)
+
+
+def _cz_castka_slovy(n: int) -> str:
+    """Číslo 100–9999 slovy, základní tvar. Mimo rozsah vrací ''."""
+    if n < 100 or n > 9999:
+        return ""
+    casti = []
+    tis, zbytek = divmod(n, 1000)
+    if tis:
+        casti.append(_CZ_TISICE[tis])
+    sto, zbytek = divmod(zbytek, 100)
+    if sto:
+        casti.append(_CZ_STOVKY[sto])
+    if 10 <= zbytek <= 19:
+        casti.append(_CZ_NACT[zbytek - 10])
+    else:
+        des, jed = divmod(zbytek, 10)
+        if des:
+            casti.append(_CZ_DESITKY[des])
+        if jed:
+            casti.append(_CZ_JEDNOTKY[jed])
+    return " ".join(casti)
+
+
+def _cz_castky_for_speech(text: str) -> str:
+    """Částky před měnou přepíše slovy: „250 Kč" → „dvě stě padesát Kč"."""
+    def _rep(m):
+        n = int(re.sub(r"[  ]", "", m.group(1)))
+        slovy = _cz_castka_slovy(n)
+        return f"{slovy} {m.group(2)}" if slovy else m.group(0)
+    return _CZ_CASTKA_RE.sub(_rep, text)
+
+
 def _cz_numbers_for_speech(text: str) -> str:
     """Doplní číslovkám pád podle předložky, aby je hlas nečetl v 1. pádě.
     Volá se PŘED zjednodušením celých hodin — časy mají vlastní pravidla (viz výše)."""
@@ -6806,6 +6859,8 @@ def _cz_numbers_for_speech(text: str) -> str:
     text = _CZ_TIME_PREP_RE.sub(_prep_time, text)
     text = _CZ_TIME_V_RE.sub(_v_time, text)
     text = _CZ_ORD_PATRO_RE.sub(_patro, text)
+    # Částky až po časech — „od 7:00 do 10:00" nesmí skončit v pravidle pro peníze.
+    text = _cz_castky_for_speech(text)
     return _CZ_NUM_RE.sub(_rep, text)
 
 
