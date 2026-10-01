@@ -6882,6 +6882,40 @@ def _cz_desetinna_for_speech(text: str) -> str:
     return _CZ_DESETINNE_RE.sub(_rep, text)
 
 
+# HOLÁ ČÍSLA BEZ PŘEDLOŽKY (1. 10. 2026, třetí poslechové kolo).
+# MĚNÍ DŘÍVĚJŠÍ ROZHODNUTÍ: do teď platilo „bez předložky se číslovka nemění“, protože
+# se 25. 9. zdálo, že 1. pád hlas čte správně. Tester to vyvrátil — „37 pokojů“ mu dvakrát
+# znělo jako „třřřicccet“ — a v opakovaném A/B vybral verzi psanou SLOVY.
+# (V kole 2 u téhle dvojice rozdíl neslyšel; rozhodlo až víc pokusů za sebou.)
+#
+# ⚠️ ROD: „dva/dvě“ a „jeden/jedna“ se řídí rodem počítaného jména, který z textu nepoznáme
+# („dva pokoje“, ale „dvě lůžka“). Převádíme proto JEN čísla, jejichž tvar je na rodu
+# nezávislý: končící na 0 a 5–9 a celou řadu 11–19. Čísla končící 1–4 zůstávají číslicí —
+# raději občasné zakoktání než jistá chyba v rodě.
+_CZ_HOLE_RE = re.compile(
+    r"(?<![\w.,:/+-])(?<!\d[  ])(\d{1,3})(?![\d.,:/-])(?![  ]\d{3}\b)")
+
+
+def _cz_rod_nezavisle(n: int) -> bool:
+    """Má číslovka tvar nezávislý na rodě? (5–9, 11–19, 20, 25–30, …)"""
+    if n < 5:
+        return False
+    if 10 <= n % 100 <= 19:
+        return True
+    return n % 10 not in (1, 2, 3, 4)
+
+
+def _cz_hola_cisla_for_speech(text: str) -> str:
+    """„Hotel má 37 pokojů“ → „Hotel má třicet sedm pokojů“. Běží jako POSLEDNÍ,
+    až po časech, patrech, telefonech, částkách i předložkách — bere jen to, co zbylo."""
+    def _rep(m):
+        n = int(m.group(1))
+        if not _cz_rod_nezavisle(n):
+            return m.group(0)
+        return _cz_cislo_slovy(n) or m.group(0)
+    return _CZ_HOLE_RE.sub(_rep, text)
+
+
 def _cz_numbers_for_speech(text: str) -> str:
     """Doplní číslovkám pád podle předložky, aby je hlas nečetl v 1. pádě.
     Volá se PŘED zjednodušením celých hodin — časy mají vlastní pravidla (viz výše)."""
@@ -6926,7 +6960,9 @@ def _cz_numbers_for_speech(text: str) -> str:
     # Částky až po časech — „od 7:00 do 10:00" nesmí skončit v pravidle pro peníze.
     text = _cz_castky_for_speech(text)
     text = _cz_desetinna_for_speech(text)
-    return _CZ_NUM_RE.sub(_rep, text)
+    text = _CZ_NUM_RE.sub(_rep, text)
+    # Holá čísla úplně nakonec — co si vzala pravidla výš, to už tu není.
+    return _cz_hola_cisla_for_speech(text)
 
 
 # ─────────────────────────────────────────────
