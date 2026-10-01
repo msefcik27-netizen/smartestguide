@@ -6821,6 +6821,67 @@ def _cz_castky_for_speech(text: str) -> str:
     return _CZ_CASTKA_RE.sub(_rep, text)
 
 
+# TELEFONY A DESETINNÁ ČÍSLA (1. 10. 2026 — nález testera v poslechovém kole):
+#   „224 811 234"  hlas přečetl špatně
+#   „1,4 metru"    špatná výslovnost
+# Příčina je stejná jako u částek: posílali jsme číslice. Tester v A/B poslechu vybral
+# u obou verzi SLOVY. Třetí nález („37 pokojů" znělo jako „třřřicetsedm") se neopravuje —
+# v A/B označil obě verze za STEJNÉ, takže šlo o ojedinělé zakoktání hlasu, ne o vadu.
+# Platí tím dál původní pravidlo: BEZ PŘEDLOŽKY SE ČÍSLOVKA NEMĚNÍ.
+# `(?<!\d[  ])` brání tomu, aby se pravidlo chytlo uvnitř delšího čísla
+# („1 234 567 890" by jinak dalo trojice 234/567/890).
+_CZ_TELEFON_RE = re.compile(
+    r"(?<![\w+])(?<!\d[  ])(\+420[  ]?)?(\d{3})[  ](\d{3})[  ](\d{3})(?![\d])")
+# Jen 1–2 desetinná místa a za nimi nesmí být další číslice — ať se do toho nechytne
+# anglický zápis tisíců („1,250"). Celá část do 999.
+_CZ_DESETINNE_RE = re.compile(r"(?<![\w,.])(\d{1,3}),(\d{1,2})(?![\d.,])")
+
+
+def _cz_cislo_slovy(n: int) -> str:
+    """Celé číslo 0–999 slovy, základní tvar. Mimo rozsah vrací ''."""
+    if n < 0 or n > 999:
+        return ""
+    if n == 0:
+        return "nula"
+    casti = []
+    sto, zbytek = divmod(n, 100)
+    if sto:
+        casti.append(_CZ_STOVKY[sto])
+    if 10 <= zbytek <= 19:
+        casti.append(_CZ_NACT[zbytek - 10])
+    else:
+        des, jed = divmod(zbytek, 10)
+        if des:
+            casti.append(_CZ_DESITKY[des])
+        if jed:
+            casti.append(_CZ_JEDNOTKY[jed])
+    return " ".join(casti)
+
+
+def _cz_telefon_for_speech(text: str) -> str:
+    """„224 811 234" → „dvě stě dvacet čtyři, osm set jedenáct, dvě stě třicet čtyři".
+    Čte se po trojicích, jak se telefon diktuje; čárky dělají pauzy mezi skupinami."""
+    def _rep(m):
+        skupiny = [_cz_cislo_slovy(int(m.group(i))) for i in (2, 3, 4)]
+        if not all(skupiny):
+            return m.group(0)
+        predvolba = "plus čtyři sta dvacet, " if m.group(1) else ""
+        return predvolba + ", ".join(skupiny)
+    return _CZ_TELEFON_RE.sub(_rep, text)
+
+
+def _cz_desetinna_for_speech(text: str) -> str:
+    """„1,4 metru" → „jedna celá čtyři metru". Desetinná část s vedoucí nulou
+    („1,05") se nechává být — „nula pět" by se muselo číst po číslicích."""
+    def _rep(m):
+        cela, des = m.group(1), m.group(2)
+        if len(des) > 1 and des.startswith("0"):
+            return m.group(0)
+        a, b = _cz_cislo_slovy(int(cela)), _cz_cislo_slovy(int(des))
+        return f"{a} celá {b}" if a and b else m.group(0)
+    return _CZ_DESETINNE_RE.sub(_rep, text)
+
+
 def _cz_numbers_for_speech(text: str) -> str:
     """Doplní číslovkám pád podle předložky, aby je hlas nečetl v 1. pádě.
     Volá se PŘED zjednodušením celých hodin — časy mají vlastní pravidla (viz výše)."""
@@ -6859,8 +6920,12 @@ def _cz_numbers_for_speech(text: str) -> str:
     text = _CZ_TIME_PREP_RE.sub(_prep_time, text)
     text = _CZ_TIME_V_RE.sub(_v_time, text)
     text = _CZ_ORD_PATRO_RE.sub(_patro, text)
+    # Telefon jako první z číselných pravidel — trojice číslic by jinak mohly spadnout
+    # do částek nebo do pravidla pro předložky.
+    text = _cz_telefon_for_speech(text)
     # Částky až po časech — „od 7:00 do 10:00" nesmí skončit v pravidle pro peníze.
     text = _cz_castky_for_speech(text)
+    text = _cz_desetinna_for_speech(text)
     return _CZ_NUM_RE.sub(_rep, text)
 
 
