@@ -6787,7 +6787,7 @@ _CZ_TISICE = ("", "tisíc", "dva tisíce", "tři tisíce", "čtyři tisíce", "p
               "šest tisíc", "sedm tisíc", "osm tisíc", "devět tisíc")
 # Číslo s mezerou/nbsp jako oddělovačem tisíců („1 250 Kč") i bez ní.
 _CZ_CASTKA_RE = re.compile(
-    r"(?<![\w.,])(\d{1,2}[  ]\d{3}|\d{3,4})\s*(Kč|CZK|korun[ay]?)\b", re.IGNORECASE)
+    r"(?<![\w.,])(\d{1,2}[  ]\d{3}|\d{1,4})\s*(Kč|CZK|korun[ay]?)\b", re.IGNORECASE)
 
 
 def _cz_castka_slovy(n: int) -> str:
@@ -6812,12 +6812,35 @@ def _cz_castka_slovy(n: int) -> str:
     return " ".join(casti)
 
 
+def _cz_koruny_tvar(n: int) -> str:
+    """Tvar slova koruna podle počtu: 1 koruna, 2–4 koruny, jinak korun.
+    Rod tu NENÍ problém jako u obecných čísel — koruna je ženská, a tabulka
+    `_CZ_JEDNOTKY` je ženská taky („jedna", „dvě"), takže to sedí."""
+    if n % 100 in (11, 12, 13, 14):
+        return "korun"
+    posledni = n % 10
+    if posledni == 1:
+        return "koruna" if n == 1 else "korun"   # 21 korun, ne „21 koruna"
+    if posledni in (2, 3, 4):
+        return "koruny"
+    return "korun"
+
+
 def _cz_castky_for_speech(text: str) -> str:
-    """Částky před měnou přepíše slovy: „250 Kč" → „dvě stě padesát Kč"."""
+    """Částku i měnu přepíše slovy: „250 Kč" → „dvě stě padesát korun".
+
+    MĚNA SE PŘEVÁDÍ OD 1. 10. 2026 — mění to rozhodnutí z 29. 9., kdy se „Kč" nechávala
+    být s odůvodněním, že ji hlas čte správně. Tester to vyvrátil: ze zkratky dělal „korn"
+    ve třech nahrávkách z pěti. Měřením tří variant téže věty se ukázalo, kde je příčina:
+      • „Kč" na konci věty   → „korn"
+      • „Kč" uprostřed věty  → „korn" taky, takže to nedělá koncová pozice
+      • hotové slovo „korun" → správně v obou pokusech
+    Vadí tedy rozbalování zkratky, a to umíme udělat za hlas sami.
+    """
     def _rep(m):
         n = int(re.sub(r"[  ]", "", m.group(1)))
-        slovy = _cz_castka_slovy(n)
-        return f"{slovy} {m.group(2)}" if slovy else m.group(0)
+        slovy = _cz_cislo_slovy(n) if n < 100 else _cz_castka_slovy(n)
+        return f"{slovy} {_cz_koruny_tvar(n)}" if slovy else m.group(0)
     return _CZ_CASTKA_RE.sub(_rep, text)
 
 
