@@ -19,6 +19,15 @@ from typing import Optional
 
 import httpx
 
+# Stránkování Apaleo API. Certifikační podmínka Apaleo zní doslova „Your integration
+# uses pageSize=200" (apaleo.dev → Certify your app), a 200 je zároveň jejich maximum.
+# Dřív tu bylo 500 (properties, units, unit-groups) a 100 (services) — pětistovka se
+# stejně ořízla na 200 a stovka znamenala zbytečně malé stránky.
+# POZOR: nikde se nestránkuje, bere se jen první stránka. U property s víc než
+# 200 jednotkami se tedy zbytek neuvidí — platilo to i před touhle změnou, jen to
+# nebylo vidět. Až bude na pořadu dne velký hotel, dodělat průchod přes `nextPageToken`.
+_PAGE_SIZE = 200
+
 # ── Normalizovaný model pobytu ────────────────────────────────────────────────
 
 @dataclass
@@ -335,7 +344,7 @@ _services_cache: dict = {}   # (hotel_id, property_id) -> {"data": list, "expire
 async def apaleo_list_properties(hotel: dict) -> Optional[list]:
     """Seznam properties účtu (pro dropdown v portálu). Bez zvláštního scope.
     Vrací [{code, name, status}] nebo None při selhání."""
-    d = await _apaleo_get(hotel, "/inventory/v1/properties", {"pageSize": 500}, quiet=True)
+    d = await _apaleo_get(hotel, "/inventory/v1/properties", {"pageSize": _PAGE_SIZE}, quiet=True)
     if not d:
         return None
     out = []
@@ -379,7 +388,7 @@ async def apaleo_get_setup(hotel: dict, property_id: str = "") -> Optional[dict]
     if c and c["expires"] > now:
         return c["data"]
     units_d = await _apaleo_get(hotel, "/inventory/v1/units",
-                                {"propertyId": pid, "pageSize": 500}, quiet=True)
+                                {"propertyId": pid, "pageSize": _PAGE_SIZE}, quiet=True)
     if units_d is None:
         # Negativní cache: starý souhlas bez setup.read by jinak zkoušel units
         # při každé zprávě hosta znovu (latence + zbytečná volání)
@@ -394,7 +403,7 @@ async def apaleo_get_setup(hotel: dict, property_id: str = "") -> Optional[dict]
     # fallback: součet maxPersons přes units.
     beds = 0
     ug_d = await _apaleo_get(hotel, "/inventory/v1/unit-groups",
-                             {"propertyId": pid, "unitGroupTypes": "BedRoom", "pageSize": 500}, quiet=True)
+                             {"propertyId": pid, "unitGroupTypes": "BedRoom", "pageSize": _PAGE_SIZE}, quiet=True)
     if ug_d and (ug_d.get("unitGroups") or []):
         try:
             bed_ids = {g.get("id") for g in ug_d["unitGroups"]}
@@ -573,11 +582,11 @@ async def apaleo_available_services(hotel: dict) -> Optional[list]:
     # API může vyžadovat datum, nebo plný date-time (ISO8601) — zkus obojí
     d = await _apaleo_get(hotel, "/availability/v1/services",
                           {"propertyId": pid, "from": d_from, "to": d_to,
-                           "pageSize": 100}, quiet=True)
+                           "pageSize": _PAGE_SIZE}, quiet=True)
     if d is None:
         d = await _apaleo_get(hotel, "/availability/v1/services",
                               {"propertyId": pid, "from": d_from + "T00:00:00Z",
-                               "to": d_to + "T00:00:00Z", "pageSize": 100}, quiet=True)
+                               "to": d_to + "T00:00:00Z", "pageSize": _PAGE_SIZE}, quiet=True)
     if d is None:
         # Negativní cache — bez availability.read (starý souhlas) nezkoušet každou zprávu
         _services_cache[ck] = {"data": None, "expires": now + 600}
@@ -629,7 +638,7 @@ async def _apaleo_get_stay(hotel: dict, room: str) -> Optional[Stay]:
     # Řeší velké properties (>200 InHouse rezervací = mimo první stránku) a umožní
     # rozlišit „pokoj neexistuje" od „pokoj je prázdný". Bez setup.read (starý souhlas)
     # tiše spadne na původní lokální filtrování.
-    params = {"propertyIds": property_id, "status": "InHouse", "pageSize": 200}
+    params = {"propertyIds": property_id, "status": "InHouse", "pageSize": _PAGE_SIZE}
     unit_ids = []
     try:
         setup = await apaleo_get_setup(hotel)
