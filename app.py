@@ -7239,10 +7239,14 @@ _APALEO_SCOPES = "offline_access reservations.read setup.read availability.read 
 # služeb, prodloužení pobytu; viz APALEO_ZAPIS_DO_REZERVACE_NAVRH.md). Scope se
 # POŽADUJE jen za gatem: registrace aplikace v Apaleo Console ho musí mít povolený
 # DŘÍV, než ho začneme chtít — jinak authorize vrátí invalid_scope a spadne každé
-# nové připojení. Zapnout až po úpravě registrace. Scope neplatí zpětně: každý hotel
-# připojený starým souhlasem ho musí udělit znovu (portál ukazuje pms_needs_reconsent).
+# nové připojení. Registrace scope povolený má (9. 10. 2026). Scope neplatí zpětně: každý
+# hotel připojený starým souhlasem ho musí udělit znovu (portál ukazuje pms_needs_reconsent).
+# Gate je proměnná prostředí, ne konstanta: stejný kód jede na stagingu i v produkci —
+# staging zapne APALEO_REQUEST_WRITE_SCOPE=1 a otestuje souhlas na dev účtu, produkce
+# zůstane čtecí, dokud nebudou hotové texty k souhlasu (listing, /apaleo) a Apaleo
+# nebude o změně scope informováno.
 _APALEO_WRITE_SCOPE = "reservations.manage"
-_APALEO_REQUEST_WRITE_SCOPE = False
+_APALEO_REQUEST_WRITE_SCOPE = os.getenv("APALEO_REQUEST_WRITE_SCOPE", "").strip() == "1"
 
 def _apaleo_scopes() -> str:
     """Scope string pro authorize — základ + zápis, je-li zapnutý."""
