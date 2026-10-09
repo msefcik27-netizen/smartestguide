@@ -2061,6 +2061,10 @@ def hotel_portal_me(token: str):
         raise HTTPException(403, "Neplatny pristupovy token")
     safe = {k: v for k, v in h.items() if k not in (
         "hotel_token", "pms_client_secret", "pms_refresh_token", "pms_oauth_state", "pms_oauth_state_at")}
+    # Zápis do rezervace: hotel připojený starým souhlasem (bez reservations.manage) musí
+    # souhlas udělit znovu — scope neplatí zpětně. Dokud je gate vypnutý, je to vždy False,
+    # takže portál dnes nic nového neukazuje.
+    safe["pms_needs_reconsent"] = bool(h.get("pms_type")) and _APALEO_REQUEST_WRITE_SCOPE and not _apaleo_has_write_scope(h)
     return {"status": "ok", "hotel": safe}
 
 class HotelPortalUpdate(BaseModel):
@@ -4559,6 +4563,7 @@ def _handle_apaleo_group_checkout(obj: dict, reg_id: str) -> dict:
         if i == 0:
             parent_id = nid
             hotel["pms_refresh_token"] = reg.get("refresh_token", "")
+            hotel["pms_scope"] = reg.get("scope", "")   # viz apaleo_callback — udělený scope
             hotel["stripe_subscription_id"] = subscription_id
         else:
             hotel["pms_token_ref"] = parent_id
@@ -6108,7 +6113,7 @@ def get_guest_hotel(hotel_id: str):
     public = {k: v for k, v in h.items() if k not in (
         "hotel_token", "stripe_customer_id", "stripe_subscription_id",
         "pms_type", "pms_client_id", "pms_client_secret", "pms_property_id",
-        "pms_refresh_token", "pms_oauth_state", "pms_oauth_state_at")}
+        "pms_refresh_token", "pms_scope", "pms_oauth_state", "pms_oauth_state_at")}
     # Jen boolean — guest app podle něj nabídne „propojit pobyt" (žádné PMS detaily ven)
     public["pms_connected"] = bool(h.get("pms_type"))
     return {"status": "ok", "hotel": public}
@@ -7230,6 +7235,30 @@ _APALEO_AUTHORIZE_URL = "https://identity.apaleo.com/connect/authorize"
 # s živou cenou + nabídka služeb. Vše read-only, bez PII, bez folios/invoices/accounting.
 _APALEO_SCOPES = "offline_access reservations.read setup.read availability.read offers.read"
 
+# Zápis do rezervace (9. 10. 2026, požadavek Apalea po certifikačním callu — přidání
+# služeb, prodloužení pobytu; viz APALEO_ZAPIS_DO_REZERVACE_NAVRH.md). Scope se
+# POŽADUJE jen za gatem: registrace aplikace v Apaleo Console ho musí mít povolený
+# DŘÍV, než ho začneme chtít — jinak authorize vrátí invalid_scope a spadne každé
+# nové připojení. Zapnout až po úpravě registrace. Scope neplatí zpětně: každý hotel
+# připojený starým souhlasem ho musí udělit znovu (portál ukazuje pms_needs_reconsent).
+_APALEO_WRITE_SCOPE = "reservations.manage"
+_APALEO_REQUEST_WRITE_SCOPE = False
+
+def _apaleo_scopes() -> str:
+    """Scope string pro authorize — základ + zápis, je-li zapnutý."""
+    return _APALEO_SCOPES + (" " + _APALEO_WRITE_SCOPE if _APALEO_REQUEST_WRITE_SCOPE else "")
+
+def _apaleo_has_write_scope(h: dict, db: dict = None) -> bool:
+    """Udělil hotel při souhlasu scope pro zápis? Udělený scope se ukládá z token
+    odpovědi do pms_scope; skupinové hotely ho čtou z vlastníka tokenu (pms_token_ref).
+    Starý souhlas bez uloženého scope = False — to je stav „připojeno, chybí oprávnění"."""
+    src = h
+    if not h.get("pms_refresh_token") and h.get("pms_token_ref"):
+        if db is None:
+            db = db_load()
+        src = (db.get("hotels") or {}).get(h["pms_token_ref"]) or {}
+    return _APALEO_WRITE_SCOPE in (src.get("pms_scope") or "").split()
+
 def _pms_hotel_ctx(h: dict, settings: dict, db: dict = None) -> dict:
     """Kopie hotelu s doplněnými app-level credentials pro pms vrstvu (Connect režim).
     Skupinové hotely (aktivované hromadně z jednoho Apaleo účtu) NEMAJÍ vlastní refresh
@@ -7288,7 +7317,7 @@ def apaleo_connect(token: str, request: Request):
     redirect_uri = f"{get_base_url(request)}/api/pms/apaleo/callback"
     from urllib.parse import urlencode
     q = urlencode({"response_type": "code", "client_id": client_id,
-                   "redirect_uri": redirect_uri, "scope": _APALEO_SCOPES, "state": state,
+                   "redirect_uri": redirect_uri, "scope": _apaleo_scopes(), "state": state,
                    "prompt": "consent"})  # vynutí consent obrazovku i při opakovaném připojení
     return RedirectResponse(f"{_APALEO_AUTHORIZE_URL}?{q}")
 
@@ -7409,7 +7438,7 @@ def apaleo_connect_register(request: Request):
     from urllib.parse import urlencode
     q = urlencode({"response_type": "code", "client_id": client_id,
                    "redirect_uri": f"{get_base_url(request)}/api/pms/apaleo/callback",
-                   "scope": _APALEO_SCOPES, "state": state, "prompt": "consent"})
+                   "scope": _apaleo_scopes(), "state": state, "prompt": "consent"})
     return RedirectResponse(f"{_APALEO_AUTHORIZE_URL}?{q}")
 
 async def _apaleo_registration_callback(request: Request, code: str, reg: dict, db: dict, _page):
@@ -7471,6 +7500,7 @@ async def _apaleo_registration_callback(request: Request, code: str, reg: dict, 
     if _ph.get("_new_refresh_token"):
         refresh_token = _ph["_new_refresh_token"]
     reg.update({"status": "form", "refresh_token": refresh_token, "properties": enriched,
+                "scope": tok.get("scope", ""),   # udělený scope → při založení hotelu do pms_scope
                 "token_at": datetime.utcnow().isoformat()})
     reg.pop("state", None)   # state je jednorázový
     db["pending_apaleo_regs"][reg["id"]] = reg
@@ -7544,6 +7574,9 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
         return _page("Missing refresh token", "Apaleo did not grant offline access. Please contact support@smartestguide.com.", ok=False, portal_url=portal_url)
     db["hotels"][hid]["pms_type"] = "apaleo"
     db["hotels"][hid]["pms_refresh_token"] = refresh_token
+    # Udělený scope z token odpovědi — jediný způsob, jak později poznat hotel se
+    # starým souhlasem (bez reservations.manage), aniž by se zkoušel zápis a chytal 403.
+    db["hotels"][hid]["pms_scope"] = tok.get("scope", "")
     db["hotels"][hid].pop("pms_oauth_state", None)
     db["hotels"][hid].pop("pms_oauth_state_at", None)
     db_save(db)
