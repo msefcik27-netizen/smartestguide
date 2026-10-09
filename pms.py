@@ -28,12 +28,21 @@ import httpx
 # nebylo vidět. Až bude na pořadu dne velký hotel, dodělat průchod přes `nextPageToken`.
 _PAGE_SIZE = 200
 
+# Smí osobní údaje hosta z PMS (jméno z primaryGuest) do promptu jazykového modelu?
+# Dnes je aplikace v Apaleu nastavená na PII „Omit all", takže primaryGuest chodí
+# prázdný a tenhle gate nic nemění. Jakmile se PII zapne (nutné pro ověřovací kód
+# e-mailem u zápisu do rezervace — viz APALEO_ZAPIS_DO_REZERVACE_NAVRH.md), začalo
+# by jméno téct do promptu samo, bez jediné změny v kódu. Rozhodnutí z 9. 10. 2026:
+# PII slouží VÝHRADNĚ k ověření hosta, do modelu nevstupuje. Zapnout jen vědomě.
+_PII_TO_PROMPT = False
+
 # ── Normalizovaný model pobytu ────────────────────────────────────────────────
 
 @dataclass
 class Stay:
     room: str                       # číslo/název pokoje (unit name)
-    guest_name: str = ""            # jméno primárního hosta
+    reservation_id: str = ""        # id rezervace v PMS — adresuje zápisové akce (book-service, amend)
+    guest_name: str = ""            # jméno primárního hosta (do promptu jen při _PII_TO_PROMPT)
     arrival: str = ""               # ISO datum příjezdu (YYYY-MM-DD)
     arrival_time: str = ""          # čas příjezdu z rezervace (HH:MM), "" = neznámo
     departure: str = ""             # ISO datum odjezdu (YYYY-MM-DD)
@@ -57,7 +66,7 @@ def format_stay_block(stay: "Stay") -> str:
         "ale NIKDY nesděluj údaje o pobytu, pokud se host nejdřív nezmíní, že bydlí na tomto pokoji):",
         f"- Pokoj: {stay.room}",
     ]
-    if stay.guest_name: lines.append(f"- Host: {stay.guest_name}")
+    if _PII_TO_PROMPT and stay.guest_name: lines.append(f"- Host: {stay.guest_name}")
     if stay.arrival:    lines.append(f"- Příjezd: {stay.arrival}" + (f" od {stay.arrival_time}" if stay.arrival_time else ""))
     if stay.departure:  lines.append(f"- Odjezd (check-out): {stay.departure}" + (f" v {stay.departure_time}" if stay.departure_time else ""))
     lines.append("DŮLEŽITÉ: Časy z této rezervace mají PŘEDNOST před obecnými časy hotelu (check-in/check-out v profilu). Hostovi vždy říkej čas z jeho rezervace.")
@@ -244,6 +253,7 @@ def _apaleo_normalize(res: dict) -> Stay:
         pass
     return Stay(
         room=(res.get("unit") or {}).get("name", ""),
+        reservation_id=res.get("id") or "",
         guest_name=name,
         arrival=arrival,
         arrival_time=arrival_time,
