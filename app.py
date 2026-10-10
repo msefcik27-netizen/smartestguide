@@ -2111,6 +2111,49 @@ class HotelPortalUpdate(BaseModel):
     menu_urls: Optional[List[str]] = None
     custom_fields: Optional[List[dict]] = None
 
+# ── Zápis do rezervace: nastavení per hotel (rozhodnutí 9. 10. 2026) ──────────────────
+# Výchozí stav = VYPNUTO (pravidlo 1). Hoteliér zapíná v portálu; bez PMS má smysl jen
+# režim "request" (objednávka jde na recepci, hotel ji zadá sám — rozhodnutí č. 5).
+_WRITE_DEFAULTS = {
+    "pms_write_services": False,     # smí Alex přidávat služby na účet pokoje
+    "pms_write_extension": False,    # smí Alex prodlužovat pobyt
+    "pms_write_mode": "auto",        # "auto" = zapsat do PMS po potvrzení hostem | "request" = jen poslat recepci
+    "pms_write_allowlist": [],       # serviceId z Apalea, které smí Alex nabízet (pravidlo 3); [] = nic
+    "pms_write_cap": 100.0,          # strop na jednu akci v měně hotelu (pravidlo 4); nad něj ověření kódem
+    "pms_write_notify_email": "",    # kam hlásit každý zápis (pravidlo 7); prázdné = e-mail hotelu
+}
+
+def _normalize_write_settings(data: dict):
+    """Vrátí normalizovanou podmnožinu polí pms_write_* z requestu, nebo None, když tam žádné
+    není. Neplatná hodnota → výchozí (bezpečnější) hodnota, nikdy výjimka — portál nesmí
+    spadnout kvůli překlepu ve stropu."""
+    keys = [k for k in _WRITE_DEFAULTS if k in data]
+    if not keys:
+        return None
+    out = {}
+    for k in keys:
+        v = data.get(k)
+        if k in ("pms_write_services", "pms_write_extension"):
+            out[k] = v is True or str(v).strip().lower() in ("1", "true", "ano", "yes", "on")
+        elif k == "pms_write_mode":
+            out[k] = v if v in ("auto", "request") else "request"
+        elif k == "pms_write_allowlist":
+            out[k] = sorted({str(x).strip() for x in (v if isinstance(v, list) else []) if str(x).strip()})[:200]
+        elif k == "pms_write_cap":
+            try:
+                cap = float(str(v).replace(",", "."))
+                out[k] = round(cap, 2) if 0 <= cap <= 100000 else _WRITE_DEFAULTS[k]
+            except (TypeError, ValueError):
+                out[k] = _WRITE_DEFAULTS[k]
+        elif k == "pms_write_notify_email":
+            s = str(v or "").strip()
+            out[k] = s if (s == "" or ("@" in s and "." in s.split("@")[-1] and len(s) <= 254)) else ""
+    return out
+
+def _write_settings(h: dict) -> dict:
+    """Efektivní nastavení zápisu hotelu (výchozí + uložené)."""
+    return {**_WRITE_DEFAULTS, **{k: h[k] for k in _WRITE_DEFAULTS if k in h}}
+
 _PORTAL_PROTECTED = {
     "id", "hotel_token", "created_at", "qr_code_id", "registered_bed_count",
     "subscription_active", "subscription_start", "subscription_period_end",
@@ -2135,6 +2178,13 @@ def hotel_portal_update(token: str, data: dict = Body(default={})):
         menus = [m.get("url") for r in rests for m in (r.get("menus") or []) if m.get("url")]
         update_data["menu_urls"] = menus or None
     current = db["hotels"][h["id"]]
+    # Nastavení zápisu do rezervace (APALEO_ZAPIS_DO_REZERVACE_NAVRH.md, pravidla 1–4):
+    # portál posílá libovolná pole, ale tahle rozhodují o tom, co smí Alex objednat na účet
+    # hosta — špatná hodnota (strop jako text, neznámý režim) by potichu vypnula pojistku,
+    # proto se normalizují tady a ne až při čtení.
+    _wr = _normalize_write_settings(update_data)
+    if _wr is not None:
+        update_data.update(_wr)
     # Při prvním nastavení lůžek u aktivního předplatného ulož jako zaplacená lůžka
     new_beds = update_data.get("bed_count")
     paid_beds = current.get("subscription_paid_beds", 0)
@@ -6216,6 +6266,58 @@ async def _send_pms_alert_email(hid: str, h: dict, reason: str):
         logging.info("PMS alert pro %s: HTTP %s", hid, r.status_code)
     except Exception as e:
         logging.warning("PMS alert e-mail selhal (%s): %s", hid, e)
+
+async def _send_write_notification(hid: str, h: dict, room: str, action: dict):
+    """Hlášení recepci o každém zápisu / požadavku z chatu (zápis do rezervace, pravidlo 7:
+    „hotel se to dozví hned"). Jde na pms_write_notify_email, jinak na e-mail hotelu; BCC admin.
+    action = {"kind": "service"|"extension", "mode": "auto"|"request", "ok": bool,
+              "title": str, "detail": str, "price": str, "reservation_id": str}
+    Žádné osobní údaje hosta — jen pokoj, rezervace a co se objednalo. Nikdy nevyhazuje."""
+    brevo_key = os.getenv("BREVO_API_KEY", "")
+    wr = _write_settings(h)
+    to_email = (wr.get("pms_write_notify_email") or h.get("registration_email") or h.get("email") or "").strip()
+    if not brevo_key or not to_email:
+        logging.warning("Write notification: nelze odeslat (brevo=%s, email=%s), hotel %s", bool(brevo_key), bool(to_email), hid)
+        return
+    name = h.get("name") or hid
+    kind = "Stay extension" if action.get("kind") == "extension" else "Service order"
+    if action.get("mode") == "request":
+        what = f"REQUEST from room {room} — please enter it in Apaleo"
+        lead = "A guest asked Alex for the following. This hotel runs in <b>request mode</b>, so nothing was written to Apaleo — please handle it at reception:"
+    elif action.get("ok"):
+        what = f"booked for room {room}"
+        lead = "Alex has just written the following to the guest's reservation in <b>Apaleo</b> after the guest confirmed it in chat. It is charged to the room account and settled at check-out:"
+    else:
+        what = f"FAILED for room {room}"
+        lead = "A guest confirmed the following in chat, but <b>writing it to Apaleo failed</b>. Please check the reservation and handle it manually:"
+    when = datetime.utcnow().strftime("%d.%m.%Y %H:%M UTC")
+    payload = {
+        "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
+        "to": [{"email": to_email}],
+        "bcc": _admin_notify_bcc(exclude=to_email) or None,
+        "subject": f"🛎 {name}: {kind} {what}",
+        "htmlContent": (
+            f"<p>Hello,</p><p>{lead}</p>"
+            f"<ul><li><b>Room:</b> {room}</li>"
+            f"<li><b>Reservation:</b> {action.get('reservation_id') or '—'}</li>"
+            f"<li><b>{kind}:</b> {action.get('title') or '—'}</li>"
+            f"<li><b>Detail:</b> {action.get('detail') or '—'}</li>"
+            f"<li><b>Price:</b> {action.get('price') or '—'}</li>"
+            f"<li><b>Time:</b> {when}</li></ul>"
+            + (f"<p style='color:#b00'><b>Error:</b> {action.get('error')}</p>" if action.get("error") else "")
+            + "<p>Settings (what Alex may order, limits, this notification address): hotel portal → <b>Hotel system</b>.</p>"
+            "<p>— SMARTEST GUIDE · support@smartestguide.com</p>"),
+        "textContent": f"{kind} {what}. {action.get('title') or ''} — {action.get('detail') or ''} — {action.get('price') or ''}. Reservation {action.get('reservation_id') or '-'}, {when}.",
+    }
+    if not payload["bcc"]:
+        payload.pop("bcc")
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post("https://api.brevo.com/v3/smtp/email", json=payload,
+                headers={"api-key": brevo_key, "Content-Type": "application/json"}, timeout=30)
+        logging.info("Write notification pro %s (%s): HTTP %s", hid, kind, r.status_code)
+    except Exception as e:
+        logging.warning("Write notification e-mail selhal (%s): %s", hid, e)
 
 def _pms_health_note(hid: str, fail):
     """Monitoring PMS spojení per hotel. fail: '' = úspěch, None = nevyhodnoceno, jinak důvod selhání.
