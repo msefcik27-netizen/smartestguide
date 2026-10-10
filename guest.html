@@ -1416,6 +1416,12 @@ async function sendMsg(){
       const botBtn=addBot(d.reply);
       // Zápis do rezervace: server poslal konkrétní nabídky k potvrzení → karty s tlačítkem
       if(d.actions && d.actions.length) showOrderCards(d.actions);
+      // Host napsal číslo pokoje do chatu (hotel bez PMS nemá „Propojit pobyt") → zapamatovat
+      // pro další zprávy, ať se Alex neptá znovu a karty vědí, kam poslat požadavek.
+      if(d.room_detected && !roomNumber){
+        roomNumber=String(d.room_detected); roomMode='typed'; roomArrival='';
+        try{ localStorage.setItem('sg_stay_'+hotelId, JSON.stringify({room:roomNumber, mode:'typed'})); sessionStorage.setItem('sg_room', roomNumber); }catch(e){}
+      }
       // Host mluvil → Alex odpoví taky hlasem. Krátká odpověď se přečte celá;
       // u dlouhého výčtu (menu/ceník/tipy) se přečte jen krátký úvod, detaily zůstanou
       // napsané (rozhodnutí Martina 7. 8. 2026). Tlačítko 🔊 pak přehraje celou odpověď.

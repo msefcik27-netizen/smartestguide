@@ -6563,6 +6563,22 @@ _DAY_TOMORROW_RE = re.compile(r"\b(tomorrow|zítra|zitra|morgen|demain|mañana|m
 _DAY_ALL_RE = re.compile(r"\b(every day|each day|every morning|each morning|daily|whole stay|all days|celý pobyt|cely pobyt|"
                          r"každý den|kazdy den|každé ráno|kazde rano|jeden tag|täglich|taglich|ganzen aufenthalt|tous les|cada día|cada dia)", re.I)
 
+# Číslo pokoje napsané v chatu („101", „pokoj 1.003", „room 12", „Zimmer 204"). Hotel bez PMS
+# nemá tlačítko „Propojit pobyt", takže tohle je jediná cesta, jak se server pokoj dozví —
+# bez toho Alex řekne „napište číslo pokoje" a pak ho nikdy nedostane (nález 11. 10. 2026).
+_ROOM_IN_MSG_RE = re.compile(
+    r"(?:\b(?:pokoj|pokoji|pokoje|room|zimmer|chambre|habitaci[oó]n|camera|izba|pok[oó]j)\s*(?:č\.?|číslo|cislo|nr\.?|no\.?|number|#)?\s*"
+    r"([0-9]{1,4}(?:[.\-/][0-9]{1,3})?[a-z]?)\b)|(?:^\s*#?([0-9]{1,4}(?:[.\-/][0-9]{1,3})?[a-z]?)\s*[.!]?\s*$)", re.I)
+
+def _extract_room(message: str) -> str:
+    """Pokoj z aktuální zprávy: buď za slovem pokoj/room/…, nebo zpráva, která je JEN číslem."""
+    m = _ROOM_IN_MSG_RE.search((message or "").strip())
+    if not m:
+        return ""
+    room = (m.group(1) or m.group(2) or "").strip()
+    # holé číslo jako „2026" nebo rok/čas vynechat; pokoj má 1–4 číslice (+ volitelný oddělovač)
+    return room if 1 <= len(room.replace(".", "").replace("-", "").replace("/", "")) <= 5 else ""
+
 def _nights_from_message(msg: str) -> int:
     """Počet nocí z věty („2 more nights", „dvě noci"); výchozí 1, strop 7."""
     low = (msg or "").lower()
@@ -7053,15 +7069,22 @@ Guest name: {req.guest_name or 'Guest'}"""
     # Zápis do rezervace: konkrétní nabídka k potvrzení tlačítkem (server rozhoduje, model mluví).
     # Jen s ověřeným pobytem (reservation_id) a zapnutým zápisem u hotelu; jinak nic.
     order_actions = []
+    _room_detected = ""
     _wr_on = bool(h.get("pms_write_services") or h.get("pms_write_extension"))
     if _wr_on and (_stay_obj or not h.get("pms_type") or not req.arrival):
         # S ověřeným pobytem → Apaleo cesta; bez PMS nebo bez propojeného pobytu → položky hotelu (požadavek)
         try:
             # Kontext = poslední výměna (host: „kdy je snídaně?" → Alex: … → host: „mohu si JI objednat?")
             _ctx = " ".join(str(m.get("content") or "")[:400] for m in (req.history or [])[-2:] if isinstance(m, dict))
+            _room = (req.room or "").strip()
+            if not _room and not _stay_obj:
+                # Host napsal číslo pokoje do chatu (jediná cesta u hotelu bez PMS) → použít a vrátit
+                # klientovi, ať si ho uloží pro další zprávy.
+                _room = _extract_room(req.message or "")
+                _room_detected = _room
             order_actions, _order_block = await _build_order_proposals(
                 h, _hid, _stay_obj if (_stay_obj and getattr(_stay_obj, "reservation_id", "")) else None,
-                req.message or "", settings, db, room=(req.room or ""), context=_ctx)
+                req.message or "", settings, db, room=_room, context=_ctx)
             if _order_block:
                 pms_extra_blocks.append(_order_block)
         except Exception as e:
@@ -7104,7 +7127,7 @@ Guest name: {req.guest_name or 'Guest'}"""
     # „lang" vracíme jen když jsme jazyk přepsali na základě jednoznačného důkazu —
     # klient si ho pak uloží a vyléčí tím dřív špatně uložený jazyk (anglické „Welcome back").
     return {"status": "ok", "reply": reply, "lang": reply_lang if _lang_forced else None,
-            "actions": order_actions or None}
+            "actions": order_actions or None, "room_detected": _room_detected or None}
 
 # ─────────────────────────────────────────────
 # TTS — Alex čte odpověď nahlas. HLAVNÍ: ElevenLabs, hlas „Sarah" (rozhodnuto 7. 8. 2026).
