@@ -909,7 +909,8 @@ function renderPortal() {
         <br><br>🔒 QR kód je <strong style="color:var(--text)">jedinečný pro váš hotel a neměnný</strong> — jednou vytištěný plakát platí napořád, nikdy se nemění.
       </div>
       <a href="/api/hotels/${h.id}/qr-poster" target="_blank" rel="noopener" style="display:inline-block;background:var(--accent);color:#ffffff;text-decoration:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700">🖨️ Otevřít tiskové materiály</a>
-      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+      <!-- QR kartičky na pokoje: skryté (uživatel 11. 10. 2026 „zatím zneaktivni, to nemáme hotové") — odebrat hidden, až bude hotovo -->
+      <div hidden style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
         <div style="font-size:13px;font-weight:700;margin-bottom:4px">🚪 QR kartičky na pokoje</div>
         <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">Kartičky 85×54 mm s QR kódem nesoucím číslo pokoje — host po naskenování dostane odpovědi přímo ke svému pobytu (check-out, délka pobytu). Zadejte pokoje: rozsahy i jednotlivě, např. <code>101-110, 201, 3.001</code></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
