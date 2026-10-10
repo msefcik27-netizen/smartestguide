@@ -6543,6 +6543,18 @@ def _alex_feminine_fix(text: str) -> str:
 # + rezervaci), všechno se před zápisem ověří znovu. Nad strop a prodloužení pobytu =
 # režim „request" (strukturovaný požadavek recepci) — e-mailový kód (rozhodnutí č. 2)
 # čeká na odemčení PII v Apaleu, pak se doplní jako další vrstva.
+# Tón nabídky (uživatel 11. 10. 2026: „tohle hosta vyděsí — nejdřív dej všechny informace a pak
+# nabídni, jestli to chce doobjednat"). Alex NIKDY nemluví, jako by už objednal.
+_ORDER_TONE = (
+    "POŘADÍ ODPOVĚDI: (1) nejdřív normálně odpověz na to, na co se host ptal — čas, místo, co to zahrnuje, "
+    "cena, jak to máš v podkladech; (2) teprve NA KONCI, jednou větou, NABÍDNI: že pokud chce, může si to "
+    "objednat tlačítkem pod touto zprávou. "
+    "ZAKÁZÁNO: psát 'objednávám', 'zaznamenala jsem objednávku', 'posílám/pošlu to recepci', 'je to v pořádku?', "
+    "'chcete ještě něco změnit?' nebo cokoli, co zní, jako by objednávka už běžela — NIC se neděje, dokud host "
+    "nestiskne tlačítko, a to řekni jen tehdy, když to dává smysl ('nic se neobjedná, dokud nepotvrdíte'). "
+    "Neptej se na počet osob, čas ani den — tlačítko už má přesné zadání (viz výše); nic nedopočítávej, "
+    "nenabízej jiné varianty. Pokud host jen oznámil číslo pokoje, nekomentuj ho dlouze — krátce potvrď a nabídni.")
+
 _ORDER_PROPOSALS: dict = {}          # token -> návrh (in-memory, 15 min; jedna replika)
 _ORDER_TTL = 900
 _svc_offers_cache: dict = {}         # (hid, reservation_id) -> {"data": list, "expires": epoch}
@@ -6683,9 +6695,8 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
             actions.append(act)
             lines.append(f"- Prodloužení pobytu o {n} noc/nocí — cenu a dostupnost potvrdí recepce, potvrzením odejde požadavek")
         block = ("OBJEDNÁNÍ V CHATU — VÝJIMKA z pravidla 'nic neobjednávej': pod tvou odpovědí se hostovi zobrazí "
-                 "TLAČÍTKO, kterým pošle recepci požadavek na:\n" + "\n".join(lines) +
-                 f"\nPokoj hosta: {room}. Řekni hostovi stručně cenu (pokud je výše) a že to tlačítkem pod touto zprávou "
-                 "pošle recepci, která mu to potvrdí. Nic nedopočítávej, nenabízej jiné dny, sám nic neobjednáváš.")
+                 "TLAČÍTKO, kterým může poslat recepci požadavek na:\n" + "\n".join(lines) +
+                 f"\nPokoj hosta: {room}.\n" + _ORDER_TONE)
         return actions, block
     # ── (1) ověřený pobyt z Apalea ──
     has_scope = _apaleo_has_write_scope(h, db)
@@ -6765,10 +6776,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
     if not actions:
         return [], ""
     block = ("OBJEDNÁNÍ V CHATU — VÝJIMKA z pravidla 'nic neobjednávej': pod tvou odpovědí se hostovi zobrazí "
-             "TLAČÍTKO K POTVRZENÍ pro tyto položky:\n" + "\n".join(lines) +
-             "\nŘekni hostovi stručně cenu a přesně to, co je výše (den, počet), a že to může potvrdit tlačítkem "
-             "pod touto zprávou. Neptej se ho na nic dalšího, nenabízej jiné dny ani počty, nic nedopočítávej. "
-             "Ty sám nic neobjednáváš — objednávku provede tlačítko.")
+             "TLAČÍTKO K POTVRZENÍ pro tyto položky:\n" + "\n".join(lines) + "\n" + _ORDER_TONE)
     return actions, block
 
 class GuestOrderRequest(BaseModel):
