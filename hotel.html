@@ -378,6 +378,30 @@ const EN_MAP = {
   "🔑 Apaleo potřebuje nové oprávnění":"🔑 Apaleo needs a new permission",
   "— aby Alex mohl hostům rovnou objednat služby a prodloužit pobyt, musí hotel udělit souhlas znovu (jedno kliknutí, nastavení zůstane).":"— so that Alex can book services and extend stays for your guests directly, the hotel has to grant consent again (one click, your settings stay).",
   "Udělit oprávnění →":"Grant permission →",
+  "Objednávky v chatu":"Orders in chat",
+  "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem.":"Alex can book a service to the guest's room account or send a request to reception. Nothing is ordered until the guest confirms with a button.",
+  "Alex přijme objednávku v chatu a pošle ji recepci jako požadavek — host nemusí nikam volat. Bez hotelového systému se nic nezapisuje, recepce to zadá sama.":"Alex takes the order in chat and sends it to reception as a request — the guest doesn't have to call anyone. Without a hotel system nothing is written anywhere; reception enters it.",
+  "Alex smí přijímat objednávky služeb":"Alex may take service orders",
+  "Snídaně, pozdní odhlášení, WLAN… — jen položky, které níže povolíte.":"Breakfast, late check-out, WLAN… — only the items you allow below.",
+  "Jen položky ze seznamu níže; cenu říká Alex hostovi přesně tak, jak ji napíšete.":"Only items from the list below; Alex quotes the price exactly as you enter it.",
+  "Alex smí přijímat žádosti o prodloužení pobytu":"Alex may take stay-extension requests",
+  "Alex nabídne přesnou cenu z Apalea; požadavek vždy potvrzuje recepce.":"Alex quotes the exact price from Apaleo; reception always confirms the request.",
+  "Alex pošle recepci požadavek, cenu a dostupnost potvrdíte vy.":"Alex sends reception a request; you confirm price and availability.",
+  "Co se stane po potvrzení hostem":"What happens after the guest confirms",
+  "Zapsat do Apalea na účet pokoje (do limitu)":"Book in Apaleo to the room account (up to the limit)",
+  "Jen poslat požadavek recepci":"Only send a request to reception",
+  "Limit na jednu objednávku":"Limit per order",
+  "Nad limit jde vždy jen požadavek recepci.":"Above the limit it is always just a request to reception.",
+  "Služby, které smí Alex nabízet k objednání (z vašeho Apalea)":"Services Alex may offer for ordering (from your Apaleo)",
+  "Načítám služby…":"Loading services…",
+  "Přidat kód":"Add code",
+  "Seznam se plní sám z nabídek, které Alex vidí u propojených pobytů. Kód služby najdete v Apaleu u dané služby.":"The list fills itself from offers Alex sees for linked stays. The service code is shown in Apaleo on the service.",
+  "Zatím žádné služby — objeví se, jakmile si host propojí pobyt, nebo přidejte kód ručně.":"No services yet — they appear once a guest links a stay, or add a code manually.",
+  "Položky k objednání (název, cena, jednotka)":"Items to order (name, price, unit)",
+  "+ Přidat položku":"+ Add item","za osobu":"per person","za pokoj":"per room","jednorázově":"one-off","Odebrat":"Remove",
+  "E-mail, kam chodí každá objednávka / požadavek (prázdné = e-mail hotelu)":"E-mail that receives every order / request (empty = hotel e-mail)",
+  "Uložit objednávky":"Save orders","✓ Uloženo":"✓ Saved",
+  "🔑 Aby Alex mohl do Apalea zapisovat, udělte nové oprávnění v sekci Hotelový systém výše. Do té doby půjdou objednávky jen jako požadavek recepci.":"🔑 For Alex to write to Apaleo, grant the new permission in the Hotel system section above. Until then orders go to reception as requests only.",
   "Opravdu odpojit hotelový systém (Apaleo)?\n\nAlex přestane znát pobyty hostů a bude odpovídat jen z profilu hotelu. Připojit ho můžete kdykoli znovu jedním kliknutím.":"Really disconnect your hotel system (Apaleo)?\n\nAlex will stop knowing guest stays and answer only from the hotel profile. You can reconnect anytime with one click.",
   "Zadejte kód property (např. BER)":"Enter the property code (e.g. BER)",
   "Uložení se nepovedlo: ":"Saving failed: ","Odpojení se nepovedlo: ":"Disconnecting failed: ",
@@ -519,7 +543,7 @@ function setPortalLang(lang){
   refreshStaticTexts();
   if(hotelData){
     renderPortal(); renderOnboarding(); loadCompleteness(); loadPaymentSection();
-    loadPmsSection(); loadGroupSection(); loadAddHotelSection(); loadInvoicesSection(); loadMonthlyReport();
+    loadPmsSection(); loadOrdersSection(); loadGroupSection(); loadAddHotelSection(); loadInvoicesSection(); loadMonthlyReport();
     setTimeout(initEmbedCode, 100);
   }
 }
@@ -554,7 +578,7 @@ async function loadHotel() {
     renderOnboarding();
     loadCompleteness();
     loadPaymentSection();
-    loadPmsSection();
+    loadPmsSection(); loadOrdersSection();
     loadGroupSection();
     loadAddHotelSection();
     loadInvoicesSection();
@@ -677,6 +701,7 @@ function renderPortal() {
     <div id="group-section"></div>
     <div id="add-hotel-section"></div>
     <div id="pms-section"></div>
+    <div id="orders-section"></div>
 
     <div id="onboarding-wizard"></div>
 
@@ -1818,6 +1843,121 @@ async function loadPmsProperties(){
   }
 }
 
+// ── Objednávky v chatu (zápis do rezervace, APALEO_ZAPIS_DO_REZERVACE_NAVRH.md) ─────────
+// Sekce se ukazuje jen tam, kde je zápis zapnutý na serveru (pms_write_available = gate).
+// Apaleo hotel: přepínače, režim auto/požadavek, allowlist služeb, strop. Hotel bez PMS:
+// vlastní položky → Alex pošle požadavek recepci (nic se nikam nezapisuje).
+function loadOrdersSection(){
+  const el=document.getElementById('orders-section');
+  if(!el||!hotelData)return;
+  const h=hotelData;
+  if(!h.pms_write_available){ el.innerHTML=''; return; }
+  const pms=!!h.pms_type;
+  const on=!!h.pms_write_services, ext=!!h.pms_write_extension;
+  const mode=h.pms_write_mode||'auto', cap=(h.pms_write_cap!==undefined&&h.pms_write_cap!==null)?h.pms_write_cap:100;
+  const allow=h.pms_write_allowlist||[], items=h.pms_write_items||[];
+  const inp='background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13.5px;padding:8px 10px;outline:none';
+  const sw=(id,checked,label,hint)=>`<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin-bottom:10px"><input type="checkbox" id="${id}" ${checked?'checked':''} style="margin-top:3px;width:18px;height:18px;accent-color:var(--accent)"><span><b style="font-size:14px">${label}</b><br><span style="font-size:12px;color:var(--muted)">${hint}</span></span></label>`;
+  const itemRows=(items.length?items:[]).map(it=>orderItemRowHtml(it)).join('');
+  el.innerHTML=`
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:24px">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px">
+        <div style="font-size:26px">🛎</div>
+        <div style="flex:1;min-width:220px">
+          <div style="font-family:var(--font-head);font-size:15px;font-weight:700">Objednávky v chatu</div>
+          <div style="font-size:12.5px;color:var(--muted);margin-top:3px">${pms?'Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem.':'Alex přijme objednávku v chatu a pošle ji recepci jako požadavek — host nemusí nikam volat. Bez hotelového systému se nic nezapisuje, recepce to zadá sama.'}</div>
+        </div>
+      </div>
+      ${sw('ord-services',on,'Alex smí přijímat objednávky služeb',pms?'Snídaně, pozdní odhlášení, WLAN… — jen položky, které níže povolíte.':'Jen položky ze seznamu níže; cenu říká Alex hostovi přesně tak, jak ji napíšete.')}
+      ${sw('ord-ext',ext,'Alex smí přijímat žádosti o prodloužení pobytu',pms?'Alex nabídne přesnou cenu z Apalea; požadavek vždy potvrzuje recepce.':'Alex pošle recepci požadavek, cenu a dostupnost potvrdíte vy.')}
+      ${pms?`
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 6px">
+        <div style="flex:1;min-width:220px">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:5px">Co se stane po potvrzení hostem</div>
+          <select id="ord-mode" style="${inp};width:100%">
+            <option value="auto" ${mode==='auto'?'selected':''}>Zapsat do Apalea na účet pokoje (do limitu)</option>
+            <option value="request" ${mode==='request'?'selected':''}>Jen poslat požadavek recepci</option>
+          </select>
+        </div>
+        <div style="min-width:160px">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:5px">Limit na jednu objednávku</div>
+          <input id="ord-cap" type="number" min="0" step="1" value="${cap}" style="${inp};width:100%">
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Nad limit jde vždy jen požadavek recepci.</div>
+        </div>
+      </div>
+      <div style="margin:12px 0 6px;font-size:12px;color:var(--muted)">Služby, které smí Alex nabízet k objednání (z vašeho Apalea)</div>
+      <div id="ord-allow" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"><span style="font-size:12.5px;color:var(--muted)">Načítám služby…</span></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+        <input id="ord-allow-code" type="text" placeholder="kód služby z Apalea (např. LND-BRKF)" style="${inp};flex:1;min-width:200px">
+        <button onclick="addAllowCode()" style="background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--accent);font-weight:700;font-size:12.5px;padding:8px 12px;cursor:pointer">Přidat kód</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Seznam se plní sám z nabídek, které Alex vidí u propojených pobytů. Kód služby najdete v Apaleu u dané služby.</div>
+      `:''}
+      ${pms?'':`
+      <div style="margin:12px 0 6px;font-size:12px;color:var(--muted)">Položky k objednání (název, cena, jednotka)</div>
+      <div id="ord-items" style="display:flex;flex-direction:column;gap:6px">${itemRows}</div>
+      <button onclick="addOrderItemRow()" style="margin-top:8px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--accent);font-weight:700;font-size:12.5px;padding:8px 12px;cursor:pointer">+ Přidat položku</button>
+      `}
+      <div style="margin:14px 0 6px;font-size:12px;color:var(--muted)">E-mail, kam chodí každá objednávka / požadavek (prázdné = e-mail hotelu)</div>
+      <input id="ord-email" type="email" value="${(h.pms_write_notify_email||'').replace(/"/g,'&quot;')}" placeholder="recepce@hotel.cz" style="${inp};width:100%;max-width:360px">
+      <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button onclick="saveOrdersSection()" style="background:var(--accent);color:#0a0b0f;border:none;padding:9px 18px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Uložit objednávky</button>
+        <span id="ord-saved" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+      ${(pms&&h.pms_needs_reconsent)?`<div style="margin-top:10px;font-size:12px;color:#ffb84d">🔑 Aby Alex mohl do Apalea zapisovat, udělte nové oprávnění v sekci Hotelový systém výše. Do té doby půjdou objednávky jen jako požadavek recepci.</div>`:''}
+    </div>`;
+  if(pms) loadAllowlist(allow);
+  translateDom(el);
+}
+function orderItemRowHtml(it){
+  it=it||{}; const inp='background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:7px 9px;outline:none';
+  const esc=s=>String(s||'').replace(/"/g,'&quot;');
+  return `<div class="ord-item" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <input class="oi-name" type="text" value="${esc(it.name)}" placeholder="Snídaně" style="${inp};flex:2;min-width:140px">
+    <input class="oi-price" type="number" min="0" step="0.01" value="${it.price!==undefined?it.price:''}" placeholder="350" style="${inp};width:90px">
+    <input class="oi-cur" type="text" value="${esc(it.currency)}" placeholder="CZK" maxlength="3" style="${inp};width:60px">
+    <select class="oi-unit" style="${inp}"><option value="person" ${it.unit==='person'?'selected':''}>za osobu</option><option value="room" ${it.unit==='room'?'selected':''}>za pokoj</option><option value="flat" ${(!it.unit||it.unit==='flat')?'selected':''}>jednorázově</option></select>
+    <button onclick="this.parentElement.remove()" title="Odebrat" style="background:transparent;border:none;color:var(--muted);font-size:16px;cursor:pointer">✕</button>
+  </div>`;
+}
+function addOrderItemRow(){ const c=document.getElementById('ord-items'); if(!c)return; c.insertAdjacentHTML('beforeend',orderItemRowHtml({})); translateDom(c); }
+async function loadAllowlist(allow){
+  const box=document.getElementById('ord-allow'); if(!box)return;
+  let svcs=[];
+  try{ const r=await fetch(`${API}/api/hotel-portal/pms-services?token=${token}`); const d=await r.json(); svcs=d.services||[]; }catch(e){}
+  const known=new Set(svcs.map(s=>s.id));
+  (allow||[]).forEach(code=>{ if(!known.has(code)) svcs.push({id:code,name:code}); });
+  if(!svcs.length){ box.innerHTML=`<span style="font-size:12.5px;color:var(--muted)">Zatím žádné služby — objeví se, jakmile si host propojí pobyt, nebo přidejte kód ručně.</span>`; return; }
+  box.innerHTML=svcs.map(s=>`<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer"><input type="checkbox" class="ord-allow-cb" value="${s.id}" ${(allow||[]).includes(s.id)?'checked':''} style="accent-color:var(--accent);width:16px;height:16px"> ${s.name||s.id} <span style="color:var(--muted);font-size:12px">${s.id}${s.unit_price!==undefined&&s.unit_price!==null?` · ${s.unit_price} ${s.currency||''}${s.pricing_unit==='Person'?' / osoba':''}`:''}</span></label>`).join('');
+}
+function addAllowCode(){
+  const i=document.getElementById('ord-allow-code'); const code=(i.value||'').trim(); if(!code)return;
+  const box=document.getElementById('ord-allow');
+  if(!box.querySelector(`.ord-allow-cb[value="${code.replace(/"/g,'')}"]`)){
+    if(box.querySelector('span')&&!box.querySelector('label')) box.innerHTML='';
+    box.insertAdjacentHTML('beforeend',`<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer"><input type="checkbox" class="ord-allow-cb" value="${code.replace(/"/g,'')}" checked style="accent-color:var(--accent);width:16px;height:16px"> ${code}</label>`);
+  }
+  i.value='';
+}
+async function saveOrdersSection(){
+  const g=id=>document.getElementById(id);
+  const payload={pms_write_services:!!(g('ord-services')&&g('ord-services').checked), pms_write_extension:!!(g('ord-ext')&&g('ord-ext').checked),
+    pms_write_notify_email:(g('ord-email')&&g('ord-email').value||'').trim()};
+  if(g('ord-mode')) payload.pms_write_mode=g('ord-mode').value;
+  if(g('ord-cap')) payload.pms_write_cap=g('ord-cap').value;
+  if(g('ord-allow')) payload.pms_write_allowlist=[...document.querySelectorAll('.ord-allow-cb:checked')].map(c=>c.value);
+  if(g('ord-items')) payload.pms_write_items=[...document.querySelectorAll('#ord-items .ord-item')].map(r=>({name:r.querySelector('.oi-name').value,price:r.querySelector('.oi-price').value,currency:r.querySelector('.oi-cur').value,unit:r.querySelector('.oi-unit').value})).filter(x=>x.name.trim());
+  const s=g('ord-saved'); if(s) s.textContent=tr('Ukládá se…');
+  try{
+    const r=await fetch(`${API}/api/hotel-portal/update?token=${token}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json(); const keep={pms_write_available:hotelData.pms_write_available,pms_needs_reconsent:hotelData.pms_needs_reconsent};
+    hotelData=Object.assign(d.hotel,keep);
+    loadOrdersSection();
+    const s2=g('ord-saved'); if(s2) s2.textContent=tr('✓ Uloženo');
+  }catch(e){ if(s) s.textContent=''; alert(tr('Uložení se nepovedlo: ')+e.message); }
+}
+
 async function savePmsProperty(){
   const sel=document.getElementById('pms-prop-select');
   const inp=document.getElementById('pms-prop-input');
@@ -1857,7 +1997,7 @@ async function disconnectPms(){
     if(!r.ok)throw new Error('HTTP '+r.status);
     hotelData.pms_type='';
     hotelData.pms_refresh_token='';
-    loadPmsSection();
+    loadPmsSection(); loadOrdersSection();
   }catch(e){alert(tr('Odpojení se nepovedlo: ')+e.message);}
 }
 

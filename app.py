@@ -2065,7 +2065,20 @@ def hotel_portal_me(token: str):
     # souhlas udělit znovu — scope neplatí zpětně. Dokud je gate vypnutý, je to vždy False,
     # takže portál dnes nic nového neukazuje.
     safe["pms_needs_reconsent"] = bool(h.get("pms_type")) and _APALEO_REQUEST_WRITE_SCOPE and not _apaleo_has_write_scope(h)
+    safe["pms_write_available"] = _APALEO_REQUEST_WRITE_SCOPE   # gate zápisu (staging) → portál ukáže sekci Objednávky
     return {"status": "ok", "hotel": safe}
+
+@app.get("/api/hotel-portal/pms-services")
+def hotel_portal_pms_services(token: str):
+    """Služby z Apalea, které Alex u tohoto hotelu zatím viděl (z per-reservation nabídek
+    při propojených pobytech) — zdroj pro allowlist v portálu. Bez PMS prázdné.
+    Hoteliér může přidat i kód služby ručně (pole v portálu)."""
+    h = find_hotel_by_token(token)
+    if not h:
+        raise HTTPException(403, "Neplatny pristupovy token")
+    seen = h.get("pms_services_seen") or {}
+    return {"status": "ok", "services": [{"id": k, **(v if isinstance(v, dict) else {"name": str(v)})}
+                                        for k, v in sorted(seen.items(), key=lambda kv: str(kv[1].get("name", "") if isinstance(kv[1], dict) else kv[1]))]}
 
 class HotelPortalUpdate(BaseModel):
     description: Optional[str] = None
@@ -2121,7 +2134,33 @@ _WRITE_DEFAULTS = {
     "pms_write_allowlist": [],       # serviceId z Apalea, které smí Alex nabízet (pravidlo 3); [] = nic
     "pms_write_cap": 100.0,          # strop na jednu akci v měně hotelu (pravidlo 4); nad něj ověření kódem
     "pms_write_notify_email": "",    # kam hlásit každý zápis (pravidlo 7); prázdné = e-mail hotelu
+    # Hotely BEZ PMS (rozhodnutí č. 5): vlastní seznam věcí k objednání — Alex je nabídne
+    # a po potvrzení pošle požadavek recepci (nic se nikam nezapisuje, hotel zadá sám).
+    # [{id, name, price, currency, unit: "person"|"room"|"flat"}]
+    "pms_write_items": [],
 }
+_ITEM_UNITS = ("person", "room", "flat")
+
+def _normalize_items(v) -> list:
+    out, seen = [], set()
+    for it in (v if isinstance(v, list) else [])[:30]:
+        if not isinstance(it, dict):
+            continue
+        name = str(it.get("name") or "").strip()[:60]
+        if not name:
+            continue
+        try:
+            price = round(float(str(it.get("price") or 0).replace(",", ".")), 2)
+        except (TypeError, ValueError):
+            price = 0.0
+        unit = it.get("unit") if it.get("unit") in _ITEM_UNITS else "flat"
+        cur = str(it.get("currency") or "").strip().upper()[:3]
+        iid = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "item"
+        if iid in seen:
+            iid = f"{iid}-{len(out)+1}"
+        seen.add(iid)
+        out.append({"id": iid, "name": name, "price": max(0.0, price), "currency": cur, "unit": unit})
+    return out
 
 def _normalize_write_settings(data: dict):
     """Vrátí normalizovanou podmnožinu polí pms_write_* z requestu, nebo None, když tam žádné
@@ -2148,6 +2187,8 @@ def _normalize_write_settings(data: dict):
         elif k == "pms_write_notify_email":
             s = str(v or "").strip()
             out[k] = s if (s == "" or ("@" in s and "." in s.split("@")[-1] and len(s) <= 254)) else ""
+        elif k == "pms_write_items":
+            out[k] = _normalize_items(v)
     return out
 
 def _write_settings(h: dict) -> dict:
@@ -6546,23 +6587,66 @@ def _pick_service_dates(message: str, svc: dict, stay) -> list:
     fut = [d for d in avail if d >= today]
     return fut[:1] or avail[:1]
 
-async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings: dict, db: dict):
+async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings: dict, db: dict, room: str = ""):
     """Vrátí (akce pro klienta, blok do promptu). Akce = konkrétní, naceněné návrhy; nic se
-    nezapisuje. Každá dostane token do _ORDER_PROPOSALS."""
+    nezapisuje. Každá dostane token do _ORDER_PROPOSALS.
+    Dvě cesty: (1) ověřený pobyt z Apalea → služby z allowlistu + prodloužení (zápis nebo
+    požadavek); (2) bez PMS / bez propojeného pobytu → vlastní položky hotelu
+    (pms_write_items) jako POŽADAVEK recepci — potřebuje jen číslo pokoje (rozhodnutí č. 5)."""
     import secrets, time as _t
     wr = _write_settings(h)
     if not (wr["pms_write_services"] or wr["pms_write_extension"]):
         return [], ""
-    rid = getattr(stay, "reservation_id", "") or ""
+    rid = getattr(stay, "reservation_id", "") or "" if stay else ""
+    actions, lines = [], []
+    room = (room or (getattr(stay, "room", "") if stay else "") or "").strip()
+    # ── (2) bez rezervace: vlastní položky hotelu → požadavek recepci ──
     if not rid:
-        return [], ""
+        items = wr["pms_write_items"] if wr["pms_write_services"] else []
+        wants = bool(_ORDER_WORDS_RE.search(message or "") or _DAY_TODAY_RE.search(message or "")
+                     or _DAY_TOMORROW_RE.search(message or "") or _DAY_ALL_RE.search(message or ""))
+        hit = [it for it in items if _service_matches(message, it)] if wants else []
+        ext = wr["pms_write_extension"] and _EXTENSION_INTENT_RE.search(message or "")
+        if not (hit or ext):
+            return [], ""
+        if not room:
+            # Bez pokoje nemá recepce co vyřídit — Alex se nejdřív zeptá, karta až pak.
+            return [], ("OBJEDNÁNÍ V CHATU: host chce objednat/prodloužit, ale neznáš číslo jeho pokoje. "
+                        "Zeptej se ho na číslo pokoje (jak je na klíči/dveřích) a řekni, že pak požadavek "
+                        "rovnou pošleš recepci. Nic jiného neslibuj, nic nedopočítávej.")
+        from datetime import date, timedelta
+        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+        day = date.today().isoformat() if _DAY_TODAY_RE.search(message or "") else tomorrow
+        for it in hit[:2]:
+            tok = secrets.token_urlsafe(18)
+            unit_lbl = {"person": "per person", "room": "per room", "flat": ""}.get(it["unit"], "")
+            price_txt = f"{it['price']} {it['currency']}".strip() + (f" {unit_lbl}" if unit_lbl else "")
+            act = {"id": tok, "kind": "item", "service_id": it["id"], "title": it["name"], "dates": [day], "count": 1,
+                   "price": it["price"], "currency": it["currency"], "mode": "request", "detail": day}
+            _ORDER_PROPOSALS[tok] = {**act, "hid": hid, "reservation_id": "", "room": room, "expires": _t.time() + _ORDER_TTL}
+            actions.append(act)
+            lines.append(f"- {it['name']} ({price_txt}), den {day} — potvrzením odejde požadavek recepci, která ho vyřídí a potvrdí")
+        if ext:
+            n = _nights_from_message(message)
+            tok = secrets.token_urlsafe(18)
+            act = {"id": tok, "kind": "item", "service_id": "extension", "title": f"Stay extension +{n} night(s)",
+                   "dates": [], "count": n, "price": None, "currency": "", "mode": "request", "detail": "reception will confirm availability and price"}
+            _ORDER_PROPOSALS[tok] = {**act, "hid": hid, "reservation_id": "", "room": room, "expires": _t.time() + _ORDER_TTL}
+            actions.append(act)
+            lines.append(f"- Prodloužení pobytu o {n} noc/nocí — cenu a dostupnost potvrdí recepce, potvrzením odejde požadavek")
+        block = ("OBJEDNÁNÍ V CHATU — VÝJIMKA z pravidla 'nic neobjednávej': pod tvou odpovědí se hostovi zobrazí "
+                 "TLAČÍTKO, kterým pošle recepci požadavek na:\n" + "\n".join(lines) +
+                 f"\nPokoj hosta: {room}. Řekni hostovi stručně cenu (pokud je výše) a že to tlačítkem pod touto zprávou "
+                 "pošle recepci, která mu to potvrdí. Nic nedopočítávej, nenabízej jiné dny, sám nic neobjednáváš.")
+        return actions, block
+    # ── (1) ověřený pobyt z Apalea ──
     has_scope = _apaleo_has_write_scope(h, db)
     base_mode = wr["pms_write_mode"] if has_scope else "request"   # bez scope jde jen požadavek recepci
     _ph = _pms_hotel_ctx(h, settings, db)
-    actions, lines = [], []
     cur = ""
-    # a) služby z allowlistu
-    if wr["pms_write_services"] and wr["pms_write_allowlist"]:
+    # a) služby z allowlistu (nabídky se čtou i s prázdným allowlistem — portál z nich
+    #    staví seznam zaškrtávátek přes pms_services_seen; nabídnout se smí jen povolené)
+    if wr["pms_write_services"]:
         ck = (hid, rid)
         c = _svc_offers_cache.get(ck)
         if c and c["expires"] > _t.time():
@@ -6570,6 +6654,19 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         else:
             offers = await pms_layer.apaleo_reservation_service_offers(_ph, stay) or []
             _svc_offers_cache[ck] = {"data": offers, "expires": _t.time() + 600}
+            try:
+                seen = dict(h.get("pms_services_seen") or {})
+                new = {o["service_id"]: {"name": o["name"], "unit_price": o.get("unit_price"), "currency": o.get("currency"),
+                                         "pricing_unit": o.get("pricing_unit")} for o in offers if o.get("service_id")}
+                if any(k not in seen or seen[k].get("name") != v["name"] for k, v in new.items()):
+                    seen.update(new)
+                    _db = db_load()
+                    if hid in _db.get("hotels", {}):
+                        _db["hotels"][hid]["pms_services_seen"] = seen
+                        db_save(_db)
+                    h["pms_services_seen"] = seen
+            except Exception as e:
+                logging.warning("pms_services_seen se neuložilo: %s", e)
         allowed = [o for o in offers if o["service_id"] in wr["pms_write_allowlist"] and not o.get("validation")]
         # Karta jen při ZÁMĚRU objednat nebo při určení dne — informační dotaz („What time is
         # breakfast?") kartu nevyvolá; Alex o službě smí mluvit z běžného bloku služeb.
@@ -6669,12 +6766,21 @@ async def guest_order(req: GuestOrderRequest):
     settings = db_get_settings()
     wr = _write_settings(h)
     title = p.get("title", "")
+    kind = p.get("kind")
+    if kind == "item":
+        # Hotel bez PMS / bez propojeného pobytu: jen požadavek recepci, žádný zápis, žádné ověření rezervace
+        if not wr["pms_write_services"] and not wr["pms_write_extension"]:
+            return {"status": "expired", "message": _order_msg("expired", lang, title)}
+        price_txt = (f"{p.get('price')} {p.get('currency', '')}".strip() if p.get("price") is not None else "")
+        asyncio.create_task(_send_write_notification(hid, dict(h), p.get("room", ""),
+            {"kind": "extension" if p.get("service_id") == "extension" else "service", "mode": "request", "ok": True,
+             "title": title, "detail": p.get("detail", ""), "price": price_txt, "reservation_id": ""}))
+        return {"status": "ok", "done": "requested", "message": _order_msg("requested", lang, title)}
     stay = await _fetch_stay_for_hotel(h, hid, p.get("room", ""), settings)
     if not stay or (getattr(stay, "reservation_id", "") or "") != p["reservation_id"]:
         return {"status": "expired", "message": _order_msg("expired", lang, title)}
     _ph = _pms_hotel_ctx(h, settings, db)
     mode = p.get("mode", "request")
-    kind = p.get("kind")
     # znovu: zapnuto? scope? allowlist? strop?
     if kind == "service":
         if not wr["pms_write_services"] or p["service_id"] not in wr["pms_write_allowlist"]:
@@ -6920,9 +7026,13 @@ Guest name: {req.guest_name or 'Guest'}"""
     # Zápis do rezervace: konkrétní nabídka k potvrzení tlačítkem (server rozhoduje, model mluví).
     # Jen s ověřeným pobytem (reservation_id) a zapnutým zápisem u hotelu; jinak nic.
     order_actions = []
-    if _stay_obj and getattr(_stay_obj, "reservation_id", "") and h.get("pms_type"):
+    _wr_on = bool(h.get("pms_write_services") or h.get("pms_write_extension"))
+    if _wr_on and (_stay_obj or not h.get("pms_type") or not req.arrival):
+        # S ověřeným pobytem → Apaleo cesta; bez PMS nebo bez propojeného pobytu → položky hotelu (požadavek)
         try:
-            order_actions, _order_block = await _build_order_proposals(h, _hid, _stay_obj, req.message or "", settings, db)
+            order_actions, _order_block = await _build_order_proposals(
+                h, _hid, _stay_obj if (_stay_obj and getattr(_stay_obj, "reservation_id", "")) else None,
+                req.message or "", settings, db, room=(req.room or ""))
             if _order_block:
                 pms_extra_blocks.append(_order_block)
         except Exception as e:
