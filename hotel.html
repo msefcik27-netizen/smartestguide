@@ -160,6 +160,7 @@ html{color-scheme:light}
   .ptab-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   /* Dlaždice sekcí profilu */
   .ptiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin:0 0 18px}
+  .ptiles[hidden]{display:none}   /* display:grid by jinak přebilo atribut hidden (mřížka se ukazovala i na Přehledu) */
   .ptile{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;min-width:0;cursor:pointer;padding:14px 14px 12px;border-radius:12px;border:1px solid var(--border);background:var(--surface);font-family:var(--font-body,inherit);color:var(--text);transition:border-color .15s,transform .15s}
   .ptile:hover{border-color:var(--accent);transform:translateY(-1px)}
   .ptile[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
@@ -1224,7 +1225,11 @@ function buildSidebarNav() {
   // Tiskové materiály patří na Přehled jako PRVNÍ blok (uživatel 11. 10.) — v HTML jsou až za profilem
   const printSec = Array.from(document.querySelectorAll('.section[data-ptab="prehled"]')).find(s => (s.querySelector('.section-title')||{}).textContent.trim() === tr('Tiskové materiály') || (s.querySelector('.section-title')||{}).textContent.trim() === 'Tiskové materiály');
   const wiz = document.getElementById('onboarding-wizard');
-  if (printSec && wiz && printSec.nextElementSibling !== wiz) wiz.parentNode.insertBefore(printSec, wiz);
+  if (printSec && wiz && printSec.nextElementSibling !== wiz) {
+    wiz.parentNode.insertBefore(printSec, wiz);
+    const pb = printSec.querySelector('.section-body');   // rovnou rozbalené — hotel přichází z mailu kvůli tisku
+    if (pb && !pb.classList.contains('open')) toggleSection(printSec.id);
+  }
   buildProfileTiles();
   applyPortalTab(currentPortalTab());
   // Aktivní sekce při scrollu
