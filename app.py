@@ -6635,7 +6635,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         day = date.today().isoformat() if _DAY_TODAY_RE.search(message or "") else tomorrow
         for it in hit[:2]:
             tok = secrets.token_urlsafe(18)
-            unit_lbl = {"person": "per person", "room": "per room", "flat": ""}.get(it["unit"], "")
+            unit_lbl = {"person": "per person per night", "room": "per room per night", "flat": "once per stay"}.get(it["unit"], "")
             price_txt = f"{it['price']} {it['currency']}".strip() + (f" {unit_lbl}" if unit_lbl else "")
             act = {"id": tok, "kind": "item", "service_id": it["id"], "title": it["name"], "dates": [day], "count": 1,
                    "price": it["price"], "currency": it["currency"], "mode": "request", "detail": day}
