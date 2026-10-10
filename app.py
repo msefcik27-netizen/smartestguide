@@ -7788,7 +7788,9 @@ async def apaleo_diag_reservations(token: str, status: str = "Confirmed,InHouse"
     _ph = _pms_hotel_ctx(h, db_get_settings(), db)
     today = date.today()
     params = {"propertyIds": h["pms_property_id"], "status": [s.strip() for s in status.split(",") if s.strip()],
-              "from": (today - timedelta(days=days)).isoformat(), "to": (today + timedelta(days=days)).isoformat(),
+              # swagger: from/to jsou date-time (bez zlomků sekund) — holé datum vrací 400
+              "from": (today - timedelta(days=days)).isoformat() + "T00:00:00Z",
+              "to": (today + timedelta(days=days)).isoformat() + "T23:59:59Z",
               "dateFilter": "Stay", "pageSize": 100}
     d = await pms_layer._apaleo_get(_ph, "/booking/v1/reservations", params, quiet=True)
     _persist_rotated_refresh_token(hid, _ph)
