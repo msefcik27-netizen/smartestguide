@@ -7803,6 +7803,78 @@ async def apaleo_diag_reservations(token: str, status: str = "Confirmed,InHouse"
             for r in (d.get("reservations") or [])]
     return {"status": "ok", "count": d.get("count"), "property": h["pms_property_id"], "params": params, "reservations": rows}
 
+@app.post("/api/pms/apaleo/diag/testbed")
+async def apaleo_diag_testbed(token: str, action: str, reservation_id: str, arrival: str = "", departure: str = "",
+                              service_id: str = "", count: int = 1):
+    """TESTBED ZÁPISU (jen staging, gate + hotel token; smazat po napojení do chatu).
+    Připraví na DEV účtu testovací pobyt a prověří vrstvu zápisu naostro:
+      offers          GET /reservations/{id}/offers?arrival&departure → normalizované nabídky
+      amend           totéž + PUT amend první platnou nabídkou (příjezd/odjezd z nabídky)
+      checkin / revert_checkin / checkout   PUT reservation-actions
+      book_service    pms_layer.apaleo_book_service (idempotentní)   remove_service  DELETE
+      booked          seznam zabookovaných služeb
+    Vše přes stejné funkce, které pak použije chat — žádná paralelní implementace."""
+    if not _APALEO_REQUEST_WRITE_SCOPE:
+        raise HTTPException(404)
+    db = db_load()
+    hid, h = next(((k, v) for k, v in db["hotels"].items() if v.get("hotel_token") == token), (None, None))
+    if not h or not h.get("pms_type"):
+        raise HTTPException(403, "Neplatny token nebo hotel bez PMS")
+    from dataclasses import asdict
+    _ph = _pms_hotel_ctx(h, db_get_settings(), db)
+    rid = reservation_id.strip()
+    out = {"status": "ok", "action": action, "reservation_id": rid}
+    try:
+        raw = await pms_layer._apaleo_get(_ph, f"/booking/v1/reservations/{rid}", {}, quiet=True)
+        if raw is None:
+            return {"status": "error", "detail": "rezervace nenalezena / GET selhal"}
+        stay = pms_layer._apaleo_normalize(raw)
+        out["stay_before"] = asdict(stay)
+        if action in ("offers", "amend"):
+            params = {"adults": max(1, int(stay.adults or 1))}
+            if arrival:
+                params["arrival"] = arrival
+            if departure:
+                params["departure"] = departure
+            if stay.children_ages:
+                params["childrenAges"] = list(stay.children_ages)
+            d = await pms_layer._apaleo_get(_ph, f"/booking/v1/reservations/{rid}/offers", params, quiet=True)
+            offers = [] if d == {} else (None if d is None else pms_layer._norm_stay_offers(d, stay))
+            out["offers"] = offers
+            if action == "amend":
+                valid = [o for o in (offers or []) if not o.get("validation")]
+                if not valid:
+                    return {**out, "status": "error", "detail": "žádná platná nabídka pro amend"}
+                o = valid[0]
+                body = {"arrival": o["arrival"], "departure": o["departure"], "adults": max(1, int(stay.adults or 1)),
+                        "requote": False,
+                        "timeSlices": [{"ratePlanId": ts["rate_plan_id"],
+                                        **({"totalGrossAmount": {"amount": ts["gross"], "currency": ts["currency"]}}
+                                           if ts.get("gross") is not None and ts.get("currency") else {})}
+                                       for ts in o["time_slices"]]}
+                if stay.children_ages:
+                    body["childrenAges"] = list(stay.children_ages)
+                st, data = await pms_layer._apaleo_send(_ph, "PUT", f"/booking/v1/reservation-actions/{rid}/amend", body=body)
+                out["amend"] = {"status": st, "data": data, "body": body}
+        elif action in ("checkin", "revert_checkin", "checkout"):
+            path = {"checkin": "checkin", "revert_checkin": "revert-checkin", "checkout": "checkout"}[action]
+            st, data = await pms_layer._apaleo_send(_ph, "PUT", f"/booking/v1/reservation-actions/{rid}/{path}")
+            out[action] = {"status": st, "data": data}
+        elif action == "book_service":
+            out["book_service"] = await pms_layer.apaleo_book_service(_ph, stay, service_id, count=count)
+        elif action == "remove_service":
+            out["remove_service"] = await pms_layer.apaleo_remove_service(_ph, stay, service_id)
+        elif action == "booked":
+            out["booked"] = await pms_layer.apaleo_booked_services(_ph, stay)
+        else:
+            return {"status": "error", "detail": f"neznámá akce {action}"}
+        raw2 = await pms_layer._apaleo_get(_ph, f"/booking/v1/reservations/{rid}", {}, quiet=True)
+        out["stay_after"] = asdict(pms_layer._apaleo_normalize(raw2)) if raw2 else None
+    except Exception as e:
+        out.update({"status": "error", "detail": str(e)[:300]})
+    _persist_rotated_refresh_token(hid, _ph)
+    return out
+
 @app.get("/api/pms/apaleo/properties")
 async def apaleo_properties(token: str):
     """Seznam properties Apaleo účtu pro dropdown v portálu (místo ručního opisování kódu).
