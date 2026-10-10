@@ -6623,17 +6623,25 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
     # ── (2) bez rezervace: vlastní položky hotelu → požadavek recepci ──
     if not rid:
         items = wr["pms_write_items"] if wr["pms_write_services"] else []
+        # Prodej ve chvíli dotazu (rozhodnutí č. 1, potvrzeno uživatelem 11. 10.): karta se ukáže,
+        # jakmile se dotaz TÝKÁ objednatelné položky („Máte masáž?" → ano + tlačítko). Výslovný
+        # záměr objednat (wants) rozhoduje jen o tom, co dělat bez známého pokoje.
         wants = bool(_ORDER_WORDS_RE.search(message or "") or _DAY_TODAY_RE.search(message or "")
                      or _DAY_TOMORROW_RE.search(message or "") or _DAY_ALL_RE.search(message or ""))
-        hit = [it for it in items if _service_matches((message or "") + "\n" + (context or ""), it)] if wants else []
+        hit = [it for it in items if _service_matches((message or "") + "\n" + (context or ""), it)]
         ext = wr["pms_write_extension"] and _EXTENSION_INTENT_RE.search(message or "")
         if not (hit or ext):
             return [], ""
         if not room:
-            # Bez pokoje nemá recepce co vyřídit — Alex se nejdřív zeptá, karta až pak.
-            return [], ("OBJEDNÁNÍ V CHATU: host chce objednat/prodloužit, ale neznáš číslo jeho pokoje. "
-                        "Zeptej se ho na číslo pokoje (jak je na klíči/dveřích) a řekni, že pak požadavek "
-                        "rovnou pošleš recepci. Nic jiného neslibuj, nic nedopočítávej.")
+            if wants:
+                # Chce objednat, ale bez pokoje nemá recepce co vyřídit — zeptat se, karta až pak.
+                return [], ("OBJEDNÁNÍ V CHATU: host chce objednat/prodloužit, ale neznáš číslo jeho pokoje. "
+                            "Zeptej se ho na číslo pokoje (jak je na klíči/dveřích) a řekni, že pak požadavek "
+                            "rovnou pošleš recepci. Nic jiného neslibuj, nic nedopočítávej.")
+            names = ", ".join(f"{it['name']} ({it['price']} {it['currency']})".strip() for it in hit[:2])
+            return [], (f"OBJEDNÁNÍ V CHATU: hotel umožňuje objednat přes tebe: {names}. Odpověz na dotaz a "
+                        "přirozeně dodej, že pokud chce objednat, stačí napsat číslo pokoje a ty to pošleš recepci. "
+                        "Nic nedopočítávej.")
         from datetime import date, timedelta
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
         day = date.today().isoformat() if _DAY_TODAY_RE.search(message or "") else tomorrow
@@ -6688,11 +6696,10 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
             except Exception as e:
                 logging.warning("pms_services_seen se neuložilo: %s", e)
         allowed = [o for o in offers if o["service_id"] in wr["pms_write_allowlist"] and not o.get("validation")]
-        # Karta jen při ZÁMĚRU objednat nebo při určení dne — informační dotaz („What time is
-        # breakfast?") kartu nevyvolá; Alex o službě smí mluvit z běžného bloku služeb.
-        wants = bool(_ORDER_WORDS_RE.search(message or "") or _DAY_TODAY_RE.search(message or "")
-                     or _DAY_TOMORROW_RE.search(message or "") or _DAY_ALL_RE.search(message or ""))
-        for o in (allowed if wants else []):
+        # Prodej ve chvíli dotazu (rozhodnutí č. 1, potvrzeno uživatelem 11. 10.): karta se ukáže,
+        # jakmile se dotaz týká povolené služby — i u „What time is breakfast?". Host nic
+        # neobjedná, dokud neklepne; tlačítko je nabídka, ne nátlak.
+        for o in allowed:
             if not _service_matches((message or "") + "\n" + (context or ""), o):
                 continue
             dates = _pick_service_dates(message, o, stay)
