@@ -808,16 +808,28 @@ def _norm_stay_offers(d: dict, stay: "Stay") -> list:
             continue
         cf = o.get("cancellationFee") or {}
         validation = [m.get("code") for m in (o.get("validationMessages") or []) if m.get("code")]
-        # Nabídka se SMÍŠENÝMI nocemi (různé sazby nebo typy pokoje v jednom pobytu) se k zápisu
-        # nehodí: naostro 10. 10. 2026 takový amend přesunul rezervaci z Family room na Single,
-        # protože nové noci byly v jiném typu než původní. Označit a řadit na konec.
-        if len({ts["rate_plan_id"] for ts in slices}) > 1 or len({ts["unit_group_id"] for ts in slices}) > 1:
-            validation.append("MixedSlices")
+        # Rozhodují jen NOVĚ PŘIDANÉ noci (mimo dnešní rozsah pobytu) — stávající noci jsou,
+        # jaké jsou (requote=false je nechá být), a klidně už smíšené. Nové noci musí být ve
+        # STEJNÉM TYPU POKOJE jako rezervace: naostro 10. 10. 2026 amend s novými nocemi
+        # v jiném typu přestěhoval hosta (Family room → Single). Taková nabídka = UnitGroupChange,
+        # řadí se na konec a chat ji nenabízí. Sazba nové noci jen ovlivňuje pořadí.
+        cur_arr = (getattr(stay, "arrival", "") or "")[:10]
+        cur_dep = (getattr(stay, "departure", "") or "")[:10]
+        new_slices = [ts for ts in slices
+                      if (cur_dep and ts["from"][:10] >= cur_dep) or (cur_arr and ts["to"][:10] <= cur_arr)] or slices
+        stay_ug_id = (getattr(stay, "unit_group_id", "") or "").strip()
+        stay_ug = (getattr(stay, "unit_group", "") or "").strip()
+        if any((stay_ug_id and ts["unit_group_id"] != stay_ug_id) or
+               (not stay_ug_id and stay_ug and ts["unit_group"] != stay_ug) for ts in new_slices):
+            validation.append("UnitGroupChange")
+        lead = new_slices[0]
         offers.append({"arrival": str(o.get("arrival") or ""), "departure": str(o.get("departure") or ""),
                        "total": tg.get("amount"), "currency": tg.get("currency") or "",
                        "available_units": o.get("availableUnits"),
-                       "rate_plan_id": slices[0]["rate_plan_id"], "rate_plan": slices[0]["rate_plan"],
-                       "unit_group_id": slices[0]["unit_group_id"], "unit_group": slices[0]["unit_group"],
+                       "rate_plan_id": lead["rate_plan_id"], "rate_plan": lead["rate_plan"],
+                       "unit_group_id": lead["unit_group_id"], "unit_group": lead["unit_group"],
+                       "new_nights": len(new_slices),
+                       "new_total": sum(float(ts["gross"]) for ts in new_slices if ts.get("gross") is not None),
                        "time_slices": slices,
                        "cancellation_fee": {"name": str(cf.get("name") or ""), "due": str(cf.get("dueDateTime") or ""),
                                             "amount": (cf.get("fee") or {}).get("amount"),
