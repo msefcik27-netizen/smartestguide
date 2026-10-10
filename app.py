@@ -7020,7 +7020,8 @@ async def order_decide(oid: str, d: str = "", s: str = "", m: str = ""):
     if changed:
         db_save(db)
     st = rec["status"]
-    what = f"{rec.get('title', '')} — {('pokoj' if cs else 'room')} {rec.get('room', '')}" + (f" — {rec.get('detail')}" if rec.get("detail") else "")
+    _det = re.sub(r"\b(\d{4})-(\d{2})-(\d{2})\b", lambda mm: f"{int(mm.group(3))}. {int(mm.group(2))}. {mm.group(1)}", str(rec.get("detail") or ""))
+    what = f"{rec.get('title', '')} — {('pokoj' if cs else 'room')} {rec.get('room', '')}" + (f" — {_det}" if _det else "")
     if cs:
         head = "✅ Potvrzeno" if st == "confirmed" else "❌ Označeno jako „nelze vyřídit“"
         body = "Host dostal odpověď do chatu." if changed or not m else "Vzkaz hostovi uložen."
@@ -7045,9 +7046,10 @@ button{{margin-top:10px;background:#FF6B00;color:#fff;border:none;border-radius:
 <p style="font-size:12px;color:#888">SMARTEST GUIDE · support@smartestguide.com</p></body></html>"""
     return HTMLResponse(page)
 
-@app.get("/api/guest/order-status")
+@app.get("/api/guest/orders/status")
 async def guest_order_status(hotel_id: str, ids: str = "", device_id: str = ""):
-    """Appka hosta se ptá na stav svých požadavků (jen ty, které založilo totéž zařízení)."""
+    """Appka hosta se ptá na stav svých požadavků (jen ty, které založilo totéž zařízení).
+    Cesta má dva segmenty schválně — /api/guest/{slug} by jednoslovnou cestu sežral jako slug (404)."""
     db = db_load()
     hid, h = _resolve_hotel(db, hotel_id)
     if not h:

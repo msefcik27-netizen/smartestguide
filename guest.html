@@ -1343,7 +1343,7 @@ async function pollOrders(now){
   if(!list.length) return;
   const run=async()=>{
     try{
-      const r=await fetch(`${API}/api/guest/order-status?hotel_id=${encodeURIComponent(hotelId)}&ids=${encodeURIComponent(list.map(o=>o.id).join(','))}&device_id=${encodeURIComponent(deviceId)}`);
+      const r=await fetch(`${API}/api/guest/orders/status?hotel_id=${encodeURIComponent(hotelId)}&ids=${encodeURIComponent(list.map(o=>o.id).join(','))}&device_id=${encodeURIComponent(deviceId)}`);
       if(r.ok){
         const d=await r.json();
         (d.orders||[]).forEach(o=>{
