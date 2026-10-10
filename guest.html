@@ -1339,9 +1339,10 @@ const ORDER_KEY='sg_orders_'+hotelId;
 let _orderPollTimer=null;
 function loadTrackedOrders(){ try{ const a=JSON.parse(localStorage.getItem(ORDER_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
 function saveTrackedOrders(a){ try{ localStorage.setItem(ORDER_KEY, JSON.stringify(a.slice(-10))); }catch(e){} }
-function trackOrder(id){ const a=loadTrackedOrders().filter(o=>o.id!==id); a.push({id:id,ts:Date.now()}); saveTrackedOrders(a); pollOrders(true); }
+function trackOrder(id){ const a=loadTrackedOrders().filter(o=>o.id!==id); a.push({id:id,ts:Date.now(),seen:0}); saveTrackedOrders(a); pollOrders(true); }
 async function pollOrders(now){
   if(_orderPollTimer){ clearTimeout(_orderPollTimer); _orderPollTimer=null; }
+  // Sleduje se 24 h od požadavku i po rozhodnutí — recepce může poslat další vzkaz nebo rozhodnutí změnit
   let list=loadTrackedOrders().filter(o=>Date.now()-(o.ts||0)<24*3600*1000);
   saveTrackedOrders(list);
   if(!list.length) return;
@@ -1351,11 +1352,13 @@ async function pollOrders(now){
       if(r.ok){
         const d=await r.json();
         (d.orders||[]).forEach(o=>{
-          if(o.status==='pending') return;
-          list=list.filter(x=>x.id!==o.id);
-          if(o.message){ addBot(o.message,{reception:true}); history.push({role:'assistant',content:o.message,src:'reception'}); saveHistory(); }
+          const t=list.find(x=>x.id===o.id); if(!t) return;
+          if(o.status==='unknown'){ list=list.filter(x=>x.id!==o.id); return; }
+          (o.events||[]).filter(e=>e.seq>(t.seen||0)).sort((a,b)=>a.seq-b.seq).forEach(e=>{
+            addBot(e.text,{reception:true}); history.push({role:'assistant',content:e.text,src:'reception'}); t.seen=e.seq;
+          });
         });
-        saveTrackedOrders(list);
+        saveHistory(); saveTrackedOrders(list);
       }
     }catch(e){}
     if(list.length) _orderPollTimer=setTimeout(run,20000);

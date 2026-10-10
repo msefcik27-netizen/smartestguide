@@ -6820,8 +6820,9 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
                    "detail": f"1× · {day}"}
             act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": "", "room": room})
             actions.append(act)
-            lines.append(f"- {it['name']} ({price_txt}), den {day} — potvrzením odejde požadavek recepci, která ho vyřídí; "
-                         "odpověď recepce host dostane do chatu")
+            lines.append(f"- {it['name']}: PLATNÁ CENA {price_txt} (tuto cenu řekni hostovi; pokud profil hotelu uvádí u této "
+                         f"položky jinou částku, je zastaralá a NESMÍŠ ji použít), den {day} — potvrzením odejde požadavek recepci, "
+                         "která ho vyřídí; odpověď recepce host dostane do chatu")
         if ext:
             n = _nights_from_message(message)
             # Titulek i popis si přeloží appka hosta (title_key); počet nocí host upraví na kartě.
@@ -7006,8 +7007,9 @@ def _order_record_new(hid: str, room: str, title: str, detail: str, price: str, 
 
 @app.get("/api/orders/{oid}/decide", response_class=HTMLResponse)
 async def order_decide(oid: str, d: str = "", s: str = "", m: str = ""):
-    """Odkaz z e-mailu recepci: d=confirm|decline (+ volitelný vzkaz hostovi m). Idempotentní —
-    druhé kliknutí jen ukáže stav. Stránka je česky pro CZ/SK hotely, jinak anglicky."""
+    """Odkaz z e-mailu recepci: d=confirm|decline (+ volitelný vzkaz hostovi m). Každá změna stavu
+    i každý vzkaz = nová UDÁLOST (rec["events"]), host dostane každou do chatu (uživatel 11. 10.:
+    „raději nechat recepci komunikovat více"). Rozhodnutí jde obrátit opakovaně. Stránka cs/en."""
     import hmac as _hmac
     d = "confirm" if d == "confirm" else "decline" if d == "decline" else ""
     db = db_load()
@@ -7017,47 +7019,60 @@ async def order_decide(oid: str, d: str = "", s: str = "", m: str = ""):
     h = db["hotels"].get(rec.get("hid")) or {}
     cs = (h.get("country") or "").strip().upper() in ("CZ", "SK")
     m = re.sub(r"\s+", " ", str(m or "")).strip()[:200]
+    events = rec.setdefault("events", [])
+    now = datetime.utcnow().isoformat(timespec="seconds")
     changed = False
-    if rec.get("status") == "pending":
-        rec["status"] = "confirmed" if d == "confirm" else "declined"
-        rec["decided"] = datetime.utcnow().isoformat(timespec="seconds")
+    want = "confirmed" if d == "confirm" else "declined"
+    if rec.get("status") != want:
+        rec["status"] = want
+        rec["decided"] = now
+        events.append({"seq": len(events) + 1, "kind": "status", "status": want, "t": now})
         changed = True
-    if m and m != rec.get("message"):
+    sent_now = False
+    if m and not (events and events[-1].get("kind") == "note" and events[-1].get("text") == m):
+        events.append({"seq": len(events) + 1, "kind": "note", "text": m, "t": now})
         rec["message"] = m
-        changed = True
+        changed = sent_now = True
     if changed:
         db_save(db)
     st = rec["status"]
     _det = re.sub(r"\b(\d{4})-(\d{2})-(\d{2})\b", lambda mm: f"{int(mm.group(3))}. {int(mm.group(2))}. {mm.group(1)}", str(rec.get("detail") or ""))
     what = f"{rec.get('title', '')} — {('pokoj' if cs else 'room')} {rec.get('room', '')}" + (f" — {_det}" if _det else "")
+    notes = [e for e in events if e.get("kind") == "note"]
     if cs:
-        head = "✅ Potvrzeno" if st == "confirmed" else "❌ Označeno jako „nelze vyřídit“"
-        body = "Host dostal odpověď do chatu." if changed or not m else "Vzkaz hostovi uložen."
-        form_lbl, btn, ph = "Vzkaz hostovi (volitelné, zobrazí se mu v chatu):", "Poslat vzkaz", "např. Zítra bohužel ne, od úterý ano."
-        note_now = f"<p><b>Aktuální vzkaz:</b> {html.escape(rec.get('message') or '')}</p>" if rec.get("message") else ""
+        head = "✅ Potvrzeno" if st == "confirmed" else "❌ Nelze vyřídit"
+        body = ("Vzkaz odeslán hostovi do chatu." if sent_now else
+                "Host dostal odpověď do chatu." if changed else "Host už tuto odpověď v chatu má.")
+        form_lbl, btn, ph = "Další vzkaz hostovi (zobrazí se mu v chatu):", "Poslat vzkaz", "např. Zítra bohužel ne, od úterý ano."
+        sent_lbl, other_lbl = "Odeslané vzkazy:", ("Změnit na „nelze vyřídit“" if st == "confirmed" else "Změnit na „potvrzeno“")
+        hint = "Každé kliknutí i vzkaz se hostovi hned zobrazí v chatu (po dobu 24 h od požadavku)."
     else:
-        head = "✅ Confirmed" if st == "confirmed" else "❌ Marked as “can't arrange”"
-        body = "The guest has been notified in chat." if changed or not m else "Message to the guest saved."
-        form_lbl, btn, ph = "Message to the guest (optional, shown in chat):", "Send message", "e.g. Not tomorrow, from Tuesday yes."
-        note_now = f"<p><b>Current message:</b> {html.escape(rec.get('message') or '')}</p>" if rec.get("message") else ""
+        head = "✅ Confirmed" if st == "confirmed" else "❌ Cannot arrange"
+        body = ("Message sent to the guest's chat." if sent_now else
+                "The guest has been notified in chat." if changed else "The guest already has this answer in chat.")
+        form_lbl, btn, ph = "Another message to the guest (shown in chat):", "Send message", "e.g. Not tomorrow, from Tuesday yes."
+        sent_lbl, other_lbl = "Messages sent:", ("Change to “cannot arrange”" if st == "confirmed" else "Change to “confirmed”")
+        hint = "Every click and message appears in the guest's chat right away (for 24 h after the request)."
+    notes_html = (f"<p><b>{sent_lbl}</b></p><ul>" + "".join(f"<li>{html.escape(n.get('text', ''))}</li>" for n in notes) + "</ul>") if notes else ""
     other = _order_decide_link(oid, "decline" if st == "confirmed" else "confirm")
-    other_lbl = ("Změnit na „nelze vyřídit“" if st == "confirmed" else "Změnit na „potvrzeno“") if cs else \
-                ("Change to “can't arrange”" if st == "confirmed" else "Change to “confirmed”")
     page = f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SMARTEST GUIDE</title><style>body{{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:40px auto;padding:0 16px;color:#1a1a1a}}
 h1{{font-size:22px}} .box{{background:#f4f6f8;border-radius:12px;padding:14px 16px;margin:16px 0}} input{{width:100%;padding:10px;border:1px solid #bbb;border-radius:8px;font-size:15px;box-sizing:border-box}}
-button{{margin-top:10px;background:#FF6B00;color:#fff;border:none;border-radius:8px;padding:11px 16px;font-size:15px;cursor:pointer}} a{{color:#0b63c6}}</style></head><body>
-<h1>{head}</h1><div class="box">{html.escape(what)}</div><p>{body}</p>{note_now}
+button{{margin-top:10px;background:#FF6B00;color:#fff;border:none;border-radius:8px;padding:11px 16px;font-size:15px;cursor:pointer}} a{{color:#0b63c6}} .ok{{color:#1f9d55;font-weight:700}} ul{{padding-left:18px}}</style></head><body>
+<h1>{head}</h1><div class="box">{html.escape(what)}</div><p class="ok">{body}</p>{notes_html}
 <form method="get" action="/api/orders/{oid}/decide"><input type="hidden" name="d" value="{d}"><input type="hidden" name="s" value="{html.escape(s)}">
-<label>{form_lbl}<br><input type="text" name="m" maxlength="200" placeholder="{ph}" value="{html.escape(rec.get('message') or '')}"></label><button type="submit">{btn}</button></form>
+<label>{form_lbl}<br><input type="text" name="m" maxlength="200" placeholder="{ph}" value=""></label><button type="submit">{btn}</button></form>
 <p style="margin-top:28px;font-size:13px;color:#666"><a href="{other}">{other_lbl}</a></p>
+<p style="font-size:12px;color:#888">{hint}</p>
 <p style="font-size:12px;color:#888">SMARTEST GUIDE · support@smartestguide.com</p></body></html>"""
     return HTMLResponse(page)
 
 @app.get("/api/guest/orders/status")
 async def guest_order_status(hotel_id: str, ids: str = "", device_id: str = ""):
     """Appka hosta se ptá na stav svých požadavků (jen ty, které založilo totéž zařízení).
-    Cesta má dva segmenty schválně — /api/guest/{slug} by jednoslovnou cestu sežral jako slug (404)."""
+    Vrací UDÁLOSTI (seq, text) — appka si pamatuje, kolik jich už ukázala, takže každý další vzkaz
+    recepce i změna rozhodnutí dorazí do chatu. Cesta má dva segmenty schválně —
+    /api/guest/{slug} by jednoslovnou cestu sežral jako slug (404)."""
     db = db_load()
     hid, h = _resolve_hotel(db, hotel_id)
     if not h:
@@ -7067,17 +7082,23 @@ async def guest_order_status(hotel_id: str, ids: str = "", device_id: str = ""):
     for oid in [x.strip() for x in (ids or "").split(",") if x.strip()][:20]:
         rec = orders.get(oid)
         if not rec or rec.get("hid") != hid or (rec.get("device_id") or "") != (device_id or "")[:64]:
-            out.append({"id": oid, "status": "unknown"})
+            out.append({"id": oid, "status": "unknown", "events": []})
             continue
-        st = rec.get("status") or "pending"
-        item = {"id": oid, "status": st}
-        if st in ("confirmed", "declined"):
-            lang = rec.get("lang") or "en"
-            msg = _order_msg(st, lang, rec.get("title") or "")
+        lang = rec.get("lang") or "en"
+        title = rec.get("title") or ""
+        evs = []
+        for e in rec.get("events") or []:
+            if e.get("kind") == "status":
+                evs.append({"seq": e["seq"], "text": _order_msg(e.get("status") or "", lang, title)})
+            elif e.get("kind") == "note":
+                evs.append({"seq": e["seq"], "text": _order_msg("recept_note", lang, e.get("text") or "")})
+        # záznamy z doby před událostmi (jen status + message)
+        if not evs and rec.get("status") in ("confirmed", "declined"):
+            msg = _order_msg(rec["status"], lang, title)
             if rec.get("message"):
                 msg += "\n" + _order_msg("recept_note", lang, rec["message"])
-            item["message"] = msg
-        out.append(item)
+            evs.append({"seq": 1, "text": msg})
+        out.append({"id": oid, "status": rec.get("status") or "pending", "events": evs})
     return {"orders": out}
 
 @app.post("/api/guest/order")
