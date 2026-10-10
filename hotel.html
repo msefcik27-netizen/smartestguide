@@ -399,7 +399,8 @@ const EN_MAP = {
   "Objednávky v chatu":"Orders in chat",
   "📊 Přehled":"📊 Overview","🏨 Profil hotelu":"🏨 Hotel profile","✦ Alex & objednávky":"✦ Alex & orders","🧾 Nasazení & účet":"🧾 Setup & account",
   "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem.":"Alex can book a service to the guest's room account or send a request to reception. Nothing is ordered until the guest confirms with a button.",
-  "Alex přijme objednávku v chatu a pošle ji recepci jako požadavek — host nemusí nikam volat. Bez hotelového systému se nic nezapisuje, recepce to zadá sama.":"Alex takes the order in chat and sends it to reception as a request — the guest doesn't have to call anyone. Without a hotel system nothing is written anywhere; reception enters it.",
+  "Alex přijme objednávku v chatu a pošle ji recepci e-mailem jako požadavek — host nemusí nikam volat. Recepce v e-mailu klikne Potvrdit nebo Nelze vyřídit (může připsat vzkaz) a host odpověď uvidí v chatu. Nic se nikam nezapisuje.":"Alex takes the order in chat and e-mails it to reception as a request — the guest doesn't have to call anyone. Reception clicks Confirm or Cannot arrange in the e-mail (optionally with a note) and the guest sees the answer in chat. Nothing is written anywhere.",
+  "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem. U požadavku recepce v e-mailu klikne Potvrdit / Nelze vyřídit a host odpověď uvidí v chatu.":"Alex can book a service straight to the room account or send reception a request. Nothing is booked without the guest confirming with a button. For a request, reception clicks Confirm / Cannot arrange in the e-mail and the guest sees the answer in chat.",
   "Alex smí přijímat objednávky služeb":"Alex may take service orders",
   "Snídaně, pozdní odhlášení, WLAN… — jen položky, které níže povolíte.":"Breakfast, late check-out, WLAN… — only the items you allow below.",
   "Jen položky ze seznamu níže; cenu říká Alex hostovi přesně tak, jak ji napíšete.":"Only items from the list below; Alex quotes the price exactly as you enter it.",
@@ -1985,7 +1986,7 @@ function loadOrdersSection(){
         <div style="font-size:26px">🛎</div>
         <div style="flex:1;min-width:220px">
           <div style="font-family:var(--font-head);font-size:15px;font-weight:700">Objednávky v chatu</div>
-          <div style="font-size:12.5px;color:var(--muted);margin-top:3px">${pms?'Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem.':'Alex přijme objednávku v chatu a pošle ji recepci jako požadavek — host nemusí nikam volat. Bez hotelového systému se nic nezapisuje, recepce to zadá sama.'}</div>
+          <div style="font-size:12.5px;color:var(--muted);margin-top:3px">${pms?'Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem. U požadavku recepce v e-mailu klikne Potvrdit / Nelze vyřídit a host odpověď uvidí v chatu.':'Alex přijme objednávku v chatu a pošle ji recepci e-mailem jako požadavek — host nemusí nikam volat. Recepce v e-mailu klikne Potvrdit nebo Nelze vyřídit (může připsat vzkaz) a host odpověď uvidí v chatu. Nic se nikam nezapisuje.'}</div>
         </div>
       </div>
       ${sw('ord-services',on,'Alex smí přijímat objednávky služeb',pms?'Snídaně, pozdní odhlášení, WLAN… — jen položky, které níže povolíte.':'Jen položky ze seznamu níže; cenu říká Alex hostovi přesně tak, jak ji napíšete.')}
