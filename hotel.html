@@ -158,6 +158,16 @@ html{color-scheme:light}
   .ptab-btn:hover{background:var(--card)}
   .ptab-btn[aria-current="true"]{background:var(--card);border:1px solid var(--border);color:var(--accent);font-weight:700}
   .ptab-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  /* Dlaždice sekcí profilu */
+  .ptiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin:0 0 18px}
+  .ptile{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;min-width:0;cursor:pointer;padding:14px 14px 12px;border-radius:12px;border:1px solid var(--border);background:var(--surface);font-family:var(--font-body,inherit);color:var(--text);transition:border-color .15s,transform .15s}
+  .ptile:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .ptile[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
+  .ptile:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .ptile-ico{font-size:22px;line-height:1}
+  .ptile-t{font-family:var(--font-head);font-size:14px;font-weight:700;line-height:1.3}
+  .ptile-d{font-size:12px;color:var(--muted);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .ptile-s{margin-top:auto;font-size:12px}
 </style>
 <div id="portal-sidebar" style="width:280px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:20px 0;position:sticky;top:60px;height:calc(100vh - 60px);overflow-y:auto">
   <div style="padding:0 16px;margin-bottom:8px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:600">Sekce</div>
@@ -966,20 +976,21 @@ let _sectionFields = {}; // uložíme fields pro každou sekci, scoring spočít
 const PORTAL_TABS = [['prehled','📊 Přehled'],['profil','🏨 Profil hotelu'],['alex','✦ Alex & objednávky'],['ucet','🧾 Nasazení & účet']];
 const PORTAL_TAB_OF = {            // sekce z renderSection podle (českého) titulu; ostatní = profil
   'Vyzkoušet Alexe':'alex', 'Aktivní nabídka pro hosty':'alex',
-  'Embed widget — vložit na web':'ucet', 'Tiskové materiály':'ucet'
+  'Embed widget — vložit na web':'ucet', 'Tiskové materiály':'prehled'   // tisk = první na Přehledu (uživatel 11. 10.)
 };
+let PROFILE_SOLO = null;           // id sekce profilu otevřené z dlaždice (ostatní skryté); null = všechny
 const PORTAL_FIXED = {             // pevné bloky podle id / třídy
   'completeness-banner':'profil', 'group-section':'ucet', 'add-hotel-section':'ucet', 'pms-section':'alex',
   'orders-section':'alex', 'onboarding-wizard':'prehled', 'payment-section':'ucet', 'invoices-section':'ucet',
   'monthly-report-section':'prehled'
 };
 function currentPortalTab(){
+  // Jen kotva v adrese; bez ní vždy Přehled — odkazy z e-mailů (uvítací, tisk) vedou na /portal?token=
+  // bez kotvy a hotel má hned vidět tiskové materiály (uživatel 11. 10.).
   const h=(location.hash||'').replace('#',''); if(PORTAL_TABS.some(t=>t[0]===h)) return h;
-  try{ const s=localStorage.getItem('sg_portal_tab'); if(PORTAL_TABS.some(t=>t[0]===s)) return s; }catch(e){}
   return 'prehled';
 }
 function showPortalTab(tab){
-  try{ localStorage.setItem('sg_portal_tab', tab); }catch(e){}
   try{ history.replaceState(null,'','#'+tab); }catch(e){}
   applyPortalTab(tab);
   window.scrollTo({top:0});
@@ -987,9 +998,45 @@ function showPortalTab(tab){
 function applyPortalTab(tab){
   Object.keys(PORTAL_FIXED).forEach(id=>{ const el=document.getElementById(id); if(el) el.hidden=(PORTAL_FIXED[id]!==tab); });
   const info=document.querySelector('#main-container .info-banner'); if(info) info.hidden=(tab!=='profil');
-  document.querySelectorAll('.section[data-ptab]').forEach(s=>{ s.hidden=(s.dataset.ptab!==tab); });
+  document.querySelectorAll('.section[data-ptab]').forEach(s=>{
+    s.hidden=(s.dataset.ptab!==tab) || (tab==='profil' && !!PROFILE_SOLO && s.id!==PROFILE_SOLO);
+  });
+  const tiles=document.getElementById('profile-tiles'); if(tiles) tiles.hidden=(tab!=='profil');
   document.querySelectorAll('.ptab-btn').forEach(b=>b.setAttribute('aria-current', String(b.dataset.tab===tab)));
+  document.querySelectorAll('.ptile').forEach(t=>t.setAttribute('aria-current', String(!!PROFILE_SOLO && t.dataset.sec===PROFILE_SOLO)));
   const prof=document.getElementById('sidebar-profile'); if(prof) prof.hidden=(tab!=='profil');
+}
+// Dlaždice sekcí profilu (uživatel 11. 10.: „sekce profilu dej jako dlaždice"): mřížka nad sekcemi,
+// klepnutí ukáže jen tu jednu sekci rozbalenou; druhé klepnutí (nebo Rozbalit/Sbalit vše) vrátí všechny.
+function openProfileSection(id){
+  if (currentPortalTab() !== 'profil') showPortalTab('profil');
+  PROFILE_SOLO = (PROFILE_SOLO === id) ? null : id;
+  applyPortalTab('profil');
+  if (PROFILE_SOLO) {
+    const sec = document.getElementById(id);
+    const body = sec && sec.querySelector('.section-body');
+    if (body && !body.classList.contains('open')) toggleSection(id);
+    const tiles = document.getElementById('profile-tiles');
+    if (tiles) tiles.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+}
+function buildProfileTiles(){
+  const sections = Array.from(document.querySelectorAll('.section[id^="sec-"][data-ptab="profil"]'));
+  if (!sections.length) return;
+  let grid = document.getElementById('profile-tiles');
+  if (!grid) {
+    grid = document.createElement('div'); grid.id = 'profile-tiles'; grid.className = 'ptiles';
+    sections[0].parentNode.insertBefore(grid, sections[0]);
+  }
+  grid.innerHTML = sections.map(sec => {
+    const icon = (sec.querySelector('.section-icon')||{}).innerHTML || '';
+    const title = (sec.querySelector('.section-title')||{}).textContent || '';
+    const desc = (sec.querySelector('.section-desc')||{}).textContent || '';
+    const score = sec.querySelector('.score-badge');
+    const scoreHtml = score ? score.outerHTML : '';
+    return `<button type="button" class="ptile" data-sec="${sec.id}" onclick="openProfileSection('${sec.id}')" aria-current="${String(PROFILE_SOLO===sec.id)}">
+      <div class="ptile-ico">${icon}</div><div class="ptile-t">${title.trim()}</div><div class="ptile-d">${desc.trim()}</div><div class="ptile-s">${scoreHtml}</div></button>`;
+  }).join('');
 }
 function renderSection(icon, title, desc, content, fields, defaultOpen) {
   const id = 'sec-' + (_sectionIdx++);
@@ -1169,14 +1216,16 @@ function buildSidebarNav() {
     }
     a.innerHTML = '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + t + '</span>' + scoreHtml;
     a.onclick = () => {
-      if (currentPortalTab() !== 'profil') showPortalTab('profil');
-      sec.scrollIntoView({behavior: 'smooth', block: 'start'});
-      // Otevři sekci pokud je zavřená
-      const body = sec.querySelector('.section-body');
-      if (body && !body.classList.contains('open')) toggleSection(sec.id);
+      if (PROFILE_SOLO !== sec.id) openProfileSection(sec.id);
+      else { const body = sec.querySelector('.section-body'); if (body && !body.classList.contains('open')) toggleSection(sec.id); }
     };
     prof.appendChild(a);
   });
+  // Tiskové materiály patří na Přehled jako PRVNÍ blok (uživatel 11. 10.) — v HTML jsou až za profilem
+  const printSec = Array.from(document.querySelectorAll('.section[data-ptab="prehled"]')).find(s => (s.querySelector('.section-title')||{}).textContent.trim() === tr('Tiskové materiály') || (s.querySelector('.section-title')||{}).textContent.trim() === 'Tiskové materiály');
+  const wiz = document.getElementById('onboarding-wizard');
+  if (printSec && wiz && printSec.nextElementSibling !== wiz) wiz.parentNode.insertBefore(printSec, wiz);
+  buildProfileTiles();
   applyPortalTab(currentPortalTab());
   // Aktivní sekce při scrollu
   updateActiveSidebarItem();
@@ -1213,6 +1262,7 @@ function toggleSection(id) {
 }
 
 function setAllSections(open){
+  if (PROFILE_SOLO) { PROFILE_SOLO = null; applyPortalTab(currentPortalTab()); }
   document.querySelectorAll('.section[id^="sec-"]').forEach(sec => {
     const body = sec.querySelector('.section-body');
     const head = sec.querySelector('.section-head');
