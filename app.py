@@ -7773,6 +7773,34 @@ async def apaleo_diag_write(token: str, room: str, nights: int = 1):
     _persist_rotated_refresh_token(hid, _ph)
     return out
 
+@app.get("/api/pms/apaleo/diag/reservations")
+async def apaleo_diag_reservations(token: str, status: str = "Confirmed,InHouse", days: int = 7):
+    """DIAGNOSTIKA (jen staging, viz diag/write): přehled rezervací property pro hledání
+    testovacího pobytu — id, pokoj, příjezd/odjezd, stav. Jen čtení, bez PII (primaryGuest
+    se nevrací). Po napojení zápisu do chatu smazat spolu s diag/write."""
+    if not _APALEO_REQUEST_WRITE_SCOPE:
+        raise HTTPException(404)
+    db = db_load()
+    hid, h = next(((k, v) for k, v in db["hotels"].items() if v.get("hotel_token") == token), (None, None))
+    if not h or not h.get("pms_type") or not h.get("pms_property_id"):
+        raise HTTPException(403, "Neplatny token nebo hotel bez PMS/property")
+    from datetime import date, timedelta
+    _ph = _pms_hotel_ctx(h, db_get_settings(), db)
+    today = date.today()
+    params = {"propertyIds": h["pms_property_id"], "status": [s.strip() for s in status.split(",") if s.strip()],
+              "from": (today - timedelta(days=days)).isoformat(), "to": (today + timedelta(days=days)).isoformat(),
+              "dateFilter": "Stay", "pageSize": 100}
+    d = await pms_layer._apaleo_get(_ph, "/booking/v1/reservations", params, quiet=True)
+    _persist_rotated_refresh_token(hid, _ph)
+    if d is None:
+        return {"status": "error", "detail": "Apaleo GET reservations selhal", "params": params}
+    rows = [{"id": r.get("id"), "room": ((r.get("unit") or {}).get("name") or ""),
+             "unit_group": ((r.get("unitGroup") or {}).get("name") or ""),
+             "arrival": (r.get("arrival") or "")[:16], "departure": (r.get("departure") or "")[:16],
+             "status": r.get("status"), "adults": r.get("adults"), "rate_plan": ((r.get("ratePlan") or {}).get("name") or "")}
+            for r in (d.get("reservations") or [])]
+    return {"status": "ok", "count": d.get("count"), "property": h["pms_property_id"], "params": params, "reservations": rows}
+
 @app.get("/api/pms/apaleo/properties")
 async def apaleo_properties(token: str):
     """Seznam properties Apaleo účtu pro dropdown v portálu (místo ručního opisování kódu).
