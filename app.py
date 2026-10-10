@@ -6806,7 +6806,8 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         for it in hit[:2]:
             unit_lbl = {"person_day": "per person per day", "person": "per person per night", "room": "per room per night",
                         "flat": "once per stay", "person_once": "per person"}.get(it["unit"], "")
-            price_txt = f"{it['price']} {it['currency']}".strip() + (f" {unit_lbl}" if unit_lbl else "")
+            _pr = f"{it['price']:g}" if isinstance(it["price"], float) else str(it["price"])
+            price_txt = f"{_pr} {it['currency']}".strip() + (f" {unit_lbl}" if unit_lbl else "")
             q = _item_qty(it)
             act = {"kind": "item", "service_id": it["id"], "title": it["name"], "dates": [day], "count": 1,
                    "price": it["price"], "currency": it["currency"], "mode": "request",
@@ -6830,7 +6831,10 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
                          "odpověď přijde hostovi do chatu")
         block = ("OBJEDNÁNÍ V CHATU — VÝJIMKA z pravidla 'nic neobjednávej': pod tvou odpovědí se hostovi zobrazí "
                  "TLAČÍTKO, kterým může poslat recepci požadavek na:\n" + "\n".join(lines) +
-                 f"\nPokoj hosta: {room}.\n" + _ORDER_TONE)
+                 f"\nPokoj hosta: {room}.\n"
+                 # Snímek 11. 10.: Alex řekl „garáž za 600 Kč za noc" z profilu, karta pod tím měla 300 CZK.
+                 "CENY: cena u položky výše je ZÁVAZNÁ a shoduje se s kartou pod tvou odpovědí — uváděj ji; "
+                 "pokud profil hotelu uvádí jinou částku, tu NEPOUŽÍVEJ.\n" + _ORDER_TONE)
         return actions, block
     # ── (1) ověřený pobyt z Apalea ──
     has_scope = _apaleo_has_write_scope(h, db)
