@@ -1003,6 +1003,7 @@ Object.assign(UI_T.de,{link_stay:'🛎 Aufenthalt verknüpfen',ls_title:'Aufenth
   unlink_stay:'🔓 Aufenthalt trennen',
   stay_unlinked:'🔓 Ihr Aufenthalt wurde getrennt. Ich antworte jetzt nur aus den allgemeinen Hotelinformationen — Sie können ihn jederzeit wieder verknüpfen.'});
 // Zápis do rezervace — karty k potvrzení (ostatní jazyky padají na EN přes uiT)
+Object.assign(UI_T.en,{order_persons:'Persons'});Object.assign(UI_T.cs,{order_persons:'Počet osob'});Object.assign(UI_T.sk,{order_persons:'Počet osôb'});if(UI_T.de)Object.assign(UI_T.de,{order_persons:'Personen'});
 Object.assign(UI_T.en,{order_confirm:'Confirm',order_send:'Send to reception',order_cancel:'Not now',
   order_room_charge:'Charged to your room account and settled at check-out. Nothing is booked until you confirm.',
   order_request_note:'This goes to reception as a request — they will confirm it with you.',
@@ -1225,19 +1226,34 @@ async function submitLinkStay(){
 
 // ── Zápis do rezervace: karty s tlačítkem k potvrzení (server rozhodl, host potvrzuje) ──
 // Nikdy se nic neobjedná bez klepnutí hosta; server před zápisem vše ověří znovu.
+const ORDER_STATE={};   // id karty -> {count, unit, days, cur, can} — počet osob mění host na kartě
+function fmtOrderDate(iso){ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||''); return m?`${+m[3]}. ${+m[2]}. ${m[1]}`:(iso||''); }
+function orderCount(id,delta){
+  const s=ORDER_STATE[id]; if(!s||!s.can) return;
+  s.count=Math.min(10,Math.max(1,(s.count||1)+delta));
+  const c=document.getElementById('ocnt-'+id); if(c) c.textContent=s.count;
+  const p=document.getElementById('oprice-'+id);
+  if(p&&s.unit!==undefined&&s.unit!==null){ const tot=Math.round(s.unit*s.count*(s.days||1)*100)/100; p.textContent=`${tot} ${s.cur}`.trim(); }
+}
 function showOrderCards(actions){
   const msgs=document.getElementById('messages');
   (actions||[]).forEach(a=>{
     if(!a||!a.id) return;
     const price=(a.price!==undefined&&a.price!==null)?`${a.price} ${a.currency||''}`.trim():'';
     const note=a.mode==='auto'?uiT('order_room_charge'):uiT('order_request_note');
+    ORDER_STATE[a.id]={count:a.count||1,unit:a.unit_price,days:a.days||1,cur:a.currency||'',can:!!a.can_count};
+    const dates=(a.dates||[]).map(fmtOrderDate).join(', ');
     const d=document.createElement('div');
     d.className='msg bot'; d.id='order-'+a.id;
     d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#fff;font-weight:800">✦</div>
       <div class="msg-body"><div class="msg-bubble" style="min-width:250px;max-width:320px">
         <div style="font-weight:700;font-size:14px;margin-bottom:6px">${a.kind==='extension'?'🛏':'🛎'} ${escapeHtmlOrder(a.title||'')}</div>
-        <div style="font-size:12.5px;color:var(--muted);margin-bottom:4px">${escapeHtmlOrder(a.detail||'')}</div>
-        ${price?`<div style="font-size:16px;font-weight:800;margin:6px 0 10px">${escapeHtmlOrder(price)}</div>`:''}
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:4px">${dates?escapeHtmlOrder(dates):escapeHtmlOrder(a.detail||'')}</div>
+        ${a.can_count?`<div style="display:flex;align-items:center;gap:10px;margin:8px 0 4px"><span style="font-size:12.5px;color:var(--muted)">${uiT('order_persons')}</span>
+          <button type="button" onclick="orderCount('${a.id}',-1)" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--text);font-size:18px;cursor:pointer">−</button>
+          <b id="ocnt-${a.id}" style="min-width:18px;text-align:center;font-size:16px">${a.count||1}</b>
+          <button type="button" onclick="orderCount('${a.id}',1)" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--text);font-size:18px;cursor:pointer">+</button></div>`:''}
+        ${price?`<div id="oprice-${a.id}" style="font-size:16px;font-weight:800;margin:6px 0 10px">${escapeHtmlOrder(price)}</div>`:''}
         <div style="font-size:11.5px;color:var(--muted);line-height:1.45;margin-bottom:12px">${note}</div>
         <div style="display:flex;gap:8px">
           <button onclick="confirmOrder('${a.id}')" style="flex:1;background:var(--accent);color:#0a0b0f;border:none;border-radius:10px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font-body,inherit)">${a.mode==='auto'?uiT('order_confirm'):uiT('order_send')}</button>
@@ -1256,7 +1272,7 @@ async function confirmOrder(id){
   const err=card.querySelector('.order-err');
   try{
     const r=await fetch(`${API}/api/guest/order`,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({hotel_id:hotelId,action_id:id,device_id:deviceId,language:guestLang})});
+      body:JSON.stringify({hotel_id:hotelId,action_id:id,device_id:deviceId,language:guestLang,count:(ORDER_STATE[id]&&ORDER_STATE[id].can)?ORDER_STATE[id].count:null})});
     const d=await r.json();
     if(r.ok && d.message){
       card.remove();

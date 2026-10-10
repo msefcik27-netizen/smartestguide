@@ -401,6 +401,7 @@ const EN_MAP = {
   "+ Přidat položku":"+ Add item","za osobu a noc":"per person per night","za pokoj a noc":"per room per night","jednorázově za pobyt":"once per stay","Odebrat":"Remove",
   "E-mail, kam chodí každá objednávka / požadavek (prázdné = e-mail hotelu)":"E-mail that receives every order / request (empty = hotel e-mail)",
   "Uložit objednávky":"Save orders","✓ Uloženo":"✓ Saved",
+  "Posílat e-mail i o objednávkách zapsaných do Apalea (jinak chodí jen požadavky a selhání — zapsané vidíte v Apaleu)":"Also e-mail orders that were written to Apaleo (otherwise only requests and failures are sent — written ones you see in Apaleo)",
   "Seznam je váš katalog služeb z Apalea. Novou službu založte v Apaleu — tady se objeví do hodiny.":"This is your service catalogue from Apaleo. Create a new service in Apaleo — it shows up here within an hour.",
   "Zatím žádné služby — v Apaleu zatím nemáte žádnou službu k dokoupení, nebo se katalog nepodařilo načíst.":"No services yet — your Apaleo has no bookable services, or the catalogue could not be loaded.",
   "kód služby z Apalea (např. LND-BRKF)":"service code from Apaleo (e.g. LND-BRKF)","Snídaně":"Breakfast","/ osoba":"/ person",
@@ -1891,6 +1892,7 @@ function loadOrdersSection(){
       <div style="margin:12px 0 6px;font-size:12px;color:var(--muted)">Služby, které smí Alex nabízet k objednání (z vašeho Apalea)</div>
       <div id="ord-allow" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"><span style="font-size:12.5px;color:var(--muted)">Načítám služby…</span></div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Seznam je váš katalog služeb z Apalea. Novou službu založte v Apaleu — tady se objeví do hodiny.</div>
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin:4px 0 6px"><input type="checkbox" id="ord-notify-always" ${h.pms_write_notify_always?'checked':''} style="margin-top:3px;width:16px;height:16px;accent-color:var(--accent)"><span style="font-size:12.5px;color:var(--muted)">Posílat e-mail i o objednávkách zapsaných do Apalea (jinak chodí jen požadavky a selhání — zapsané vidíte v Apaleu)</span></label>
       `:''}
       ${pms?'':`
       <div style="margin:12px 0 6px;font-size:12px;color:var(--muted)">Položky k objednání (název, cena, jednotka)</div>
@@ -1945,6 +1947,7 @@ async function saveOrdersSection(){
   const payload={pms_write_services:!!(g('ord-services')&&g('ord-services').checked), pms_write_extension:!!(g('ord-ext')&&g('ord-ext').checked),
     pms_write_notify_email:(g('ord-email')&&g('ord-email').value||'').trim()};
   if(g('ord-mode')) payload.pms_write_mode=g('ord-mode').value;
+  if(g('ord-notify-always')) payload.pms_write_notify_always=!!g('ord-notify-always').checked;
   if(g('ord-cap')) payload.pms_write_cap=g('ord-cap').value;
   if(g('ord-allow')) payload.pms_write_allowlist=[...document.querySelectorAll('.ord-allow-cb:checked')].map(c=>c.value);
   if(g('ord-items')) payload.pms_write_items=[...document.querySelectorAll('#ord-items .ord-item')].map(r=>({name:r.querySelector('.oi-name').value,price:r.querySelector('.oi-price').value,currency:r.querySelector('.oi-cur').value,unit:r.querySelector('.oi-unit').value})).filter(x=>x.name.trim());
