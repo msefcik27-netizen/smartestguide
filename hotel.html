@@ -1929,7 +1929,7 @@ async function loadAllowlist(allow){
   const known=new Set(svcs.map(s=>s.id));
   (allow||[]).forEach(code=>{ if(!known.has(code)) svcs.push({id:code,name:code}); });
   if(!svcs.length){ box.innerHTML=`<span style="font-size:12.5px;color:var(--muted)">Zatím žádné služby — objeví se, jakmile si host propojí pobyt, nebo přidejte kód ručně.</span>`; return; }
-  box.innerHTML=svcs.map(s=>`<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer"><input type="checkbox" class="ord-allow-cb" value="${s.id}" ${(allow||[]).includes(s.id)?'checked':''} style="accent-color:var(--accent);width:16px;height:16px"> ${s.name||s.id} <span style="color:var(--muted);font-size:12px">${s.id}${s.unit_price!==undefined&&s.unit_price!==null?` · ${s.unit_price} ${s.currency||''}${s.pricing_unit==='Person'?' / osoba':''}`:''}</span></label>`).join('');
+  box.innerHTML=svcs.map(s=>`<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer"><input type="checkbox" class="ord-allow-cb" value="${s.id}" ${(allow||[]).includes(s.id)?'checked':''} style="accent-color:var(--accent);width:16px;height:16px"> ${s.name||s.id} <span style="color:var(--muted);font-size:12px">${s.id}${s.unit_price!==undefined&&s.unit_price!==null?` · ${s.unit_price} ${s.currency||''}${s.pricing_unit==='Person'?' '+tr('/ osoba'):''}`:''}</span></label>`).join('');
 }
 function addAllowCode(){
   const i=document.getElementById('ord-allow-code'); const code=(i.value||'').trim(); if(!code)return;
