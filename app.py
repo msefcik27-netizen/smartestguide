@@ -6353,6 +6353,9 @@ async def _send_write_notification(hid: str, h: dict, room: str, action: dict):
     price = re.sub(r"(\d+)\.0\b", r"\1", str(action.get("price") or ""))
     from datetime import timedelta as _td
     when = (datetime.utcnow() + _td(hours=2)).strftime("%d. %m. %Y %H:%M") if cs else datetime.utcnow().strftime("%d.%m.%Y %H:%M UTC")
+    # Přímý odkaz do portálu na záložku Alex & objednávky (uživatel 11. 10.: „rovnou odkazem")
+    portal_link = f"{(os.getenv('BASE_URL') or 'https://www.smartestguide.com').rstrip('/')}/portal?token={h.get('hotel_token', '')}#alex"
+    note = str(action.get("note") or "").strip()[:200]
     if cs:
         kind = "Prodloužení pobytu" if is_ext else "Objednávka služby"
         if mode == "request":
@@ -6368,8 +6371,8 @@ async def _send_write_notification(hid: str, h: dict, room: str, action: dict):
             what = f"SELHALO pro pokoj {room}"
             lead = "Host v chatu potvrdil následující, ale <b>zápis do Apalea selhal</b>. Prosím zkontrolujte rezervaci a vyřiďte ručně:"
         labels = ("Pokoj", "Rezervace", "Detail", "Cena", "Čas")
-        settings_line = ("Nastavení (co smí Alex nabízet, položky, tato adresa): portál hotelu → <b>Objednávky v chatu</b>."
-                         if not has_pms else "Nastavení (co smí Alex objednat, limit, tato adresa): portál hotelu → <b>Objednávky v chatu</b>.")
+        settings_line = (f"Nastavení (co smí Alex nabízet, položky, tato adresa): <a href=\"{portal_link}\">Objednávky v chatu v portálu hotelu</a>."
+                         if not has_pms else f"Nastavení (co smí Alex objednat, limit, tato adresa): <a href=\"{portal_link}\">Objednávky v chatu v portálu hotelu</a>.")
         hello = "Dobrý den,"
     else:
         kind = "Stay extension" if is_ext else "Service order"
@@ -6386,7 +6389,7 @@ async def _send_write_notification(hid: str, h: dict, room: str, action: dict):
             what = f"FAILED for room {room}"
             lead = "A guest confirmed the following in chat, but <b>writing it to Apaleo failed</b>. Please check the reservation and handle it manually:"
         labels = ("Room", "Reservation", "Detail", "Price", "Time")
-        settings_line = "Settings (what Alex may offer, items, limits, this notification address): hotel portal → <b>Orders in chat</b>."
+        settings_line = f"Settings (what Alex may offer, items, limits, this notification address): <a href=\"{portal_link}\">Orders in chat in your hotel portal</a>."
         hello = "Hello,"
     res_row = f"<li><b>{labels[1]}:</b> {action.get('reservation_id')}</li>" if action.get("reservation_id") else ""
     payload = {
@@ -6399,7 +6402,8 @@ async def _send_write_notification(hid: str, h: dict, room: str, action: dict):
             f"<ul><li><b>{labels[0]}:</b> {room}</li>{res_row}"
             f"<li><b>{kind}:</b> {action.get('title') or '—'}</li>"
             f"<li><b>{labels[2]}:</b> {detail or '—'}</li>"
-            f"<li><b>{labels[3]}:</b> {price or '—'}</li>"
+            + (f"<li><b>{'Čas / poznámka hosta' if cs else 'Guest time / note'}:</b> {note}</li>" if note else "")
+            + f"<li><b>{labels[3]}:</b> {price or '—'}</li>"
             f"<li><b>{labels[4]}:</b> {when}</li></ul>"
             + (f"<p style='color:#b00'><b>Error:</b> {action.get('error')}</p>" if action.get("error") else "")
             + f"<p>{settings_line}</p>"
@@ -6765,6 +6769,8 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
             act = {"kind": "item", "service_id": it["id"], "title": it["name"], "dates": [day], "count": 1,
                    "price": it["price"], "currency": it["currency"], "mode": "request",
                    "unit_price": float(it["price"]), "days": 1, "can_count": it["unit"] == "person",
+                   # karta podle typu položky: za osobu = osoby+noci, za pokoj = noci, jednorázově = čas
+                   "unit": it["unit"], "start": day, "nights": 1, "can_nights": it["unit"] in ("person", "room"),
                    "detail": f"1× · {day}"}
             act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": "", "room": room})
             actions.append(act)
@@ -6863,6 +6869,9 @@ class GuestOrderRequest(BaseModel):
     device_id: Optional[str] = None
     language: Optional[str] = "en"
     count: Optional[int] = None      # počet osob z karty (jen u položek „za osobu"); 1–10
+    nights: Optional[int] = None     # počet nocí (položky za osobu/pokoj a noc); 1–7
+    start: Optional[str] = None      # první den YYYY-MM-DD (položky hotelu bez PMS)
+    note: Optional[str] = None       # preferovaný čas / poznámka pro recepci (≤200 znaků)
 
 _ORDER_MSG = {
     "booked":    {"en": "✅ Done — {title} is booked and will be charged to your room account (settled at check-out).",
@@ -6894,17 +6903,35 @@ async def guest_order(req: GuestOrderRequest):
     db = db_load()
     hid = p["hid"]
     h = db["hotels"].get(hid)
-    if not h or h.get("id", hid) != req.hotel_id and hid != req.hotel_id:
+    # Guest appka posílá hotel_id jako id NEBO slug (/h/<slug>) — stejně jako chat → _resolve_hotel.
+    # Dřív se srovnávalo jen s id → 403 → v appce „Nepovedlo se" (nález 11. 10. 2026, třetí pokus).
+    _rh, _rhot = _resolve_hotel(db, req.hotel_id)
+    if not h or _rh != hid:
         raise HTTPException(403, "Nesedí hotel")
     settings = db_get_settings()
     wr = _write_settings(h)
     title = p.get("title", "")
     kind = p.get("kind")
-    # Počet osob z karty (jen u položek „za osobu"): přepočítat cenu, strop se kontroluje z ní
-    if p.get("can_count") and req.count and 1 <= int(req.count) <= 10 and p.get("unit_price") is not None:
+    # Parametry z karty: osoby (za osobu), noci + první den (za osobu/pokoj a noc), čas/poznámka.
+    # Cena se přepočítá tady (strop se kontroluje z ní), nic z klienta se nebere jako cena.
+    if p.get("can_count") and req.count and 1 <= int(req.count) <= 10:
         p["count"] = int(req.count)
-        p["price"] = round(float(p["unit_price"]) * p["count"] * max(1, int(p.get("days") or 1)), 2)
-        p["detail"] = f"{p['count']}× · {', '.join(p.get('dates') or [])}"
+    if kind == "item":
+        from datetime import date as _d, timedelta as _td2
+        try:
+            start = _d.fromisoformat((req.start or "")[:10]) if req.start else _d.fromisoformat(p.get("start") or p["dates"][0])
+            if start < _d.today():
+                start = _d.today()
+        except Exception:
+            start = _d.today()
+        nights = int(req.nights) if (p.get("can_nights") and req.nights and 1 <= int(req.nights) <= 7) else 1
+        p["dates"] = [(start + _td2(days=i)).isoformat() for i in range(nights)] if p.get("unit") != "extension" else []
+        p["days"] = len(p["dates"]) or 1
+    p["note"] = str(req.note or "").strip()[:200]
+    if p.get("unit_price") is not None and p.get("price") is not None:
+        p["price"] = round(float(p["unit_price"]) * max(1, int(p.get("count") or 1)) * max(1, int(p.get("days") or 1)), 2)
+    if p.get("dates"):
+        p["detail"] = f"{p.get('count') or 1}× · {', '.join(p['dates'])}"
     if kind == "item":
         # Hotel bez PMS / bez propojeného pobytu: jen požadavek recepci, žádný zápis, žádné ověření rezervace
         if not wr["pms_write_services"] and not wr["pms_write_extension"]:
@@ -6912,7 +6939,7 @@ async def guest_order(req: GuestOrderRequest):
         price_txt = (f"{p.get('price')} {p.get('currency', '')}".strip() if p.get("price") is not None else "")
         asyncio.create_task(_send_write_notification(hid, dict(h), p.get("room", ""),
             {"kind": "extension" if p.get("service_id") == "extension" else "service", "mode": "request", "ok": True,
-             "title": title, "detail": p.get("detail", ""), "price": price_txt, "reservation_id": ""}))
+             "title": title, "detail": p.get("detail", ""), "price": price_txt, "reservation_id": "", "note": p.get("note", "")}))
         return {"status": "ok", "done": "requested", "message": _order_msg("requested", lang, title)}
     stay = await _fetch_stay_for_hotel(h, hid, p.get("room", ""), settings)
     if not stay or (getattr(stay, "reservation_id", "") or "") != p["reservation_id"]:

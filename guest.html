@@ -1268,23 +1268,28 @@ function showOrderCards(actions){
   msgs.scrollTop=msgs.scrollHeight;
 }
 function escapeHtmlOrder(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-async function confirmOrder(id){
+async function confirmOrder(id, attempt){
   const card=document.getElementById('order-'+id); if(!card) return;
   const btns=card.querySelectorAll('button'); btns.forEach(b=>b.disabled=true);
   const err=card.querySelector('.order-err');
+  // Po restartu serveru (nasazení) vrací Railway chvíli 502 — jeden tichý pokus navíc po 2,5 s,
+  // ať host neklikne do výpadku (11. 10. 2026: dvakrát „Nepovedlo se" při testu).
+  const fail=(why)=>{ err.textContent=uiT('order_fail')+(why?` (${why})`:''); err.style.display='block'; btns.forEach(b=>b.disabled=false); console.warn('guest/order', why); };
   try{
     const r=await fetch(`${API}/api/guest/order`,{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({hotel_id:hotelId,action_id:id,device_id:deviceId,language:guestLang,count:(ORDER_STATE[id]&&ORDER_STATE[id].can)?ORDER_STATE[id].count:null})});
-    const d=await r.json();
-    if(r.ok && d.message){
+    let d=null; try{ d=await r.json(); }catch(e){}
+    if(r.ok && d && d.message){
       card.remove();
       addBot(d.message);
       history.push({role:'assistant',content:d.message}); saveHistory();
+    }else if(r.status>=500 && !attempt){
+      setTimeout(()=>confirmOrder(id,1),2500);
     }else{
-      err.textContent=uiT('order_fail'); err.style.display='block'; btns.forEach(b=>b.disabled=false);
+      fail('HTTP '+r.status);
     }
   }catch(e){
-    err.textContent=uiT('order_fail'); err.style.display='block'; btns.forEach(b=>b.disabled=false);
+    if(!attempt){ setTimeout(()=>confirmOrder(id,1),2500); } else { fail(e&&e.message?e.message:'síť'); }
   }
 }
 
