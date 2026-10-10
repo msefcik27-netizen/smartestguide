@@ -1002,6 +1002,23 @@ Object.assign(UI_T.de,{link_stay:'🛎 Aufenthalt verknüpfen',ls_title:'Aufenth
   stay_link_failed:'⚠️ Ihr Aufenthalt konnte nicht bestätigt werden. Bitte prüfen Sie Zimmernummer und Anreisedatum, oder wenden Sie sich an die Rezeption.',
   unlink_stay:'🔓 Aufenthalt trennen',
   stay_unlinked:'🔓 Ihr Aufenthalt wurde getrennt. Ich antworte jetzt nur aus den allgemeinen Hotelinformationen — Sie können ihn jederzeit wieder verknüpfen.'});
+// Zápis do rezervace — karty k potvrzení (ostatní jazyky padají na EN přes uiT)
+Object.assign(UI_T.en,{order_confirm:'Confirm',order_send:'Send to reception',order_cancel:'Not now',
+  order_room_charge:'Charged to your room account and settled at check-out. Nothing is booked until you confirm.',
+  order_request_note:'This goes to reception as a request — they will confirm it with you.',
+  order_fail:'⚠️ That didn\'t go through. Please try again or ask reception.'});
+Object.assign(UI_T.cs,{order_confirm:'Potvrdit',order_send:'Poslat recepci',order_cancel:'Teď ne',
+  order_room_charge:'Připíše se na účet vašeho pokoje a vyrovná při odjezdu. Nic se neobjedná, dokud nepotvrdíte.',
+  order_request_note:'Odejde na recepci jako požadavek — ta vám ho potvrdí.',
+  order_fail:'⚠️ Nepovedlo se. Zkuste to znovu nebo se obraťte na recepci.'});
+Object.assign(UI_T.sk,{order_confirm:'Potvrdiť',order_send:'Poslať recepcii',order_cancel:'Teraz nie',
+  order_room_charge:'Pripíše sa na účet vašej izby a vyrovná pri odchode. Nič sa neobjedná, kým nepotvrdíte.',
+  order_request_note:'Odíde na recepciu ako požiadavka — tá vám ju potvrdí.',
+  order_fail:'⚠️ Nepodarilo sa. Skúste to znova alebo sa obráťte na recepciu.'});
+if(UI_T.de) Object.assign(UI_T.de,{order_confirm:'Bestätigen',order_send:'An Rezeption senden',order_cancel:'Jetzt nicht',
+  order_room_charge:'Wird Ihrem Zimmerkonto belastet und beim Check-out abgerechnet. Ohne Ihre Bestätigung wird nichts gebucht.',
+  order_request_note:'Geht als Anfrage an die Rezeption — sie bestätigt es Ihnen.',
+  order_fail:'⚠️ Das hat nicht geklappt. Bitte erneut versuchen oder an der Rezeption fragen.'});
 function uiT(k){ const d=UI_T[guestLang]||UI_T.en; return (d[k]!==undefined)?d[k]:UI_T.en[k]; }
 function applyGuestLangUI(){
   const set=(id,html)=>{const e=document.getElementById(id); if(e) e.innerHTML=html;};
@@ -1152,6 +1169,53 @@ async function submitLinkStay(){
     err.textContent=uiT('stay_link_failed');
     err.style.display='block';
     btns.forEach(b=>b.disabled=false);
+  }
+}
+
+// ── Zápis do rezervace: karty s tlačítkem k potvrzení (server rozhodl, host potvrzuje) ──
+// Nikdy se nic neobjedná bez klepnutí hosta; server před zápisem vše ověří znovu.
+function showOrderCards(actions){
+  const msgs=document.getElementById('messages');
+  (actions||[]).forEach(a=>{
+    if(!a||!a.id) return;
+    const price=(a.price!==undefined&&a.price!==null)?`${a.price} ${a.currency||''}`.trim():'';
+    const note=a.mode==='auto'?uiT('order_room_charge'):uiT('order_request_note');
+    const d=document.createElement('div');
+    d.className='msg bot'; d.id='order-'+a.id;
+    d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#fff;font-weight:800">✦</div>
+      <div class="msg-body"><div class="msg-bubble" style="min-width:250px;max-width:320px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:6px">${a.kind==='extension'?'🛏':'🛎'} ${escapeHtmlOrder(a.title||'')}</div>
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:4px">${escapeHtmlOrder(a.detail||'')}</div>
+        ${price?`<div style="font-size:16px;font-weight:800;margin:6px 0 10px">${escapeHtmlOrder(price)}</div>`:''}
+        <div style="font-size:11.5px;color:var(--muted);line-height:1.45;margin-bottom:12px">${note}</div>
+        <div style="display:flex;gap:8px">
+          <button onclick="confirmOrder('${a.id}')" style="flex:1;background:var(--accent);color:#0a0b0f;border:none;border-radius:10px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font-body,inherit)">${a.mode==='auto'?uiT('order_confirm'):uiT('order_send')}</button>
+          <button onclick="document.getElementById('order-${a.id}').remove()" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:10px;padding:11px 14px;font-size:13px;cursor:pointer;font-family:var(--font-body,inherit)">${uiT('order_cancel')}</button>
+        </div>
+        <div class="order-err" style="display:none;margin-top:10px;font-size:12px;line-height:1.5;color:#ff4f6a"></div>
+      </div></div>`;
+    msgs.appendChild(d);
+  });
+  msgs.scrollTop=msgs.scrollHeight;
+}
+function escapeHtmlOrder(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+async function confirmOrder(id){
+  const card=document.getElementById('order-'+id); if(!card) return;
+  const btns=card.querySelectorAll('button'); btns.forEach(b=>b.disabled=true);
+  const err=card.querySelector('.order-err');
+  try{
+    const r=await fetch(`${API}/api/guest/order`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({hotel_id:hotelId,action_id:id,device_id:deviceId,language:guestLang})});
+    const d=await r.json();
+    if(r.ok && d.message){
+      card.remove();
+      addBot(d.message);
+      history.push({role:'assistant',content:d.message}); saveHistory();
+    }else{
+      err.textContent=uiT('order_fail'); err.style.display='block'; btns.forEach(b=>b.disabled=false);
+    }
+  }catch(e){
+    err.textContent=uiT('order_fail'); err.style.display='block'; btns.forEach(b=>b.disabled=false);
   }
 }
 
@@ -1350,6 +1414,8 @@ async function sendMsg(){
         applyGuestLangUI();
       }
       const botBtn=addBot(d.reply);
+      // Zápis do rezervace: server poslal konkrétní nabídky k potvrzení → karty s tlačítkem
+      if(d.actions && d.actions.length) showOrderCards(d.actions);
       // Host mluvil → Alex odpoví taky hlasem. Krátká odpověď se přečte celá;
       // u dlouhého výčtu (menu/ceník/tipy) se přečte jen krátký úvod, detaily zůstanou
       // napsané (rozhodnutí Martina 7. 8. 2026). Tlačítko 🔊 pak přehraje celou odpověď.
