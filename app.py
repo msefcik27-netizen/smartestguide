@@ -6496,8 +6496,11 @@ _SERVICE_SYNONYMS = {
     "yoga": ["yoga", "jóga", "joga"],
     "spa": ["spa", "wellness", "sauna", "massage", "masáž", "masaz"],
 }
-_ORDER_WORDS_RE = re.compile(r"\b(book|order|add|reserve|get|want|would like|can i (have|get)|please|objedn|chci|chtěl|chtela|chtěla|"
-                             r"přidej|pridej|dám si|dam si|bestell|möchte|mochte|hätte gern|je voudrais|quiero|vorrei)\b", re.I)
+# Záměr OBJEDNAT (ne jen zeptat se): bez něj se karta neukáže — „What time is breakfast?"
+# je informační dotaz, Alex smí službu zmínit, ale tlačítko „Potvrdit" by tlačilo.
+_ORDER_WORDS_RE = re.compile(r"(\b(book|order|add|reserve|get|want|wish|would like|'d like|i'd|could i|can i|may i|is it possible|"
+                             r"give me|bring|please|objedn|chci|chtěl|chtela|chtěla|prosím|prosim|dejte|přidej|pridej|dám si|dam si|"
+                             r"bestell|möchte|mochte|hätte gern|bitte|je voudrais|quiero|vorrei|per favore)\b)", re.I)
 _DAY_TODAY_RE = re.compile(r"\b(today|dnes|dneska|heute|aujourd|hoy|oggi|dzisiaj|ma\b|vandaag)", re.I)
 _DAY_TOMORROW_RE = re.compile(r"\b(tomorrow|zítra|zitra|morgen|demain|mañana|manana|domani|jutro|holnap)", re.I)
 _DAY_ALL_RE = re.compile(r"\b(every day|each day|every morning|each morning|daily|whole stay|all days|celý pobyt|cely pobyt|"
@@ -6568,8 +6571,11 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
             offers = await pms_layer.apaleo_reservation_service_offers(_ph, stay) or []
             _svc_offers_cache[ck] = {"data": offers, "expires": _t.time() + 600}
         allowed = [o for o in offers if o["service_id"] in wr["pms_write_allowlist"] and not o.get("validation")]
-        wants = _ORDER_WORDS_RE.search(message or "") is not None
-        for o in allowed:
+        # Karta jen při ZÁMĚRU objednat nebo při určení dne — informační dotaz („What time is
+        # breakfast?") kartu nevyvolá; Alex o službě smí mluvit z běžného bloku služeb.
+        wants = bool(_ORDER_WORDS_RE.search(message or "") or _DAY_TODAY_RE.search(message or "")
+                     or _DAY_TOMORROW_RE.search(message or "") or _DAY_ALL_RE.search(message or ""))
+        for o in (allowed if wants else []):
             if not _service_matches(message, o):
                 continue
             dates = _pick_service_dates(message, o, stay)
@@ -6593,7 +6599,6 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
                          + (" (potvrzením se připíše na účet pokoje)" if mode == "auto" else " (potvrzením odejde požadavek recepci, která ho vyřídí)"))
             if len(actions) >= 2:
                 break
-        _ = wants  # záměr „objednat" zatím jen pro budoucí ladění; shoda názvu stačí
     # b) prodloužení pobytu — zatím VŽDY jako požadavek recepci (čeká na ověřovací kód)
     if wr["pms_write_extension"] and _EXTENSION_INTENT_RE.search(message or ""):
         n = _nights_from_message(message)
