@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 import os, json, uuid, httpx, asyncio, re, base64, hmac, hashlib, logging, threading
 from datetime import datetime, timedelta
+import html
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from dotenv import load_dotenv
@@ -2158,7 +2159,34 @@ _WRITE_DEFAULTS = {
     # [{id, name, price, currency, unit: "person"|"room"|"flat"}]
     "pms_write_items": [],
 }
-_ITEM_UNITS = ("person", "room", "flat")
+_ITEM_UNITS = ("person_day", "person", "room", "flat", "person_once")
+
+# Jak se položka počítá na kartě hosta (uživatel 11. 10. 2026: „proč je u snídaně počet nocí?
+# pracuj s těmi jednotkami inteligentně"):
+#   person_day  = za osobu a den   (snídaně, polopenze)  → osoby × dny
+#   person      = za osobu a noc   (přistýlka)           → osoby × noci; jídlo i tady = dny
+#   room        = za pokoj a noc   (parkování, mazlíček) → noci
+#   flat        = jednorázově      (pozdní odjezd)       → nic, jen čas/poznámka
+#   person_once = za osobu, jednou (masáž, vstupenka)    → osoby + čas
+_MEAL_WORDS = ("breakfast", "snídan", "snidan", "frühstück", "fruhstuck", "colazione", "desayuno", "śniadan", "ontbijt",
+               "dinner", "večeř", "vecer", "polopenz", "half board", "halbpension", "abendessen", "lunch", "oběd", "obed",
+               "plná penze", "full board", "vollpension")
+
+def _item_qty(it: dict) -> dict:
+    """Co host na kartě nastavuje: osoby (can_count), násobitel dnů/nocí (can_nights + qty_label)
+    a jestli má smysl ptát se na čas (time_hint). Jídlo se počítá na DNY, i když hotel zvolil
+    „za osobu a noc" — snídaně se nejí v noci."""
+    unit = it.get("unit") or "flat"
+    meal = any(w in (it.get("name") or "").lower() for w in _MEAL_WORDS)
+    if unit == "person_day":
+        return {"can_count": True, "can_nights": True, "qty_label": "days", "time_hint": False}
+    if unit == "person":
+        return {"can_count": True, "can_nights": True, "qty_label": "days" if meal else "nights", "time_hint": False}
+    if unit == "room":
+        return {"can_count": False, "can_nights": True, "qty_label": "days" if meal else "nights", "time_hint": False}
+    if unit == "person_once":
+        return {"can_count": True, "can_nights": False, "qty_label": None, "time_hint": True}
+    return {"can_count": False, "can_nights": False, "qty_label": None, "time_hint": True}
 
 def _normalize_items(v) -> list:
     out, seen = [], set()
@@ -6361,9 +6389,9 @@ async def _send_write_notification(hid: str, h: dict, room: str, action: dict):
         if mode == "request":
             what = f"POŽADAVEK z pokoje {room}"
             lead = ("Host požádal Alexe o následující. Objednávka se nikam nezapisuje — prosím vyřiďte ji na recepci "
-                    "(host dostal zprávu, že mu ji recepce potvrdí):" if not has_pms else
+                    "a dejte hostovi vědět tlačítkem níže (odpověď mu přijde do chatu):" if not has_pms else
                     "Host požádal Alexe o následující. Hotel má objednávky nastavené jako požadavek, do Apalea se nic "
-                    "nezapsalo — prosím vyřiďte ji na recepci:")
+                    "nezapsalo — prosím vyřiďte ji na recepci a dejte hostovi vědět tlačítkem níže (odpověď mu přijde do chatu):")
         elif ok:
             what = f"zapsáno pro pokoj {room}"
             lead = "Alex právě zapsal následující na rezervaci hosta v <b>Apaleu</b> poté, co to host potvrdil v chatu. Účtuje se na pokoj a vyrovná při odjezdu:"
@@ -6379,9 +6407,9 @@ async def _send_write_notification(hid: str, h: dict, room: str, action: dict):
         if mode == "request":
             what = f"REQUEST from room {room}"
             lead = ("A guest asked Alex for the following. Nothing is written anywhere — please handle it at reception "
-                    "(the guest was told reception will confirm):" if not has_pms else
+                    "and let the guest know with a button below (the answer appears in their chat):" if not has_pms else
                     "A guest asked Alex for the following. This hotel runs orders as requests, so nothing was written to "
-                    "Apaleo — please handle it at reception:")
+                    "Apaleo — please handle it at reception and let the guest know with a button below (the answer appears in their chat):")
         elif ok:
             what = f"booked for room {room}"
             lead = "Alex has just written the following to the guest's reservation in <b>Apaleo</b> after the guest confirmed it in chat. It is charged to the room account and settled at check-out:"
@@ -6392,6 +6420,14 @@ async def _send_write_notification(hid: str, h: dict, room: str, action: dict):
         settings_line = f"Settings (what Alex may offer, items, limits, this notification address): <a href=\"{portal_link}\">Orders in chat in your hotel portal</a>."
         hello = "Hello,"
     res_row = f"<li><b>{labels[1]}:</b> {action.get('reservation_id')}</li>" if action.get("reservation_id") else ""
+    # Tlačítka Potvrdit / Nelze vyřídit — stav se propíše hostovi do chatu (stránka po kliknutí umí i vzkaz)
+    buttons = ""
+    if action.get("order_id") and mode == "request":
+        _ok, _no = _order_decide_link(action["order_id"], "confirm"), _order_decide_link(action["order_id"], "decline")
+        _b = "display:inline-block;padding:11px 18px;border-radius:8px;text-decoration:none;font-weight:700;margin:0 8px 8px 0"
+        buttons = (f"<p><a href=\"{_ok}\" style=\"{_b};background:#1f9d55;color:#fff\">{'✅ Potvrdit hostovi' if cs else '✅ Confirm to guest'}</a>"
+                   f"<a href=\"{_no}\" style=\"{_b};background:#c0392b;color:#fff\">{'❌ Nelze vyřídit' if cs else '❌ Cannot arrange'}</a><br>"
+                   f"<span style='font-size:12px;color:#666'>{'Po kliknutí můžete hostovi připsat i krátký vzkaz.' if cs else 'After clicking you can add a short message for the guest.'}</span></p>")
     payload = {
         "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
         "to": [{"email": to_email}],
@@ -6406,6 +6442,7 @@ async def _send_write_notification(hid: str, h: dict, room: str, action: dict):
             + f"<li><b>{labels[3]}:</b> {price or '—'}</li>"
             f"<li><b>{labels[4]}:</b> {when}</li></ul>"
             + (f"<p style='color:#b00'><b>Error:</b> {action.get('error')}</p>" if action.get("error") else "")
+            + buttons
             + f"<p>{settings_line}</p>"
             "<p>— SMARTEST GUIDE · support@smartestguide.com</p>"),
         "textContent": f"{kind} — {what}. {action.get('title') or ''} — {detail} — {price}. {when}.",
@@ -6745,9 +6782,11 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         # Nejdřív jen aktuální zpráva; kontext poslední výměny až když zpráva sama žádnou
         # položku nejmenuje („mohu si JI objednat?"). Jinak se po odmítnuté snídani vracela
         # snídaně i k dotazu na masáž (nález uživatele 11. 10.).
-        hit = [it for it in items if _service_matches(message or "", it)] or \
-              [it for it in items if _service_matches((message or "") + "\n" + (context or ""), it)]
         ext = wr["pms_write_extension"] and _EXTENSION_INTENT_RE.search(message or "")
+        # Kontext jen u odkazující věty s chutí objednat („mohu si JI objednat?"); u dotazu na
+        # prodloužení se snídaně z předchozí výměny nevrací (nález uživatele 11. 10., snímek).
+        hit = [it for it in items if _service_matches(message or "", it)] or \
+              ([it for it in items if _service_matches((message or "") + "\n" + (context or ""), it)] if (wants and not ext) else [])
         if not (hit or ext):
             return [], ""
         if not room:
@@ -6764,24 +6803,30 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
         day = date.today().isoformat() if _DAY_TODAY_RE.search(message or "") else tomorrow
         for it in hit[:2]:
-            unit_lbl = {"person": "per person per night", "room": "per room per night", "flat": "once per stay"}.get(it["unit"], "")
+            unit_lbl = {"person_day": "per person per day", "person": "per person per night", "room": "per room per night",
+                        "flat": "once per stay", "person_once": "per person"}.get(it["unit"], "")
             price_txt = f"{it['price']} {it['currency']}".strip() + (f" {unit_lbl}" if unit_lbl else "")
+            q = _item_qty(it)
             act = {"kind": "item", "service_id": it["id"], "title": it["name"], "dates": [day], "count": 1,
                    "price": it["price"], "currency": it["currency"], "mode": "request",
-                   "unit_price": float(it["price"]), "days": 1, "can_count": it["unit"] == "person",
-                   # karta podle typu položky: za osobu = osoby+noci, za pokoj = noci, jednorázově = čas
-                   "unit": it["unit"], "start": day, "nights": 1, "can_nights": it["unit"] in ("person", "room"),
+                   "unit_price": float(it["price"]), "days": 1, "unit": it["unit"], "start": day, "nights": 1,
+                   # karta podle typu položky (viz _item_qty): snídaně = osoby × dny, parkování = noci, masáž = osoby + čas
+                   "can_count": q["can_count"], "can_nights": q["can_nights"], "qty_label": q["qty_label"], "time_hint": q["time_hint"],
                    "detail": f"1× · {day}"}
             act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": "", "room": room})
             actions.append(act)
-            lines.append(f"- {it['name']} ({price_txt}), den {day} — potvrzením odejde požadavek recepci, která ho vyřídí a potvrdí")
+            lines.append(f"- {it['name']} ({price_txt}), den {day} — potvrzením odejde požadavek recepci, která ho vyřídí; "
+                         "odpověď recepce host dostane do chatu")
         if ext:
             n = _nights_from_message(message)
-            act = {"kind": "item", "service_id": "extension", "title": f"Stay extension +{n} night(s)",
-                   "dates": [], "count": n, "price": None, "currency": "", "mode": "request", "detail": "reception will confirm availability and price"}
+            # Titulek i popis si přeloží appka hosta (title_key); počet nocí host upraví na kartě.
+            act = {"kind": "item", "service_id": "extension", "title": f"Stay extension +{n} night(s)", "title_key": "extension",
+                   "dates": [], "count": n, "nights": n, "can_nights": True, "qty_label": "nights", "can_count": False,
+                   "price": None, "currency": "", "mode": "request", "detail": "reception will confirm availability and price"}
             act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": "", "room": room})
             actions.append(act)
-            lines.append(f"- Prodloužení pobytu o {n} noc/nocí — cenu a dostupnost potvrdí recepce, potvrzením odejde požadavek")
+            lines.append(f"- Prodloužení pobytu o {n} noc/nocí — cenu a dostupnost potvrdí recepce, potvrzením odejde požadavek, "
+                         "odpověď přijde hostovi do chatu")
         block = ("OBJEDNÁNÍ V CHATU — VÝJIMKA z pravidla 'nic neobjednávej': pod tvou odpovědí se hostovi zobrazí "
                  "TLAČÍTKO, kterým může poslat recepci požadavek na:\n" + "\n".join(lines) +
                  f"\nPokoj hosta: {room}.\n" + _ORDER_TONE)
@@ -6819,8 +6864,10 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         # jakmile se dotaz týká povolené služby — i u „What time is breakfast?". Host nic
         # neobjedná, dokud neklepne; tlačítko je nabídka, ne nátlak.
         # Nejdřív jen aktuální zpráva; kontext (poslední výměna) až když zpráva sama službu nejmenuje.
+        _wants = bool(_ORDER_WORDS_RE.search(message or ""))
+        _is_ext = bool(_EXTENSION_INTENT_RE.search(message or ""))
         matched = [o for o in allowed if _service_matches(message or "", o)] or \
-                  [o for o in allowed if _service_matches((message or "") + "\n" + (context or ""), o)]
+                  ([o for o in allowed if _service_matches((message or "") + "\n" + (context or ""), o)] if (_wants and not _is_ext) else [])
         for o in matched:
             dates = _pick_service_dates(message, o, stay)
             if not dates:
@@ -6849,8 +6896,8 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         offers = await pms_layer.apaleo_reservation_extension_offers(_ph, stay, n) or []
         best = next((o for o in offers if not o.get("validation")), None)
         if best:
-            act = {"kind": "extension", "title": f"+{best['new_nights']} night(s) → {best['departure'][:10]}",
-                   "departure": best["departure"], "new_nights": best["new_nights"], "price": round(best["new_total"], 2),
+            act = {"kind": "extension", "title": f"+{best['new_nights']} night(s) → {best['departure'][:10]}", "title_key": "extension",
+                   "nights": best["new_nights"], "departure": best["departure"], "new_nights": best["new_nights"], "price": round(best["new_total"], 2),
                    "currency": best["currency"], "mode": "request", "detail": f"{best['rate_plan']} · {best['unit_group']}"}
             # nabídka (time slices) se do tokenu nedává — prodloužení je zatím vždy jen požadavek recepci
             act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})
@@ -6869,27 +6916,158 @@ class GuestOrderRequest(BaseModel):
     device_id: Optional[str] = None
     language: Optional[str] = "en"
     count: Optional[int] = None      # počet osob z karty (jen u položek „za osobu"); 1–10
-    nights: Optional[int] = None     # počet nocí (položky za osobu/pokoj a noc); 1–7
+    nights: Optional[int] = None     # počet dní/nocí z karty (násobitel; u prodloužení počet nocí); 1–14
     start: Optional[str] = None      # první den YYYY-MM-DD (položky hotelu bez PMS)
     note: Optional[str] = None       # preferovaný čas / poznámka pro recepci (≤200 znaků)
 
 _ORDER_MSG = {
     "booked":    {"en": "✅ Done — {title} is booked and will be charged to your room account (settled at check-out).",
                   "cs": "✅ Hotovo — {title} je objednáno a připíše se na účet vašeho pokoje (vyrovná se při odjezdu).",
+                  "sk": "✅ Hotovo — {title} je objednané a pripíše sa na účet vašej izby (vyrovná sa pri odchode).",
                   "de": "✅ Erledigt — {title} ist gebucht und wird Ihrem Zimmerkonto belastet (Abrechnung beim Check-out)."},
-    "requested": {"en": "📨 Sent to reception — they will confirm {title} shortly.",
-                  "cs": "📨 Odesláno na recepci — {title} vám potvrdí co nevidět.",
-                  "de": "📨 An die Rezeption gesendet — {title} wird in Kürze bestätigt."},
+    # Potvrzení recepce chodí hostovi SEM do chatu (tlačítka v e-mailu recepci, uživatel 11. 10.:
+    # „jak mu to recepce potvrdí?") — proto žádné „co nevidět", ale „napíšu vám sem".
+    "requested": {"en": "📨 Sent to reception — I'll let you know here as soon as they confirm {title}.",
+                  "cs": "📨 Odesláno na recepci — jakmile {title} potvrdí, napíšu vám sem do chatu.",
+                  "sk": "📨 Odoslané na recepciu — hneď ako {title} potvrdí, napíšem vám sem do chatu.",
+                  "de": "📨 An die Rezeption gesendet — sobald sie {title} bestätigt, melde ich mich hier."},
+    "confirmed": {"en": "✅ Reception has confirmed {title}.", "cs": "✅ Recepce potvrdila: {title}.",
+                  "sk": "✅ Recepcia potvrdila: {title}.", "de": "✅ Die Rezeption hat {title} bestätigt."},
+    "declined":  {"en": "❌ Unfortunately reception can't arrange {title}.", "cs": "❌ Recepce bohužel {title} nemůže zajistit.",
+                  "sk": "❌ Recepcia bohužiaľ {title} nemôže zabezpečiť.", "de": "❌ Die Rezeption kann {title} leider nicht ermöglichen."},
+    "recept_note": {"en": "Message from reception: {title}", "cs": "Vzkaz recepce: {title}", "sk": "Odkaz recepcie: {title}",
+                    "de": "Nachricht der Rezeption: {title}"},
     "failed":    {"en": "⚠️ I couldn't complete this right now. Reception has been notified and will take care of {title}.",
                   "cs": "⚠️ Teď se to nepodařilo dokončit. Recepce dostala zprávu a {title} vyřídí.",
+                  "sk": "⚠️ Teraz sa to nepodarilo dokončiť. Recepcia dostala správu a {title} vybaví.",
                   "de": "⚠️ Das hat gerade nicht geklappt. Die Rezeption wurde informiert und kümmert sich um {title}."},
     "expired":   {"en": "This offer has expired — just ask me again.", "cs": "Nabídka už vypršela — stačí se zeptat znovu.",
-                  "de": "Dieses Angebot ist abgelaufen — fragen Sie mich einfach noch einmal."},
+                  "sk": "Ponuka už vypršala — stačí sa opýtať znova.", "de": "Dieses Angebot ist abgelaufen — fragen Sie mich einfach noch einmal."},
 }
 
 def _order_msg(key: str, lang: str, title: str) -> str:
     d = _ORDER_MSG.get(key) or {}
     return (d.get((lang or "en")[:2]) or d.get("en") or "").format(title=title)
+
+def _ext_title(n: int, lang: str) -> str:
+    """„prodloužení o 2 noci" v jazyce hosta (do zpráv v chatu) / hotelu (do e-mailu)."""
+    n = max(1, int(n or 1))
+    l = (lang or "en")[:2]
+    if l == "cs":
+        return f"prodloužení pobytu o {n} " + ("noc" if n == 1 else "noci" if n < 5 else "nocí")
+    if l == "sk":
+        return f"predĺženie pobytu o {n} " + ("noc" if n == 1 else "noci" if n < 5 else "nocí")
+    if l == "de":
+        return f"die Verlängerung um {n} " + ("Nacht" if n == 1 else "Nächte")
+    return f"the stay extension by {n} night" + ("" if n == 1 else "s")
+
+# ── Požadavky recepci se stavem (pending → confirmed/declined) ──
+# Hotel bez PMS (nebo režim „požadavek") nemá kam zapsat, host ale potřebuje odpověď. Recepce
+# klikne v e-mailu na Potvrdit / Nelze vyřídit, appka hosta se každých ~20 s ptá na stav a napíše
+# odpověď do chatu. Záznamy žijí v DB pod "orders" (bez osobních údajů: pokoj, co, kdy, stav).
+_ORDER_KEEP_DAYS = 7
+
+def _order_sig(oid: str, decision: str) -> str:
+    import hmac, hashlib
+    return hmac.new(_order_secret(), f"order:{oid}:{decision}".encode("utf-8"), hashlib.sha256).hexdigest()[:24]
+
+def _order_decide_link(oid: str, decision: str) -> str:
+    base = (os.getenv("BASE_URL") or "https://www.smartestguide.com").rstrip("/")
+    return f"{base}/api/orders/{oid}/decide?d={decision}&s={_order_sig(oid, decision)}"
+
+def _order_record_new(hid: str, room: str, title: str, detail: str, price: str, lang: str, device_id: str, kind: str) -> str:
+    """Založí čekající požadavek a vrátí jeho id. Staré záznamy (> _ORDER_KEEP_DAYS) se při tom uklidí."""
+    import uuid
+    from datetime import timedelta as _td
+    oid = uuid.uuid4().hex[:16]
+    now = datetime.utcnow()
+    try:
+        db = db_load()
+        orders = db.setdefault("orders", {})
+        cutoff = (now - _td(days=_ORDER_KEEP_DAYS)).isoformat(timespec="seconds")
+        for k in [k for k, v in orders.items() if (v.get("created") or "") < cutoff]:
+            orders.pop(k, None)
+        orders[oid] = {"hid": hid, "room": str(room or "")[:20], "title": str(title or "")[:120], "detail": str(detail or "")[:200],
+                       "price": str(price or "")[:40], "lang": (lang or "en")[:2], "device_id": str(device_id or "")[:64],
+                       "kind": kind, "status": "pending", "created": now.isoformat(timespec="seconds"), "decided": "", "message": ""}
+        db_save(db)
+    except Exception as e:
+        logging.warning("order record se neuložil (%s): %s", hid, e)
+    return oid
+
+@app.get("/api/orders/{oid}/decide", response_class=HTMLResponse)
+async def order_decide(oid: str, d: str = "", s: str = "", m: str = ""):
+    """Odkaz z e-mailu recepci: d=confirm|decline (+ volitelný vzkaz hostovi m). Idempotentní —
+    druhé kliknutí jen ukáže stav. Stránka je česky pro CZ/SK hotely, jinak anglicky."""
+    import hmac as _hmac
+    d = "confirm" if d == "confirm" else "decline" if d == "decline" else ""
+    db = db_load()
+    rec = (db.get("orders") or {}).get(oid)
+    if not rec or not d or not _hmac.compare_digest(_order_sig(oid, d), s or ""):
+        return HTMLResponse("<p style='font-family:sans-serif'>Odkaz není platný. / This link is not valid.</p>", status_code=404)
+    h = db["hotels"].get(rec.get("hid")) or {}
+    cs = (h.get("country") or "").strip().upper() in ("CZ", "SK")
+    m = re.sub(r"\s+", " ", str(m or "")).strip()[:200]
+    changed = False
+    if rec.get("status") == "pending":
+        rec["status"] = "confirmed" if d == "confirm" else "declined"
+        rec["decided"] = datetime.utcnow().isoformat(timespec="seconds")
+        changed = True
+    if m and m != rec.get("message"):
+        rec["message"] = m
+        changed = True
+    if changed:
+        db_save(db)
+    st = rec["status"]
+    what = f"{rec.get('title', '')} — {('pokoj' if cs else 'room')} {rec.get('room', '')}" + (f" — {rec.get('detail')}" if rec.get("detail") else "")
+    if cs:
+        head = "✅ Potvrzeno" if st == "confirmed" else "❌ Označeno jako „nelze vyřídit“"
+        body = "Host dostal odpověď do chatu." if changed or not m else "Vzkaz hostovi uložen."
+        form_lbl, btn, ph = "Vzkaz hostovi (volitelné, zobrazí se mu v chatu):", "Poslat vzkaz", "např. Zítra bohužel ne, od úterý ano."
+        note_now = f"<p><b>Aktuální vzkaz:</b> {html.escape(rec.get('message') or '')}</p>" if rec.get("message") else ""
+    else:
+        head = "✅ Confirmed" if st == "confirmed" else "❌ Marked as “can't arrange”"
+        body = "The guest has been notified in chat." if changed or not m else "Message to the guest saved."
+        form_lbl, btn, ph = "Message to the guest (optional, shown in chat):", "Send message", "e.g. Not tomorrow, from Tuesday yes."
+        note_now = f"<p><b>Current message:</b> {html.escape(rec.get('message') or '')}</p>" if rec.get("message") else ""
+    other = _order_decide_link(oid, "decline" if st == "confirmed" else "confirm")
+    other_lbl = ("Změnit na „nelze vyřídit“" if st == "confirmed" else "Změnit na „potvrzeno“") if cs else \
+                ("Change to “can't arrange”" if st == "confirmed" else "Change to “confirmed”")
+    page = f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SMARTEST GUIDE</title><style>body{{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:40px auto;padding:0 16px;color:#1a1a1a}}
+h1{{font-size:22px}} .box{{background:#f4f6f8;border-radius:12px;padding:14px 16px;margin:16px 0}} input{{width:100%;padding:10px;border:1px solid #bbb;border-radius:8px;font-size:15px;box-sizing:border-box}}
+button{{margin-top:10px;background:#FF6B00;color:#fff;border:none;border-radius:8px;padding:11px 16px;font-size:15px;cursor:pointer}} a{{color:#0b63c6}}</style></head><body>
+<h1>{head}</h1><div class="box">{html.escape(what)}</div><p>{body}</p>{note_now}
+<form method="get" action="/api/orders/{oid}/decide"><input type="hidden" name="d" value="{d}"><input type="hidden" name="s" value="{html.escape(s)}">
+<label>{form_lbl}<br><input type="text" name="m" maxlength="200" placeholder="{ph}" value="{html.escape(rec.get('message') or '')}"></label><button type="submit">{btn}</button></form>
+<p style="margin-top:28px;font-size:13px;color:#666"><a href="{other}">{other_lbl}</a></p>
+<p style="font-size:12px;color:#888">SMARTEST GUIDE · support@smartestguide.com</p></body></html>"""
+    return HTMLResponse(page)
+
+@app.get("/api/guest/order-status")
+async def guest_order_status(hotel_id: str, ids: str = "", device_id: str = ""):
+    """Appka hosta se ptá na stav svých požadavků (jen ty, které založilo totéž zařízení)."""
+    db = db_load()
+    hid, h = _resolve_hotel(db, hotel_id)
+    if not h:
+        raise HTTPException(404, "Hotel nenalezen")
+    out = []
+    orders = db.get("orders") or {}
+    for oid in [x.strip() for x in (ids or "").split(",") if x.strip()][:20]:
+        rec = orders.get(oid)
+        if not rec or rec.get("hid") != hid or (rec.get("device_id") or "") != (device_id or "")[:64]:
+            out.append({"id": oid, "status": "unknown"})
+            continue
+        st = rec.get("status") or "pending"
+        item = {"id": oid, "status": st}
+        if st in ("confirmed", "declined"):
+            lang = rec.get("lang") or "en"
+            msg = _order_msg(st, lang, rec.get("title") or "")
+            if rec.get("message"):
+                msg += "\n" + _order_msg("recept_note", lang, rec["message"])
+            item["message"] = msg
+        out.append(item)
+    return {"orders": out}
 
 @app.post("/api/guest/order")
 async def guest_order(req: GuestOrderRequest):
@@ -6916,7 +7094,18 @@ async def guest_order(req: GuestOrderRequest):
     # Cena se přepočítá tady (strop se kontroluje z ní), nic z klienta se nebere jako cena.
     if p.get("can_count") and req.count and 1 <= int(req.count) <= 10:
         p["count"] = int(req.count)
-    if kind == "item":
+    is_ext_item = kind == "item" and p.get("service_id") == "extension"
+    hotel_cs = (h.get("country") or "").strip().upper() in ("CZ", "SK")
+    if is_ext_item:
+        # Prodloužení bez PMS: host na kartě nastaví počet nocí; titulek v jazyce hosta (chat) i hotelu (e-mail)
+        n = int(req.nights) if (req.nights and 1 <= int(req.nights) <= 14) else max(1, int(p.get("count") or 1))
+        p["count"] = n
+        p["dates"] = []
+        p["days"] = 1
+        title = _ext_title(n, lang)
+        p["title"] = _ext_title(n, "cs" if hotel_cs else "en")
+        p["detail"] = ""
+    elif kind == "item":
         from datetime import date as _d, timedelta as _td2
         try:
             start = _d.fromisoformat((req.start or "")[:10]) if req.start else _d.fromisoformat(p.get("start") or p["dates"][0])
@@ -6924,8 +7113,8 @@ async def guest_order(req: GuestOrderRequest):
                 start = _d.today()
         except Exception:
             start = _d.today()
-        nights = int(req.nights) if (p.get("can_nights") and req.nights and 1 <= int(req.nights) <= 7) else 1
-        p["dates"] = [(start + _td2(days=i)).isoformat() for i in range(nights)] if p.get("unit") != "extension" else []
+        nights = int(req.nights) if (p.get("can_nights") and req.nights and 1 <= int(req.nights) <= 14) else 1
+        p["dates"] = [(start + _td2(days=i)).isoformat() for i in range(nights)]
         p["days"] = len(p["dates"]) or 1
     p["note"] = str(req.note or "").strip()[:200]
     if p.get("unit_price") is not None and p.get("price") is not None:
@@ -6937,10 +7126,12 @@ async def guest_order(req: GuestOrderRequest):
         if not wr["pms_write_services"] and not wr["pms_write_extension"]:
             return {"status": "expired", "message": _order_msg("expired", lang, title)}
         price_txt = (f"{p.get('price')} {p.get('currency', '')}".strip() if p.get("price") is not None else "")
+        oid = _order_record_new(hid, p.get("room", ""), title, p.get("detail", ""), price_txt, lang, req.device_id or "",
+                                "extension" if is_ext_item else "service")
         asyncio.create_task(_send_write_notification(hid, dict(h), p.get("room", ""),
-            {"kind": "extension" if p.get("service_id") == "extension" else "service", "mode": "request", "ok": True,
-             "title": title, "detail": p.get("detail", ""), "price": price_txt, "reservation_id": "", "note": p.get("note", "")}))
-        return {"status": "ok", "done": "requested", "message": _order_msg("requested", lang, title)}
+            {"kind": "extension" if is_ext_item else "service", "mode": "request", "ok": True, "order_id": oid,
+             "title": p.get("title") or title, "detail": p.get("detail", ""), "price": price_txt, "reservation_id": "", "note": p.get("note", "")}))
+        return {"status": "ok", "done": "requested", "order_id": oid, "message": _order_msg("requested", lang, title)}
     stay = await _fetch_stay_for_hotel(h, hid, p.get("room", ""), settings)
     if not stay or (getattr(stay, "reservation_id", "") or "") != p["reservation_id"]:
         return {"status": "expired", "message": _order_msg("expired", lang, title)}
@@ -6957,10 +7148,13 @@ async def guest_order(req: GuestOrderRequest):
     price_txt = f"{p.get('price')} {p.get('currency', '')}".strip()
     detail = p.get("detail", "")
     if mode == "request":
+        guest_title = _ext_title(p.get("new_nights") or 1, lang) if kind == "extension" else title
+        mail_title = _ext_title(p.get("new_nights") or 1, "cs" if hotel_cs else "en") + f" → {str(p.get('departure') or '')[:10]}" if kind == "extension" else title
+        oid = _order_record_new(hid, p.get("room", ""), guest_title, detail, price_txt, lang, req.device_id or "", kind)
         asyncio.create_task(_send_write_notification(hid, dict(h), p.get("room", ""),
-            {"kind": kind, "mode": "request", "ok": True, "title": title, "detail": detail, "price": price_txt,
-             "reservation_id": p["reservation_id"]}))
-        return {"status": "ok", "done": "requested", "message": _order_msg("requested", lang, title)}
+            {"kind": kind, "mode": "request", "ok": True, "order_id": oid, "title": mail_title, "detail": detail, "price": price_txt,
+             "reservation_id": p["reservation_id"], "note": p.get("note", "")}))
+        return {"status": "ok", "done": "requested", "order_id": oid, "message": _order_msg("requested", lang, guest_title)}
     # auto → skutečný zápis (jen služby; prodloužení je vždy request)
     res = await pms_layer.apaleo_book_service(_ph, stay, p["service_id"], count=p.get("count", 1),
                                               dates=[{"date": d, "count": p.get("count", 1)} for d in p.get("dates", [])])

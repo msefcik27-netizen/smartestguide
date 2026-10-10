@@ -1005,25 +1005,29 @@ Object.assign(UI_T.de,{link_stay:'🛎 Aufenthalt verknüpfen',ls_title:'Aufenth
   unlink_stay:'🔓 Aufenthalt trennen',
   stay_unlinked:'🔓 Ihr Aufenthalt wurde getrennt. Ich antworte jetzt nur aus den allgemeinen Hotelinformationen — Sie können ihn jederzeit wieder verknüpfen.'});
 // Zápis do rezervace — karty k potvrzení (ostatní jazyky padají na EN přes uiT)
-Object.assign(UI_T.en,{order_persons:'Persons',order_nights:'Nights',order_from:'From',order_time_ph:'Preferred time (e.g. 16:00)',order_note_ph:'Note for reception (optional)'});
-Object.assign(UI_T.cs,{order_persons:'Počet osob',order_nights:'Počet nocí',order_from:'Od',order_time_ph:'Preferovaný čas (např. 16:00)',order_note_ph:'Poznámka pro recepci (volitelné)'});
-Object.assign(UI_T.sk,{order_persons:'Počet osôb',order_nights:'Počet nocí',order_from:'Od',order_time_ph:'Preferovaný čas (napr. 16:00)',order_note_ph:'Poznámka pre recepciu (voliteľné)'});
-if(UI_T.de)Object.assign(UI_T.de,{order_persons:'Personen',order_nights:'Nächte',order_from:'Ab',order_time_ph:'Gewünschte Uhrzeit (z. B. 16:00)',order_note_ph:'Hinweis für die Rezeption (optional)'});
+Object.assign(UI_T.en,{order_persons:'Persons',order_nights:'Nights',order_days:'Days',order_from:'From',order_time_ph:'Preferred time (e.g. 16:00)',order_note_ph:'Note for reception (optional)',
+  ext_title:'Extend stay',ext_detail:'Reception will confirm availability and price.',ext_to:'until'});
+Object.assign(UI_T.cs,{order_persons:'Počet osob',order_nights:'Počet nocí',order_days:'Počet dní',order_from:'Od',order_time_ph:'Preferovaný čas (např. 16:00)',order_note_ph:'Poznámka pro recepci (volitelné)',
+  ext_title:'Prodloužení pobytu',ext_detail:'Dostupnost a cenu potvrdí recepce.',ext_to:'do'});
+Object.assign(UI_T.sk,{order_persons:'Počet osôb',order_nights:'Počet nocí',order_days:'Počet dní',order_from:'Od',order_time_ph:'Preferovaný čas (napr. 16:00)',order_note_ph:'Poznámka pre recepciu (voliteľné)',
+  ext_title:'Predĺženie pobytu',ext_detail:'Dostupnosť a cenu potvrdí recepcia.',ext_to:'do'});
+if(UI_T.de)Object.assign(UI_T.de,{order_persons:'Personen',order_nights:'Nächte',order_days:'Tage',order_from:'Ab',order_time_ph:'Gewünschte Uhrzeit (z. B. 16:00)',order_note_ph:'Hinweis für die Rezeption (optional)',
+  ext_title:'Aufenthalt verlängern',ext_detail:'Verfügbarkeit und Preis bestätigt die Rezeption.',ext_to:'bis'});
 Object.assign(UI_T.en,{order_confirm:'Confirm',order_send:'Send to reception',order_cancel:'Not now',
   order_room_charge:'Charged to your room account and settled at check-out. Nothing is booked until you confirm.',
-  order_request_note:'This goes to reception as a request — they will confirm it with you.',
+  order_request_note:'This goes to reception as a request. Their answer will appear here in the chat.',
   order_fail:'⚠️ That didn\'t go through. Please try again or ask reception.'});
 Object.assign(UI_T.cs,{order_confirm:'Potvrdit',order_send:'Poslat recepci',order_cancel:'Teď ne',
   order_room_charge:'Připíše se na účet vašeho pokoje a vyrovná při odjezdu. Nic se neobjedná, dokud nepotvrdíte.',
-  order_request_note:'Odejde na recepci jako požadavek — ta vám ho potvrdí.',
+  order_request_note:'Odejde na recepci jako požadavek. Její odpověď vám přijde sem do chatu.',
   order_fail:'⚠️ Nepovedlo se. Zkuste to znovu nebo se obraťte na recepci.'});
 Object.assign(UI_T.sk,{order_confirm:'Potvrdiť',order_send:'Poslať recepcii',order_cancel:'Teraz nie',
   order_room_charge:'Pripíše sa na účet vašej izby a vyrovná pri odchode. Nič sa neobjedná, kým nepotvrdíte.',
-  order_request_note:'Odíde na recepciu ako požiadavka — tá vám ju potvrdí.',
+  order_request_note:'Odíde na recepciu ako požiadavka. Jej odpoveď vám príde sem do chatu.',
   order_fail:'⚠️ Nepodarilo sa. Skúste to znova alebo sa obráťte na recepciu.'});
 if(UI_T.de) Object.assign(UI_T.de,{order_confirm:'Bestätigen',order_send:'An Rezeption senden',order_cancel:'Jetzt nicht',
   order_room_charge:'Wird Ihrem Zimmerkonto belastet und beim Check-out abgerechnet. Ohne Ihre Bestätigung wird nichts gebucht.',
-  order_request_note:'Geht als Anfrage an die Rezeption — sie bestätigt es Ihnen.',
+  order_request_note:'Geht als Anfrage an die Rezeption. Ihre Antwort erscheint hier im Chat.',
   order_fail:'⚠️ Das hat nicht geklappt. Bitte erneut versuchen oder an der Rezeption fragen.'});
 // Hotel bez PMS — jen číslo pokoje (objednávky jdou recepci jako požadavek)
 Object.assign(UI_T.en,{my_room:'🛎 My room',mr_title:'Your room number',mr_submit:'Save',forget_room:'🔓 Forget my room',
@@ -1244,7 +1248,7 @@ function orderRecalc(id){
   }
 }
 function orderCount(id,delta){ const s=ORDER_STATE[id]; if(!s||!s.can) return; s.count=Math.min(10,Math.max(1,(s.count||1)+delta)); orderRecalc(id); }
-function orderNights(id,delta){ const s=ORDER_STATE[id]; if(!s||!s.canN) return; s.nights=Math.min(7,Math.max(1,(s.nights||1)+delta)); orderRecalc(id); }
+function orderNights(id,delta){ const s=ORDER_STATE[id]; if(!s||!s.canN) return; s.nights=Math.min(14,Math.max(1,(s.nights||1)+delta)); orderRecalc(id); }
 function orderStart(id,val){ const s=ORDER_STATE[id]; if(s) s.start=val||s.start; }
 function orderNote(id,val){ const s=ORDER_STATE[id]; if(s) s.note=(val||'').slice(0,200); }
 function stepperHtml(id,label,valId,val,fn){
@@ -1259,22 +1263,27 @@ function showOrderCards(actions){
     if(!a||!a.id) return;
     const price=(a.price!==undefined&&a.price!==null)?`${a.price} ${a.currency||''}`.trim():'';
     const note=a.mode==='auto'?uiT('order_room_charge'):uiT('order_request_note');
-    const isItem=a.kind==='item'&&a.unit!=='extension'&&a.service_id!=='extension';
+    const isExt=a.kind==='extension'||a.service_id==='extension'||a.title_key==='extension';
+    const isItem=a.kind==='item'&&!isExt;
     ORDER_STATE[a.id]={count:a.count||1,nights:a.nights||1,start:a.start||((a.dates||[])[0]||''),unit_price:a.unit_price,days:a.days||1,
       cur:a.currency||'',can:!!a.can_count,canN:!!a.can_nights,kind:a.kind,unit:a.unit||'',note:''};
     const dates=(a.dates||[]).map(fmtOrderDate).join(', ');
-    // Co host na kartě nastaví: datum od (položky hotelu), osoby (za osobu), noci (za osobu/pokoj a noc),
-    // čas (jednorázové: masáž, pozdní odhlášení) nebo poznámka — recepce to dostane v mailu.
+    // Co host na kartě nastaví: datum od (položky hotelu), osoby (za osobu), dny/noci podle druhu
+    // (snídaně = dny, parkování = noci, prodloužení = noci), čas (masáž, pozdní odjezd) nebo poznámka.
+    // Prodloužení je v jazyce hosta (title_key) — server posílá jen anglickou zálohu.
+    const title=isExt?`${uiT('ext_title')}${a.departure?` ${uiT('ext_to')} ${fmtOrderDate(String(a.departure).slice(0,10))}`:''}`:(a.title||'');
+    const subtitle=isExt?(a.kind==='extension'&&a.detail?escapeHtmlOrder(a.detail):uiT('ext_detail')):(dates?escapeHtmlOrder(dates):escapeHtmlOrder(a.detail||''));
     const dateRow=isItem?`<div style="display:flex;align-items:center;gap:10px;margin:6px 0"><span style="font-size:12.5px;color:var(--muted);min-width:92px">${uiT('order_from')}</span><input type="date" value="${escapeHtmlOrder(a.start||'')}" onchange="orderStart('${a.id}',this.value)" style="${inp};width:auto;flex:1"></div>`:'';
     const persons=a.can_count?stepperHtml(a.id,uiT('order_persons'),'ocnt',a.count||1,'orderCount'):'';
-    const nights=a.can_nights?stepperHtml(a.id,uiT('order_nights'),'onts',a.nights||1,'orderNights'):'';
-    const noteRow=isItem?`<input type="text" maxlength="200" placeholder="${a.unit==='flat'?uiT('order_time_ph'):uiT('order_note_ph')}" oninput="orderNote('${a.id}',this.value)" style="${inp};margin:6px 0 4px">`:'';
+    const qtyLbl=a.qty_label==='days'?uiT('order_days'):uiT('order_nights');
+    const nights=a.can_nights?stepperHtml(a.id,qtyLbl,'onts',a.nights||1,'orderNights'):'';
+    const noteRow=(isItem||(isExt&&a.kind==='item'))?`<input type="text" maxlength="200" placeholder="${a.time_hint?uiT('order_time_ph'):uiT('order_note_ph')}" oninput="orderNote('${a.id}',this.value)" style="${inp};margin:6px 0 4px">`:'';
     const d=document.createElement('div');
     d.className='msg bot'; d.id='order-'+a.id;
     d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#fff;font-weight:800">✦</div>
       <div class="msg-body"><div class="msg-bubble" style="min-width:250px;max-width:340px">
-        <div style="font-weight:700;font-size:14px;margin-bottom:6px">${a.kind==='extension'?'🛏':'🛎'} ${escapeHtmlOrder(a.title||'')}</div>
-        ${isItem?'':`<div style="font-size:12.5px;color:var(--muted);margin-bottom:4px">${dates?escapeHtmlOrder(dates):escapeHtmlOrder(a.detail||'')}</div>`}
+        <div style="font-weight:700;font-size:14px;margin-bottom:6px">${isExt?'🛏':'🛎'} ${escapeHtmlOrder(title)}</div>
+        ${isItem?'':`<div style="font-size:12.5px;color:var(--muted);margin-bottom:4px">${subtitle}</div>`}
         ${dateRow}${persons}${nights}${noteRow}
         ${price?`<div id="oprice-${a.id}" style="font-size:16px;font-weight:800;margin:8px 0 10px">${escapeHtmlOrder(price)}</div>`:''}
         <div style="font-size:11.5px;color:var(--muted);line-height:1.45;margin-bottom:12px">${note}</div>
@@ -1308,6 +1317,7 @@ async function confirmOrder(id, attempt){
       card.remove();
       addBot(d.message);
       history.push({role:'assistant',content:d.message}); saveHistory();
+      if(d.order_id) trackOrder(d.order_id);
     }else if(r.status>=500 && !attempt){
       setTimeout(()=>confirmOrder(id,1),2500);
     }else{
@@ -1317,6 +1327,39 @@ async function confirmOrder(id, attempt){
     if(!attempt){ setTimeout(()=>confirmOrder(id,1),2500); } else { fail(e&&e.message?e.message:'síť'); }
   }
 }
+
+// ── Odpověď recepce na požadavek ──
+// Recepce klikne v e-mailu Potvrdit / Nelze vyřídit; appka se ptá na stav (20 s, do 24 h od odeslání)
+// a odpověď napíše do chatu. Seznam čekajících je v localStorage, ať přežije zavření appky.
+const ORDER_KEY='sg_orders_'+hotelId;
+let _orderPollTimer=null;
+function loadTrackedOrders(){ try{ const a=JSON.parse(localStorage.getItem(ORDER_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function saveTrackedOrders(a){ try{ localStorage.setItem(ORDER_KEY, JSON.stringify(a.slice(-10))); }catch(e){} }
+function trackOrder(id){ const a=loadTrackedOrders().filter(o=>o.id!==id); a.push({id:id,ts:Date.now()}); saveTrackedOrders(a); pollOrders(true); }
+async function pollOrders(now){
+  if(_orderPollTimer){ clearTimeout(_orderPollTimer); _orderPollTimer=null; }
+  let list=loadTrackedOrders().filter(o=>Date.now()-(o.ts||0)<24*3600*1000);
+  saveTrackedOrders(list);
+  if(!list.length) return;
+  const run=async()=>{
+    try{
+      const r=await fetch(`${API}/api/guest/order-status?hotel_id=${encodeURIComponent(hotelId)}&ids=${encodeURIComponent(list.map(o=>o.id).join(','))}&device_id=${encodeURIComponent(deviceId)}`);
+      if(r.ok){
+        const d=await r.json();
+        (d.orders||[]).forEach(o=>{
+          if(o.status==='pending') return;
+          list=list.filter(x=>x.id!==o.id);
+          if(o.message){ addBot(o.message); history.push({role:'assistant',content:o.message}); saveHistory(); }
+        });
+        saveTrackedOrders(list);
+      }
+    }catch(e){}
+    if(list.length) _orderPollTimer=setTimeout(run,20000);
+  };
+  if(now) run(); else _orderPollTimer=setTimeout(run,3000);
+}
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') pollOrders(true); });
+setTimeout(()=>pollOrders(false),1500);
 
 function quickSend(t){
   if(t.includes('Počasí')||t.includes('Weather')||t.includes('Wetter')||t.includes('Météo')||

@@ -406,7 +406,7 @@ const EN_MAP = {
   "Seznam se plní sám z nabídek, které Alex vidí u propojených pobytů. Kód služby najdete v Apaleu u dané služby.":"The list fills itself from offers Alex sees for linked stays. The service code is shown in Apaleo on the service.",
   "Zatím žádné služby — objeví se, jakmile si host propojí pobyt, nebo přidejte kód ručně.":"No services yet — they appear once a guest links a stay, or add a code manually.",
   "Položky k objednání (název, cena, jednotka)":"Items to order (name, price, unit)",
-  "+ Přidat položku":"+ Add item","za osobu a noc":"per person per night","za pokoj a noc":"per room per night","jednorázově za pobyt":"once per stay","Odebrat":"Remove",
+  "+ Přidat položku":"+ Add item","za osobu a den (snídaně, polopenze)":"per person per day (breakfast, half board)","za osobu a noc (přistýlka)":"per person per night (extra bed)","za pokoj a noc (parkování, mazlíček)":"per room per night (parking, pet)","jednorázově za pobyt (pozdní odjezd)":"once per stay (late check-out)","za osobu, jednorázově (masáž, vstupenka)":"per person, once (massage, ticket)","Odebrat":"Remove",
   "E-mail, kam chodí každá objednávka / požadavek (prázdné = e-mail hotelu)":"E-mail that receives every order / request (empty = hotel e-mail)",
   "Uložit objednávky":"Save orders","✓ Uloženo":"✓ Saved",
   "Posílat e-mail i o objednávkách zapsaných do Apalea (jinak chodí jen požadavky a selhání — zapsané vidíte v Apaleu)":"Also e-mail orders that were written to Apaleo (otherwise only requests and failures are sent — written ones you see in Apaleo)",
@@ -1987,7 +1987,7 @@ function orderItemRowHtml(it){
     <input class="oi-name" type="text" value="${esc(it.name)}" placeholder="Snídaně" style="${inp};flex:2;min-width:140px">
     <input class="oi-price" type="number" min="0" step="0.01" value="${it.price!==undefined?it.price:''}" placeholder="350" style="${inp};width:90px">
     <input class="oi-cur" type="text" value="${esc(it.currency||defaultOrderCurrency())}" placeholder="CZK" maxlength="3" style="${inp};width:60px">
-    <select class="oi-unit" style="${inp}"><option value="person" ${it.unit==='person'?'selected':''}>za osobu a noc</option><option value="room" ${it.unit==='room'?'selected':''}>za pokoj a noc</option><option value="flat" ${(!it.unit||it.unit==='flat')?'selected':''}>jednorázově za pobyt</option></select>
+    <select class="oi-unit" style="${inp}"><option value="person_day" ${it.unit==='person_day'?'selected':''}>za osobu a den (snídaně, polopenze)</option><option value="person" ${it.unit==='person'?'selected':''}>za osobu a noc (přistýlka)</option><option value="room" ${it.unit==='room'?'selected':''}>za pokoj a noc (parkování, mazlíček)</option><option value="flat" ${(!it.unit||it.unit==='flat')?'selected':''}>jednorázově za pobyt (pozdní odjezd)</option><option value="person_once" ${it.unit==='person_once'?'selected':''}>za osobu, jednorázově (masáž, vstupenka)</option></select>
     <button onclick="this.parentElement.remove()" title="Odebrat" style="background:transparent;border:none;color:var(--muted);font-size:16px;cursor:pointer">✕</button>
   </div>`;
 }
