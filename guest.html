@@ -1005,7 +1005,10 @@ Object.assign(UI_T.de,{link_stay:'🛎 Aufenthalt verknüpfen',ls_title:'Aufenth
   unlink_stay:'🔓 Aufenthalt trennen',
   stay_unlinked:'🔓 Ihr Aufenthalt wurde getrennt. Ich antworte jetzt nur aus den allgemeinen Hotelinformationen — Sie können ihn jederzeit wieder verknüpfen.'});
 // Zápis do rezervace — karty k potvrzení (ostatní jazyky padají na EN přes uiT)
-Object.assign(UI_T.en,{order_persons:'Persons'});Object.assign(UI_T.cs,{order_persons:'Počet osob'});Object.assign(UI_T.sk,{order_persons:'Počet osôb'});if(UI_T.de)Object.assign(UI_T.de,{order_persons:'Personen'});
+Object.assign(UI_T.en,{order_persons:'Persons',order_nights:'Nights',order_from:'From',order_time_ph:'Preferred time (e.g. 16:00)',order_note_ph:'Note for reception (optional)'});
+Object.assign(UI_T.cs,{order_persons:'Počet osob',order_nights:'Počet nocí',order_from:'Od',order_time_ph:'Preferovaný čas (např. 16:00)',order_note_ph:'Poznámka pro recepci (volitelné)'});
+Object.assign(UI_T.sk,{order_persons:'Počet osôb',order_nights:'Počet nocí',order_from:'Od',order_time_ph:'Preferovaný čas (napr. 16:00)',order_note_ph:'Poznámka pre recepciu (voliteľné)'});
+if(UI_T.de)Object.assign(UI_T.de,{order_persons:'Personen',order_nights:'Nächte',order_from:'Ab',order_time_ph:'Gewünschte Uhrzeit (z. B. 16:00)',order_note_ph:'Hinweis für die Rezeption (optional)'});
 Object.assign(UI_T.en,{order_confirm:'Confirm',order_send:'Send to reception',order_cancel:'Not now',
   order_room_charge:'Charged to your room account and settled at check-out. Nothing is booked until you confirm.',
   order_request_note:'This goes to reception as a request — they will confirm it with you.',
@@ -1228,34 +1231,52 @@ async function submitLinkStay(){
 
 // ── Zápis do rezervace: karty s tlačítkem k potvrzení (server rozhodl, host potvrzuje) ──
 // Nikdy se nic neobjedná bez klepnutí hosta; server před zápisem vše ověří znovu.
-const ORDER_STATE={};   // id karty -> {count, unit, days, cur, can} — počet osob mění host na kartě
+const ORDER_STATE={};   // id karty -> {count, nights, start, unit_price, days, cur, can, canN, kind, unit} — host mění na kartě
 function fmtOrderDate(iso){ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||''); return m?`${+m[3]}. ${+m[2]}. ${m[1]}`:(iso||''); }
-function orderCount(id,delta){
-  const s=ORDER_STATE[id]; if(!s||!s.can) return;
-  s.count=Math.min(10,Math.max(1,(s.count||1)+delta));
+function orderRecalc(id){
+  const s=ORDER_STATE[id]; if(!s) return;
   const c=document.getElementById('ocnt-'+id); if(c) c.textContent=s.count;
+  const n=document.getElementById('onts-'+id); if(n) n.textContent=s.nights;
   const p=document.getElementById('oprice-'+id);
-  if(p&&s.unit!==undefined&&s.unit!==null){ const tot=Math.round(s.unit*s.count*(s.days||1)*100)/100; p.textContent=`${tot} ${s.cur}`.trim(); }
+  if(p&&s.unit_price!==undefined&&s.unit_price!==null){
+    const mult=s.canN?s.nights:(s.days||1);
+    const tot=Math.round(s.unit_price*s.count*mult*100)/100; p.textContent=`${tot} ${s.cur}`.trim();
+  }
+}
+function orderCount(id,delta){ const s=ORDER_STATE[id]; if(!s||!s.can) return; s.count=Math.min(10,Math.max(1,(s.count||1)+delta)); orderRecalc(id); }
+function orderNights(id,delta){ const s=ORDER_STATE[id]; if(!s||!s.canN) return; s.nights=Math.min(7,Math.max(1,(s.nights||1)+delta)); orderRecalc(id); }
+function orderStart(id,val){ const s=ORDER_STATE[id]; if(s) s.start=val||s.start; }
+function orderNote(id,val){ const s=ORDER_STATE[id]; if(s) s.note=(val||'').slice(0,200); }
+function stepperHtml(id,label,valId,val,fn){
+  const b='width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--text);font-size:18px;cursor:pointer';
+  return `<div style="display:flex;align-items:center;gap:10px;margin:6px 0"><span style="font-size:12.5px;color:var(--muted);min-width:92px">${label}</span>
+    <button type="button" onclick="${fn}('${id}',-1)" style="${b}">−</button><b id="${valId}-${id}" style="min-width:18px;text-align:center;font-size:16px">${val}</b><button type="button" onclick="${fn}('${id}',1)" style="${b}">+</button></div>`;
 }
 function showOrderCards(actions){
   const msgs=document.getElementById('messages');
+  const inp='width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;padding:9px 11px;outline:none;color-scheme:dark;font-family:var(--font-body,inherit)';
   (actions||[]).forEach(a=>{
     if(!a||!a.id) return;
     const price=(a.price!==undefined&&a.price!==null)?`${a.price} ${a.currency||''}`.trim():'';
     const note=a.mode==='auto'?uiT('order_room_charge'):uiT('order_request_note');
-    ORDER_STATE[a.id]={count:a.count||1,unit:a.unit_price,days:a.days||1,cur:a.currency||'',can:!!a.can_count};
+    const isItem=a.kind==='item'&&a.unit!=='extension'&&a.service_id!=='extension';
+    ORDER_STATE[a.id]={count:a.count||1,nights:a.nights||1,start:a.start||((a.dates||[])[0]||''),unit_price:a.unit_price,days:a.days||1,
+      cur:a.currency||'',can:!!a.can_count,canN:!!a.can_nights,kind:a.kind,unit:a.unit||'',note:''};
     const dates=(a.dates||[]).map(fmtOrderDate).join(', ');
+    // Co host na kartě nastaví: datum od (položky hotelu), osoby (za osobu), noci (za osobu/pokoj a noc),
+    // čas (jednorázové: masáž, pozdní odhlášení) nebo poznámka — recepce to dostane v mailu.
+    const dateRow=isItem?`<div style="display:flex;align-items:center;gap:10px;margin:6px 0"><span style="font-size:12.5px;color:var(--muted);min-width:92px">${uiT('order_from')}</span><input type="date" value="${escapeHtmlOrder(a.start||'')}" onchange="orderStart('${a.id}',this.value)" style="${inp};width:auto;flex:1"></div>`:'';
+    const persons=a.can_count?stepperHtml(a.id,uiT('order_persons'),'ocnt',a.count||1,'orderCount'):'';
+    const nights=a.can_nights?stepperHtml(a.id,uiT('order_nights'),'onts',a.nights||1,'orderNights'):'';
+    const noteRow=isItem?`<input type="text" maxlength="200" placeholder="${a.unit==='flat'?uiT('order_time_ph'):uiT('order_note_ph')}" oninput="orderNote('${a.id}',this.value)" style="${inp};margin:6px 0 4px">`:'';
     const d=document.createElement('div');
     d.className='msg bot'; d.id='order-'+a.id;
     d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#fff;font-weight:800">✦</div>
-      <div class="msg-body"><div class="msg-bubble" style="min-width:250px;max-width:320px">
+      <div class="msg-body"><div class="msg-bubble" style="min-width:250px;max-width:340px">
         <div style="font-weight:700;font-size:14px;margin-bottom:6px">${a.kind==='extension'?'🛏':'🛎'} ${escapeHtmlOrder(a.title||'')}</div>
-        <div style="font-size:12.5px;color:var(--muted);margin-bottom:4px">${dates?escapeHtmlOrder(dates):escapeHtmlOrder(a.detail||'')}</div>
-        ${a.can_count?`<div style="display:flex;align-items:center;gap:10px;margin:8px 0 4px"><span style="font-size:12.5px;color:var(--muted)">${uiT('order_persons')}</span>
-          <button type="button" onclick="orderCount('${a.id}',-1)" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--text);font-size:18px;cursor:pointer">−</button>
-          <b id="ocnt-${a.id}" style="min-width:18px;text-align:center;font-size:16px">${a.count||1}</b>
-          <button type="button" onclick="orderCount('${a.id}',1)" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--text);font-size:18px;cursor:pointer">+</button></div>`:''}
-        ${price?`<div id="oprice-${a.id}" style="font-size:16px;font-weight:800;margin:6px 0 10px">${escapeHtmlOrder(price)}</div>`:''}
+        ${isItem?'':`<div style="font-size:12.5px;color:var(--muted);margin-bottom:4px">${dates?escapeHtmlOrder(dates):escapeHtmlOrder(a.detail||'')}</div>`}
+        ${dateRow}${persons}${nights}${noteRow}
+        ${price?`<div id="oprice-${a.id}" style="font-size:16px;font-weight:800;margin:8px 0 10px">${escapeHtmlOrder(price)}</div>`:''}
         <div style="font-size:11.5px;color:var(--muted);line-height:1.45;margin-bottom:12px">${note}</div>
         <div style="display:flex;gap:8px">
           <button onclick="confirmOrder('${a.id}')" style="flex:1;background:var(--accent);color:#0a0b0f;border:none;border-radius:10px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font-body,inherit)">${a.mode==='auto'?uiT('order_confirm'):uiT('order_send')}</button>
@@ -1277,7 +1298,11 @@ async function confirmOrder(id, attempt){
   const fail=(why)=>{ err.textContent=uiT('order_fail')+(why?` (${why})`:''); err.style.display='block'; btns.forEach(b=>b.disabled=false); console.warn('guest/order', why); };
   try{
     const r=await fetch(`${API}/api/guest/order`,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({hotel_id:hotelId,action_id:id,device_id:deviceId,language:guestLang,count:(ORDER_STATE[id]&&ORDER_STATE[id].can)?ORDER_STATE[id].count:null})});
+      body:JSON.stringify({hotel_id:hotelId,action_id:id,device_id:deviceId,language:guestLang,
+        count:(ORDER_STATE[id]&&ORDER_STATE[id].can)?ORDER_STATE[id].count:null,
+        nights:(ORDER_STATE[id]&&ORDER_STATE[id].canN)?ORDER_STATE[id].nights:null,
+        start:(ORDER_STATE[id]&&ORDER_STATE[id].start)||null,
+        note:(ORDER_STATE[id]&&ORDER_STATE[id].note)||null})});
     let d=null; try{ d=await r.json(); }catch(e){}
     if(r.ok && d && d.message){
       card.remove();
