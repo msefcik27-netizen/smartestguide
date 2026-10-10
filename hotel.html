@@ -152,6 +152,13 @@ html{color-scheme:light}
 <div style="display:flex;min-height:calc(100vh - 60px)">
 
 <!-- Sidebar navigace -->
+<style>
+  /* Záložky portálu (varianta A) v levém menu */
+  .ptab-btn{all:unset;box-sizing:border-box;display:block;width:100%;cursor:pointer;padding:9px 12px;border-radius:8px;font-size:13.5px;font-weight:600;color:var(--text);font-family:var(--font-body,inherit)}
+  .ptab-btn:hover{background:var(--card)}
+  .ptab-btn[aria-current="true"]{background:var(--card);border:1px solid var(--border);color:var(--accent);font-weight:700}
+  .ptab-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
 <div id="portal-sidebar" style="width:280px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:20px 0;position:sticky;top:60px;height:calc(100vh - 60px);overflow-y:auto">
   <div style="padding:0 16px;margin-bottom:8px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:600">Sekce</div>
   <div id="sidebar-nav"></div>
@@ -379,6 +386,7 @@ const EN_MAP = {
   "— aby Alex mohl hostům rovnou objednat služby a prodloužit pobyt, musí hotel udělit souhlas znovu (jedno kliknutí, nastavení zůstane).":"— so that Alex can book services and extend stays for your guests directly, the hotel has to grant consent again (one click, your settings stay).",
   "Udělit oprávnění →":"Grant permission →",
   "Objednávky v chatu":"Orders in chat",
+  "📊 Přehled":"📊 Overview","🏨 Profil hotelu":"🏨 Hotel profile","✦ Alex & objednávky":"✦ Alex & orders","🧾 Nasazení & účet":"🧾 Setup & account",
   "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem.":"Alex can book a service to the guest's room account or send a request to reception. Nothing is ordered until the guest confirms with a button.",
   "Alex přijme objednávku v chatu a pošle ji recepci jako požadavek — host nemusí nikam volat. Bez hotelového systému se nic nezapisuje, recepce to zadá sama.":"Alex takes the order in chat and sends it to reception as a request — the guest doesn't have to call anyone. Without a hotel system nothing is written anywhere; reception enters it.",
   "Alex smí přijímat objednávky služeb":"Alex may take service orders",
@@ -931,6 +939,7 @@ function renderPortal() {
   `;
 
   translateDom(document.getElementById('main-container'));
+  applyPortalTab(currentPortalTab());   // záložky: ukázat jen bloky aktivní záložky
 
   // Init tag inputs
   initTagInput('amenities');
@@ -950,8 +959,41 @@ function renderPortal() {
 let _sectionIdx = 0;
 let _sectionFields = {}; // uložíme fields pro každou sekci, scoring spočítáme po renderování
 
+// ── Záložky portálu (varianta A, vybrána uživatelem 11. 10. 2026) ──────────────────────
+// Jedna dlouhá stránka → 4 záložky: Přehled (statistiky, stav), Profil hotelu (sekce k vyplnění),
+// Alex & objednávky (Apaleo, objednávky, aktivní nabídka, vyzkoušet), Nasazení & účet (QR/tisk,
+// widget, předplatné, faktury, skupina). Obsah se nemění, jen se přepíná; Uložit změny zůstává.
+const PORTAL_TABS = [['prehled','📊 Přehled'],['profil','🏨 Profil hotelu'],['alex','✦ Alex & objednávky'],['ucet','🧾 Nasazení & účet']];
+const PORTAL_TAB_OF = {            // sekce z renderSection podle (českého) titulu; ostatní = profil
+  'Vyzkoušet Alexe':'alex', 'Aktivní nabídka pro hosty':'alex',
+  'Embed widget — vložit na web':'ucet', 'Tiskové materiály':'ucet'
+};
+const PORTAL_FIXED = {             // pevné bloky podle id / třídy
+  'completeness-banner':'profil', 'group-section':'ucet', 'add-hotel-section':'ucet', 'pms-section':'alex',
+  'orders-section':'alex', 'onboarding-wizard':'prehled', 'payment-section':'ucet', 'invoices-section':'ucet',
+  'monthly-report-section':'prehled'
+};
+function currentPortalTab(){
+  const h=(location.hash||'').replace('#',''); if(PORTAL_TABS.some(t=>t[0]===h)) return h;
+  try{ const s=localStorage.getItem('sg_portal_tab'); if(PORTAL_TABS.some(t=>t[0]===s)) return s; }catch(e){}
+  return 'prehled';
+}
+function showPortalTab(tab){
+  try{ localStorage.setItem('sg_portal_tab', tab); }catch(e){}
+  try{ history.replaceState(null,'','#'+tab); }catch(e){}
+  applyPortalTab(tab);
+  window.scrollTo({top:0});
+}
+function applyPortalTab(tab){
+  Object.keys(PORTAL_FIXED).forEach(id=>{ const el=document.getElementById(id); if(el) el.hidden=(PORTAL_FIXED[id]!==tab); });
+  const info=document.querySelector('#main-container .info-banner'); if(info) info.hidden=(tab!=='profil');
+  document.querySelectorAll('.section[data-ptab]').forEach(s=>{ s.hidden=(s.dataset.ptab!==tab); });
+  document.querySelectorAll('.ptab-btn').forEach(b=>b.setAttribute('aria-current', String(b.dataset.tab===tab)));
+  const prof=document.getElementById('sidebar-profile'); if(prof) prof.hidden=(tab!=='profil');
+}
 function renderSection(icon, title, desc, content, fields, defaultOpen) {
   const id = 'sec-' + (_sectionIdx++);
+  const ptab = PORTAL_TAB_OF[title] || 'profil';
   // Ulož fields pro pozdější scoring (DOM ještě neexistuje)
   if (fields && fields.length) _sectionFields[id] = fields;
   const isOpen = defaultOpen ? 'open' : '';
@@ -959,7 +1001,7 @@ function renderSection(icon, title, desc, content, fields, defaultOpen) {
   const scorePlaceholder = fields && fields.length
     ? `<span class="section-score" id="score-${id}"><span class="score-badge empty">○ 0%</span></span>`
     : '';
-  return `<div class="section ${isOpen ? 'section-open' : ''}" id="${id}">
+  return `<div class="section ${isOpen ? 'section-open' : ''}" id="${id}" data-ptab="${ptab}">
     <div class="section-head ${isOpen}" onclick="toggleSection('${id}')">
       <div class="section-icon">${icon}</div>
       <div style="flex:1;min-width:0">
@@ -1083,27 +1125,41 @@ function buildSidebarNav() {
   const nav = document.getElementById('sidebar-nav');
   if (!nav) return;
   nav.innerHTML = '';
+  // Záložky portálu (varianta A) — nahoře v levém menu; seznam sekcí profilu jen v záložce Profil
+  const tabsBox = document.createElement('div');
+  tabsBox.style.cssText = 'display:flex;flex-direction:column;gap:2px;padding:0 10px 10px;border-bottom:1px solid var(--border);margin-bottom:8px';
+  PORTAL_TABS.forEach(([k, label]) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'ptab-btn'; b.dataset.tab = k; b.textContent = tr(label);
+    b.onclick = () => showPortalTab(k);
+    tabsBox.appendChild(b);
+  });
+  nav.appendChild(tabsBox);
+  const prof = document.createElement('div');
+  prof.id = 'sidebar-profile';
+  nav.appendChild(prof);
   // Přidej odkaz na top
   const topLink = document.createElement('a');
   topLink.textContent = tr('⬆ Nahoru');
   topLink.onclick = () => window.scrollTo({top: 0, behavior: 'smooth'});
-  nav.appendChild(topLink);
+  prof.appendChild(topLink);
   // Rozbalit / sbalit vše
   const ctl = document.createElement('div');
   ctl.style.cssText = 'display:flex;gap:6px;padding:6px 12px';
   ctl.innerHTML = '<a onclick="setAllSections(true)" title="'+tr('Rozbalit všechny sekce')+'" style="flex:1;justify-content:center;font-size:11px;padding:6px;border:1px solid var(--border);border-radius:6px">'+tr('⊞ Rozbalit vše')+'</a><a onclick="setAllSections(false)" title="'+tr('Sbalit všechny sekce')+'" style="flex:1;justify-content:center;font-size:11px;padding:6px;border:1px solid var(--border);border-radius:6px">'+tr('⊟ Sbalit vše')+'</a>';
-  nav.appendChild(ctl);
+  prof.appendChild(ctl);
   // Přidej separátor
   const sep = document.createElement('div');
   sep.className = 'sidebar-section';
   sep.textContent = tr('Sekce profilu');
-  nav.appendChild(sep);
-  // Najdi všechny sekce
-  document.querySelectorAll('.section[id^="sec-"]').forEach(sec => {
+  prof.appendChild(sep);
+  // Najdi všechny sekce (jen ty v záložce Profil)
+  document.querySelectorAll('.section[id^="sec-"][data-ptab="profil"]').forEach(sec => {
     const title = sec.querySelector('.section-title');
     const score = sec.querySelector('.score-badge');
     if (!title) return;
     const a = document.createElement('a');
+    a.className = 'sec-link';
     const t = title.textContent.trim();
     a.title = t;
     let scoreHtml = '';
@@ -1113,24 +1169,28 @@ function buildSidebarNav() {
     }
     a.innerHTML = '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + t + '</span>' + scoreHtml;
     a.onclick = () => {
+      if (currentPortalTab() !== 'profil') showPortalTab('profil');
       sec.scrollIntoView({behavior: 'smooth', block: 'start'});
       // Otevři sekci pokud je zavřená
       const body = sec.querySelector('.section-body');
       if (body && !body.classList.contains('open')) toggleSection(sec.id);
     };
-    nav.appendChild(a);
+    prof.appendChild(a);
   });
+  applyPortalTab(currentPortalTab());
   // Aktivní sekce při scrollu
   updateActiveSidebarItem();
 }
 
 function updateActiveSidebarItem() {
-  const sections = document.querySelectorAll('.section[id^="sec-"]');
-  const navLinks = document.querySelectorAll('#sidebar-nav a');
+  // Scroll-spy jen pro sekce profilu (ostatní záložky vlastní seznam nemají); odkazy a sekce
+  // jsou ve stejném pořadí 1:1 (.sec-link ↔ .section[data-ptab="profil"]).
+  const sections = document.querySelectorAll('.section[id^="sec-"][data-ptab="profil"]');
+  const navLinks = document.querySelectorAll('#sidebar-profile a.sec-link');
   if (!navLinks.length) return;
   let activeIdx = 0;
   sections.forEach((sec, i) => {
-    if (sec.getBoundingClientRect().top < 120) activeIdx = i + 1;
+    if (!sec.hidden && sec.getBoundingClientRect().top < 120) activeIdx = i;
   });
   navLinks.forEach((a, i) => a.classList.toggle('active', i === activeIdx));
 }
