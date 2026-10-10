@@ -636,7 +636,8 @@ def _is_public_api(path: str) -> bool:
         return True
     for p in ("/api/guest/", "/api/hotel-portal/", "/api/app-icon/", "/api/docs/",
               "/api/ares/", "/api/stripe/", "/api/register", "/api/admin/",
-              "/api/pms/apaleo/"):  # OAuth connect/callback — hlídá se hotel tokenem + state
+              "/api/pms/apaleo/",   # OAuth connect/callback — hlídá se hotel tokenem + state
+              "/api/orders/"):      # odkaz z e-mailu recepci (Potvrdit / Nelze vyřídit) — hlídá HMAC podpis
         if path.startswith(p):
             return True
     if path.startswith("/api/hotels/"):
