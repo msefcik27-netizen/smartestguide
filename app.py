@@ -6575,10 +6575,14 @@ def _nights_from_message(msg: str) -> int:
     return 1
 
 def _service_matches(message: str, svc: dict) -> bool:
+    """Patří zpráva k této službě? Název služby může být v libovolném jazyce („Snídaně",
+    „Breakfast", „Frühstück") — skupina synonym se pozná z názvu i ze zprávy nezávisle.
+    message = aktuální zpráva + krátký kontext (poslední výměna), kvůli „mohu si JI objednat?"."""
     low = (message or "").lower()
     name = (svc.get("name") or "").lower()
     for key, syns in _SERVICE_SYNONYMS.items():
-        if key in name and any(s in low for s in syns):
+        group = [key] + syns
+        if any(s in name for s in group) and any(s in low for s in group):
             return True
     toks = [t for t in re.split(r"[^a-z0-9äöüßáčďéěíňóřšťúůýž]+", name) if len(t) >= 4 and t not in ("room", "with", "from", "the")]
     return any(t in low for t in toks)
@@ -6603,7 +6607,7 @@ def _pick_service_dates(message: str, svc: dict, stay) -> list:
     fut = [d for d in avail if d >= today]
     return fut[:1] or avail[:1]
 
-async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings: dict, db: dict, room: str = ""):
+async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings: dict, db: dict, room: str = "", context: str = ""):
     """Vrátí (akce pro klienta, blok do promptu). Akce = konkrétní, naceněné návrhy; nic se
     nezapisuje. Každá dostane token do _ORDER_PROPOSALS.
     Dvě cesty: (1) ověřený pobyt z Apalea → služby z allowlistu + prodloužení (zápis nebo
@@ -6621,7 +6625,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         items = wr["pms_write_items"] if wr["pms_write_services"] else []
         wants = bool(_ORDER_WORDS_RE.search(message or "") or _DAY_TODAY_RE.search(message or "")
                      or _DAY_TOMORROW_RE.search(message or "") or _DAY_ALL_RE.search(message or ""))
-        hit = [it for it in items if _service_matches(message, it)] if wants else []
+        hit = [it for it in items if _service_matches((message or "") + "\n" + (context or ""), it)] if wants else []
         ext = wr["pms_write_extension"] and _EXTENSION_INTENT_RE.search(message or "")
         if not (hit or ext):
             return [], ""
@@ -6689,7 +6693,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         wants = bool(_ORDER_WORDS_RE.search(message or "") or _DAY_TODAY_RE.search(message or "")
                      or _DAY_TOMORROW_RE.search(message or "") or _DAY_ALL_RE.search(message or ""))
         for o in (allowed if wants else []):
-            if not _service_matches(message, o):
+            if not _service_matches((message or "") + "\n" + (context or ""), o):
                 continue
             dates = _pick_service_dates(message, o, stay)
             if not dates:
@@ -7046,9 +7050,11 @@ Guest name: {req.guest_name or 'Guest'}"""
     if _wr_on and (_stay_obj or not h.get("pms_type") or not req.arrival):
         # S ověřeným pobytem → Apaleo cesta; bez PMS nebo bez propojeného pobytu → položky hotelu (požadavek)
         try:
+            # Kontext = poslední výměna (host: „kdy je snídaně?" → Alex: … → host: „mohu si JI objednat?")
+            _ctx = " ".join(str(m.get("content") or "")[:400] for m in (req.history or [])[-2:] if isinstance(m, dict))
             order_actions, _order_block = await _build_order_proposals(
                 h, _hid, _stay_obj if (_stay_obj and getattr(_stay_obj, "reservation_id", "")) else None,
-                req.message or "", settings, db, room=(req.room or ""))
+                req.message or "", settings, db, room=(req.room or ""), context=_ctx)
             if _order_block:
                 pms_extra_blocks.append(_order_block)
         except Exception as e:
