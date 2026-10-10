@@ -56,6 +56,7 @@ class Stay:
     rate_plan: str = ""             # název balíčku/sazby (např. "Wellness balíček")
     rate_plan_id: str = ""          # id sazby — pro service-offers (upsell služeb na míru pobytu)
     unit_group: str = ""            # typ pokoje (unit group name) — pro nabídku prodloužení
+    unit_group_id: str = ""         # id typu pokoje — porovnávání nabídek podle id, ne jména
     status: str = ""                # InHouse / Confirmed / ...
     source: str = ""                # 'apaleo' | 'mews' | ...
 
@@ -271,6 +272,7 @@ def _apaleo_normalize(res: dict) -> Stay:
         rate_plan=((res.get("ratePlan") or {}).get("name") or ""),
         rate_plan_id=((res.get("ratePlan") or {}).get("id") or ""),
         unit_group=((res.get("unitGroup") or {}).get("name") or ""),
+        unit_group_id=((res.get("unitGroup") or {}).get("id") or ""),
         status=res.get("status") or "",
         source="apaleo",
     )
@@ -805,27 +807,39 @@ def _norm_stay_offers(d: dict, stay: "Stay") -> list:
         if not slices or tg.get("amount") is None:
             continue
         cf = o.get("cancellationFee") or {}
+        validation = [m.get("code") for m in (o.get("validationMessages") or []) if m.get("code")]
+        # Nabídka se SMÍŠENÝMI nocemi (různé sazby nebo typy pokoje v jednom pobytu) se k zápisu
+        # nehodí: naostro 10. 10. 2026 takový amend přesunul rezervaci z Family room na Single,
+        # protože nové noci byly v jiném typu než původní. Označit a řadit na konec.
+        if len({ts["rate_plan_id"] for ts in slices}) > 1 or len({ts["unit_group_id"] for ts in slices}) > 1:
+            validation.append("MixedSlices")
         offers.append({"arrival": str(o.get("arrival") or ""), "departure": str(o.get("departure") or ""),
                        "total": tg.get("amount"), "currency": tg.get("currency") or "",
                        "available_units": o.get("availableUnits"),
-                       "rate_plan_id": slices[-1]["rate_plan_id"], "rate_plan": slices[-1]["rate_plan"],
-                       "unit_group_id": slices[-1]["unit_group_id"], "unit_group": slices[-1]["unit_group"],
+                       "rate_plan_id": slices[0]["rate_plan_id"], "rate_plan": slices[0]["rate_plan"],
+                       "unit_group_id": slices[0]["unit_group_id"], "unit_group": slices[0]["unit_group"],
                        "time_slices": slices,
                        "cancellation_fee": {"name": str(cf.get("name") or ""), "due": str(cf.get("dueDateTime") or ""),
                                             "amount": (cf.get("fee") or {}).get("amount"),
                                             "currency": (cf.get("fee") or {}).get("currency") or ""},
-                       "validation": [m.get("code") for m in (o.get("validationMessages") or []) if m.get("code")]})
+                       "validation": validation})
     cur_rp = (getattr(stay, "rate_plan_id", "") or "").strip()
+    cur_ug_id = (getattr(stay, "unit_group_id", "") or "").strip()
     cur_ug = (getattr(stay, "unit_group", "") or "").strip()
     def _amount(o):
         try:
             return float(o["total"])
         except (TypeError, ValueError):
             return float("inf")
-    # Neplatné (vyprodáno, porušené restrikce) VŽDY na konec — nejsou k zabookování.
+    def _same_ug(o):
+        if cur_ug_id:
+            return o["unit_group_id"] == cur_ug_id
+        return bool(cur_ug) and o["unit_group"] == cur_ug
+    # Pořadí: platné > STEJNÝ TYP POKOJE (host při prodloužení zůstává ve svém pokoji — má
+    # přednost před sazbou) > stejná sazba > nejlevnější. Neplatné/smíšené vždy na konec.
     offers.sort(key=lambda o: (1 if o["validation"] else 0,
+                               0 if _same_ug(o) else 1,
                                0 if cur_rp and o["rate_plan_id"] == cur_rp else 1,
-                               0 if cur_ug and o["unit_group"] == cur_ug else 1,
                                _amount(o)))
     return offers
 
