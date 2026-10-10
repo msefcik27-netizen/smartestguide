@@ -7639,6 +7639,38 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
     logging.info("Apaleo Connect: hotel %s připojen.", hid)
     return _page("Apaleo connected", f"{h.get('name','Your hotel')} is now connected to SMARTEST GUIDE. Alex, the AI concierge, can answer your guests using their reservation details (check-out time, length of stay, package).{prop_note}", portal_url=portal_url, extra=picker_html)
 
+@app.get("/api/pms/apaleo/diag/write")
+async def apaleo_diag_write(token: str, room: str, nights: int = 1):
+    """DIAGNOSTIKA zápisové vrstvy (10. 10. 2026, viz APALEO_ZAPIS_DO_REZERVACE_NAVRH.md):
+    pro daný pokoj vrátí normalizovaný pobyt (vč. reservation_id) + per-reservation nabídky
+    služeb, už zabookované služby a nabídky prodloužení. JEN ČTENÍ, nic nezapisuje.
+    Chráněno hotel tokenem (jako portál) a existuje jen tam, kde je zapnutý gate pro zápis
+    (staging) — v produkci 404. Účel: ověřit skutečný tvar odpovědí Apalea proti swaggeru
+    na dev účtu, než se vrstva napojí do chatu. Po napojení smazat."""
+    if not _APALEO_REQUEST_WRITE_SCOPE:
+        raise HTTPException(404)
+    db = db_load()
+    hid, h = next(((k, v) for k, v in db["hotels"].items() if v.get("hotel_token") == token), (None, None))
+    if not h or not h.get("pms_type"):
+        raise HTTPException(403, "Neplatny token nebo hotel bez PMS")
+    from dataclasses import asdict
+    s = db_get_settings()
+    _ph = _pms_hotel_ctx(h, s, db)
+    stay = await pms_layer.get_stay_for_room(_ph, room)
+    out = {"status": "ok", "room": room, "has_write_scope": _apaleo_has_write_scope(h, db),
+           "stay": asdict(stay) if stay else None, "service_offers": None, "booked_services": None,
+           "extension_offers": None, "errors": []}
+    if stay:
+        for key, coro in (("service_offers", pms_layer.apaleo_reservation_service_offers(_ph, stay)),
+                          ("booked_services", pms_layer.apaleo_booked_services(_ph, stay)),
+                          ("extension_offers", pms_layer.apaleo_reservation_extension_offers(_ph, stay, nights))):
+            try:
+                out[key] = await coro
+            except Exception as e:
+                out["errors"].append(f"{key}: {str(e)[:200]}")
+    _persist_rotated_refresh_token(hid, _ph)
+    return out
+
 @app.get("/api/pms/apaleo/properties")
 async def apaleo_properties(token: str):
     """Seznam properties Apaleo účtu pro dropdown v portálu (místo ručního opisování kódu).
