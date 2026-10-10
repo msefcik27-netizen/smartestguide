@@ -401,6 +401,8 @@ const EN_MAP = {
   "+ Přidat položku":"+ Add item","za osobu":"per person","za pokoj":"per room","jednorázově":"one-off","Odebrat":"Remove",
   "E-mail, kam chodí každá objednávka / požadavek (prázdné = e-mail hotelu)":"E-mail that receives every order / request (empty = hotel e-mail)",
   "Uložit objednávky":"Save orders","✓ Uloženo":"✓ Saved",
+  "Seznam je váš katalog služeb z Apalea. Novou službu založte v Apaleu — tady se objeví do hodiny.":"This is your service catalogue from Apaleo. Create a new service in Apaleo — it shows up here within an hour.",
+  "Zatím žádné služby — v Apaleu zatím nemáte žádnou službu k dokoupení, nebo se katalog nepodařilo načíst.":"No services yet — your Apaleo has no bookable services, or the catalogue could not be loaded.",
   "kód služby z Apalea (např. LND-BRKF)":"service code from Apaleo (e.g. LND-BRKF)","Snídaně":"Breakfast","/ osoba":"/ person",
   "🔑 Aby Alex mohl do Apalea zapisovat, udělte nové oprávnění v sekci Hotelový systém výše. Do té doby půjdou objednávky jen jako požadavek recepci.":"🔑 For Alex to write to Apaleo, grant the new permission in the Hotel system section above. Until then orders go to reception as requests only.",
   "Opravdu odpojit hotelový systém (Apaleo)?\n\nAlex přestane znát pobyty hostů a bude odpovídat jen z profilu hotelu. Připojit ho můžete kdykoli znovu jedním kliknutím.":"Really disconnect your hotel system (Apaleo)?\n\nAlex will stop knowing guest stays and answer only from the hotel profile. You can reconnect anytime with one click.",
@@ -1882,17 +1884,13 @@ function loadOrdersSection(){
         </div>
         <div style="min-width:160px">
           <div style="font-size:12px;color:var(--muted);margin-bottom:5px">Limit na jednu objednávku</div>
-          <input id="ord-cap" type="number" min="0" step="1" value="${cap}" style="${inp};width:100%">
+          <div style="display:flex;align-items:center;gap:8px"><input id="ord-cap" type="number" min="0" step="1" value="${cap}" style="${inp};width:110px"><b id="ord-cur" style="font-size:14px">${(h.currency||'').toUpperCase()}</b></div>
           <div style="font-size:11px;color:var(--muted);margin-top:4px">Nad limit jde vždy jen požadavek recepci.</div>
         </div>
       </div>
       <div style="margin:12px 0 6px;font-size:12px;color:var(--muted)">Služby, které smí Alex nabízet k objednání (z vašeho Apalea)</div>
       <div id="ord-allow" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"><span style="font-size:12.5px;color:var(--muted)">Načítám služby…</span></div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-        <input id="ord-allow-code" type="text" placeholder="kód služby z Apalea (např. LND-BRKF)" style="${inp};flex:1;min-width:200px">
-        <button onclick="addAllowCode()" style="background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--accent);font-weight:700;font-size:12.5px;padding:8px 12px;cursor:pointer">Přidat kód</button>
-      </div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Seznam se plní sám z nabídek, které Alex vidí u propojených pobytů. Kód služby najdete v Apaleu u dané služby.</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Seznam je váš katalog služeb z Apalea. Novou službu založte v Apaleu — tady se objeví do hodiny.</div>
       `:''}
       ${pms?'':`
       <div style="margin:12px 0 6px;font-size:12px;color:var(--muted)">Položky k objednání (název, cena, jednotka)</div>
@@ -1925,20 +1923,12 @@ function addOrderItemRow(){ const c=document.getElementById('ord-items'); if(!c)
 async function loadAllowlist(allow){
   const box=document.getElementById('ord-allow'); if(!box)return;
   let svcs=[];
-  try{ const r=await fetch(`${API}/api/hotel-portal/pms-services?token=${token}`); const d=await r.json(); svcs=d.services||[]; }catch(e){}
+  try{ const r=await fetch(`${API}/api/hotel-portal/pms-services?token=${token}`); const d=await r.json(); svcs=d.services||[];
+       const cur=document.getElementById('ord-cur'); if(cur&&d.currency) cur.textContent=d.currency; }catch(e){}
   const known=new Set(svcs.map(s=>s.id));
   (allow||[]).forEach(code=>{ if(!known.has(code)) svcs.push({id:code,name:code}); });
-  if(!svcs.length){ box.innerHTML=`<span style="font-size:12.5px;color:var(--muted)">Zatím žádné služby — objeví se, jakmile si host propojí pobyt, nebo přidejte kód ručně.</span>`; return; }
+  if(!svcs.length){ box.innerHTML=`<span style="font-size:12.5px;color:var(--muted)">${tr('Zatím žádné služby — v Apaleu zatím nemáte žádnou službu k dokoupení, nebo se katalog nepodařilo načíst.')}</span>`; return; }
   box.innerHTML=svcs.map(s=>`<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer"><input type="checkbox" class="ord-allow-cb" value="${s.id}" ${(allow||[]).includes(s.id)?'checked':''} style="accent-color:var(--accent);width:16px;height:16px"> ${s.name||s.id} <span style="color:var(--muted);font-size:12px">${s.id}${s.unit_price!==undefined&&s.unit_price!==null?` · ${s.unit_price} ${s.currency||''}${s.pricing_unit==='Person'?' '+tr('/ osoba'):''}`:''}</span></label>`).join('');
-}
-function addAllowCode(){
-  const i=document.getElementById('ord-allow-code'); const code=(i.value||'').trim(); if(!code)return;
-  const box=document.getElementById('ord-allow');
-  if(!box.querySelector(`.ord-allow-cb[value="${code.replace(/"/g,'')}"]`)){
-    if(box.querySelector('span')&&!box.querySelector('label')) box.innerHTML='';
-    box.insertAdjacentHTML('beforeend',`<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer"><input type="checkbox" class="ord-allow-cb" value="${code.replace(/"/g,'')}" checked style="accent-color:var(--accent);width:16px;height:16px"> ${code}</label>`);
-  }
-  i.value='';
 }
 async function saveOrdersSection(){
   const g=id=>document.getElementById(id);

@@ -699,6 +699,54 @@ async def _apaleo_get_stay(hotel: dict, room: str) -> Optional[Stay]:
             return _apaleo_normalize(res)
     return None
 
+_catalogue_cache: dict = {}   # hotel_id -> {"data": {...}, "expires": epoch}
+
+async def apaleo_service_catalogue(hotel: dict) -> Optional[dict]:
+    """Katalog služeb property BEZ propojeného pobytu — pro allowlist v portálu.
+    Cesta jen přes offers.read (máme): /booking/v1/offers (zítra → pozítří, 2 dospělí)
+    dá rate plany property, /booking/v1/service-offers per rate plan dá služby.
+    Vrací {"currency": str, "services": [{id, name, unit_price, currency, pricing_unit}]};
+    cache 1 h per hotel. None = chyba/bez PMS."""
+    pid = (hotel.get("pms_property_id") or "").strip()
+    if not pid:
+        return None
+    ck = hotel.get("id") or pid
+    now = time.time()
+    c = _catalogue_cache.get(ck)
+    if c and c["expires"] > now:
+        return c["data"]
+    from datetime import date, timedelta
+    arr = date.today() + timedelta(days=1)
+    dep = arr + timedelta(days=1)
+    d = await _apaleo_get(hotel, "/booking/v1/offers",
+                          {"propertyId": pid, "arrival": arr.isoformat(), "departure": dep.isoformat(),
+                           "adults": 2, "timeSliceTemplate": "OverNight"}, quiet=True)
+    if d is None:
+        return None
+    rate_plans, currency = [], ""
+    for o in d.get("offers") or []:
+        rp = ((o.get("ratePlan") or {}).get("id") or "").strip()
+        if rp and rp not in rate_plans:
+            rate_plans.append(rp)
+        currency = currency or ((o.get("totalGrossAmount") or {}).get("currency") or "")
+    services: dict = {}
+    for rp in rate_plans[:4]:
+        s = await _apaleo_get(hotel, "/booking/v1/service-offers",
+                              {"ratePlanId": rp, "arrival": arr.isoformat(), "departure": dep.isoformat(), "adults": 2},
+                              quiet=True)
+        for item in (s or {}).get("services") or []:
+            svc = item.get("service") if isinstance(item.get("service"), dict) else item
+            sid = str(svc.get("id") or "").strip()
+            if not sid or sid in services:
+                continue
+            unit = svc.get("defaultGrossPrice") or {}
+            services[sid] = {"id": sid, "name": str(svc.get("name") or "").strip(), "unit_price": unit.get("amount"),
+                             "currency": unit.get("currency") or currency, "pricing_unit": str(svc.get("pricingUnit") or "")}
+            currency = currency or unit.get("currency") or ""
+    data = {"currency": currency, "services": sorted(services.values(), key=lambda x: x["name"].lower())}
+    _catalogue_cache[ck] = {"data": data, "expires": now + 3600}
+    return data
+
 # ── Zápis do rezervace (reservations.manage) ──────────────────────────────────
 # Požadavek Apalea po certifikačním callu (9. 10. 2026): Alex má umět PŘIDAT SLUŽBU
 # a PRODLOUŽIT POBYT, ne jen o nich informovat. Návrh a pravidla:

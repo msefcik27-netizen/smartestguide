@@ -2069,16 +2069,32 @@ def hotel_portal_me(token: str):
     return {"status": "ok", "hotel": safe}
 
 @app.get("/api/hotel-portal/pms-services")
-def hotel_portal_pms_services(token: str):
-    """Služby z Apalea, které Alex u tohoto hotelu zatím viděl (z per-reservation nabídek
-    při propojených pobytech) — zdroj pro allowlist v portálu. Bez PMS prázdné.
-    Hoteliér může přidat i kód služby ručně (pole v portálu)."""
+async def hotel_portal_pms_services(token: str):
+    """Katalog služeb z Apalea pro allowlist v portálu + měna hotelu. Zdroj: celý katalog
+    property přes nabídky (offers.read, cache 1 h) sjednocený se službami, které Alex
+    viděl u propojených pobytů (pms_services_seen). Bez PMS prázdné."""
     h = find_hotel_by_token(token)
     if not h:
         raise HTTPException(403, "Neplatny pristupovy token")
-    seen = h.get("pms_services_seen") or {}
-    return {"status": "ok", "services": [{"id": k, **(v if isinstance(v, dict) else {"name": str(v)})}
-                                        for k, v in sorted(seen.items(), key=lambda kv: str(kv[1].get("name", "") if isinstance(kv[1], dict) else kv[1]))]}
+    services, currency = {}, ""
+    for k, v in (h.get("pms_services_seen") or {}).items():
+        services[k] = {"id": k, **(v if isinstance(v, dict) else {"name": str(v)})}
+        currency = currency or (v.get("currency") if isinstance(v, dict) else "") or ""
+    if h.get("pms_type") and h.get("pms_property_id"):
+        try:
+            db = db_load()
+            hid = next((k for k, v in db["hotels"].items() if v.get("hotel_token") == token), None)
+            _ph = _pms_hotel_ctx(h, db_get_settings(), db)
+            cat = await pms_layer.apaleo_service_catalogue(_ph) or {}
+            for s in cat.get("services") or []:
+                services[s["id"]] = {**services.get(s["id"], {}), **s}
+            currency = cat.get("currency") or currency
+            if hid:
+                _persist_rotated_refresh_token(hid, _ph)
+        except Exception as e:
+            logging.warning("Katalog služeb z Apalea selhal: %s", e)
+    return {"status": "ok", "currency": currency,
+            "services": sorted(services.values(), key=lambda s: str(s.get("name") or s["id"]).lower())}
 
 class HotelPortalUpdate(BaseModel):
     description: Optional[str] = None
