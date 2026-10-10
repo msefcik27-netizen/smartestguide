@@ -6438,10 +6438,10 @@ async def _send_write_notification(hid: str, h: dict, room: str, action: dict):
             f"<p>{hello}</p><p>{lead}</p>"
             f"<ul><li><b>{labels[0]}:</b> {room}</li>{res_row}"
             f"<li><b>{kind}:</b> {action.get('title') or '—'}</li>"
-            f"<li><b>{labels[2]}:</b> {detail or '—'}</li>"
+            + (f"<li><b>{labels[2]}:</b> {detail}</li>" if detail else "")   # prázdné řádky (prodloužení bez PMS) vynechat
             + (f"<li><b>{'Čas / poznámka hosta' if cs else 'Guest time / note'}:</b> {note}</li>" if note else "")
-            + f"<li><b>{labels[3]}:</b> {price or '—'}</li>"
-            f"<li><b>{labels[4]}:</b> {when}</li></ul>"
+            + (f"<li><b>{labels[3]}:</b> {price}</li>" if price else "")
+            + f"<li><b>{labels[4]}:</b> {when}</li></ul>"
             + (f"<p style='color:#b00'><b>Error:</b> {action.get('error')}</p>" if action.get("error") else "")
             + buttons
             + f"<p>{settings_line}</p>"
@@ -6804,11 +6804,14 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
         day = date.today().isoformat() if _DAY_TODAY_RE.search(message or "") else tomorrow
         for it in hit[:2]:
+            q = _item_qty(it)
+            # Popisek jednotky pro Alexe se řídí tím, co ukazuje karta (snídaně „za osobu a noc" = per day)
             unit_lbl = {"person_day": "per person per day", "person": "per person per night", "room": "per room per night",
                         "flat": "once per stay", "person_once": "per person"}.get(it["unit"], "")
+            if q["qty_label"] == "days":
+                unit_lbl = unit_lbl.replace("per night", "per day")
             _pr = f"{it['price']:g}" if isinstance(it["price"], float) else str(it["price"])
             price_txt = f"{_pr} {it['currency']}".strip() + (f" {unit_lbl}" if unit_lbl else "")
-            q = _item_qty(it)
             act = {"kind": "item", "service_id": it["id"], "title": it["name"], "dates": [day], "count": 1,
                    "price": it["price"], "currency": it["currency"], "mode": "request",
                    "unit_price": float(it["price"]), "days": 1, "unit": it["unit"], "start": day, "nights": 1,
