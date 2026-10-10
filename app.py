@@ -6220,9 +6220,13 @@ def get_guest_hotel(hotel_id: str):
     public = {k: v for k, v in h.items() if k not in (
         "hotel_token", "stripe_customer_id", "stripe_subscription_id",
         "pms_type", "pms_client_id", "pms_client_secret", "pms_property_id",
-        "pms_refresh_token", "pms_scope", "pms_oauth_state", "pms_oauth_state_at")}
+        "pms_refresh_token", "pms_scope", "pms_oauth_state", "pms_oauth_state_at",
+        "pms_write_notify_email", "pms_write_allowlist", "pms_write_cap", "pms_write_mode", "pms_services_seen",
+        "pms_write_items")}
     # Jen boolean — guest app podle něj nabídne „propojit pobyt" (žádné PMS detaily ven)
     public["pms_connected"] = bool(h.get("pms_type"))
+    # Objednávky v chatu zapnuté → guest app u hotelu bez PMS nabídne „Můj pokoj" (jen číslo pokoje)
+    public["orders_enabled"] = bool(h.get("pms_write_services") or h.get("pms_write_extension"))
     return {"status": "ok", "hotel": public}
 
 class GuestVisitRequest(BaseModel):

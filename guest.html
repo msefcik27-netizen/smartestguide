@@ -1019,6 +1019,19 @@ if(UI_T.de) Object.assign(UI_T.de,{order_confirm:'Bestätigen',order_send:'An Re
   order_room_charge:'Wird Ihrem Zimmerkonto belastet und beim Check-out abgerechnet. Ohne Ihre Bestätigung wird nichts gebucht.',
   order_request_note:'Geht als Anfrage an die Rezeption — sie bestätigt es Ihnen.',
   order_fail:'⚠️ Das hat nicht geklappt. Bitte erneut versuchen oder an der Rezeption fragen.'});
+// Hotel bez PMS — jen číslo pokoje (objednávky jdou recepci jako požadavek)
+Object.assign(UI_T.en,{my_room:'🛎 My room',mr_title:'Your room number',mr_submit:'Save',forget_room:'🔓 Forget my room',
+  room_saved:'✅ Got it — room {room}. Orders and requests now go straight to reception with your room number.',
+  room_forgotten:'🔓 Room number cleared. Tell me again whenever you want to order something.'});
+Object.assign(UI_T.cs,{my_room:'🛎 Můj pokoj',mr_title:'Číslo vašeho pokoje',mr_submit:'Uložit',forget_room:'🔓 Zapomenout pokoj',
+  room_saved:'✅ Mám to — pokoj {room}. Objednávky a požadavky teď půjdou rovnou recepci s vaším číslem pokoje.',
+  room_forgotten:'🔓 Číslo pokoje jsem smazala. Až budete chtít něco objednat, stačí mi ho napsat znovu.'});
+Object.assign(UI_T.sk,{my_room:'🛎 Moja izba',mr_title:'Číslo vašej izby',mr_submit:'Uložiť',forget_room:'🔓 Zabudnúť izbu',
+  room_saved:'✅ Mám to — izba {room}. Objednávky a požiadavky teraz pôjdu rovno recepcii s vaším číslom izby.',
+  room_forgotten:'🔓 Číslo izby som vymazala. Keď budete chcieť niečo objednať, stačí mi ho napísať znova.'});
+if(UI_T.de) Object.assign(UI_T.de,{my_room:'🛎 Mein Zimmer',mr_title:'Ihre Zimmernummer',mr_submit:'Speichern',forget_room:'🔓 Zimmer vergessen',
+  room_saved:'✅ Notiert — Zimmer {room}. Bestellungen und Anfragen gehen jetzt direkt mit Ihrer Zimmernummer an die Rezeption.',
+  room_forgotten:'🔓 Zimmernummer gelöscht. Sagen Sie sie mir einfach wieder, wenn Sie etwas bestellen möchten.'});
 function uiT(k){ const d=UI_T[guestLang]||UI_T.en; return (d[k]!==undefined)?d[k]:UI_T.en[k]; }
 function applyGuestLangUI(){
   const set=(id,html)=>{const e=document.getElementById(id); if(e) e.innerHTML=html;};
@@ -1086,7 +1099,15 @@ function startChat(){
 }
 
 function _linkStayBtnHtml(){
-  if(!(hotelData&&hotelData.pms_connected)) return '';
+  if(!hotelData) return '';
+  if(!hotelData.pms_connected){
+    // Hotel bez PMS s objednávkami v chatu: stačí číslo pokoje (žádné ověření — požadavek
+    // vyřizuje recepce). QR v pokojích hotely nemají, tohle je jediná cesta, jak pokoj zjistit.
+    if(!hotelData.orders_enabled) return '';
+    if(!roomNumber)
+      return `<button class="qr-btn" style="border-color:rgba(255,107,0,.5);color:var(--accent);font-weight:600" onclick="askRoom()">${uiT('my_room')}</button>`;
+    return `<button class="qr-btn" style="border-color:rgba(255,255,255,.22);color:var(--dim)" onclick="forgetRoom()">${uiT('forget_room')}</button>`;
+  }
   if(!roomNumber)
     return `<button class="qr-btn" style="border-color:rgba(255,107,0,.5);color:var(--accent);font-weight:600" onclick="linkStay()">${uiT('link_stay')}</button>`;
   // Pobyt je propojený → nabídni odpojení (ochrana soukromí na sdíleném zařízení)
@@ -1103,6 +1124,36 @@ function unlinkStay(){
   const f=document.getElementById('linkstay-form'); if(f) f.remove();
   addBot(uiT('stay_unlinked'));
   setQuickReplies();
+}
+// Hotel bez PMS: jen číslo pokoje (bez data příjezdu) — požadavky vyřizuje recepce, která si
+// pokoj ověří sama. Alex ho pak nemusí vyzvídat v chatu.
+function askRoom(){
+  if(document.getElementById('myroom-form')){ document.getElementById('mr-room').focus(); return; }
+  const msgs=document.getElementById('messages');
+  const inp='width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:15px;padding:11px 12px;outline:none';
+  const d=document.createElement('div'); d.id='myroom-form'; d.className='msg bot';
+  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#fff;font-weight:800">✦</div>
+    <div class="msg-body"><div class="msg-bubble" style="min-width:250px;max-width:320px">
+      <div style="font-weight:700;font-size:14px;margin-bottom:12px">🛎 ${uiT('mr_title')}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:5px">${uiT('ls_room_label')}</div>
+      <input id="mr-room" type="text" inputmode="text" autocomplete="off" placeholder="121" style="${inp};margin-bottom:14px" onkeydown="if(event.key==='Enter')submitRoom()">
+      <div style="display:flex;gap:8px">
+        <button onclick="submitRoom()" style="flex:1;background:var(--accent);color:#0a0b0f;border:none;border-radius:10px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font-body,inherit)">${uiT('mr_submit')}</button>
+        <button onclick="document.getElementById('myroom-form').remove()" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:10px;padding:11px 14px;font-size:13px;cursor:pointer;font-family:var(--font-body,inherit)">${uiT('ls_cancel')}</button>
+      </div></div></div>`;
+  msgs.appendChild(d); msgs.scrollTop=msgs.scrollHeight; document.getElementById('mr-room').focus();
+}
+function submitRoom(){
+  const room=(document.getElementById('mr-room').value||'').trim(); if(!room) return;
+  roomNumber=room; roomMode='typed'; roomArrival='';
+  try{ localStorage.setItem('sg_stay_'+hotelId, JSON.stringify({room:room, mode:'typed'})); sessionStorage.setItem('sg_room', room); }catch(e){}
+  const f=document.getElementById('myroom-form'); if(f) f.remove();
+  addBot(uiT('room_saved').replace('{room}', room)); setQuickReplies();
+}
+function forgetRoom(){
+  roomNumber=''; roomArrival=''; roomMode='';
+  try{ localStorage.removeItem('sg_stay_'+hotelId); sessionStorage.removeItem('sg_room'); }catch(e){}
+  addBot(uiT('room_forgotten')); setQuickReplies();
 }
 function setQuickReplies(){
   const list=QUICK[guestLang]||QUICK['en'];
@@ -1421,6 +1472,7 @@ async function sendMsg(){
       if(d.room_detected && !roomNumber){
         roomNumber=String(d.room_detected); roomMode='typed'; roomArrival='';
         try{ localStorage.setItem('sg_stay_'+hotelId, JSON.stringify({room:roomNumber, mode:'typed'})); sessionStorage.setItem('sg_room', roomNumber); }catch(e){}
+        setQuickReplies();
       }
       // Host mluvil → Alex odpoví taky hlasem. Krátká odpověď se přečte celá;
       // u dlouhého výčtu (menu/ceník/tipy) se přečte jen krátký úvod, detaily zůstanou
