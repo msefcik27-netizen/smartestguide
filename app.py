@@ -6928,14 +6928,15 @@ _ORDER_MSG = {
                   "de": "✅ Erledigt — {title} ist gebucht und wird Ihrem Zimmerkonto belastet (Abrechnung beim Check-out)."},
     # Potvrzení recepce chodí hostovi SEM do chatu (tlačítka v e-mailu recepci, uživatel 11. 10.:
     # „jak mu to recepce potvrdí?") — proto žádné „co nevidět", ale „napíšu vám sem".
-    "requested": {"en": "📨 Sent to reception — I'll let you know here as soon as they confirm {title}.",
-                  "cs": "📨 Odesláno na recepci — jakmile {title} potvrdí, napíšu vám sem do chatu.",
-                  "sk": "📨 Odoslané na recepciu — hneď ako {title} potvrdí, napíšem vám sem do chatu.",
-                  "de": "📨 An die Rezeption gesendet — sobald sie {title} bestätigt, melde ich mich hier."},
-    "confirmed": {"en": "✅ Reception has confirmed {title}.", "cs": "✅ Recepce potvrdila: {title}.",
-                  "sk": "✅ Recepcia potvrdila: {title}.", "de": "✅ Die Rezeption hat {title} bestätigt."},
-    "declined":  {"en": "❌ Unfortunately reception can't arrange {title}.", "cs": "❌ Recepce bohužel {title} nemůže zajistit.",
-                  "sk": "❌ Recepcia bohužiaľ {title} nemôže zabezpečiť.", "de": "❌ Die Rezeption kann {title} leider nicht ermöglichen."},
+    # Název položky je vždy ZA dvojtečkou — v češtině/slovenštině se nedá skloňovat („jakmile Snídaně potvrdí").
+    "requested": {"en": "📨 Sent to reception: {title}. I'll let you know here as soon as they confirm it.",
+                  "cs": "📨 Odesláno na recepci: {title}. Jakmile to recepce vyřídí, napíšu vám sem do chatu.",
+                  "sk": "📨 Odoslané na recepciu: {title}. Hneď ako to recepcia vybaví, napíšem vám sem do chatu.",
+                  "de": "📨 An die Rezeption gesendet: {title}. Sobald sie es bestätigt, melde ich mich hier."},
+    "confirmed": {"en": "✅ Reception has confirmed: {title}.", "cs": "✅ Recepce potvrdila: {title}.",
+                  "sk": "✅ Recepcia potvrdila: {title}.", "de": "✅ Die Rezeption hat bestätigt: {title}."},
+    "declined":  {"en": "❌ Unfortunately reception can't arrange this: {title}.", "cs": "❌ Recepce bohužel nemůže vyřídit: {title}.",
+                  "sk": "❌ Recepcia bohužiaľ nemôže vybaviť: {title}.", "de": "❌ Die Rezeption kann dies leider nicht ermöglichen: {title}."},
     "recept_note": {"en": "Message from reception: {title}", "cs": "Vzkaz recepce: {title}", "sk": "Odkaz recepcie: {title}",
                     "de": "Nachricht der Rezeption: {title}"},
     "failed":    {"en": "⚠️ I couldn't complete this right now. Reception has been notified and will take care of {title}.",
@@ -7106,7 +7107,8 @@ async def guest_order(req: GuestOrderRequest):
         p["dates"] = []
         p["days"] = 1
         title = _ext_title(n, lang)
-        p["title"] = _ext_title(n, "cs" if hotel_cs else "en")
+        # do mailu jen „o 2 noci" — druh „Prodloužení pobytu" je v mailu už jako popisek řádku
+        p["title"] = _ext_title(n, "cs" if hotel_cs else "en").replace("prodloužení pobytu ", "").replace("the stay extension ", "")
         p["detail"] = ""
     elif kind == "item":
         from datetime import date as _d, timedelta as _td2
