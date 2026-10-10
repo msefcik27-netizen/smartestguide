@@ -1908,13 +1908,23 @@ function loadOrdersSection(){
   if(pms) loadAllowlist(allow);
   translateDom(el);
 }
+// Výchozí měna položky: měna hotelu (z Apalea), jinak podle země — hoteliér ji jinak
+// snadno zapomene a Alex pak říká jen číslo (stalo se u DEMO hotelu 11. 10.).
+function defaultOrderCurrency(){
+  const h=hotelData||{}; if(h.currency) return String(h.currency).toUpperCase();
+  const c=(h.country||'').toUpperCase().trim();
+  const map={CZ:'CZK',GB:'GBP',UK:'GBP',PL:'PLN',HU:'HUF',CH:'CHF',DK:'DKK',SE:'SEK',NO:'NOK',RO:'RON',BG:'BGN'};
+  if(map[c]) return map[c];
+  if(['SK','DE','AT','FR','IT','ES','NL','PT','BE','FI','IE','GR','HR','SI','LT','LV','EE','LU','MT','CY'].includes(c)) return 'EUR';
+  return '';
+}
 function orderItemRowHtml(it){
   it=it||{}; const inp='background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:7px 9px;outline:none';
   const esc=s=>String(s||'').replace(/"/g,'&quot;');
   return `<div class="ord-item" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
     <input class="oi-name" type="text" value="${esc(it.name)}" placeholder="Snídaně" style="${inp};flex:2;min-width:140px">
     <input class="oi-price" type="number" min="0" step="0.01" value="${it.price!==undefined?it.price:''}" placeholder="350" style="${inp};width:90px">
-    <input class="oi-cur" type="text" value="${esc(it.currency)}" placeholder="CZK" maxlength="3" style="${inp};width:60px">
+    <input class="oi-cur" type="text" value="${esc(it.currency||defaultOrderCurrency())}" placeholder="CZK" maxlength="3" style="${inp};width:60px">
     <select class="oi-unit" style="${inp}"><option value="person" ${it.unit==='person'?'selected':''}>za osobu a noc</option><option value="room" ${it.unit==='room'?'selected':''}>za pokoj a noc</option><option value="flat" ${(!it.unit||it.unit==='flat')?'selected':''}>jednorázově za pobyt</option></select>
     <button onclick="this.parentElement.remove()" title="Odebrat" style="background:transparent;border:none;color:var(--muted);font-size:16px;cursor:pointer">✕</button>
   </div>`;
