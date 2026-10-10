@@ -7154,7 +7154,13 @@ async def guest_order(req: GuestOrderRequest):
     detail = p.get("detail", "")
     if mode == "request":
         guest_title = _ext_title(p.get("new_nights") or 1, lang) if kind == "extension" else title
-        mail_title = _ext_title(p.get("new_nights") or 1, "cs" if hotel_cs else "en") + f" → {str(p.get('departure') or '')[:10]}" if kind == "extension" else title
+        if kind == "extension":
+            _dep = str(p.get("departure") or "")[:10]
+            _dep_h = re.sub(r"^(\d{4})-(\d{2})-(\d{2})$", lambda mm: f"{int(mm.group(3))}. {int(mm.group(2))}. {mm.group(1)}", _dep)
+            mail_title = (_ext_title(p.get("new_nights") or 1, "cs" if hotel_cs else "en")
+                          .replace("prodloužení pobytu ", "").replace("the stay extension ", "") + f" → {_dep_h}")
+        else:
+            mail_title = title
         oid = _order_record_new(hid, p.get("room", ""), guest_title, detail, price_txt, lang, req.device_id or "", kind)
         asyncio.create_task(_send_write_notification(hid, dict(h), p.get("room", ""),
             {"kind": kind, "mode": "request", "ok": True, "order_id": oid, "title": mail_title, "detail": detail, "price": price_txt,

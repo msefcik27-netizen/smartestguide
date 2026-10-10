@@ -189,6 +189,10 @@
     }
     .msg.bot .msg-bubble{background:var(--card);border:1px solid var(--border);border-top-left-radius:6px}
     .msg.user .msg-bubble{background:var(--accent);color:#ffffff;font-weight:500;border-top-right-radius:6px}
+    /* Odpověď recepce (potvrzení/zamítnutí požadavku) — jinak podbarvená, ať se liší od Alexe (uživatel 11. 10.) */
+    .msg.bot.reception .msg-bubble{background:rgba(0,212,170,.14);border-color:rgba(0,212,170,.55)}
+    .msg.bot.reception .msg-av{background:var(--accent2)!important;color:#0a0b0f!important}
+    .msg-from{display:block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent2);margin-bottom:4px}
     .msg-time{font-size:10px;color:var(--muted)}
     .msg.user .msg-time{text-align:right}
     .msg-meta{display:flex;align-items:center;gap:8px;margin-top:3px}
@@ -800,7 +804,7 @@ async function loadHotel(){
   }
       // Obnov předchozí konverzaci — kontext se neztrácí
       if(history.length){
-        history.forEach(m => { if(m.role==='user') addUser(m.content); else if(m.role==='assistant') addBot(m.content); });
+        history.forEach(m => { if(m.role==='user') addUser(m.content); else if(m.role==='assistant') addBot(m.content,{reception:m.src==='reception'}); });
       }
   const greetFn=GREETINGS[guestLang]||GREETINGS['en'];
       // Pozor: chybějící jazyk v téhle mapě = anglické uvítání i pro Čecha (tester 7. 8. 2026).
@@ -1006,13 +1010,13 @@ Object.assign(UI_T.de,{link_stay:'🛎 Aufenthalt verknüpfen',ls_title:'Aufenth
   stay_unlinked:'🔓 Ihr Aufenthalt wurde getrennt. Ich antworte jetzt nur aus den allgemeinen Hotelinformationen — Sie können ihn jederzeit wieder verknüpfen.'});
 // Zápis do rezervace — karty k potvrzení (ostatní jazyky padají na EN přes uiT)
 Object.assign(UI_T.en,{order_persons:'Persons',order_nights:'Nights',order_days:'Days',order_from:'From',order_time_ph:'Preferred time (e.g. 16:00)',order_note_ph:'Note for reception (optional)',
-  ext_title:'Extend stay',ext_detail:'Reception will confirm availability and price.',ext_to:'until'});
+  ext_title:'Extend stay',ext_detail:'Reception will confirm availability and price.',ext_to:'until',from_reception:'Reception'});
 Object.assign(UI_T.cs,{order_persons:'Počet osob',order_nights:'Počet nocí',order_days:'Počet dní',order_from:'Od',order_time_ph:'Preferovaný čas (např. 16:00)',order_note_ph:'Poznámka pro recepci (volitelné)',
-  ext_title:'Prodloužení pobytu',ext_detail:'Dostupnost a cenu potvrdí recepce.',ext_to:'do'});
+  ext_title:'Prodloužení pobytu',ext_detail:'Dostupnost a cenu potvrdí recepce.',ext_to:'do',from_reception:'Recepce'});
 Object.assign(UI_T.sk,{order_persons:'Počet osôb',order_nights:'Počet nocí',order_days:'Počet dní',order_from:'Od',order_time_ph:'Preferovaný čas (napr. 16:00)',order_note_ph:'Poznámka pre recepciu (voliteľné)',
-  ext_title:'Predĺženie pobytu',ext_detail:'Dostupnosť a cenu potvrdí recepcia.',ext_to:'do'});
+  ext_title:'Predĺženie pobytu',ext_detail:'Dostupnosť a cenu potvrdí recepcia.',ext_to:'do',from_reception:'Recepcia'});
 if(UI_T.de)Object.assign(UI_T.de,{order_persons:'Personen',order_nights:'Nächte',order_days:'Tage',order_from:'Ab',order_time_ph:'Gewünschte Uhrzeit (z. B. 16:00)',order_note_ph:'Hinweis für die Rezeption (optional)',
-  ext_title:'Aufenthalt verlängern',ext_detail:'Verfügbarkeit und Preis bestätigt die Rezeption.',ext_to:'bis'});
+  ext_title:'Aufenthalt verlängern',ext_detail:'Verfügbarkeit und Preis bestätigt die Rezeption.',ext_to:'bis',from_reception:'Rezeption'});
 Object.assign(UI_T.en,{order_confirm:'Confirm',order_send:'Send to reception',order_cancel:'Not now',
   order_room_charge:'Charged to your room account and settled at check-out. Nothing is booked until you confirm.',
   order_request_note:'This goes to reception as a request. Their answer will appear here in the chat.',
@@ -1349,7 +1353,7 @@ async function pollOrders(now){
         (d.orders||[]).forEach(o=>{
           if(o.status==='pending') return;
           list=list.filter(x=>x.id!==o.id);
-          if(o.message){ addBot(o.message); history.push({role:'assistant',content:o.message}); saveHistory(); }
+          if(o.message){ addBot(o.message,{reception:true}); history.push({role:'assistant',content:o.message,src:'reception'}); saveHistory(); }
         });
         saveTrackedOrders(list);
       }
@@ -1402,13 +1406,16 @@ function formatBotText(text){
   return h;
 }
 
-function addBot(text){
+function addBot(text, opts){
+  opts=opts||{};
   const msgs=document.getElementById('messages');
   const time=new Date().toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
   const html=formatBotText(text);
   const d=document.createElement('div');
-  d.className='msg bot';
-  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#ffffff;font-weight:800;font-size:16px">✦</div><div class="msg-body"><div class="msg-bubble">${html}</div><div class="msg-meta"><span class="msg-time">${time}</span></div></div>`;
+  d.className='msg bot'+(opts.reception?' reception':'');
+  const av=opts.reception?'🛎':'✦';
+  const from=opts.reception?`<span class="msg-from">${uiT('from_reception')}</span>`:'';
+  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#ffffff;font-weight:800;font-size:16px">${av}</div><div class="msg-body"><div class="msg-bubble">${from}${html}</div><div class="msg-meta"><span class="msg-time">${time}</span></div></div>`;
   const meta=d.querySelector('.msg-meta');
   const btn=document.createElement('button');
   btn.type='button'; btn.className='speak-btn'; btn.textContent='🔊';
