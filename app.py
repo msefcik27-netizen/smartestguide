@@ -2023,13 +2023,16 @@ def hotel_portal_group(token: str):
     if not h:
         raise HTTPException(403, "Neplatný přístupový token")
     email = (h.get("registration_email") or h.get("email") or "").lower().strip()
-    if not email:
+    # DEMO hotel do skupiny nepatří (uživatel 11. 10. 2026: „proč je demo pod skupinou hotelů Apaleo?") —
+    # sdílí náš registrační e-mail s testovacími Apaleo hotely, ale je to ukázka, ne součást řetězce.
+    _is_demo = lambda x: bool(x.get("is_demo")) or (x.get("name") or "").strip().upper().startswith("DEMO")
+    if not email or _is_demo(h):
         return {"status": "ok", "hotels": []}
     db = db_load()
     out = []
     for hid, hh in db["hotels"].items():
         he = (hh.get("registration_email") or hh.get("email") or "").lower().strip()
-        if he != email or hh.get("archived"):
+        if he != email or hh.get("archived") or _is_demo(hh):
             continue
         a = (db.get("analytics", {}) or {}).get(hid, {}) or {}
         try:
