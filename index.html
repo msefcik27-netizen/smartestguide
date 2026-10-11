@@ -48,6 +48,15 @@
 
     /* Cards */
     .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px}
+    /* Dlaždice sekcí na každé stránce administrace (uživatel 11. 10. 2026) — klepnutí ukáže jen tu sekci, znovu = všechny */
+    .atiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin:0 0 20px}
+    .atiles[hidden]{display:none}
+    .atile{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:10px;min-width:0;cursor:pointer;padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;font-size:13px;font-weight:600;transition:border-color .15s,transform .15s}
+    .atile:hover{border-color:var(--accent);transform:translateY(-1px)}
+    .atile[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 2px rgba(255,107,0,.35)}
+    .atile-ico{font-size:20px;line-height:1;flex-shrink:0}
+    .atile-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .card[data-admin-sec][hidden]{display:none}
     .stat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:28px}
     .stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
     .stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
@@ -858,6 +867,37 @@ async function ensureUnlocked(){
 }
 function dangerHeaders(extra){ const h=Object.assign({},extra||{}); if(dangerKey) h['X-Danger-Key']=dangerKey; return h; }
 
+// ── Dlaždice sekcí (uživatel 11. 10. 2026: „v administraci to udělej s těmi dlaždicemi ve všech sekcích") ──
+// Na každé stránce, která má aspoň 3 pojmenované karty (h3 / section-label), se nahoře vykreslí mřížka
+// dlaždic. Klepnutí ukáže jen tu jednu kartu (ostatní skryté), druhé klepnutí vrátí všechny.
+const ADMIN_SOLO = {};
+function buildAdminTiles(){
+  document.querySelectorAll('.page').forEach(page => {
+    if (page.querySelector('.atiles')) return;
+    const titled = c => c.querySelector(':scope > h3, :scope > .section-label');
+    const cards = [...page.querySelectorAll('.card')].filter(c => titled(c) && !c.closest('.card:not(:scope) .card'));
+    const h3s = cards.filter(c => c.querySelector(':scope > h3')).length;
+    if (cards.length < 3 || (h3s === 0 && cards.length < 4)) return;
+    cards.forEach((c, i) => { if (!c.id) c.id = page.id + '-sec-' + (i + 1); c.dataset.adminSec = '1'; });
+    const grid = document.createElement('div'); grid.className = 'atiles';
+    grid.innerHTML = cards.map(c => {
+      const raw = (titled(c).childNodes[0] && titled(c).childNodes[0].nodeType === 3 ? titled(c).childNodes[0].textContent : titled(c).textContent) || '';
+      const t = raw.replace(/\s+/g, ' ').trim();
+      const m = t.match(/^(\p{Extended_Pictographic}️?)\s*(.*)$/u);
+      const ico = m ? m[1] : '▪', label = m ? m[2] : t;
+      return `<button type="button" class="atile" data-sec="${c.id}" title="${label.replace(/"/g, '&quot;')}" onclick="adminSolo('${page.id}','${c.id}')"><span class="atile-ico">${ico}</span><span class="atile-t">${label}</span></button>`;
+    }).join('');
+    const top = page.querySelector(':scope > .topbar');
+    if (top) top.insertAdjacentElement('afterend', grid); else page.insertAdjacentElement('afterbegin', grid);
+  });
+}
+function adminSolo(pageId, secId){
+  ADMIN_SOLO[pageId] = (ADMIN_SOLO[pageId] === secId) ? null : secId;
+  const page = document.getElementById(pageId); const solo = ADMIN_SOLO[pageId];
+  page.querySelectorAll('.card[data-admin-sec]').forEach(c => { c.hidden = !!solo && c.id !== solo; });
+  page.querySelectorAll('.atile').forEach(t => t.setAttribute('aria-current', String(!!solo && t.dataset.sec === solo)));
+  if (solo) { const el = document.getElementById(solo); if (el) el.scrollIntoView({behavior: 'smooth', block: 'start'}); }
+}
 function showPage(name){
   if(name==='settings'||name==='commissions'||name==='keys'){
     ensureUnlocked().then(ok=>{ if(ok) _renderPage(name); });
@@ -2838,6 +2878,7 @@ loadHotels();
   const h = location.hash.replace('#','');
   if(h && PAGES.includes(h)) showPage(h);
 })();
+try{ buildAdminTiles(); }catch(e){ console.warn('tiles', e); }
 </script>
 </body>
 </html>
