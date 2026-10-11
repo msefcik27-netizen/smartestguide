@@ -7008,6 +7008,44 @@ _ORDER_MSG = {
                   "sk": "Ponuka už vypršala — stačí sa opýtať znova.", "de": "Dieses Angebot ist abgelaufen — fragen Sie mich einfach noch einmal."},
 }
 
+# Zbylé jazyky appky hosta (fr, it, es, pl, ru, uk) — uživatel 11. 10.: „proč nepřeloženo do všech jazyků?"
+_ORDER_MSG["booked"].update({
+    "fr": "✅ C'est fait — {title} est réservé et sera porté sur le compte de votre chambre (réglé au départ).",
+    "it": "✅ Fatto — {title} è prenotato e sarà addebitato sul conto della camera (saldo al check-out).",
+    "es": "✅ Hecho — {title} está reservado y se cargará a la cuenta de su habitación (se liquida al salir).",
+    "pl": "✅ Gotowe — {title} jest zamówione i zostanie doliczone do rachunku pokoju (rozliczenie przy wymeldowaniu).",
+    "ru": "✅ Готово — {title} забронировано и будет записано на счёт номера (оплата при выезде).",
+    "uk": "✅ Готово — {title} заброньовано і буде записано на рахунок номера (оплата при виїзді)."})
+_ORDER_MSG["requested"].update({
+    "fr": "📨 Envoyé à la réception : {title}. Je vous préviens ici dès qu'elle confirme.",
+    "it": "📨 Inviato alla reception: {title}. La avviso qui non appena conferma.",
+    "es": "📨 Enviado a recepción: {title}. Le aviso aquí en cuanto lo confirmen.",
+    "pl": "📨 Wysłano do recepcji: {title}. Dam Ci znać tutaj, gdy tylko potwierdzi.",
+    "ru": "📨 Отправлено на ресепшен: {title}. Как только подтвердят, напишу здесь.",
+    "uk": "📨 Надіслано на рецепцію: {title}. Щойно підтвердять, напишу тут."})
+_ORDER_MSG["confirmed"].update({
+    "fr": "✅ La réception a confirmé : {title}.", "it": "✅ La reception ha confermato: {title}.",
+    "es": "✅ Recepción ha confirmado: {title}.", "pl": "✅ Recepcja potwierdziła: {title}.",
+    "ru": "✅ Ресепшен подтвердил: {title}.", "uk": "✅ Рецепція підтвердила: {title}."})
+_ORDER_MSG["declined"].update({
+    "fr": "❌ La réception ne peut malheureusement pas s'en charger : {title}.", "it": "❌ Purtroppo la reception non può provvedere: {title}.",
+    "es": "❌ Lamentablemente recepción no puede atenderlo: {title}.", "pl": "❌ Niestety recepcja nie może tego zrealizować: {title}.",
+    "ru": "❌ К сожалению, ресепшен не может это выполнить: {title}.", "uk": "❌ На жаль, рецепція не може це виконати: {title}."})
+_ORDER_MSG["recept_note"].update({
+    "fr": "Message de la réception : {title}", "it": "Messaggio della reception: {title}", "es": "Mensaje de recepción: {title}",
+    "pl": "Wiadomość od recepcji: {title}", "ru": "Сообщение ресепшена: {title}", "uk": "Повідомлення рецепції: {title}"})
+_ORDER_MSG["failed"].update({
+    "fr": "⚠️ Impossible de finaliser pour le moment. La réception est prévenue et s'occupera de : {title}.",
+    "it": "⚠️ Non sono riuscita a completare ora. La reception è avvisata e si occuperà di: {title}.",
+    "es": "⚠️ No pude completarlo ahora. Recepción está avisada y se encargará de: {title}.",
+    "pl": "⚠️ Teraz się nie udało. Recepcja została powiadomiona i zajmie się: {title}.",
+    "ru": "⚠️ Сейчас не удалось завершить. Ресепшен уведомлён и займётся: {title}.",
+    "uk": "⚠️ Зараз не вдалося завершити. Рецепцію повідомлено, вона займеться: {title}."})
+_ORDER_MSG["expired"].update({
+    "fr": "Cette offre a expiré — redemandez-moi simplement.", "it": "Questa offerta è scaduta — mi chieda di nuovo.",
+    "es": "Esta oferta ha caducado — vuelva a preguntarme.", "pl": "Ta oferta wygasła — po prostu zapytaj mnie ponownie.",
+    "ru": "Это предложение истекло — просто спросите меня снова.", "uk": "Ця пропозиція минула — просто запитайте мене знову."})
+
 def _order_msg(key: str, lang: str, title: str) -> str:
     d = _ORDER_MSG.get(key) or {}
     return (d.get((lang or "en")[:2]) or d.get("en") or "").format(title=title)
@@ -7022,6 +7060,18 @@ def _ext_title(n: int, lang: str) -> str:
         return f"predĺženie pobytu o {n} " + ("noc" if n == 1 else "noci" if n < 5 else "nocí")
     if l == "de":
         return f"die Verlängerung um {n} " + ("Nacht" if n == 1 else "Nächte")
+    if l == "fr":
+        return f"la prolongation du séjour de {n} nuit" + ("" if n == 1 else "s")
+    if l == "it":
+        return f"il prolungamento del soggiorno di {n} " + ("notte" if n == 1 else "notti")
+    if l == "es":
+        return f"la prolongación de la estancia por {n} noche" + ("" if n == 1 else "s")
+    if l == "pl":
+        return f"przedłużenie pobytu o {n} " + ("noc" if n == 1 else "noce" if 2 <= n <= 4 else "nocy")
+    if l == "ru":
+        return f"продление проживания на {n} " + ("ночь" if n == 1 else "ночи" if 2 <= n <= 4 else "ночей")
+    if l == "uk":
+        return f"продовження проживання на {n} " + ("ніч" if n == 1 else "ночі" if 2 <= n <= 4 else "ночей")
     return f"the stay extension by {n} night" + ("" if n == 1 else "s")
 
 # ── Požadavky recepci se stavem (pending → confirmed/declined) ──
