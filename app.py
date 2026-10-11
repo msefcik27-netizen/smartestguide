@@ -6730,6 +6730,18 @@ def _pms_health_note(hid: str, fail):
     except Exception as e:
         logging.warning("PMS health tracking selhal (%s): %s", hid, e)
 
+def _stay_cache_drop(hid: str, reservation_id: str = "", room: str = ""):
+    """Po zápisu do Apalea (prodloužení, služba, zrušení) zahodit pobyt z cache — jinak by další
+    dotaz 5 min počítal se starým odjezdem (nález 11. 10. 2026: po prodloužení do 15. 10. nabízel
+    znovu 14.→15. a poslal hosta na recepci)."""
+    _r = (room or "").strip().lower()
+    for k, v in list(_stay_cache.items()):
+        if k[0] != hid:
+            continue
+        st = v.get("stay")
+        if (reservation_id and getattr(st, "reservation_id", "") == reservation_id) or (_r and k[1] == _r):
+            _stay_cache.pop(k, None)
+
 async def _fetch_stay_for_hotel(h: dict, hid: str, room: str, settings: dict):
     """Načte pobyt z PMS vč. app-level credentials a uložení rotovaného refresh tokenu.
     Pozitivní výsledek se cachuje 5 min per (hotel, pokoj) — konverzace o 5 zprávách
@@ -7211,8 +7223,9 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
             # a zapíše se jen tehdy, když sedí odjezd, typ pokoje a cena nepřesáhne to, co host viděl.
             act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})
             actions.append(act)
-            lines.append(f"- Prodloužení o {best['new_nights']} noc/nocí do {best['departure'][:10]} ve stejném pokoji: "
-                         f"{round(best['new_total'], 2)} {best['currency']}"
+            lines.append(f"- Prodloužení o {best['new_nights']} noc/nocí do {best['departure'][:10]} ve stejném typu pokoje "
+                         f"({best['unit_group']}, sazba {best['rate_plan']}): {round(best['new_total'], 2):g} {best['currency']} "
+                         "(PLATNÁ CENA, říkej ji přesně takto, bez desetinné nuly)"
                          + (" (potvrzením se prodloužení hned zapíše do rezervace a připíše na účet pokoje)" if base_mode == "auto"
                             else " (potvrzením odejde požadavek recepci, která ho potvrdí)"))
     if not actions:
@@ -7713,6 +7726,8 @@ async def guest_order(req: GuestOrderRequest):
         _persist_rotated_refresh_token(hid, _ph)
         _svc_offers_cache.pop((hid, p["reservation_id"]), None)
         ok = bool(res.get("ok"))
+        if ok:
+            _stay_cache_drop(hid, p["reservation_id"], p.get("room", ""))
         logging.warning("Guest cancel service hotel=%s res=%s %s → ok=%s status=%s", hid, p["reservation_id"], title, ok, res.get("status"))
         if not ok:
             asyncio.create_task(_send_write_notification(hid, dict(h), p.get("room", ""),
@@ -7772,6 +7787,7 @@ async def guest_order(req: GuestOrderRequest):
         _persist_rotated_refresh_token(hid, _ph)
         ok = bool(res.get("ok"))
         if ok:
+            _stay_cache_drop(hid, p["reservation_id"], p.get("room", ""))   # nový odjezd hned pro další dotaz
             try:
                 _db2 = db_load()
                 _orders_stat(_db2, hid, datetime.utcnow().strftime("%Y-%m"), "booked")
@@ -7795,6 +7811,7 @@ async def guest_order(req: GuestOrderRequest):
     _svc_offers_cache.pop((hid, p["reservation_id"]), None)
     ok = bool(res.get("ok"))
     if ok:
+        _stay_cache_drop(hid, p["reservation_id"], p.get("room", ""))
         try:   # statistika „zapsáno do Apalea" (portál: Přehled + Požadavky hostů)
             _db2 = db_load()
             _orders_stat(_db2, hid, datetime.utcnow().strftime("%Y-%m"), "booked")

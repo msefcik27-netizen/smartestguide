@@ -94,6 +94,8 @@ def format_extension_block(ext: dict) -> str:
                 "Hostovi to řekni a doporuč obrátit se na recepci — někdy umí najít řešení "
                 "(jiný typ pokoje, čekací listina).")
     price = ext.get("price")
+    if isinstance(price, (int, float)):
+        price = f"{price:g}"   # 97, ne 97.0 (Alex jinak říká „97.0 GBP")
     cur = ext.get("currency") or ""
     lines = [
         "PRODLOUŽENÍ POBYTU (živá data z hotelového systému — smíš je hostovi sdělit):",
@@ -105,8 +107,12 @@ def format_extension_block(ext: dict) -> str:
                      + ("" if ext.get("same_room_type") else " (POZOR: jiný typ než hostův současný pokoj — zmiň to)"))
     if ext.get("rate_plan"):
         lines.append(f"- Sazba: {ext['rate_plan']}")
-    lines.append("DŮLEŽITÉ: Toto je informativní nabídka. Rezervaci prodloužení potvrzuje VÝHRADNĚ recepce — "
-                 "hosta vždy vyzvi, ať se pro potvrzení zastaví na recepci nebo zavolá. Ty sám NIC nerezervuješ.")
+    # Hotel může mít zapnutý zápis prodloužení (karta s tlačítkem, blok OBJEDNÁNÍ V CHATU) — pak se
+    # prodlužuje tlačítkem. Dřív tu stálo „potvrzuje VÝHRADNĚ recepce" a Alex posílal hosta na recepci
+    # i tam, kde šlo prodloužit v chatu (nález 11. 10. 2026).
+    lines.append("DŮLEŽITÉ: Toto je informativní cena. Pokud máš v promptu blok OBJEDNÁNÍ V CHATU s prodloužením, "
+                 "host ho potvrdí tlačítkem pod tvou odpovědí — řiď se tím blokem. Pokud ho nemáš, prodloužení "
+                 "v chatu potvrdit nejde: vyzvi hosta, ať se obrátí na recepci. Ty sám NIC nerezervuješ.")
     return "\n".join(lines)
 
 def format_services_block(services: list, nights: int = 0) -> str:
