@@ -2351,6 +2351,44 @@ def hotel_portal_analytics(token: str):
     })
     return {"status": "ok", "analytics": analytics}
 
+@app.get("/api/hotel-portal/orders")
+def hotel_portal_orders(token: str):
+    """Seznam požadavků hostů z chatu (30 dní, nejnovější první) + měsíční statistiky pro portál
+    (uživatel 11. 10. 2026: „seznam požadavků na portál zapracuj a dej to do statistik").
+    Bez osobních údajů: pokoj, co, kdy, stav, vzkazy recepce, odkaz na stránku odpovědi."""
+    h = find_hotel_by_token(token)
+    if not h:
+        raise HTTPException(403, "Neplatny token")
+    db = db_load()
+    hid = h["id"]
+    cs = (h.get("country") or "").strip().upper() in ("CZ", "SK")
+    ev_txt = {"confirmed": "✅ Potvrzeno" if cs else "✅ Confirmed", "declined": "❌ Nelze vyřídit" if cs else "❌ Cannot arrange"}
+    rows = []
+    for oid, rec in (db.get("orders") or {}).items():
+        if rec.get("hid") != hid:
+            continue
+        notes = [e.get("text", "") for e in (rec.get("events") or []) if e.get("kind") == "note"]
+        rows.append({"id": oid, "created": rec.get("created", ""), "room": rec.get("room", ""), "kind": rec.get("kind", ""),
+                     "title": rec.get("title", ""), "detail": rec.get("detail", ""), "price": rec.get("price", ""),
+                     "status": rec.get("status", "pending"), "decided": rec.get("decided", ""), "notes": notes,
+                     "reply_link": _order_reply_link(oid)})
+    rows.sort(key=lambda r: r["created"], reverse=True)
+    a = (db.get("analytics", {}) or {}).get(hid, {}) or {}
+    monthly = a.get("orders_monthly", {}) or {}
+    now_key = datetime.utcnow().strftime("%Y-%m")
+    prev_key = _month_key_shift(now_key, -1)
+    def _sum(keys):
+        out = {"requested": 0, "confirmed": 0, "declined": 0, "booked": 0}
+        for k in keys:
+            for kk in out:
+                out[kk] += int((monthly.get(k) or {}).get(kk, 0))
+        out["pending"] = max(0, out["requested"] - out["confirmed"] - out["declined"])
+        out["total"] = out["requested"] + out["booked"]
+        return out
+    return {"status": "ok", "orders": rows[:50], "pending_now": sum(1 for r in rows if r["status"] == "pending"),
+            "stats": {"this_month": _sum([now_key]), "prev_month": _sum([prev_key]), "all_time": _sum(list(monthly.keys())),
+                      "month_label": _month_label(now_key, "cs" if cs else "en"), "prev_label": _month_label(prev_key, "cs" if cs else "en")}}
+
 @app.get("/api/hotel-portal/monthly-report")
 def hotel_portal_monthly_report(token: str, month: str = ""):
     """Měsíční přehled pro hotelový portál (default: minulý měsíc + aktuální měsíc doposud)."""
@@ -6390,9 +6428,9 @@ async def _send_write_notification(hid: str, h: dict, room: str, action: dict):
         if mode == "request":
             what = f"POŽADAVEK z pokoje {room}"
             lead = ("Host požádal Alexe o následující. Objednávka se nikam nezapisuje — prosím vyřiďte ji na recepci "
-                    "a dejte hostovi vědět tlačítkem níže (odpověď mu přijde do chatu):" if not has_pms else
+                    "a odpovězte hostovi tlačítkem níže (odpověď mu přijde do chatu):" if not has_pms else
                     "Host požádal Alexe o následující. Hotel má objednávky nastavené jako požadavek, do Apalea se nic "
-                    "nezapsalo — prosím vyřiďte ji na recepci a dejte hostovi vědět tlačítkem níže (odpověď mu přijde do chatu):")
+                    "nezapsalo — prosím vyřiďte ji na recepci a odpovězte hostovi tlačítkem níže (odpověď mu přijde do chatu):")
         elif ok:
             what = f"zapsáno pro pokoj {room}"
             lead = "Alex právě zapsal následující na rezervaci hosta v <b>Apaleu</b> poté, co to host potvrdil v chatu. Účtuje se na pokoj a vyrovná při odjezdu:"
@@ -6408,9 +6446,9 @@ async def _send_write_notification(hid: str, h: dict, room: str, action: dict):
         if mode == "request":
             what = f"REQUEST from room {room}"
             lead = ("A guest asked Alex for the following. Nothing is written anywhere — please handle it at reception "
-                    "and let the guest know with a button below (the answer appears in their chat):" if not has_pms else
+                    "and reply to the guest with the button below (the reply appears in their chat):" if not has_pms else
                     "A guest asked Alex for the following. This hotel runs orders as requests, so nothing was written to "
-                    "Apaleo — please handle it at reception and let the guest know with a button below (the answer appears in their chat):")
+                    "Apaleo — please handle it at reception and reply to the guest with the button below (the reply appears in their chat):")
         elif ok:
             what = f"booked for room {room}"
             lead = "Alex has just written the following to the guest's reservation in <b>Apaleo</b> after the guest confirmed it in chat. It is charged to the room account and settled at check-out:"
@@ -6424,11 +6462,12 @@ async def _send_write_notification(hid: str, h: dict, room: str, action: dict):
     # Tlačítka Potvrdit / Nelze vyřídit — stav se propíše hostovi do chatu (stránka po kliknutí umí i vzkaz)
     buttons = ""
     if action.get("order_id") and mode == "request":
-        _ok, _no = _order_decide_link(action["order_id"], "confirm"), _order_decide_link(action["order_id"], "decline")
-        _b = "display:inline-block;padding:11px 18px;border-radius:8px;text-decoration:none;font-weight:700;margin:0 8px 8px 0"
-        buttons = (f"<p><a href=\"{_ok}\" style=\"{_b};background:#1f9d55;color:#fff\">{'✅ Potvrdit hostovi' if cs else '✅ Confirm to guest'}</a>"
-                   f"<a href=\"{_no}\" style=\"{_b};background:#c0392b;color:#fff\">{'❌ Nelze vyřídit' if cs else '❌ Cannot arrange'}</a><br>"
-                   f"<span style='font-size:12px;color:#666'>{'Po kliknutí můžete hostovi připsat i krátký vzkaz.' if cs else 'After clicking you can add a short message for the guest.'}</span></p>")
+        # Nic se neodešle klepnutím v mailu: tlačítko otevře stránku, kde recepce dopíše vzkaz a teprve
+        # pak zvolí Potvrdit / Nelze vyřídit a pošle (uživatel 11. 10.).
+        _lnk = _order_reply_link(action["order_id"])
+        _b = "display:inline-block;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:700;background:#FF6B00;color:#fff"
+        buttons = (f"<p><a href=\"{_lnk}\" style=\"{_b}\">{'✍️ Odpovědět hostovi' if cs else '✍️ Reply to the guest'}</a><br>"
+                   f"<span style='font-size:12px;color:#666'>{'Na stránce dopíšete vzkaz a zvolíte Potvrdit / Nelze vyřídit — host odpověď uvidí v chatu.' if cs else 'On the page you write a message and choose Confirm / Cannot arrange — the guest sees the reply in chat.'}</span></p>")
     payload = {
         "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
         "to": [{"email": to_email}],
@@ -6975,7 +7014,17 @@ def _ext_title(n: int, lang: str) -> str:
 # Hotel bez PMS (nebo režim „požadavek") nemá kam zapsat, host ale potřebuje odpověď. Recepce
 # klikne v e-mailu na Potvrdit / Nelze vyřídit, appka hosta se každých ~20 s ptá na stav a napíše
 # odpověď do chatu. Záznamy žijí v DB pod "orders" (bez osobních údajů: pokoj, co, kdy, stav).
-_ORDER_KEEP_DAYS = 7
+_ORDER_KEEP_DAYS = 30     # seznam požadavků v portálu ukazuje 30 dní; statistiky po měsících žijí v analytics
+
+def _orders_stat(db: dict, hid: str, month_key: str, key: str, delta: int = 1):
+    """Měsíční počítadla požadavků/zápisů z chatu (analytics[hid]["orders_monthly"][YYYY-MM][key]).
+    key: requested | confirmed | declined | booked. Přežijí úklid samotných záznamů."""
+    try:
+        a = db.setdefault("analytics", {}).setdefault(hid, {})
+        m = a.setdefault("orders_monthly", {}).setdefault(month_key, {})
+        m[key] = max(0, int(m.get(key, 0)) + delta)
+    except Exception as e:
+        logging.warning("orders_stat %s/%s: %s", hid, key, e)
 
 def _order_sig(oid: str, decision: str) -> str:
     import hmac, hashlib
@@ -6999,73 +7048,131 @@ def _order_record_new(hid: str, room: str, title: str, detail: str, price: str, 
             orders.pop(k, None)
         orders[oid] = {"hid": hid, "room": str(room or "")[:20], "title": str(title or "")[:120], "detail": str(detail or "")[:200],
                        "price": str(price or "")[:40], "lang": (lang or "en")[:2], "device_id": str(device_id or "")[:64],
-                       "kind": kind, "status": "pending", "created": now.isoformat(timespec="seconds"), "decided": "", "message": ""}
+                       "kind": kind, "status": "pending", "created": now.isoformat(timespec="seconds"), "decided": "", "message": "", "events": []}
+        _orders_stat(db, hid, now.strftime("%Y-%m"), "requested")
         db_save(db)
     except Exception as e:
         logging.warning("order record se neuložil (%s): %s", hid, e)
     return oid
 
-@app.get("/api/orders/{oid}/decide", response_class=HTMLResponse)
-async def order_decide(oid: str, d: str = "", s: str = "", m: str = ""):
-    """Odkaz z e-mailu recepci: d=confirm|decline (+ volitelný vzkaz hostovi m). Každá změna stavu
-    i každý vzkaz = nová UDÁLOST (rec["events"]), host dostane každou do chatu (uživatel 11. 10.:
-    „raději nechat recepci komunikovat více"). Rozhodnutí jde obrátit opakovaně. Stránka cs/en."""
+def _order_reply_link(oid: str) -> str:
+    base = (os.getenv("BASE_URL") or "https://www.smartestguide.com").rstrip("/")
+    return f"{base}/api/orders/{oid}/reply?s={_order_sig(oid, 'reply')}"
+
+def _order_reply_page(rec: dict, oid: str, s: str, cs: bool, flash: str = "") -> str:
+    """Stránka pro recepci (z e-mailu): NIC se neodešle klepnutím v mailu — recepce tady dopíše
+    vzkaz a teprve tlačítkem rozhodne a pošle (uživatel 11. 10. 2026: „nech to na nich, aby dopsali
+    tu zprávu a pak poslali/ano/ne"). Stejná stránka umí poslat další vzkaz i změnit rozhodnutí."""
+    st = rec.get("status") or "pending"
+    _det = re.sub(r"\b(\d{4})-(\d{2})-(\d{2})\b", lambda mm: f"{int(mm.group(3))}. {int(mm.group(2))}. {mm.group(1)}", str(rec.get("detail") or ""))
+    what = f"{rec.get('title', '')} — {('pokoj' if cs else 'room')} {rec.get('room', '')}" + (f" — {_det}" if _det else "")
+    if rec.get("price"):
+        what += f" — {rec['price']}"
+    events = rec.get("events") or []
+    if cs:
+        title = "Odpověď hostovi"
+        st_lbl = {"pending": "⏳ Čeká na vaši odpověď", "confirmed": "✅ Potvrzeno", "declined": "❌ Nelze vyřídit"}[st]
+        lbl_m = "Vzkaz hostovi (volitelné, zobrazí se mu v chatu):"
+        ph = "např. Snídaně je 7–10 h v restauraci v přízemí."
+        b_ok, b_no, b_note = "✅ Potvrdit a poslat", "❌ Nelze vyřídit a poslat", "Poslat jen vzkaz"
+        hist_lbl = "Co host zatím dostal:"
+        hint = "Host vidí odpověď v chatu během pár sekund. Vzkaz i rozhodnutí můžete poslat opakovaně (24 h od požadavku)."
+        ev_txt = {"confirmed": "✅ Potvrzeno", "declined": "❌ Nelze vyřídit"}
+    else:
+        title = "Reply to the guest"
+        st_lbl = {"pending": "⏳ Waiting for your reply", "confirmed": "✅ Confirmed", "declined": "❌ Cannot arrange"}[st]
+        lbl_m = "Message to the guest (optional, shown in chat):"
+        ph = "e.g. Breakfast is served 7–10 in the ground-floor restaurant."
+        b_ok, b_no, b_note = "✅ Confirm and send", "❌ Cannot arrange — send", "Send message only"
+        hist_lbl = "What the guest has received so far:"
+        hint = "The guest sees your reply in chat within seconds. You can send messages or change the decision again (24 h after the request)."
+        ev_txt = {"confirmed": "✅ Confirmed", "declined": "❌ Cannot arrange"}
+    hist = ""
+    if events:
+        items = []
+        for e in events:
+            if e.get("kind") == "status":
+                items.append(f"<li>{ev_txt.get(e.get('status'), e.get('status'))}</li>")
+            elif e.get("kind") == "note":
+                items.append(f"<li>💬 {html.escape(e.get('text', ''))}</li>")
+        hist = f"<p><b>{hist_lbl}</b></p><ul>{''.join(items)}</ul>"
+    flash_html = f"<p class='ok'>{html.escape(flash)}</p>" if flash else ""
+    note_btn = f"<button type='submit' name='d' value='note' class='sec'>{b_note}</button>" if st != "pending" else ""
+    return f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SMARTEST GUIDE</title><style>body{{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:32px auto;padding:0 16px;color:#1a1a1a}}
+h1{{font-size:22px;margin:0 0 12px}} .box{{background:#f4f6f8;border-radius:12px;padding:14px 16px;margin:12px 0}} .st{{font-weight:700;margin:6px 0 14px}}
+textarea{{width:100%;min-height:84px;padding:10px;border:1px solid #bbb;border-radius:8px;font-size:15px;box-sizing:border-box;font-family:inherit}}
+.btns{{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}} button{{border:none;border-radius:8px;padding:12px 16px;font-size:15px;cursor:pointer;color:#fff;font-weight:700}}
+.ok-btn{{background:#1f9d55}} .no-btn{{background:#c0392b}} .sec{{background:#555}} .ok{{color:#1f9d55;font-weight:700}} ul{{padding-left:18px}} .hint{{font-size:12px;color:#777}}</style></head><body>
+<h1>{title}</h1><div class="box">{html.escape(what)}</div><div class="st">{st_lbl}</div>{flash_html}{hist}
+<form method="post" action="/api/orders/{oid}/reply"><input type="hidden" name="s" value="{html.escape(s)}">
+<label>{lbl_m}<br><textarea name="m" maxlength="300" placeholder="{ph}"></textarea></label>
+<div class="btns"><button type="submit" name="d" value="confirm" class="ok-btn">{b_ok}</button><button type="submit" name="d" value="decline" class="no-btn">{b_no}</button>{note_btn}</div></form>
+<p class="hint" style="margin-top:22px">{hint}</p>
+<p class="hint">SMARTEST GUIDE · support@smartestguide.com</p></body></html>"""
+
+def _order_reply_load(oid: str, s: str):
     import hmac as _hmac
-    d = "confirm" if d == "confirm" else "decline" if d == "decline" else ""
     db = db_load()
     rec = (db.get("orders") or {}).get(oid)
-    if not rec or not d or not _hmac.compare_digest(_order_sig(oid, d), s or ""):
-        return HTMLResponse("<p style='font-family:sans-serif'>Odkaz není platný. / This link is not valid.</p>", status_code=404)
+    if not rec or not _hmac.compare_digest(_order_sig(oid, "reply"), s or ""):
+        return None, None, None
     h = db["hotels"].get(rec.get("hid")) or {}
     cs = (h.get("country") or "").strip().upper() in ("CZ", "SK")
-    m = re.sub(r"\s+", " ", str(m or "")).strip()[:200]
+    return db, rec, cs
+
+@app.get("/api/orders/{oid}/reply", response_class=HTMLResponse)
+async def order_reply_page(oid: str, s: str = ""):
+    db, rec, cs = _order_reply_load(oid, s)
+    if rec is None:
+        return HTMLResponse("<p style='font-family:sans-serif'>Odkaz není platný. / This link is not valid.</p>", status_code=404)
+    return HTMLResponse(_order_reply_page(rec, oid, s, cs))
+
+@app.post("/api/orders/{oid}/reply", response_class=HTMLResponse)
+async def order_reply_send(oid: str, request: Request):
+    """Formulář ze stránky: d=confirm|decline|note + m (vzkaz). Teprve tady se něco odešle hostovi."""
+    from urllib.parse import parse_qs
+    form = {k: v[0] for k, v in parse_qs((await request.body()).decode("utf-8", "replace")).items()}
+    s, d = form.get("s", ""), form.get("d", "")
+    db, rec, cs = _order_reply_load(oid, s)
+    if rec is None:
+        return HTMLResponse("<p style='font-family:sans-serif'>Odkaz není platný. / This link is not valid.</p>", status_code=404)
+    m = re.sub(r"\s+", " ", str(form.get("m") or "")).strip()[:300]
     events = rec.setdefault("events", [])
     now = datetime.utcnow().isoformat(timespec="seconds")
-    changed = False
-    want = "confirmed" if d == "confirm" else "declined"
-    if rec.get("status") != want:
+    sent = []
+    want = {"confirm": "confirmed", "decline": "declined"}.get(d)
+    if want and rec.get("status") != want:
+        _mk = (rec.get("created") or now)[:7]
+        if rec.get("status") in ("confirmed", "declined"):
+            _orders_stat(db, rec.get("hid", ""), _mk, rec["status"], -1)   # obrácené rozhodnutí: odečíst staré
+        _orders_stat(db, rec.get("hid", ""), _mk, want, 1)
         rec["status"] = want
         rec["decided"] = now
         events.append({"seq": len(events) + 1, "kind": "status", "status": want, "t": now})
-        changed = True
-    sent_now = False
-    if m and not (events and events[-1].get("kind") == "note" and events[-1].get("text") == m):
+        sent.append("status")
+    if m:
         events.append({"seq": len(events) + 1, "kind": "note", "text": m, "t": now})
         rec["message"] = m
-        changed = sent_now = True
-    if changed:
+        sent.append("note")
+    if sent:
         db_save(db)
-    st = rec["status"]
-    _det = re.sub(r"\b(\d{4})-(\d{2})-(\d{2})\b", lambda mm: f"{int(mm.group(3))}. {int(mm.group(2))}. {mm.group(1)}", str(rec.get("detail") or ""))
-    what = f"{rec.get('title', '')} — {('pokoj' if cs else 'room')} {rec.get('room', '')}" + (f" — {_det}" if _det else "")
-    notes = [e for e in events if e.get("kind") == "note"]
-    if cs:
-        head = "✅ Potvrzeno" if st == "confirmed" else "❌ Nelze vyřídit"
-        body = ("Vzkaz odeslán hostovi do chatu." if sent_now else
-                "Host dostal odpověď do chatu." if changed else "Host už tuto odpověď v chatu má.")
-        form_lbl, btn, ph = "Další vzkaz hostovi (zobrazí se mu v chatu):", "Poslat vzkaz", "např. Zítra bohužel ne, od úterý ano."
-        sent_lbl, other_lbl = "Odeslané vzkazy:", ("Změnit na „nelze vyřídit“" if st == "confirmed" else "Změnit na „potvrzeno“")
-        hint = "Každé kliknutí i vzkaz se hostovi hned zobrazí v chatu (po dobu 24 h od požadavku)."
+        flash = ("Odesláno hostovi do chatu." if cs else "Sent to the guest's chat.")
+    elif want:
+        flash = ("Host už toto rozhodnutí má — připište vzkaz, pokud chcete něco dodat." if cs else
+                 "The guest already has this decision — add a message if you want to say more.")
     else:
-        head = "✅ Confirmed" if st == "confirmed" else "❌ Cannot arrange"
-        body = ("Message sent to the guest's chat." if sent_now else
-                "The guest has been notified in chat." if changed else "The guest already has this answer in chat.")
-        form_lbl, btn, ph = "Another message to the guest (shown in chat):", "Send message", "e.g. Not tomorrow, from Tuesday yes."
-        sent_lbl, other_lbl = "Messages sent:", ("Change to “cannot arrange”" if st == "confirmed" else "Change to “confirmed”")
-        hint = "Every click and message appears in the guest's chat right away (for 24 h after the request)."
-    notes_html = (f"<p><b>{sent_lbl}</b></p><ul>" + "".join(f"<li>{html.escape(n.get('text', ''))}</li>" for n in notes) + "</ul>") if notes else ""
-    other = _order_decide_link(oid, "decline" if st == "confirmed" else "confirm")
-    page = f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SMARTEST GUIDE</title><style>body{{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:40px auto;padding:0 16px;color:#1a1a1a}}
-h1{{font-size:22px}} .box{{background:#f4f6f8;border-radius:12px;padding:14px 16px;margin:16px 0}} input{{width:100%;padding:10px;border:1px solid #bbb;border-radius:8px;font-size:15px;box-sizing:border-box}}
-button{{margin-top:10px;background:#FF6B00;color:#fff;border:none;border-radius:8px;padding:11px 16px;font-size:15px;cursor:pointer}} a{{color:#0b63c6}} .ok{{color:#1f9d55;font-weight:700}} ul{{padding-left:18px}}</style></head><body>
-<h1>{head}</h1><div class="box">{html.escape(what)}</div><p class="ok">{body}</p>{notes_html}
-<form method="get" action="/api/orders/{oid}/decide"><input type="hidden" name="d" value="{d}"><input type="hidden" name="s" value="{html.escape(s)}">
-<label>{form_lbl}<br><input type="text" name="m" maxlength="200" placeholder="{ph}" value=""></label><button type="submit">{btn}</button></form>
-<p style="margin-top:28px;font-size:13px;color:#666"><a href="{other}">{other_lbl}</a></p>
-<p style="font-size:12px;color:#888">{hint}</p>
-<p style="font-size:12px;color:#888">SMARTEST GUIDE · support@smartestguide.com</p></body></html>"""
-    return HTMLResponse(page)
+        flash = ("Nic neodesláno — napište vzkaz nebo zvolte rozhodnutí." if cs else "Nothing sent — write a message or choose a decision.")
+    return HTMLResponse(_order_reply_page(rec, oid, s, cs, flash))
+
+@app.get("/api/orders/{oid}/decide")
+async def order_decide_legacy(oid: str, d: str = "", s: str = ""):
+    """Staré odkazy (Potvrdit / Nelze vyřídit přímo z mailu) → jen otevřou stránku odpovědi, nic neprovedou."""
+    import hmac as _hmac
+    from fastapi.responses import RedirectResponse
+    if d in ("confirm", "decline") and _hmac.compare_digest(_order_sig(oid, d), s or ""):
+        return RedirectResponse(_order_reply_link(oid), status_code=302)
+    return HTMLResponse("<p style='font-family:sans-serif'>Odkaz není platný. / This link is not valid.</p>", status_code=404)
 
 @app.get("/api/guest/orders/status")
 async def guest_order_status(hotel_id: str, ids: str = "", device_id: str = ""):
@@ -7200,6 +7307,13 @@ async def guest_order(req: GuestOrderRequest):
     _persist_rotated_refresh_token(hid, _ph)
     _svc_offers_cache.pop((hid, p["reservation_id"]), None)
     ok = bool(res.get("ok"))
+    if ok:
+        try:   # statistika „zapsáno do Apalea" (portál: Přehled + Požadavky hostů)
+            _db2 = db_load()
+            _orders_stat(_db2, hid, datetime.utcnow().strftime("%Y-%m"), "booked")
+            db_save(_db2)
+        except Exception as e:
+            logging.warning("orders_stat booked: %s", e)
     # Úspěšný zápis recepce vidí v Apaleu — e-mail jen při selhání, nebo když si hotel přeje kopii o všem
     if not ok or wr.get("pms_write_notify_always"):
         asyncio.create_task(_send_write_notification(hid, dict(h), p.get("room", ""),

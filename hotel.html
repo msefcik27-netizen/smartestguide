@@ -423,6 +423,11 @@ const EN_MAP = {
   "Kód property najdete v adresním řádku po přihlášení do Apaleo — např.":"You’ll find the property code in the address bar after logging into Apaleo — e.g.",
   "→ kód je":"→ the code is","Odpojit Apaleo":"Disconnect Apaleo",
   "Propojte svůj hotelový systém":"Connect your hotel system","Používáte":"Do you use",
+  "Používáte Apaleo? Po propojení bude Alex znát pobyty hostů a odpoví jim osobně (check-out, balíček, délka pobytu). Se zápisovým oprávněním může po potvrzení hostem připsat objednanou službu na rezervaci — jen položky, které povolíte, do limitu, který nastavíte. Žádné kopírování klíčů — jedno kliknutí a souhlas v Apaleu.":"Do you use Apaleo? Once connected, Alex knows each guest's stay and answers personally (check-out, package, length of stay). With the write permission it can add a service the guest confirmed to the reservation — only items you allow, up to a limit you set. No keys to copy — one click and consent in Apaleo.",
+  "Požadavky hostů":"Guest requests","posledních 30 dní · odpověď recepce host vidí v chatu":"last 30 days · the guest sees reception's reply in chat","Čeká":"Waiting","Potvrzeno":"Confirmed","Nelze vyřídit":"Cannot arrange","Zapsáno do Apalea":"Written to Apaleo",
+  "Zatím žádný požadavek. Jakmile host něco objedná v chatu, objeví se tady i v e-mailu.":"No requests yet. As soon as a guest orders something in chat, it appears here and in your e-mail.",
+  "Odpovědět":"Reply","Pokoj":"Room","Stav":"Status","Čas":"Time","Co":"What","Vzkaz":"Message","Tento měsíc":"This month","Minulý měsíc":"Last month","Celkem":"All time",
+  "Požadavky hostů v chatu":"Guest requests in chat","požadavků tento měsíc":"requests this month","z toho čeká na odpověď":"waiting for a reply",
   "? Po propojení bude Alex znát pobyty hostů a odpoví jim osobně (check-out, balíček, délka pobytu). Žádné kopírování klíčů — jedno kliknutí a souhlas v Apaleu.":"? Once connected, Alex knows your guests’ stays and answers personally (check-out, package, length of stay). No copying API keys — one click and consent in Apaleo.",
   "Propojit s Apaleo →":"Connect to Apaleo →",
   "🔑 Apaleo potřebuje nové oprávnění":"🔑 Apaleo needs a new permission",
@@ -599,7 +604,7 @@ function setPortalLang(lang){
   refreshStaticTexts();
   if(hotelData){
     renderPortal(); renderOnboarding(); loadCompleteness(); loadPaymentSection();
-    loadPmsSection(); loadOrdersSection(); loadGroupSection(); loadAddHotelSection(); loadInvoicesSection(); loadMonthlyReport();
+    loadPmsSection(); loadOrdersSection(); loadRequestsSection(); loadGroupSection(); loadAddHotelSection(); loadInvoicesSection(); loadMonthlyReport();
     setTimeout(initEmbedCode, 100);
   }
 }
@@ -634,7 +639,7 @@ async function loadHotel() {
     renderOnboarding();
     loadCompleteness();
     loadPaymentSection();
-    loadPmsSection(); loadOrdersSection();
+    loadPmsSection(); loadOrdersSection(); loadRequestsSection();
     loadGroupSection();
     loadAddHotelSection();
     loadInvoicesSection();
@@ -758,6 +763,7 @@ function renderPortal() {
     <div id="add-hotel-section"></div>
     <div id="pms-section"></div>
     <div id="orders-section"></div>
+    <div id="requests-section"></div>
 
     <div id="onboarding-wizard"></div>
 
@@ -1016,7 +1022,7 @@ const PORTAL_TAB_OF = {            // sekce z renderSection podle (českého) ti
 let PROFILE_SOLO = null;           // id sekce profilu otevřené z dlaždice (ostatní skryté); null = všechny
 const PORTAL_FIXED = {             // pevné bloky podle id / třídy
   'completeness-banner':'profil', 'group-section':'ucet', 'add-hotel-section':'ucet', 'pms-section':'alex',
-  'orders-section':'alex', 'onboarding-wizard':'prehled', 'payment-section':'ucet', 'invoices-section':'ucet',
+  'orders-section':'alex', 'requests-section':'alex', 'onboarding-wizard':'prehled', 'payment-section':'ucet', 'invoices-section':'ucet',
   'monthly-report-section':'prehled'
 };
 function currentPortalTab(){
@@ -1970,7 +1976,7 @@ function loadPmsSection(){
           <div style="font-size:26px">🔌</div>
           <div style="flex:1;min-width:220px">
             <div style="font-family:var(--font-head);font-size:14px;font-weight:700">Propojte svůj hotelový systém</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:3px">Používáte <b>Apaleo</b>? Po propojení bude Alex znát pobyty hostů a odpoví jim osobně (check-out, balíček, délka pobytu). Žádné kopírování klíčů — jedno kliknutí a souhlas v Apaleu.</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px">Používáte <b>Apaleo</b>? Po propojení bude Alex znát pobyty hostů a odpoví jim osobně (check-out, balíček, délka pobytu). Se zápisovým oprávněním může po potvrzení hostem připsat objednanou službu na rezervaci — jen položky, které povolíte, do limitu, který nastavíte. Žádné kopírování klíčů — jedno kliknutí a souhlas v Apaleu.</div>
           </div>
           <a href="${API}/api/pms/apaleo/connect?token=${token}" style="background:var(--accent);color:#0a0b0f;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;white-space:nowrap">Propojit s Apaleo →</a>
         </div>
@@ -1998,6 +2004,53 @@ async function loadPmsProperties(){
       ${(hotelData&&hotelData.pms_property_id)?`<button onclick="window._pmsPickProp=false;loadPmsSection()" style="background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);padding:9px 12px;font-size:12.5px;cursor:pointer">${tr('Zrušit')}</button>`:''}`;
   }
 }
+
+// ── Požadavky hostů (seznam + statistiky; uživatel 11. 10. 2026) ──────────────────────────
+let _requestsCache=null;
+async function fetchRequests(){
+  try{ const r=await fetch(`${API}/api/hotel-portal/orders?token=${token}`); if(!r.ok) return null; _requestsCache=await r.json(); return _requestsCache; }catch(e){ return null; }
+}
+function fmtReqTime(iso){
+  if(!iso) return '';
+  try{ const d=new Date(iso+(iso.endsWith('Z')?'':'Z')); return d.toLocaleString(portalLang==='en'?'en-GB':'cs-CZ',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){ return iso; }
+}
+async function loadRequestsSection(){
+  const el=document.getElementById('requests-section');
+  if(!el||!hotelData||!hotelData.pms_write_available){ if(el) el.innerHTML=''; return; }
+  const d=await fetchRequests();
+  if(!d){ el.innerHTML=''; return; }
+  const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const st=d.stats||{}, tm=st.this_month||{};
+  const badge=(s)=>{
+    const map={pending:['Čeká','#ffaa33'],confirmed:['Potvrzeno','#2ecc87'],declined:['Nelze vyřídit','#ff4f6a']};
+    const [t,c]=map[s]||[s,'var(--muted)'];
+    return `<span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;color:${c};border:1px solid ${c};white-space:nowrap">${t}</span>`;
+  };
+  const chip=(label,n,color)=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;min-width:110px;text-align:center"><div style="font-size:22px;font-weight:800;color:${color}">${n||0}</div><div style="font-size:11px;color:var(--muted)">${label}</div></div>`;
+  const rows=(d.orders||[]).map(o=>`<tr style="border-top:1px solid var(--border)">
+      <td style="padding:8px 10px;white-space:nowrap;font-size:12px;color:var(--muted)">${fmtReqTime(o.created)}</td>
+      <td style="padding:8px 10px;font-weight:700">${esc(o.room)}</td>
+      <td style="padding:8px 10px"><div>${esc(o.title)}</div>${o.detail?`<div style="font-size:11.5px;color:var(--muted)">${esc(o.detail)}${o.price?' · '+esc(o.price):''}</div>`:(o.price?`<div style="font-size:11.5px;color:var(--muted)">${esc(o.price)}</div>`:'')}</td>
+      <td style="padding:8px 10px">${badge(o.status)}</td>
+      <td style="padding:8px 10px;font-size:12px;color:var(--muted);max-width:260px">${(o.notes||[]).map(n=>'💬 '+esc(n)).join('<br>')}</td>
+      <td style="padding:8px 10px;white-space:nowrap"><a href="${esc(o.reply_link)}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700;text-decoration:none">${o.status==='pending'?'✍️ ':''}Odpovědět →</a></td>
+    </tr>`).join('');
+  el.innerHTML=`<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:24px">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px">
+      <div style="font-size:26px">📬</div>
+      <div style="flex:1;min-width:200px"><div style="font-family:var(--font-head);font-size:14px;font-weight:700">Požadavky hostů${d.pending_now?` <span style="color:#ffaa33">(${d.pending_now})</span>`:''}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:3px">posledních 30 dní · odpověď recepce host vidí v chatu</div></div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      ${chip('Tento měsíc',tm.total,'var(--accent)')}${chip('Čeká',tm.pending,'#ffaa33')}${chip('Potvrzeno',tm.confirmed,'#2ecc87')}${chip('Nelze vyřídit',tm.declined,'#ff4f6a')}${hotelData.pms_type?chip('Zapsáno do Apalea',tm.booked,'var(--accent2)'):''}
+    </div>
+    ${rows?`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;text-align:left"><th style="padding:6px 10px">Čas</th><th style="padding:6px 10px">Pokoj</th><th style="padding:6px 10px">Co</th><th style="padding:6px 10px">Stav</th><th style="padding:6px 10px">Vzkaz</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+         :`<div style="font-size:13px;color:var(--muted)">Zatím žádný požadavek. Jakmile host něco objedná v chatu, objeví se tady i v e-mailu.</div>`}
+  </div>`;
+  translateDom(el);
+}
+// obnova seznamu při návratu na záložku a každou minutu, dokud je záložka otevřená
+setInterval(()=>{ if(currentPortalTab()==='alex' && document.visibilityState==='visible') loadRequestsSection(); }, 60000);
 
 // ── Objednávky v chatu (zápis do rezervace, APALEO_ZAPIS_DO_REZERVACE_NAVRH.md) ─────────
 // Sekce se ukazuje jen tam, kde je zápis zapnutý na serveru (pms_write_available = gate).
@@ -2159,7 +2212,7 @@ async function disconnectPms(){
     if(!r.ok)throw new Error('HTTP '+r.status);
     hotelData.pms_type='';
     hotelData.pms_refresh_token='';
-    loadPmsSection(); loadOrdersSection();
+    loadPmsSection(); loadOrdersSection(); loadRequestsSection();
   }catch(e){alert(tr('Odpojení se nepovedlo: ')+e.message);}
 }
 
@@ -2368,9 +2421,21 @@ async function loadMonthlyReport(){
     }).join('');
     const lastChat = a.last_chat ? new Date(a.last_chat).toLocaleDateString(cs?'cs-CZ':'en-GB') : '–';
     const totalVisits = d.total_visits||0;
+    // Požadavky hostů z chatu (objednávky) — stejná data jako sekce Požadavky hostů v záložce Alex
+    let reqHtml = '';
+    try{
+      const rq = (hotelData && hotelData.pms_write_available) ? (_requestsCache || await fetchRequests()) : null;
+      const tm = rq && rq.stats && rq.stats.this_month;
+      if(tm && (tm.total || (rq.stats.all_time||{}).total)){
+        const lblReq = cs ? 'požadavků tento měsíc' : 'requests this month';
+        const lblWait = cs ? 'z toho čeká na odpověď' : 'waiting for a reply';
+        reqHtml = `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;cursor:pointer" onclick="showPortalTab('alex')" title="${cs?'Požadavky hostů v chatu':'Guest requests in chat'}"><div style="font-size:32px;font-weight:700;color:#ffaa33">${tm.total||0}</div><div style="font-size:12px;color:var(--muted)">🛎 ${lblReq}${tm.pending?`<br><span style="color:#ffaa33;font-weight:700">${tm.pending}</span> ${lblWait}`:''}</div></div>`;
+      }
+    }catch(e){}
     const allTimeHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:14px 0">
       ${totalVisits?`<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:32px;font-weight:700;color:var(--accent2)">${totalVisits}</div><div style="font-size:12px;color:var(--muted)">${L.totalVisits}</div></div>`:''}
       <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:32px;font-weight:700;color:var(--accent)">${a.total||0}</div><div style="font-size:12px;color:var(--muted)">${L.total}</div></div>
+      ${reqHtml}
       <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:18px;font-weight:700;color:var(--accent2)">${lastChat}</div><div style="font-size:12px;color:var(--muted)">${L.last}</div></div>
     </div>${topics.length?`<div style="font-size:12px;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">${L.topics}</div>${topicHtml}`:''}`;
     const hasMonthly = (rep.count || 0) > 0;
