@@ -1371,7 +1371,7 @@ function showOrderCards(actions){
         <div style="font-size:11.5px;color:var(--muted);line-height:1.45;margin-bottom:12px">${note}</div>
         <div style="display:flex;gap:8px">
           <button onclick="confirmOrder('${a.id}')" style="flex:1;background:${isCancel?'#ff4f6a':'var(--accent)'};color:${isCancel?'#fff':'#0a0b0f'};border:none;border-radius:10px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font-body,inherit)">${mainBtn}</button>
-          <button onclick="document.getElementById('order-${a.id}').remove()" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:10px;padding:11px 14px;font-size:13px;cursor:pointer;font-family:var(--font-body,inherit)">${uiT('order_cancel')}</button>
+          <button onclick="dismissOrderCard('${a.id}')" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:10px;padding:11px 14px;font-size:13px;cursor:pointer;font-family:var(--font-body,inherit)">${uiT('order_cancel')}</button>
         </div>
         <div class="order-err" style="display:none;margin-top:10px;font-size:12px;line-height:1.5;color:#ff4f6a"></div>
       </div></div>`;
@@ -1380,6 +1380,25 @@ function showOrderCards(actions){
   msgs.scrollTop=msgs.scrollHeight;
 }
 function escapeHtmlOrder(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// „Zrušit tuto objednávku": otevře kartu zrušení a tlačítko schová; „Teď ne" kartu zavře a tlačítko vrátí
+function cancelKeyOfAction(actId){ const m=window._cancelActs||{}; return Object.keys(m).find(k=>m[k]&&m[k].id===actId)||''; }
+function openCancelCard(key){
+  const act=(window._cancelActs||{})[key]; if(!act) return;
+  const existing=document.getElementById('order-'+act.id);
+  if(existing){ existing.scrollIntoView({behavior:'smooth',block:'center'}); return; }
+  const wrap=document.querySelector(`[data-cancel-key="${key}"]`); if(wrap) wrap.style.display='none';
+  showOrderCards([act]);
+}
+function dismissOrderCard(actId){
+  const c=document.getElementById('order-'+actId); if(c) c.remove();
+  const key=cancelKeyOfAction(actId); const wrap=key&&document.querySelector(`[data-cancel-key="${key}"]`); if(wrap) wrap.style.display='';
+}
+function forgetCancelAction(actId){
+  // po skutečném zrušení: tlačítko pryč i z historie (token je jednorázový, po reloadu by hlásil „vypršelo")
+  const key=cancelKeyOfAction(actId); const wrap=key&&document.querySelector(`[data-cancel-key="${key}"]`); if(wrap) wrap.remove();
+  if(key) delete window._cancelActs[key];
+  history.forEach(m=>{ if(m.cancel_action&&m.cancel_action.id===actId) delete m.cancel_action; }); saveHistory();
+}
 async function confirmOrder(id, attempt){
   const card=document.getElementById('order-'+id); if(!card) return;
   const btns=card.querySelectorAll('button'); btns.forEach(b=>b.disabled=true);
@@ -1397,6 +1416,7 @@ async function confirmOrder(id, attempt){
     let d=null; try{ d=await r.json(); }catch(e){}
     if(r.ok && d && d.message){
       card.remove();
+      if(d.done==='cancelled'||d.done==='requested'||d.done==='too_late'||d.status==='expired') forgetCancelAction(id);   // zrušení proběhlo / token spotřebován
       addBot(d.message,{cancelAction:d.cancel_action||null});
       history.push({role:'assistant',content:d.message,cancel_action:d.cancel_action||undefined}); saveHistory();
       if(d.order_id) trackOrder(d.order_id);
@@ -1534,7 +1554,8 @@ function addBot(text, opts){
   let cancelBtn='';
   if(opts.cancelAction&&opts.cancelAction.id){
     const key='ca'+Math.random().toString(36).slice(2,8); window._cancelActs=window._cancelActs||{}; window._cancelActs[key]=opts.cancelAction;
-    cancelBtn=`<div style="margin-top:8px"><button type="button" class="reply-rec-btn" style="border-color:rgba(255,79,106,.55);color:#ff4f6a" onclick="showOrderCards([window._cancelActs['${key}']]);this.parentElement.remove()">🗑 ${uiT('cancel_this')}</button></div>`;
+    // Tlačítko se při otevření karty jen schová; „Teď ne" ho vrátí, zmizí až po skutečném zrušení (uživatel 11. 10.)
+    cancelBtn=`<div style="margin-top:8px" data-cancel-key="${key}"><button type="button" class="reply-rec-btn" style="border-color:rgba(255,79,106,.55);color:#ff4f6a" onclick="openCancelCard('${key}')">🗑 ${uiT('cancel_this')}</button></div>`;
   }
   d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#ffffff;font-weight:800;font-size:16px">${av}</div><div class="msg-body"><div class="msg-bubble">${from}${html}${replyLink}${cancelBtn}</div><div class="msg-meta"><span class="msg-time">${time}</span></div></div>`;
   const meta=d.querySelector('.msg-meta');
