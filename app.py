@@ -7344,7 +7344,10 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         if best:
             act = {"kind": "extension", "title": f"+{best['new_nights']} night(s) → {best['departure'][:10]}", "title_key": "extension",
                    "nights": best["new_nights"], "departure": best["departure"], "new_nights": best["new_nights"], "price": round(best["new_total"], 2),
-                   "currency": best["currency"], "mode": base_mode, "detail": f"{best['rate_plan']} · {best['unit_group']}",
+                   "currency": best["currency"], "mode": base_mode,
+                   # městská taxa za přidané noci se účtuje navíc → host ji vidí na kartě hned pod cenou
+                   "detail": f"{best['rate_plan']} · {best['unit_group']}"
+                             + (f" · + {best.get('city_tax_name') or 'City tax'} {best['new_city_tax']:g} {best['currency']}" if best.get("new_city_tax") else ""),
                    "rate_plan_id": best.get("rate_plan_id", ""), "unit_group_id": best.get("unit_group_id", "")}
             # Time slices do tokenu nejdou: při potvrzení se nabídka načte z Apalea znovu (čerstvá cena a dostupnost)
             # a zapíše se jen tehdy, když sedí odjezd, typ pokoje a cena nepřesáhne to, co host viděl.
@@ -7357,6 +7360,12 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
                          "(PLATNÁ CENA, říkej ji přesně takto, bez desetinné nuly)"
                          + (" (potvrzením se prodloužení hned zapíše do rezervace a připíše na účet pokoje)" if base_mode == "auto"
                             else " (potvrzením odejde požadavek recepci, která ho potvrdí)"))
+            if best.get("new_city_tax"):
+                lines.append(f"  NAVÍC k této ceně se za přidané noci připíše {best.get('city_tax_name') or 'městská taxa'}: "
+                             f"{best['new_city_tax']:g} {best['currency']} (není v ceně; řekni to hostovi spolu s cenou, částky nesčítej).")
+            if best.get("fee_names"):
+                lines.append(f"  Hotel k pobytu účtuje i poplatek: {', '.join(best['fee_names'])}. Jeho výši za přidané noci NEZNÁŠ — "
+                             "řekni, že se může připsat navíc a přesnou částku sdělí recepce.")
             # Typ pokoje volný, ale KONKRÉTNÍ pokoj hosta na přidané noci obsazený → Apaleo by přiřadilo jiný
             # (stěhování). Host to má vědět PŘED potvrzením, ne až po něm.
             try:
@@ -8908,7 +8917,12 @@ _APALEO_REQUEST_WRITE_SCOPE = os.getenv("APALEO_REQUEST_WRITE_SCOPE", "").strip(
 
 def _apaleo_scopes() -> str:
     """Scope string pro authorize — základ + zápis, je-li zapnutý."""
-    return _APALEO_SCOPES + (" " + _APALEO_WRITE_SCOPE if _APALEO_REQUEST_WRITE_SCOPE else "")
+    if not _APALEO_REQUEST_WRITE_SCOPE:
+        return _APALEO_SCOPES
+    # Certifikace Apalea: žádat jen nutná oprávnění. Všechna volání nabídek (offers, service-offers)
+    # pokrývá reservations.manage, offers.read je s ním nadbytečné. availability.read zůstává —
+    # /availability/v1/services jiné oprávnění nebere.
+    return " ".join(x for x in _APALEO_SCOPES.split() if x != "offers.read") + " " + _APALEO_WRITE_SCOPE
 
 def _apaleo_has_write_scope(h: dict, db: dict = None) -> bool:
     """Udělil hotel při souhlasu scope pro zápis? Udělený scope se ukládá z token

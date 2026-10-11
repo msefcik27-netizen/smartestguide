@@ -901,6 +901,17 @@ def _norm_stay_offers(d: dict, stay: "Stay") -> list:
                (not stay_ug_id and stay_ug and ts["unit_group"] != stay_ug) for ts in new_slices):
             validation.append("UnitGroupChange")
         lead = new_slices[0]
+        # Městská taxa a poplatky nejsou v ceně nocí — Apaleo je připisuje NAVÍC (swagger: fees „will be
+        # added on top of the TotalGrossAmount"). Taxa má rozpad po dnech → jen přidané noci; poplatky
+        # rozpad nemají (platí za celý pobyt), proto jen jménem, bez částky.
+        tax_sum, tax_names = 0.0, []
+        for ct in o.get("cityTaxes") or []:
+            for it in ct.get("dates") or []:
+                if cur_dep and str(it.get("serviceDate") or "")[:10] >= cur_dep and (it.get("amount") or {}).get("grossAmount") is not None:
+                    tax_sum += float(it["amount"]["grossAmount"])
+                    if ct.get("name") and ct["name"] not in tax_names:
+                        tax_names.append(str(ct["name"]))
+        fee_names = [str(f.get("name") or f.get("code") or "") for f in o.get("fees") or [] if f.get("name") or f.get("code")]
         offers.append({"arrival": str(o.get("arrival") or ""), "departure": str(o.get("departure") or ""),
                        "total": tg.get("amount"), "currency": tg.get("currency") or "",
                        "available_units": o.get("availableUnits"),
@@ -909,6 +920,7 @@ def _norm_stay_offers(d: dict, stay: "Stay") -> list:
                        "new_nights": len(new_slices),
                        "new_total": sum(float(ts["gross"]) for ts in new_slices if ts.get("gross") is not None),
                        "time_slices": slices,
+                       "new_city_tax": round(tax_sum, 2), "city_tax_name": ", ".join(tax_names), "fee_names": fee_names,
                        "cancellation_fee": {"name": str(cf.get("name") or ""), "due": str(cf.get("dueDateTime") or ""),
                                             "amount": (cf.get("fee") or {}).get("amount"),
                                             "currency": (cf.get("fee") or {}).get("currency") or ""},
