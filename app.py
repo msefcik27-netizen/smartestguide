@@ -6867,7 +6867,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
                 act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": "", "room": room})
                 actions.append(act)
                 lines.append(f"- ZRUŠENÍ: {it['name']} — potvrzením odejde recepci požadavek na zrušení, odpověď přijde hostovi do chatu")
-            block = ("ZRUŠENÍ OBJEDNÁVKY — pod tvou odpovědí se hostovi zobrazí TLAČÍTKO „Zrušit" pro:\n" + "\n".join(lines) +
+            block = ("ZRUŠENÍ OBJEDNÁVKY — pod tvou odpovědí se hostovi zobrazí TLAČÍTKO 'Zrušit' pro:\n" + "\n".join(lines) +
                      f"\nPokoj hosta: {room}. Řekni, že zrušení potvrdí tlačítkem a recepce ho vyřídí; sám nic nerušíš. " + _ORDER_TONE)
             return actions, block
         for it in hit[:2]:
@@ -6929,7 +6929,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
             actions.append(act)
             lines.append(f"- ZRUŠIT {bsvc['name']} ({', '.join(dts)}, {total:g} {bsvc.get('currency') or ''}) — potvrzením se služba odebere z rezervace i z účtu pokoje")
         if actions:
-            block = ("ZRUŠENÍ OBJEDNÁVKY — pod tvou odpovědí se hostovi zobrazí TLAČÍTKO „Zrušit" pro:\n" + "\n".join(lines) +
+            block = ("ZRUŠENÍ OBJEDNÁVKY — pod tvou odpovědí se hostovi zobrazí TLAČÍTKO 'Zrušit' pro:\n" + "\n".join(lines) +
                      "\nŘekni, co má na rezervaci, a že zrušení potvrdí tlačítkem; nic nezrušuj slovy sám. " + _ORDER_TONE)
             return actions, block
         if booked == [] and _CANCEL_INTENT_RE.search(message or ""):
