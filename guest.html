@@ -174,7 +174,15 @@
 
     /* Messages */
     #messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth}
-    .msg{display:flex;gap:8px;max-width:88%;animation:msgIn .2s ease}
+    /* Bubliny: zaoblené rohy s „ocáskem" u avatara; na desktopu max 720 px, aby se dlouhý
+       řádek dal číst (uživatel 11. 10. 2026: „nebylo by hezčí, aby konverzace měla zaoblené rohy?") */
+    .msg{display:flex;gap:8px;max-width:min(88%,720px);animation:msgIn .2s ease}
+    /* Široký monitor: chat v jednom sloupci uprostřed — bublina hosta byla úplně vpravo, 1,5 m od odpovědi
+       (uživatel 11. 10.: „není vidět, co jsem napsal") */
+    @media (min-width: 960px){
+      #messages,#quick-replies,.input-area{padding-left:calc(50% - 440px);padding-right:calc(50% - 440px)}
+      .msg{max-width:min(92%,760px)}
+    }
     @keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
     .msg.user{align-self:flex-end;flex-direction:row-reverse}
     .msg.bot{align-self:flex-start}
@@ -183,10 +191,17 @@
     .msg.user .msg-av{background:var(--card);border:1px solid var(--border);font-size:12px}
     .msg-body{}
     .msg-bubble{
-      padding:10px 14px;border-radius:var(--radius);font-size:14px;line-height:1.6;word-break:break-word;
+      padding:11px 15px;border-radius:18px;font-size:14px;line-height:1.6;word-break:break-word;
     }
-    .msg.bot .msg-bubble{background:var(--card);border:1px solid var(--border);border-bottom-left-radius:4px}
-    .msg.user .msg-bubble{background:var(--accent);color:#ffffff;font-weight:500;border-bottom-right-radius:4px}
+    .msg.bot .msg-bubble{background:var(--card);border:1px solid var(--border);border-top-left-radius:6px}
+    .msg.user .msg-bubble{background:var(--accent);color:#ffffff;font-weight:500;border-top-right-radius:6px}
+    /* Odpověď recepce (potvrzení/zamítnutí požadavku) — jinak podbarvená, ať se liší od Alexe (uživatel 11. 10.) */
+    .msg.bot.reception .msg-bubble{background:rgba(0,212,170,.14);border-color:rgba(0,212,170,.55)}
+    .msg.bot.reception .msg-av{background:var(--accent2)!important;color:#0a0b0f!important}
+    .msg-from{display:block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent2);margin-bottom:4px}
+    .reply-rec-btn{background:transparent;border:1px solid rgba(0,212,170,.55);color:var(--accent2);border-radius:20px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body,inherit)}
+    #reply-bar{display:none;align-items:center;justify-content:space-between;gap:8px;margin:0 0 6px;padding:6px 10px;border-radius:10px;background:rgba(0,212,170,.14);border:1px solid rgba(0,212,170,.5);font-size:12.5px;color:var(--text)}
+    #reply-bar button{background:transparent;border:none;color:var(--text);font-size:14px;cursor:pointer;padding:2px 6px}
     .msg-time{font-size:10px;color:var(--muted)}
     .msg.user .msg-time{text-align:right}
     .msg-meta{display:flex;align-items:center;gap:8px;margin-top:3px}
@@ -798,7 +813,9 @@ async function loadHotel(){
   }
       // Obnov předchozí konverzaci — kontext se neztrácí
       if(history.length){
-        history.forEach(m => { if(m.role==='user') addUser(m.content); else if(m.role==='assistant') addBot(m.content); });
+        // Starší zprávy recepce v historii (před 11. 10.) nemají oid → tlačítko Odpovědět recepci se naváže na poslední sledovaný požadavek
+        let _lastTracked=''; try{ const _t=JSON.parse(localStorage.getItem('sg_orders_'+hotelId)||'[]'); if(_t.length) _lastTracked=_t[_t.length-1].id||''; }catch(e){}
+        history.forEach(m => { if(m.role==='user') addUser(m.content); else if(m.role==='assistant') addBot(m.content,{reception:m.src==='reception',oid:m.oid||(m.src==='reception'?_lastTracked:''),title:m.title||'',cancelAction:m.cancel_action||null}); });
       }
   const greetFn=GREETINGS[guestLang]||GREETINGS['en'];
       // Pozor: chybějící jazyk v téhle mapě = anglické uvítání i pro Čecha (tester 7. 8. 2026).
@@ -1002,6 +1019,109 @@ Object.assign(UI_T.de,{link_stay:'🛎 Aufenthalt verknüpfen',ls_title:'Aufenth
   stay_link_failed:'⚠️ Ihr Aufenthalt konnte nicht bestätigt werden. Bitte prüfen Sie Zimmernummer und Anreisedatum, oder wenden Sie sich an die Rezeption.',
   unlink_stay:'🔓 Aufenthalt trennen',
   stay_unlinked:'🔓 Ihr Aufenthalt wurde getrennt. Ich antworte jetzt nur aus den allgemeinen Hotelinformationen — Sie können ihn jederzeit wieder verknüpfen.'});
+// Zápis do rezervace — karty k potvrzení (ostatní jazyky padají na EN přes uiT)
+Object.assign(UI_T.en,{order_persons:'Persons',order_nights:'Nights',order_days:'Days',order_from:'From',order_time_ph:'Preferred time (e.g. 16:00)',order_note_ph:'Note for reception (optional)',
+  ext_title:'Extend stay',ext_detail:'Reception will confirm availability and price.',ext_to:'until',from_reception:'Reception',
+  reply_to_reception:'Reply to reception',replying_to:'Writing to reception',reply_ph:'Your message to reception…',reply_sent:'📨 Passed on to reception — their reply will appear here.',cancel_title:'Cancellation',cancel_btn:'Cancel the service',cancel_note:'The service is removed from your reservation and room account.',cancel_this:'Cancel this order'});
+Object.assign(UI_T.cs,{order_persons:'Počet osob',order_nights:'Počet nocí',order_days:'Počet dní',order_from:'Od',order_time_ph:'Preferovaný čas (např. 16:00)',order_note_ph:'Poznámka pro recepci (volitelné)',
+  ext_title:'Prodloužení pobytu',ext_detail:'Dostupnost a cenu potvrdí recepce.',ext_to:'do',from_reception:'Recepce',
+  reply_to_reception:'Odpovědět recepci',replying_to:'Píšete recepci',reply_ph:'Vaše zpráva pro recepci…',reply_sent:'📨 Předáno recepci — její odpověď se objeví tady.',cancel_title:'Zrušení',cancel_btn:'Zrušit službu',cancel_note:'Služba se odebere z vaší rezervace i z účtu pokoje.',cancel_this:'Zrušit tuto objednávku'});
+Object.assign(UI_T.sk,{order_persons:'Počet osôb',order_nights:'Počet nocí',order_days:'Počet dní',order_from:'Od',order_time_ph:'Preferovaný čas (napr. 16:00)',order_note_ph:'Poznámka pre recepciu (voliteľné)',
+  ext_title:'Predĺženie pobytu',ext_detail:'Dostupnosť a cenu potvrdí recepcia.',ext_to:'do',from_reception:'Recepcia',
+  reply_to_reception:'Odpovedať recepcii',replying_to:'Píšete recepcii',reply_ph:'Vaša správa pre recepciu…',reply_sent:'📨 Odovzdané recepcii — jej odpoveď sa objaví tu.',cancel_title:'Zrušenie',cancel_btn:'Zrušiť službu',cancel_note:'Služba sa odoberie z vašej rezervácie aj z účtu izby.',cancel_this:'Zrušiť túto objednávku'});
+if(UI_T.de)Object.assign(UI_T.de,{order_persons:'Personen',order_nights:'Nächte',order_days:'Tage',order_from:'Ab',order_time_ph:'Gewünschte Uhrzeit (z. B. 16:00)',order_note_ph:'Hinweis für die Rezeption (optional)',
+  ext_title:'Aufenthalt verlängern',ext_detail:'Verfügbarkeit und Preis bestätigt die Rezeption.',ext_to:'bis',from_reception:'Rezeption',
+  reply_to_reception:'Der Rezeption antworten',replying_to:'Nachricht an die Rezeption',reply_ph:'Ihre Nachricht an die Rezeption…',reply_sent:'📨 An die Rezeption weitergeleitet — ihre Antwort erscheint hier.',cancel_title:'Stornierung',cancel_btn:'Leistung stornieren',cancel_note:'Die Leistung wird von Ihrer Reservierung und Ihrem Zimmerkonto entfernt.',cancel_this:'Diese Bestellung stornieren'});
+Object.assign(UI_T.en,{order_confirm:'Confirm',order_send:'Send to reception',order_cancel:'Not now',
+  order_room_charge:'Charged to your room account and settled at check-out. Nothing is booked until you confirm.',
+  order_request_note:'This goes to reception as a request. Their answer will appear here in the chat.',
+  order_fail:'⚠️ That didn\'t go through. Please try again or ask reception.'});
+Object.assign(UI_T.cs,{order_confirm:'Potvrdit',order_send:'Poslat recepci',order_cancel:'Teď ne',
+  order_room_charge:'Připíše se na účet vašeho pokoje a vyrovná při odjezdu. Nic se neobjedná, dokud nepotvrdíte.',
+  order_request_note:'Odejde na recepci jako požadavek. Její odpověď vám přijde sem do chatu.',
+  order_fail:'⚠️ Nepovedlo se. Zkuste to znovu nebo se obraťte na recepci.'});
+Object.assign(UI_T.sk,{order_confirm:'Potvrdiť',order_send:'Poslať recepcii',order_cancel:'Teraz nie',
+  order_room_charge:'Pripíše sa na účet vašej izby a vyrovná pri odchode. Nič sa neobjedná, kým nepotvrdíte.',
+  order_request_note:'Odíde na recepciu ako požiadavka. Jej odpoveď vám príde sem do chatu.',
+  order_fail:'⚠️ Nepodarilo sa. Skúste to znova alebo sa obráťte na recepciu.'});
+if(UI_T.de) Object.assign(UI_T.de,{order_confirm:'Bestätigen',order_send:'An Rezeption senden',order_cancel:'Jetzt nicht',
+  order_room_charge:'Wird Ihrem Zimmerkonto belastet und beim Check-out abgerechnet. Ohne Ihre Bestätigung wird nichts gebucht.',
+  order_request_note:'Geht als Anfrage an die Rezeption. Ihre Antwort erscheint hier im Chat.',
+  order_fail:'⚠️ Das hat nicht geklappt. Bitte erneut versuchen oder an der Rezeption fragen.'});
+// Hotel bez PMS — jen číslo pokoje (objednávky jdou recepci jako požadavek)
+Object.assign(UI_T.en,{my_room:'🛎 My room',mr_title:'Your room number',mr_submit:'Save',forget_room:'🔓 Forget my room',
+  room_saved:'✅ Got it — room {room}. Orders and requests now go straight to reception with your room number.',
+  room_forgotten:'🔓 Room number cleared. Tell me again whenever you want to order something.'});
+Object.assign(UI_T.cs,{my_room:'🛎 Můj pokoj',mr_title:'Číslo vašeho pokoje',mr_submit:'Uložit',forget_room:'🔓 Zapomenout pokoj',
+  room_saved:'✅ Mám to — pokoj {room}. Objednávky a požadavky teď půjdou rovnou recepci s vaším číslem pokoje.',
+  room_forgotten:'🔓 Číslo pokoje jsem smazala. Až budete chtít něco objednat, stačí mi ho napsat znovu.'});
+Object.assign(UI_T.sk,{my_room:'🛎 Moja izba',mr_title:'Číslo vašej izby',mr_submit:'Uložiť',forget_room:'🔓 Zabudnúť izbu',
+  room_saved:'✅ Mám to — izba {room}. Objednávky a požiadavky teraz pôjdu rovno recepcii s vaším číslom izby.',
+  room_forgotten:'🔓 Číslo izby som vymazala. Keď budete chcieť niečo objednať, stačí mi ho napísať znova.'});
+if(UI_T.de) Object.assign(UI_T.de,{my_room:'🛎 Mein Zimmer',mr_title:'Ihre Zimmernummer',mr_submit:'Speichern',forget_room:'🔓 Zimmer vergessen',
+  room_saved:'✅ Notiert — Zimmer {room}. Bestellungen und Anfragen gehen jetzt direkt mit Ihrer Zimmernummer an die Rezeption.',
+  room_forgotten:'🔓 Zimmernummer gelöscht. Sagen Sie sie mir einfach wieder, wenn Sie etwas bestellen möchten.'});
+// Objednávky, odpověď recepce a číslo pokoje ve zbylých jazycích appky (uživatel 11. 10.: „proč nepřeloženo do všech jazyků?")
+Object.assign(UI_T.fr,{order_persons:'Personnes',order_nights:'Nuits',order_days:'Jours',order_from:'À partir du',order_time_ph:'Heure souhaitée (ex. 16:00)',order_note_ph:'Note pour la réception (facultatif)',
+  ext_title:'Prolonger le séjour',ext_detail:'La réception confirmera la disponibilité et le prix.',ext_to:"jusqu'au",from_reception:'Réception',
+  reply_to_reception:'Répondre à la réception',replying_to:'Message à la réception',reply_ph:'Votre message pour la réception…',reply_sent:'📨 Transmis à la réception — sa réponse apparaîtra ici.',
+  order_confirm:'Confirmer',order_send:'Envoyer à la réception',order_cancel:'Pas maintenant',
+  order_room_charge:'Porté sur le compte de votre chambre et réglé au départ. Rien n\'est réservé sans votre confirmation.',
+  order_request_note:'Envoyé à la réception comme demande. Sa réponse apparaîtra ici dans le chat.',
+  order_fail:'⚠️ Cela n\'a pas fonctionné. Réessayez ou adressez-vous à la réception.',
+  my_room:'🛎 Ma chambre',mr_title:'Votre numéro de chambre',mr_submit:'Enregistrer',forget_room:'🔓 Oublier ma chambre',
+  room_saved:'✅ C\'est noté — chambre {room}. Vos commandes et demandes partent maintenant directement à la réception avec votre numéro de chambre.',
+  room_forgotten:'🔓 Numéro de chambre effacé. Indiquez-le-moi à nouveau quand vous voudrez commander.',cancel_title:'Annulation',cancel_btn:'Annuler le service',cancel_note:'Le service est retiré de votre réservation et du compte de votre chambre.',cancel_this:'Annuler cette commande'});
+Object.assign(UI_T.it,{order_persons:'Persone',order_nights:'Notti',order_days:'Giorni',order_from:'Dal',order_time_ph:'Orario preferito (es. 16:00)',order_note_ph:'Nota per la reception (facoltativa)',
+  ext_title:'Prolungare il soggiorno',ext_detail:'La reception confermerà disponibilità e prezzo.',ext_to:'fino al',from_reception:'Reception',
+  reply_to_reception:'Rispondi alla reception',replying_to:'Messaggio alla reception',reply_ph:'Il suo messaggio per la reception…',reply_sent:'📨 Inoltrato alla reception — la risposta apparirà qui.',
+  order_confirm:'Conferma',order_send:'Invia alla reception',order_cancel:'Non ora',
+  order_room_charge:'Addebitato sul conto della camera e saldato al check-out. Nulla viene prenotato senza la sua conferma.',
+  order_request_note:'Va alla reception come richiesta. La risposta apparirà qui in chat.',
+  order_fail:'⚠️ Non è andata a buon fine. Riprovi o si rivolga alla reception.',
+  my_room:'🛎 La mia camera',mr_title:'Il numero della sua camera',mr_submit:'Salva',forget_room:'🔓 Dimentica la camera',
+  room_saved:'✅ Fatto — camera {room}. Ordini e richieste vanno ora direttamente alla reception con il numero della camera.',
+  room_forgotten:'🔓 Numero di camera cancellato. Me lo dica di nuovo quando vorrà ordinare qualcosa.',cancel_title:'Annullamento',cancel_btn:'Annulla il servizio',cancel_note:'Il servizio viene rimosso dalla prenotazione e dal conto della camera.',cancel_this:'Annulla questo ordine'});
+Object.assign(UI_T.es,{order_persons:'Personas',order_nights:'Noches',order_days:'Días',order_from:'Desde',order_time_ph:'Hora preferida (p. ej. 16:00)',order_note_ph:'Nota para recepción (opcional)',
+  ext_title:'Prolongar la estancia',ext_detail:'Recepción confirmará disponibilidad y precio.',ext_to:'hasta el',from_reception:'Recepción',
+  reply_to_reception:'Responder a recepción',replying_to:'Mensaje a recepción',reply_ph:'Su mensaje para recepción…',reply_sent:'📨 Enviado a recepción — su respuesta aparecerá aquí.',
+  order_confirm:'Confirmar',order_send:'Enviar a recepción',order_cancel:'Ahora no',
+  order_room_charge:'Se carga a la cuenta de su habitación y se liquida al salir. No se reserva nada sin su confirmación.',
+  order_request_note:'Llega a recepción como solicitud. Su respuesta aparecerá aquí en el chat.',
+  order_fail:'⚠️ No se pudo completar. Inténtelo de nuevo o acuda a recepción.',
+  my_room:'🛎 Mi habitación',mr_title:'Su número de habitación',mr_submit:'Guardar',forget_room:'🔓 Olvidar habitación',
+  room_saved:'✅ Anotado — habitación {room}. Los pedidos y solicitudes irán ahora directamente a recepción con su número de habitación.',
+  room_forgotten:'🔓 Número de habitación borrado. Dígamelo de nuevo cuando quiera pedir algo.',cancel_title:'Cancelación',cancel_btn:'Cancelar el servicio',cancel_note:'El servicio se elimina de su reserva y de la cuenta de la habitación.',cancel_this:'Cancelar este pedido'});
+Object.assign(UI_T.pl,{order_persons:'Liczba osób',order_nights:'Liczba nocy',order_days:'Liczba dni',order_from:'Od',order_time_ph:'Preferowana godzina (np. 16:00)',order_note_ph:'Uwaga dla recepcji (opcjonalnie)',
+  ext_title:'Przedłużenie pobytu',ext_detail:'Dostępność i cenę potwierdzi recepcja.',ext_to:'do',from_reception:'Recepcja',
+  reply_to_reception:'Odpowiedz recepcji',replying_to:'Piszesz do recepcji',reply_ph:'Twoja wiadomość do recepcji…',reply_sent:'📨 Przekazano recepcji — jej odpowiedź pojawi się tutaj.',
+  order_confirm:'Potwierdź',order_send:'Wyślij do recepcji',order_cancel:'Nie teraz',
+  order_room_charge:'Zostanie doliczone do rachunku pokoju i rozliczone przy wymeldowaniu. Nic nie zostanie zamówione bez Twojego potwierdzenia.',
+  order_request_note:'Trafi do recepcji jako prośba. Jej odpowiedź pojawi się tutaj na czacie.',
+  order_fail:'⚠️ Nie udało się. Spróbuj ponownie lub zapytaj w recepcji.',
+  my_room:'🛎 Mój pokój',mr_title:'Numer Twojego pokoju',mr_submit:'Zapisz',forget_room:'🔓 Zapomnij pokój',
+  room_saved:'✅ Zapisane — pokój {room}. Zamówienia i prośby trafią teraz prosto do recepcji z numerem Twojego pokoju.',
+  room_forgotten:'🔓 Numer pokoju usunięty. Podaj mi go ponownie, gdy zechcesz coś zamówić.',cancel_title:'Anulowanie',cancel_btn:'Anuluj usługę',cancel_note:'Usługa zostanie usunięta z rezerwacji i rachunku pokoju.',cancel_this:'Anuluj to zamówienie'});
+Object.assign(UI_T.ru,{order_persons:'Человек',order_nights:'Ночей',order_days:'Дней',order_from:'С',order_time_ph:'Удобное время (напр. 16:00)',order_note_ph:'Примечание для ресепшена (необязательно)',
+  ext_title:'Продлить проживание',ext_detail:'Наличие и цену подтвердит ресепшен.',ext_to:'до',from_reception:'Ресепшен',
+  reply_to_reception:'Ответить ресепшену',replying_to:'Сообщение ресепшену',reply_ph:'Ваше сообщение для ресепшена…',reply_sent:'📨 Передано ресепшену — ответ появится здесь.',
+  order_confirm:'Подтвердить',order_send:'Отправить на ресепшен',order_cancel:'Не сейчас',
+  order_room_charge:'Будет записано на счёт номера и оплачено при выезде. Без вашего подтверждения ничего не бронируется.',
+  order_request_note:'Уйдёт на ресепшен как запрос. Ответ появится здесь, в чате.',
+  order_fail:'⚠️ Не получилось. Попробуйте ещё раз или обратитесь на ресепшен.',
+  my_room:'🛎 Мой номер',mr_title:'Номер вашей комнаты',mr_submit:'Сохранить',forget_room:'🔓 Забыть номер',
+  room_saved:'✅ Записано — номер {room}. Заказы и запросы теперь идут прямо на ресепшен с номером вашей комнаты.',
+  room_forgotten:'🔓 Номер комнаты удалён. Назовите его снова, когда захотите что-то заказать.',cancel_title:'Отмена',cancel_btn:'Отменить услугу',cancel_note:'Услуга удаляется из вашей брони и со счёта номера.',cancel_this:'Отменить этот заказ'});
+Object.assign(UI_T.uk,{order_persons:'Осіб',order_nights:'Ночей',order_days:'Днів',order_from:'З',order_time_ph:'Зручний час (напр. 16:00)',order_note_ph:'Примітка для рецепції (необов\'язково)',
+  ext_title:'Продовжити проживання',ext_detail:'Наявність і ціну підтвердить рецепція.',ext_to:'до',from_reception:'Рецепція',
+  reply_to_reception:'Відповісти рецепції',replying_to:'Повідомлення рецепції',reply_ph:'Ваше повідомлення для рецепції…',reply_sent:'📨 Передано рецепції — відповідь з\'явиться тут.',
+  order_confirm:'Підтвердити',order_send:'Надіслати на рецепцію',order_cancel:'Не зараз',
+  order_room_charge:'Буде записано на рахунок номера й оплачено при виїзді. Без вашого підтвердження нічого не бронюється.',
+  order_request_note:'Піде на рецепцію як запит. Відповідь з\'явиться тут, у чаті.',
+  order_fail:'⚠️ Не вдалося. Спробуйте ще раз або зверніться на рецепцію.',
+  my_room:'🛎 Мій номер',mr_title:'Номер вашої кімнати',mr_submit:'Зберегти',forget_room:'🔓 Забути номер',
+  room_saved:'✅ Записано — номер {room}. Замовлення й запити тепер ідуть прямо на рецепцію з номером вашої кімнати.',
+  room_forgotten:'🔓 Номер кімнати видалено. Назвіть його знову, коли захочете щось замовити.',cancel_title:'Скасування',cancel_btn:'Скасувати послугу',cancel_note:'Послугу буде вилучено з вашого бронювання та рахунку номера.',cancel_this:'Скасувати це замовлення'});
 function uiT(k){ const d=UI_T[guestLang]||UI_T.en; return (d[k]!==undefined)?d[k]:UI_T.en[k]; }
 function applyGuestLangUI(){
   const set=(id,html)=>{const e=document.getElementById(id); if(e) e.innerHTML=html;};
@@ -1069,7 +1189,15 @@ function startChat(){
 }
 
 function _linkStayBtnHtml(){
-  if(!(hotelData&&hotelData.pms_connected)) return '';
+  if(!hotelData) return '';
+  if(!hotelData.pms_connected){
+    // Hotel bez PMS s objednávkami v chatu: stačí číslo pokoje (žádné ověření — požadavek
+    // vyřizuje recepce). QR v pokojích hotely nemají, tohle je jediná cesta, jak pokoj zjistit.
+    if(!hotelData.orders_enabled) return '';
+    if(!roomNumber)
+      return `<button class="qr-btn" style="border-color:rgba(255,107,0,.5);color:var(--accent);font-weight:600" onclick="askRoom()">${uiT('my_room')}</button>`;
+    return `<button class="qr-btn" style="border-color:rgba(255,255,255,.22);color:var(--dim)" onclick="forgetRoom()">${uiT('forget_room')}</button>`;
+  }
   if(!roomNumber)
     return `<button class="qr-btn" style="border-color:rgba(255,107,0,.5);color:var(--accent);font-weight:600" onclick="linkStay()">${uiT('link_stay')}</button>`;
   // Pobyt je propojený → nabídni odpojení (ochrana soukromí na sdíleném zařízení)
@@ -1086,6 +1214,36 @@ function unlinkStay(){
   const f=document.getElementById('linkstay-form'); if(f) f.remove();
   addBot(uiT('stay_unlinked'));
   setQuickReplies();
+}
+// Hotel bez PMS: jen číslo pokoje (bez data příjezdu) — požadavky vyřizuje recepce, která si
+// pokoj ověří sama. Alex ho pak nemusí vyzvídat v chatu.
+function askRoom(){
+  if(document.getElementById('myroom-form')){ document.getElementById('mr-room').focus(); return; }
+  const msgs=document.getElementById('messages');
+  const inp='width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:15px;padding:11px 12px;outline:none';
+  const d=document.createElement('div'); d.id='myroom-form'; d.className='msg bot';
+  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#fff;font-weight:800">✦</div>
+    <div class="msg-body"><div class="msg-bubble" style="min-width:250px;max-width:320px">
+      <div style="font-weight:700;font-size:14px;margin-bottom:12px">🛎 ${uiT('mr_title')}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:5px">${uiT('ls_room_label')}</div>
+      <input id="mr-room" type="text" inputmode="text" autocomplete="off" placeholder="121" style="${inp};margin-bottom:14px" onkeydown="if(event.key==='Enter')submitRoom()">
+      <div style="display:flex;gap:8px">
+        <button onclick="submitRoom()" style="flex:1;background:var(--accent);color:#0a0b0f;border:none;border-radius:10px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font-body,inherit)">${uiT('mr_submit')}</button>
+        <button onclick="document.getElementById('myroom-form').remove()" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:10px;padding:11px 14px;font-size:13px;cursor:pointer;font-family:var(--font-body,inherit)">${uiT('ls_cancel')}</button>
+      </div></div></div>`;
+  msgs.appendChild(d); msgs.scrollTop=msgs.scrollHeight; document.getElementById('mr-room').focus();
+}
+function submitRoom(){
+  const room=(document.getElementById('mr-room').value||'').trim(); if(!room) return;
+  roomNumber=room; roomMode='typed'; roomArrival='';
+  try{ localStorage.setItem('sg_stay_'+hotelId, JSON.stringify({room:room, mode:'typed'})); sessionStorage.setItem('sg_room', room); }catch(e){}
+  const f=document.getElementById('myroom-form'); if(f) f.remove();
+  addBot(uiT('room_saved').replace('{room}', room)); setQuickReplies();
+}
+function forgetRoom(){
+  roomNumber=''; roomArrival=''; roomMode='';
+  try{ localStorage.removeItem('sg_stay_'+hotelId); sessionStorage.removeItem('sg_room'); }catch(e){}
+  addBot(uiT('room_forgotten')); setQuickReplies();
 }
 function setQuickReplies(){
   const list=QUICK[guestLang]||QUICK['en'];
@@ -1155,6 +1313,190 @@ async function submitLinkStay(){
   }
 }
 
+// ── Zápis do rezervace: karty s tlačítkem k potvrzení (server rozhodl, host potvrzuje) ──
+// Nikdy se nic neobjedná bez klepnutí hosta; server před zápisem vše ověří znovu.
+const ORDER_STATE={};   // id karty -> {count, nights, start, unit_price, days, cur, can, canN, kind, unit} — host mění na kartě
+function fmtOrderDate(iso){ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||''); return m?`${+m[3]}. ${+m[2]}. ${m[1]}`:(iso||''); }
+function orderRecalc(id){
+  const s=ORDER_STATE[id]; if(!s) return;
+  const c=document.getElementById('ocnt-'+id); if(c) c.textContent=s.count;
+  const n=document.getElementById('onts-'+id); if(n) n.textContent=s.nights;
+  const p=document.getElementById('oprice-'+id);
+  if(p&&s.unit_price!==undefined&&s.unit_price!==null){
+    const mult=s.canN?s.nights:(s.days||1);
+    const tot=Math.round(s.unit_price*s.count*mult*100)/100; p.textContent=`${tot} ${s.cur}`.trim();
+  }
+}
+function orderCount(id,delta){ const s=ORDER_STATE[id]; if(!s||!s.can) return; s.count=Math.min(s.max||10,Math.max(1,(s.count||1)+delta)); orderRecalc(id); }
+function orderNights(id,delta){ const s=ORDER_STATE[id]; if(!s||!s.canN) return; s.nights=Math.min(14,Math.max(1,(s.nights||1)+delta)); orderRecalc(id); }
+function orderStart(id,val){ const s=ORDER_STATE[id]; if(s) s.start=val||s.start; }
+function orderNote(id,val){ const s=ORDER_STATE[id]; if(s) s.note=(val||'').slice(0,200); }
+function stepperHtml(id,label,valId,val,fn){
+  const b='width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--text);font-size:18px;cursor:pointer';
+  return `<div style="display:flex;align-items:center;gap:10px;margin:6px 0"><span style="font-size:12.5px;color:var(--muted);min-width:92px">${label}</span>
+    <button type="button" onclick="${fn}('${id}',-1)" style="${b}">−</button><b id="${valId}-${id}" style="min-width:18px;text-align:center;font-size:16px">${val}</b><button type="button" onclick="${fn}('${id}',1)" style="${b}">+</button></div>`;
+}
+function showOrderCards(actions){
+  const msgs=document.getElementById('messages');
+  const inp='width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;padding:9px 11px;outline:none;color-scheme:dark;font-family:var(--font-body,inherit)';
+  (actions||[]).forEach(a=>{
+    if(!a||!a.id) return;
+    const price=(a.price!==undefined&&a.price!==null)?`${a.price} ${a.currency||''}`.trim():'';
+    const isExt=a.kind==='extension'||a.service_id==='extension'||a.title_key==='extension';
+    const isCancel=a.kind==='cancel'||!!a.cancel;      // zrušení objednané služby (Apaleo přímo / bez PMS požadavek recepci)
+    const isItem=a.kind==='item'&&!isExt&&!isCancel;
+    ORDER_STATE[a.id]={count:a.count||1,nights:a.nights||1,start:a.start||((a.dates||[])[0]||''),unit_price:a.unit_price,days:a.days||1,
+      cur:a.currency||'',can:!!a.can_count,canN:!!a.can_nights,kind:a.kind,unit:a.unit||'',note:'',max:a.max_count||10};
+    const dates=(a.dates||[]).map(fmtOrderDate).join(', ');
+    // Co host na kartě nastaví: datum od (položky hotelu), osoby (za osobu), dny/noci podle druhu
+    // (snídaně = dny, parkování = noci, prodloužení = noci), čas (masáž, pozdní odjezd) nebo poznámka.
+    // Prodloužení je v jazyce hosta (title_key) — server posílá jen anglickou zálohu.
+    const title=isCancel?`${uiT('cancel_title')}: ${a.title||''}`:isExt?`${uiT('ext_title')}${a.departure?` ${uiT('ext_to')} ${fmtOrderDate(String(a.departure).slice(0,10))}`:''}`:(a.title||'');
+    const subtitle=isCancel?(dates?escapeHtmlOrder(dates):''):isExt?(a.kind==='extension'&&a.detail?escapeHtmlOrder(a.detail):uiT('ext_detail')):(dates?escapeHtmlOrder(dates):escapeHtmlOrder(a.detail||''));
+    const note=isCancel?(a.mode==='auto'?uiT('cancel_note'):uiT('order_request_note')):(a.mode==='auto'?uiT('order_room_charge'):uiT('order_request_note'));
+    const mainBtn=isCancel?uiT('cancel_btn'):(a.mode==='auto'?uiT('order_confirm'):uiT('order_send'));
+    const dateRow=isItem?`<div style="display:flex;align-items:center;gap:10px;margin:6px 0"><span style="font-size:12.5px;color:var(--muted);min-width:92px">${uiT('order_from')}</span><input type="date" value="${escapeHtmlOrder(a.start||'')}" onchange="orderStart('${a.id}',this.value)" style="${inp};width:auto;flex:1"></div>`:'';
+    const persons=a.can_count?stepperHtml(a.id,uiT('order_persons'),'ocnt',a.count||1,'orderCount'):'';
+    const qtyLbl=a.qty_label==='days'?uiT('order_days'):uiT('order_nights');
+    const nights=a.can_nights?stepperHtml(a.id,qtyLbl,'onts',a.nights||1,'orderNights'):'';
+    const noteRow=(isItem||(isExt&&a.kind==='item'))?`<input type="text" maxlength="200" placeholder="${a.time_hint?uiT('order_time_ph'):uiT('order_note_ph')}" oninput="orderNote('${a.id}',this.value)" style="${inp};margin:6px 0 4px">`:'';
+    const d=document.createElement('div');
+    d.className='msg bot'; d.id='order-'+a.id;
+    d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#fff;font-weight:800">✦</div>
+      <div class="msg-body"><div class="msg-bubble" style="min-width:250px;max-width:340px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:6px">${isCancel?'🗑':isExt?'🛏':'🛎'} ${escapeHtmlOrder(title)}</div>
+        ${isItem?'':`<div style="font-size:12.5px;color:var(--muted);margin-bottom:4px">${subtitle}</div>`}
+        ${dateRow}${persons}${nights}${noteRow}
+        ${price?`<div id="oprice-${a.id}" style="font-size:16px;font-weight:800;margin:8px 0 10px">${escapeHtmlOrder(price)}</div>`:''}
+        <div style="font-size:11.5px;color:var(--muted);line-height:1.45;margin-bottom:12px">${note}</div>
+        <div style="display:flex;gap:8px">
+          <button onclick="confirmOrder('${a.id}')" style="flex:1;background:${isCancel?'#ff4f6a':'var(--accent)'};color:${isCancel?'#fff':'#0a0b0f'};border:none;border-radius:10px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font-body,inherit)">${mainBtn}</button>
+          <button onclick="dismissOrderCard('${a.id}')" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:10px;padding:11px 14px;font-size:13px;cursor:pointer;font-family:var(--font-body,inherit)">${uiT('order_cancel')}</button>
+        </div>
+        <div class="order-err" style="display:none;margin-top:10px;font-size:12px;line-height:1.5;color:#ff4f6a"></div>
+      </div></div>`;
+    msgs.appendChild(d);
+  });
+  msgs.scrollTop=msgs.scrollHeight;
+}
+function escapeHtmlOrder(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// „Zrušit tuto objednávku": otevře kartu zrušení a tlačítko schová; „Teď ne" kartu zavře a tlačítko vrátí
+function cancelKeyOfAction(actId){ const m=window._cancelActs||{}; return Object.keys(m).find(k=>m[k]&&m[k].id===actId)||''; }
+function openCancelCard(key){
+  const act=(window._cancelActs||{})[key]; if(!act) return;
+  const existing=document.getElementById('order-'+act.id);
+  if(existing){ existing.scrollIntoView({behavior:'smooth',block:'center'}); return; }
+  const wrap=document.querySelector(`[data-cancel-key="${key}"]`); if(wrap) wrap.style.display='none';
+  showOrderCards([act]);
+}
+function dismissOrderCard(actId){
+  const c=document.getElementById('order-'+actId); if(c) c.remove();
+  const key=cancelKeyOfAction(actId); const wrap=key&&document.querySelector(`[data-cancel-key="${key}"]`); if(wrap) wrap.style.display='';
+}
+function forgetCancelAction(actId){
+  // po skutečném zrušení: tlačítko pryč i z historie (token je jednorázový, po reloadu by hlásil „vypršelo")
+  const key=cancelKeyOfAction(actId); const wrap=key&&document.querySelector(`[data-cancel-key="${key}"]`); if(wrap) wrap.remove();
+  if(key) delete window._cancelActs[key];
+  history.forEach(m=>{ if(m.cancel_action&&m.cancel_action.id===actId) delete m.cancel_action; }); saveHistory();
+}
+async function confirmOrder(id, attempt){
+  const card=document.getElementById('order-'+id); if(!card) return;
+  const btns=card.querySelectorAll('button'); btns.forEach(b=>b.disabled=true);
+  const err=card.querySelector('.order-err');
+  // Po restartu serveru (nasazení) vrací Railway chvíli 502 — jeden tichý pokus navíc po 2,5 s,
+  // ať host neklikne do výpadku (11. 10. 2026: dvakrát „Nepovedlo se" při testu).
+  const fail=(why)=>{ err.textContent=uiT('order_fail')+(why?` (${why})`:''); err.style.display='block'; btns.forEach(b=>b.disabled=false); console.warn('guest/order', why); };
+  try{
+    const r=await fetch(`${API}/api/guest/order`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({hotel_id:hotelId,action_id:id,device_id:deviceId,language:guestLang,
+        count:(ORDER_STATE[id]&&ORDER_STATE[id].can)?ORDER_STATE[id].count:null,
+        nights:(ORDER_STATE[id]&&ORDER_STATE[id].canN)?ORDER_STATE[id].nights:null,
+        start:(ORDER_STATE[id]&&ORDER_STATE[id].start)||null,
+        note:(ORDER_STATE[id]&&ORDER_STATE[id].note)||null})});
+    let d=null; try{ d=await r.json(); }catch(e){}
+    if(r.ok && d && d.message){
+      card.remove();
+      if(d.done==='cancelled'||d.done==='requested'||d.done==='too_late'||d.status==='expired') forgetCancelAction(id);   // zrušení proběhlo / token spotřebován
+      addBot(d.message,{cancelAction:d.cancel_action||null});
+      history.push({role:'assistant',content:d.message,cancel_action:d.cancel_action||undefined}); saveHistory();
+      if(d.order_id) trackOrder(d.order_id);
+    }else if(r.status>=500 && !attempt){
+      setTimeout(()=>confirmOrder(id,1),2500);
+    }else{
+      fail('HTTP '+r.status);
+    }
+  }catch(e){
+    if(!attempt){ setTimeout(()=>confirmOrder(id,1),2500); } else { fail(e&&e.message?e.message:'síť'); }
+  }
+}
+
+// ── Odpověď recepce na požadavek ──
+// Recepce klikne v e-mailu Potvrdit / Nelze vyřídit; appka se ptá na stav (20 s, do 24 h od odeslání)
+// a odpověď napíše do chatu. Seznam čekajících je v localStorage, ať přežije zavření appky.
+const ORDER_KEY='sg_orders_'+hotelId;
+let _orderPollTimer=null;
+function loadTrackedOrders(){ try{ const a=JSON.parse(localStorage.getItem(ORDER_KEY)||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function saveTrackedOrders(a){ try{ localStorage.setItem(ORDER_KEY, JSON.stringify(a.slice(-10))); }catch(e){} }
+function trackOrder(id){
+  // Už sledovaný požadavek (host odepsal recepci) si drží `seen` — jinak by se staré zprávy recepce ukázaly znovu
+  const a=loadTrackedOrders(); const ex=a.find(o=>o.id===id);
+  if(ex){ ex.ts=Date.now(); } else { a.push({id:id,ts:Date.now(),seen:0}); }
+  saveTrackedOrders(a); pollOrders(true);
+}
+async function pollOrders(now){
+  if(_orderPollTimer){ clearTimeout(_orderPollTimer); _orderPollTimer=null; }
+  // Sleduje se 48 h od požadavku i po rozhodnutí — recepce může poslat další vzkaz, rozhodnutí změnit, host odepsat
+  let list=loadTrackedOrders().filter(o=>Date.now()-(o.ts||0)<48*3600*1000);
+  saveTrackedOrders(list);
+  if(!list.length) return;
+  const run=async()=>{
+    try{
+      const r=await fetch(`${API}/api/guest/orders/status?hotel_id=${encodeURIComponent(hotelId)}&ids=${encodeURIComponent(list.map(o=>o.id).join(','))}&device_id=${encodeURIComponent(deviceId)}`);
+      if(r.ok){
+        const d=await r.json();
+        (d.orders||[]).forEach(o=>{
+          const t=list.find(x=>x.id===o.id); if(!t) return;
+          if(o.status==='unknown'){ list=list.filter(x=>x.id!==o.id); return; }
+          (o.events||[]).filter(e=>e.seq>(t.seen||0)).sort((a,b)=>a.seq-b.seq).forEach(e=>{
+            addBot(e.text,{reception:true,oid:o.id,title:o.title||''}); history.push({role:'assistant',content:e.text,src:'reception',oid:o.id,title:o.title||''}); t.seen=e.seq;
+          });
+        });
+        saveHistory(); saveTrackedOrders(list);
+      }
+    }catch(e){}
+    if(list.length) _orderPollTimer=setTimeout(run,30000);
+  };
+  if(now) run(); else _orderPollTimer=setTimeout(run,3000);
+}
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') pollOrders(true); });
+setTimeout(()=>pollOrders(false),1500);
+
+// ── Odpověď hosta recepci: další zpráva jde k požadavku (ne Alexovi), recepce dostane mail ──
+let REPLY_ORDER=null;   // {id,title} když host právě píše recepci
+function startReplyToReception(oid,title){
+  REPLY_ORDER={id:oid,title:title||''};
+  let bar=document.getElementById('reply-bar');
+  if(!bar){ bar=document.createElement('div'); bar.id='reply-bar'; document.querySelector('.input-area').prepend(bar); }
+  bar.innerHTML=`<span>✍️ ${uiT('replying_to')}${title?': '+escapeHtmlOrder(title):''}</span><button type="button" onclick="cancelReplyToReception()" aria-label="${uiT('order_cancel')}">✕</button>`;
+  bar.style.display='flex';
+  const inp=document.getElementById('msg-input'); inp.placeholder=uiT('reply_ph'); inp.focus();
+}
+function cancelReplyToReception(){
+  REPLY_ORDER=null;
+  const bar=document.getElementById('reply-bar'); if(bar) bar.style.display='none';
+  try{ applyGuestLangUI(); }catch(e){}   // vrátí původní placeholder v jazyce hosta
+}
+async function sendReplyToReception(text){
+  const oid=REPLY_ORDER.id; cancelReplyToReception();
+  addUser(text); history.push({role:'user',content:text}); saveHistory();
+  try{
+    const r=await fetch(`${API}/api/guest/orders/message`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({hotel_id:hotelId,order_id:oid,device_id:deviceId,text:text})});
+    if(r.ok){ const m=uiT('reply_sent'); addBot(m,{reception:true}); history.push({role:'assistant',content:m,src:'reception'}); saveHistory(); trackOrder(oid); }
+    else { addBot(uiT('order_fail')); }
+  }catch(e){ addBot(uiT('order_fail')); }
+}
+
 function quickSend(t){
   if(t.includes('Počasí')||t.includes('Weather')||t.includes('Wetter')||t.includes('Météo')||
      t.includes('Meteo')||t.includes('Tiempo')||t.includes('Pogoda')||t.includes('Počasie')){
@@ -1196,13 +1538,26 @@ function formatBotText(text){
   return h;
 }
 
-function addBot(text){
+function addBot(text, opts){
+  opts=opts||{};
   const msgs=document.getElementById('messages');
   const time=new Date().toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
   const html=formatBotText(text);
   const d=document.createElement('div');
-  d.className='msg bot';
-  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#ffffff;font-weight:800;font-size:16px">✦</div><div class="msg-body"><div class="msg-bubble">${html}</div><div class="msg-meta"><span class="msg-time">${time}</span></div></div>`;
+  d.className='msg bot'+(opts.reception?' reception':'');
+  const av=opts.reception?'🛎':'✦';
+  const from=opts.reception?`<span class="msg-from">${uiT('from_reception')}</span>`:'';
+  // Host může recepci odepsat (uživatel 11. 10.: „bude si host a recepce povídat") — odkaz pod zprávou
+  const replyLink=(opts.reception&&opts.oid)?`<div style="margin-top:8px"><button type="button" class="reply-rec-btn" onclick="startReplyToReception('${escapeHtmlOrder(opts.oid)}','${escapeHtmlOrder(opts.title||'')}')">↩︎ ${uiT('reply_to_reception')}</button></div>`:'';
+  if(replyLink) document.querySelectorAll('.reply-rec-btn').forEach(b=>b.parentElement.remove());   // tlačítko jen u poslední zprávy recepce
+  // „Zrušit tuto objednávku" pod potvrzením zápisu do Apalea (uživatel 11. 10.) — otevře kartu zrušení (ta je potvrzení)
+  let cancelBtn='';
+  if(opts.cancelAction&&opts.cancelAction.id){
+    const key='ca'+Math.random().toString(36).slice(2,8); window._cancelActs=window._cancelActs||{}; window._cancelActs[key]=opts.cancelAction;
+    // Tlačítko se při otevření karty jen schová; „Teď ne" ho vrátí, zmizí až po skutečném zrušení (uživatel 11. 10.)
+    cancelBtn=`<div style="margin-top:8px" data-cancel-key="${key}"><button type="button" class="reply-rec-btn" style="border-color:rgba(255,79,106,.55);color:#ff4f6a" onclick="openCancelCard('${key}')">🗑 ${uiT('cancel_this')}</button></div>`;
+  }
+  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#ffffff;font-weight:800;font-size:16px">${av}</div><div class="msg-body"><div class="msg-bubble">${from}${html}${replyLink}${cancelBtn}</div><div class="msg-meta"><span class="msg-time">${time}</span></div></div>`;
   const meta=d.querySelector('.msg-meta');
   const btn=document.createElement('button');
   btn.type='button'; btn.className='speak-btn'; btn.textContent='🔊';
@@ -1278,20 +1633,22 @@ function hideTyping(){
 // ══ ODESLÁNÍ ═════════════════════════════════
 // Detekce jazyka z textu
 function detectLangFromText(text){
-  const patterns = {
-    cs:/[áčďéěíňóřšťúůýž]/i,
-    sk:/[áäčďéíĺľňóôŕšťúýž]/i,
-    de:/[äöüß]|\b(ich|ist|das|und|nicht|haben|sein|werden|mit|auf|wo|wann|kann|bitte|danke|zimmer|uhr|heute|morgen|gibt)\b/i,
-    fr:/[àâçèêëîïôùûü]|\b(je|est|les|des|une|pas|pour|avec)\b/i,
-    es:/[áéíóúüñ]|\b(que|los|las|una|para|por|con|hay)\b/i,
-    pl:/[ąćęłńóśźż]/i,
-    it:/[àèéìíîòóùú]|\b(che|sono|una|per|con|del|della|non)\b/i,
-    ru:/[а-яё]/i,
-    uk:/[іїєґ]/i,
-    hu:/[áéíóöőúüű]/i,
+  // Jen jednoznačné důkazy: unikátní písmena jazyka, nebo ≥ 2 typická slova. Dřív stačilo jedno „é"
+  // a francouzská věta přepnula rozhraní do češtiny (11. 10. 2026: „Avez-vous un petit déjeuner ?" → cs).
+  const uniq = [
+    ['uk',/[іїєґ]/i], ['ru',/[а-яё]/i], ['sk',/[ôľĺŕ]/i], ['cs',/[ěřů]/i], ['pl',/[ąęłńśźż]/i], ['hu',/[őű]/i],
+    ['de',/ß/], ['es',/[ñ¿¡]/],
+  ];
+  for(const [lang,re] of uniq){ if(re.test(text)) return lang; }
+  const words = {
+    de:/\b(ich|ist|das|und|nicht|haben|sein|werden|mit|auf|wo|wann|kann|bitte|danke|zimmer|uhr|heute|morgen|gibt|frühstück)\b/gi,
+    fr:/\b(je|est|les|des|une|pas|pour|avec|vous|merci|bonjour|où|quelle|quel|petit|déjeuner|chambre|avez)\b/gi,
+    es:/\b(que|los|las|una|para|por|con|hay|gracias|hola|dónde|cuál|desayuno|habitación|tienen)\b/gi,
+    it:/\b(che|sono|una|per|con|del|della|non|grazie|ciao|dove|quando|colazione|camera|avete)\b/gi,
   };
-  for(const [lang,re] of Object.entries(patterns)){
-    if(re.test(text)) return lang;
+  for(const [lang,re] of Object.entries(words)){
+    const hits = new Set((text.toLowerCase().match(re)||[]));
+    if(hits.size >= 2) return lang;
   }
   // Bez speciálních znaků rozhoduj podle angličtiny až od DVOU různých slov —
   // jedno „check-in" nebo „wifi" v české větě dřív přepnulo celé UI do angličtiny.
@@ -1309,6 +1666,7 @@ async function sendMsg(){
   const text=inp.value.trim();
   if(!text||isTyping)return;
   inp.value='';inp.style.height='auto';
+  if(REPLY_ORDER){ await sendReplyToReception(text); return; }   // zpráva recepci, ne Alexovi
   document.getElementById('send-btn').disabled=true;
   isTyping=true;
 
@@ -1350,6 +1708,15 @@ async function sendMsg(){
         applyGuestLangUI();
       }
       const botBtn=addBot(d.reply);
+      // Zápis do rezervace: server poslal konkrétní nabídky k potvrzení → karty s tlačítkem
+      if(d.actions && d.actions.length) showOrderCards(d.actions);
+      // Host napsal číslo pokoje do chatu (hotel bez PMS nemá „Propojit pobyt") → zapamatovat
+      // pro další zprávy, ať se Alex neptá znovu a karty vědí, kam poslat požadavek.
+      if(d.room_detected && !roomNumber){
+        roomNumber=String(d.room_detected); roomMode='typed'; roomArrival='';
+        try{ localStorage.setItem('sg_stay_'+hotelId, JSON.stringify({room:roomNumber, mode:'typed'})); sessionStorage.setItem('sg_room', roomNumber); }catch(e){}
+        setQuickReplies();
+      }
       // Host mluvil → Alex odpoví taky hlasem. Krátká odpověď se přečte celá;
       // u dlouhého výčtu (menu/ceník/tipy) se přečte jen krátký úvod, detaily zůstanou
       // napsané (rozhodnutí Martina 7. 8. 2026). Tlačítko 🔊 pak přehraje celou odpověď.

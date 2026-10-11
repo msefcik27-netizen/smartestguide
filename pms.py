@@ -28,12 +28,21 @@ import httpx
 # nebylo vidět. Až bude na pořadu dne velký hotel, dodělat průchod přes `nextPageToken`.
 _PAGE_SIZE = 200
 
+# Smí osobní údaje hosta z PMS (jméno z primaryGuest) do promptu jazykového modelu?
+# Dnes je aplikace v Apaleu nastavená na PII „Omit all", takže primaryGuest chodí
+# prázdný a tenhle gate nic nemění. Jakmile se PII zapne (nutné pro ověřovací kód
+# e-mailem u zápisu do rezervace — viz APALEO_ZAPIS_DO_REZERVACE_NAVRH.md), začalo
+# by jméno téct do promptu samo, bez jediné změny v kódu. Rozhodnutí z 9. 10. 2026:
+# PII slouží VÝHRADNĚ k ověření hosta, do modelu nevstupuje. Zapnout jen vědomě.
+_PII_TO_PROMPT = False
+
 # ── Normalizovaný model pobytu ────────────────────────────────────────────────
 
 @dataclass
 class Stay:
     room: str                       # číslo/název pokoje (unit name)
-    guest_name: str = ""            # jméno primárního hosta
+    reservation_id: str = ""        # id rezervace v PMS — adresuje zápisové akce (book-service, amend)
+    guest_name: str = ""            # jméno primárního hosta (do promptu jen při _PII_TO_PROMPT)
     arrival: str = ""               # ISO datum příjezdu (YYYY-MM-DD)
     arrival_time: str = ""          # čas příjezdu z rezervace (HH:MM), "" = neznámo
     departure: str = ""             # ISO datum odjezdu (YYYY-MM-DD)
@@ -41,9 +50,13 @@ class Stay:
     nights: int = 0
     adults: int = 0
     children: int = 0
+    children_ages: list = field(default_factory=list)  # věky dětí — amend je chce zpět, jinak by je zahodil
+    arrival_iso: str = ""           # příjezd přesně tak, jak ho vrátil PMS (datum+čas+zóna) — pro amend
+    departure_iso: str = ""         # odjezd přesně z PMS — pro amend a per-reservation offers
     rate_plan: str = ""             # název balíčku/sazby (např. "Wellness balíček")
     rate_plan_id: str = ""          # id sazby — pro service-offers (upsell služeb na míru pobytu)
     unit_group: str = ""            # typ pokoje (unit group name) — pro nabídku prodloužení
+    unit_group_id: str = ""         # id typu pokoje — porovnávání nabídek podle id, ne jména
     status: str = ""                # InHouse / Confirmed / ...
     source: str = ""                # 'apaleo' | 'mews' | ...
 
@@ -57,7 +70,7 @@ def format_stay_block(stay: "Stay") -> str:
         "ale NIKDY nesděluj údaje o pobytu, pokud se host nejdřív nezmíní, že bydlí na tomto pokoji):",
         f"- Pokoj: {stay.room}",
     ]
-    if stay.guest_name: lines.append(f"- Host: {stay.guest_name}")
+    if _PII_TO_PROMPT and stay.guest_name: lines.append(f"- Host: {stay.guest_name}")
     if stay.arrival:    lines.append(f"- Příjezd: {stay.arrival}" + (f" od {stay.arrival_time}" if stay.arrival_time else ""))
     if stay.departure:  lines.append(f"- Odjezd (check-out): {stay.departure}" + (f" v {stay.departure_time}" if stay.departure_time else ""))
     lines.append("DŮLEŽITÉ: Časy z této rezervace mají PŘEDNOST před obecnými časy hotelu (check-in/check-out v profilu). Hostovi vždy říkej čas z jeho rezervace.")
@@ -244,6 +257,7 @@ def _apaleo_normalize(res: dict) -> Stay:
         pass
     return Stay(
         room=(res.get("unit") or {}).get("name", ""),
+        reservation_id=res.get("id") or "",
         guest_name=name,
         arrival=arrival,
         arrival_time=arrival_time,
@@ -252,9 +266,13 @@ def _apaleo_normalize(res: dict) -> Stay:
         nights=nights,
         adults=res.get("adults") or 0,
         children=len(res.get("childrenAges") or []),
+        children_ages=[int(a) for a in (res.get("childrenAges") or []) if isinstance(a, (int, float))],
+        arrival_iso=arrival_raw,
+        departure_iso=departure_raw,
         rate_plan=((res.get("ratePlan") or {}).get("name") or ""),
         rate_plan_id=((res.get("ratePlan") or {}).get("id") or ""),
         unit_group=((res.get("unitGroup") or {}).get("name") or ""),
+        unit_group_id=((res.get("unitGroup") or {}).get("id") or ""),
         status=res.get("status") or "",
         source="apaleo",
     )
@@ -680,3 +698,322 @@ async def _apaleo_get_stay(hotel: dict, room: str) -> Optional[Stay]:
         if unit_name and _room_match(unit_name, room):
             return _apaleo_normalize(res)
     return None
+
+_catalogue_cache: dict = {}   # hotel_id -> {"data": {...}, "expires": epoch}
+
+async def apaleo_service_catalogue(hotel: dict) -> Optional[dict]:
+    """Katalog služeb property BEZ propojeného pobytu — pro allowlist v portálu.
+    Cesta jen přes offers.read (máme): /booking/v1/offers (zítra → pozítří, 2 dospělí)
+    dá rate plany property, /booking/v1/service-offers per rate plan dá služby.
+    Vrací {"currency": str, "services": [{id, name, unit_price, currency, pricing_unit}]};
+    cache 1 h per hotel. None = chyba/bez PMS."""
+    pid = (hotel.get("pms_property_id") or "").strip()
+    if not pid:
+        return None
+    ck = hotel.get("id") or pid
+    now = time.time()
+    c = _catalogue_cache.get(ck)
+    if c and c["expires"] > now:
+        return c["data"]
+    from datetime import date, timedelta
+    arr = date.today() + timedelta(days=1)
+    dep = arr + timedelta(days=1)
+    d = await _apaleo_get(hotel, "/booking/v1/offers",
+                          {"propertyId": pid, "arrival": arr.isoformat(), "departure": dep.isoformat(),
+                           "adults": 2, "timeSliceTemplate": "OverNight"}, quiet=True)
+    if d is None:
+        return None
+    rate_plans, currency = [], ""
+    for o in d.get("offers") or []:
+        rp = ((o.get("ratePlan") or {}).get("id") or "").strip()
+        if rp and rp not in rate_plans:
+            rate_plans.append(rp)
+        currency = currency or ((o.get("totalGrossAmount") or {}).get("currency") or "")
+    services: dict = {}
+    for rp in rate_plans[:4]:
+        s = await _apaleo_get(hotel, "/booking/v1/service-offers",
+                              {"ratePlanId": rp, "arrival": arr.isoformat(), "departure": dep.isoformat(), "adults": 2},
+                              quiet=True)
+        for item in (s or {}).get("services") or []:
+            svc = item.get("service") if isinstance(item.get("service"), dict) else item
+            sid = str(svc.get("id") or "").strip()
+            if not sid or sid in services:
+                continue
+            unit = svc.get("defaultGrossPrice") or {}
+            services[sid] = {"id": sid, "name": str(svc.get("name") or "").strip(), "unit_price": unit.get("amount"),
+                             "currency": unit.get("currency") or currency, "pricing_unit": str(svc.get("pricingUnit") or "")}
+            currency = currency or unit.get("currency") or ""
+    data = {"currency": currency, "services": sorted(services.values(), key=lambda x: x["name"].lower())}
+    _catalogue_cache[ck] = {"data": data, "expires": now + 3600}
+    return data
+
+# ── Zápis do rezervace (reservations.manage) ──────────────────────────────────
+# Požadavek Apalea po certifikačním callu (9. 10. 2026): Alex má umět PŘIDAT SLUŽBU
+# a PRODLOUŽIT POBYT, ne jen o nich informovat. Návrh a pravidla:
+# APALEO_ZAPIS_DO_REZERVACE_NAVRH.md. Tvar těl a odpovědí je 1:1 podle
+# api.apaleo.com/swagger/booking-v1/swagger.json (staženo 10. 10. 2026).
+#
+# Zásady téhle vrstvy:
+#   - Čtení pro zápis jde přes PER-RESERVATION endpointy (/reservations/{id}/…), které
+#     vrací přesně to, co se posílá do book-service / amend (serviceId, timeSlices).
+#     Dnešní property-level čtení (apaleo_extension_offer, apaleo_service_offers) se
+#     NEMĚNÍ — jsou ověřená certifikací a Alexovy odpovědi na nich stojí.
+#   - Zápis NIKDY nenastavuje _pms_fail: selhaný zápis ≠ nedostupné PMS, nesmí spustit
+#     alert „PMS selhává" ani vypnout personalizaci.
+#   - Normalizéry (_norm_*) a skladba těla (_build_amend_body) jsou čisté funkce —
+#     testují se na vzorcích ze swaggeru bez sítě.
+#   - Ochrana proti dvojímu zápisu: před book-service se přečte seznam už
+#     zabookovaných služeb; stejná služba se stejnými daty se znovu neposílá.
+
+async def _apaleo_send(hotel: dict, method: str, path: str, params: dict = None, body: dict = None):
+    """PUT/DELETE na Apaleo API s tokenem hotelu. Vrací (status, data):
+    204 → (204, {}), 200 → (200, json), chyba → (status, text[:300]), bez tokenu → (0, 'token')."""
+    token = await _apaleo_access_token(hotel)
+    if not token:
+        return 0, "token"
+    async with httpx.AsyncClient(timeout=12.0) as client:
+        r = await client.request(method, f"{_APALEO_API}{path}",
+                                 headers={"Authorization": f"Bearer {token}"},
+                                 params=params or None, json=body)
+    if r.status_code == 204:
+        return 204, {}
+    if r.status_code == 200:
+        try:
+            return 200, r.json()
+        except Exception:
+            return 200, {}
+    if r.status_code in (401, 403):
+        _drop_connect_token(hotel)
+    logging.warning("Apaleo %s %s selhal: %s %s", method, path, r.status_code, r.text[:300])
+    return r.status_code, r.text[:300]
+
+def _rid(stay: "Stay") -> str:
+    return (getattr(stay, "reservation_id", "") or "").strip()
+
+def _norm_service_offers(d: dict) -> list:
+    """ServiceOffersModel → [{service_id, code, name, description, pricing_unit, unit_price,
+    currency, count, available_count, total, dates:[{date, count, gross, mandatory, default}]}].
+    Zachovává ID a data — to je rozdíl proti apaleo_service_offers (jen k zobrazení)."""
+    out = []
+    for item in (d or {}).get("services") or []:
+        svc = item.get("service") or {}
+        sid = str(svc.get("id") or "").strip()
+        if not sid:
+            continue
+        unit = svc.get("defaultGrossPrice") or {}
+        total = item.get("totalAmount") or {}
+        dates = []
+        for x in item.get("dates") or []:
+            amt = x.get("amount") or {}
+            dates.append({"date": str(x.get("serviceDate") or "")[:10],
+                          "count": int(x.get("count") or item.get("count") or 1),
+                          "gross": amt.get("grossAmount"),
+                          "mandatory": bool(x.get("isMandatory")),
+                          "default": bool(x.get("isDefaultDate"))})
+        out.append({"service_id": sid, "code": str(svc.get("code") or ""),
+                    "name": str(svc.get("name") or "").strip(),
+                    "description": str(svc.get("description") or "").strip()[:300],
+                    "pricing_unit": str(svc.get("pricingUnit") or ""),
+                    "unit_price": unit.get("amount"),
+                    "currency": unit.get("currency") or total.get("currency") or "",
+                    "count": int(item.get("count") or 1),
+                    "available_count": item.get("availableCount"),
+                    "total": total.get("grossAmount"),
+                    "dates": dates,
+                    "validation": [m.get("code") for m in (item.get("validationMessages") or []) if m.get("code")]})
+    return out
+
+def _norm_booked_services(d: dict) -> list:
+    """ReservationServiceListModel → [{service_id, name, total, currency, dates:[{date, count, gross, mandatory}]}]."""
+    out = []
+    for item in (d or {}).get("services") or []:
+        svc = item.get("service") or {}
+        total = item.get("totalAmount") or {}
+        out.append({"service_id": str(svc.get("id") or ""), "name": str(svc.get("name") or ""),
+                    "total": total.get("grossAmount"), "currency": total.get("currency") or "",
+                    "dates": [{"date": str(x.get("serviceDate") or "")[:10], "count": int(x.get("count") or 1),
+                               "gross": (x.get("amount") or {}).get("grossAmount"),
+                               "mandatory": bool(x.get("isMandatory"))} for x in item.get("dates") or []]})
+    return out
+
+def _norm_stay_offers(d: dict, stay: "Stay") -> list:
+    """ReservationStayOffersModel → nabídky seřazené tak, že PRVNÍ je ta, která se má
+    použít: stejná sazba jako má host (rate_plan_id) > stejný typ pokoje > nejlevnější.
+    Každá nese timeSlices s ratePlanId — přesně to, co chce amend. Cena doslova z API."""
+    offers = []
+    for o in (d or {}).get("offers") or []:
+        tg = o.get("totalGrossAmount") or {}
+        slices = []
+        for ts in o.get("timeSlices") or []:
+            rp = ts.get("ratePlan") or {}
+            ug = ts.get("unitGroup") or {}
+            tsg = ts.get("totalGrossAmount") or {}
+            slices.append({"from": str(ts.get("from") or ""), "to": str(ts.get("to") or ""),
+                           "rate_plan_id": str(rp.get("id") or ""), "rate_plan": str(rp.get("name") or ""),
+                           "unit_group_id": str(ug.get("id") or ""), "unit_group": str(ug.get("name") or ""),
+                           "gross": tsg.get("amount"), "currency": tsg.get("currency") or ""})
+        if not slices or tg.get("amount") is None:
+            continue
+        cf = o.get("cancellationFee") or {}
+        validation = [m.get("code") for m in (o.get("validationMessages") or []) if m.get("code")]
+        # Rozhodují jen NOVĚ PŘIDANÉ noci (mimo dnešní rozsah pobytu) — stávající noci jsou,
+        # jaké jsou (requote=false je nechá být), a klidně už smíšené. Nové noci musí být ve
+        # STEJNÉM TYPU POKOJE jako rezervace: naostro 10. 10. 2026 amend s novými nocemi
+        # v jiném typu přestěhoval hosta (Family room → Single). Taková nabídka = UnitGroupChange,
+        # řadí se na konec a chat ji nenabízí. Sazba nové noci jen ovlivňuje pořadí.
+        cur_arr = (getattr(stay, "arrival", "") or "")[:10]
+        cur_dep = (getattr(stay, "departure", "") or "")[:10]
+        new_slices = [ts for ts in slices
+                      if (cur_dep and ts["from"][:10] >= cur_dep) or (cur_arr and ts["to"][:10] <= cur_arr)] or slices
+        stay_ug_id = (getattr(stay, "unit_group_id", "") or "").strip()
+        stay_ug = (getattr(stay, "unit_group", "") or "").strip()
+        if any((stay_ug_id and ts["unit_group_id"] != stay_ug_id) or
+               (not stay_ug_id and stay_ug and ts["unit_group"] != stay_ug) for ts in new_slices):
+            validation.append("UnitGroupChange")
+        lead = new_slices[0]
+        offers.append({"arrival": str(o.get("arrival") or ""), "departure": str(o.get("departure") or ""),
+                       "total": tg.get("amount"), "currency": tg.get("currency") or "",
+                       "available_units": o.get("availableUnits"),
+                       "rate_plan_id": lead["rate_plan_id"], "rate_plan": lead["rate_plan"],
+                       "unit_group_id": lead["unit_group_id"], "unit_group": lead["unit_group"],
+                       "new_nights": len(new_slices),
+                       "new_total": sum(float(ts["gross"]) for ts in new_slices if ts.get("gross") is not None),
+                       "time_slices": slices,
+                       "cancellation_fee": {"name": str(cf.get("name") or ""), "due": str(cf.get("dueDateTime") or ""),
+                                            "amount": (cf.get("fee") or {}).get("amount"),
+                                            "currency": (cf.get("fee") or {}).get("currency") or ""},
+                       "validation": validation})
+    cur_rp = (getattr(stay, "rate_plan_id", "") or "").strip()
+    cur_ug_id = (getattr(stay, "unit_group_id", "") or "").strip()
+    cur_ug = (getattr(stay, "unit_group", "") or "").strip()
+    def _amount(o):
+        try:
+            return float(o["total"])
+        except (TypeError, ValueError):
+            return float("inf")
+    def _same_ug(o):
+        if cur_ug_id:
+            return o["unit_group_id"] == cur_ug_id
+        return bool(cur_ug) and o["unit_group"] == cur_ug
+    # Pořadí: platné > STEJNÝ TYP POKOJE (host při prodloužení zůstává ve svém pokoji — má
+    # přednost před sazbou) > stejná sazba > nejlevnější. Neplatné/smíšené vždy na konec.
+    offers.sort(key=lambda o: (1 if o["validation"] else 0,
+                               0 if _same_ug(o) else 1,
+                               0 if cur_rp and o["rate_plan_id"] == cur_rp else 1,
+                               _amount(o)))
+    return offers
+
+def _build_amend_body(stay: "Stay", offer: dict) -> dict:
+    """DesiredStayDetailsModel pro PUT amend. Příjezd zůstává PŘESNĚ jak je v PMS
+    (arrival_iso — jinak by se posunul čas), odjezd z nabídky, dospělí a věky dětí
+    z rezervace (bez childrenAges by amend děti zahodil), timeSlices 1:1 z nabídky
+    včetně ceny — Apaleo tak zapíše to, co host viděl, ne přeceněnou variantu."""
+    body = {"arrival": stay.arrival_iso or stay.arrival,
+            "departure": offer["departure"],
+            "adults": max(1, int(stay.adults or 1)),
+            "requote": False,
+            "timeSlices": [{"ratePlanId": ts["rate_plan_id"],
+                            **({"totalGrossAmount": {"amount": ts["gross"], "currency": ts["currency"]}}
+                               if ts.get("gross") is not None and ts.get("currency") else {})}
+                           for ts in offer["time_slices"]]}
+    if stay.children_ages:
+        body["childrenAges"] = list(stay.children_ages)
+    return body
+
+async def apaleo_reservation_service_offers(hotel: dict, stay: "Stay") -> Optional[list]:
+    """GET /booking/v1/reservations/{id}/service-offers (scope offers.read — máme už dnes).
+    Nabídka služeb k TÉHLE rezervaci včetně serviceId a výchozích dat → vstup pro book-service."""
+    rid = _rid(stay)
+    if not rid:
+        return None
+    d = await _apaleo_get(hotel, f"/booking/v1/reservations/{rid}/service-offers", {}, quiet=True)
+    return None if d is None else _norm_service_offers(d)
+
+async def apaleo_booked_services(hotel: dict, stay: "Stay") -> Optional[list]:
+    """GET /booking/v1/reservations/{id}/services (scope reservations.read) — co už má host
+    na rezervaci. Slouží ochraně proti dvojímu zápisu a nabídce „zrušit"."""
+    rid = _rid(stay)
+    if not rid:
+        return None
+    d = await _apaleo_get(hotel, f"/booking/v1/reservations/{rid}/services", {}, quiet=True)
+    return None if d is None else _norm_booked_services(d)
+
+async def apaleo_book_service(hotel: dict, stay: "Stay", service_id: str, count: int = 1,
+                              dates: list = None, idempotent: bool = True) -> dict:
+    """PUT /booking/v1/reservation-actions/{id}/book-service (scope reservations.manage).
+    dates = [{"date": "YYYY-MM-DD", "count": n}] nebo None (= výchozí data služby).
+    Vrací {ok, status, already, error}. already=True = stejná služba se stejnými daty už
+    na rezervaci je → NEPOSÍLÁ se znovu (síť si požadavek ráda zopakuje)."""
+    rid = _rid(stay)
+    sid = (service_id or "").strip()
+    if not (rid and sid):
+        return {"ok": False, "status": 0, "already": False, "error": "chybí id rezervace nebo služby"}
+    want_dates = sorted({x["date"] for x in (dates or []) if x.get("date")})
+    if idempotent:
+        booked = await apaleo_booked_services(hotel, stay)
+        for b in booked or []:
+            if b["service_id"] != sid:
+                continue
+            have_dates = sorted({x["date"] for x in b["dates"]})
+            if not want_dates or want_dates == have_dates or set(want_dates) <= set(have_dates):
+                return {"ok": True, "status": 200, "already": True, "error": ""}
+    body = {"serviceId": sid, "count": max(1, int(count or 1))}
+    if dates:
+        body["dates"] = [{"serviceDate": x["date"], "count": max(1, int(x.get("count") or 1))}
+                         for x in dates if x.get("date")]
+    status, data = await _apaleo_send(hotel, "PUT", f"/booking/v1/reservation-actions/{rid}/book-service", body=body)
+    ok = status == 204
+    logging.warning("Apaleo book-service %s service=%s → %s", rid, sid, status)
+    return {"ok": ok, "status": status, "already": False, "error": "" if ok else str(data)}
+
+async def apaleo_remove_service(hotel: dict, stay: "Stay", service_id: str) -> dict:
+    """DELETE /booking/v1/reservations/{id}/services?serviceId= (scope reservations.manage).
+    Undo přidané služby. Podmínky, kdy Apaleo odmítne (422), se ověřují na dev účtu."""
+    rid = _rid(stay)
+    sid = (service_id or "").strip()
+    if not (rid and sid):
+        return {"ok": False, "status": 0, "error": "chybí id rezervace nebo služby"}
+    status, data = await _apaleo_send(hotel, "DELETE", f"/booking/v1/reservations/{rid}/services",
+                                      params={"serviceId": sid})
+    ok = status == 204
+    logging.warning("Apaleo remove-service %s service=%s → %s", rid, sid, status)
+    return {"ok": ok, "status": status, "error": "" if ok else str(data)}
+
+async def apaleo_reservation_extension_offers(hotel: dict, stay: "Stay", nights: int = 1) -> Optional[list]:
+    """GET /booking/v1/reservations/{id}/offers?departure=… (scope offers.read — máme).
+    Nabídky prodloužení o N nocí PRO TUTO rezervaci: celý pobyt od původního příjezdu
+    po nový odjezd, s timeSlices → vstup pro amend. requote=false = stávající noci
+    za původní cenu, přeceňují se jen přidané. První v seznamu = doporučená (viz _norm_stay_offers)."""
+    rid = _rid(stay)
+    if not (rid and stay.departure):
+        return None
+    try:
+        from datetime import date, timedelta
+        new_dep = date.fromisoformat(stay.departure) + timedelta(days=max(1, min(int(nights or 1), 7)))
+    except Exception:
+        return None
+    params = {"departure": new_dep.isoformat(), "adults": max(1, int(stay.adults or 1)), "requote": "false"}
+    if stay.children_ages:
+        params["childrenAges"] = list(stay.children_ages)
+    d = await _apaleo_get(hotel, f"/booking/v1/reservations/{rid}/offers", params, quiet=True)
+    if d is None:
+        return None
+    if d == {}:
+        return []   # 204 = žádná kapacita
+    return _norm_stay_offers(d, stay)
+
+async def apaleo_amend_stay(hotel: dict, stay: "Stay", offer: dict) -> dict:
+    """PUT /booking/v1/reservation-actions/{id}/amend (scope reservations.manage).
+    offer = položka z apaleo_reservation_extension_offers. Vrací {ok, status, error}.
+    Pozor (swagger + apaleo.dev): u InHouse rezervace jdou měnit jen BUDOUCÍ time slices
+    — prodloužení odjezdu je budoucí, projde; zkrácení/posun příjezdu ne."""
+    rid = _rid(stay)
+    if not (rid and offer and offer.get("time_slices") and offer.get("departure")):
+        return {"ok": False, "status": 0, "error": "chybí id rezervace nebo nabídka"}
+    if offer.get("validation"):
+        return {"ok": False, "status": 0, "error": "nabídka není platná: " + ", ".join(offer["validation"])}
+    body = _build_amend_body(stay, offer)
+    status, data = await _apaleo_send(hotel, "PUT", f"/booking/v1/reservation-actions/{rid}/amend", body=body)
+    ok = status == 204
+    logging.warning("Apaleo amend %s → %s → %s", rid, offer.get("departure"), status)
+    return {"ok": ok, "status": status, "error": "" if ok else str(data)}

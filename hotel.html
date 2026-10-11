@@ -149,9 +149,59 @@ html{color-scheme:light}
   </div>
 </div>
 
-<div style="display:flex;min-height:calc(100vh - 60px)">
+<div id="portal-layout" style="display:flex;min-height:calc(100vh - 60px)">
 
 <!-- Sidebar navigace -->
+<style>
+  /* Telefon / úzké okno (uživatel 11. 10. 2026: „portál taky uprav"): menu nahoře jako lišta záložek,
+     obsah na plnou šířku, seznam sekcí profilu skrytý (nahrazují ho dlaždice), nic nepřetéká do šířky. */
+  @media (max-width: 820px){
+    html, body{overflow-x:hidden}
+    .topbar{padding:0 12px;height:auto;min-height:56px;flex-wrap:wrap;gap:6px 10px;padding-top:8px;padding-bottom:8px}
+    .topbar .hotel-name-bar{display:none}
+    .topbar .logo{font-size:14px}
+    .save-bar{gap:8px;margin-left:auto}
+    .save-bar .last-saved{display:none}
+    #save-btn{padding:7px 12px;font-size:12px}
+    #portal-layout{flex-direction:column;min-height:0}
+    #portal-sidebar{width:100%!important;height:auto!important;position:sticky!important;top:0;z-index:9;padding:6px 0!important;border-right:none!important;border-bottom:1px solid var(--border)}
+    #portal-sidebar > div:first-child{display:none}            /* nadpis „Sekce" */
+    #sidebar-nav > div:first-child{flex-direction:row!important;overflow-x:auto;gap:4px!important;padding:0 10px 4px!important;border-bottom:none!important;margin-bottom:0!important;scrollbar-width:none}
+    #sidebar-nav > div:first-child::-webkit-scrollbar{display:none}
+    .ptab-btn{width:auto;white-space:nowrap;font-size:13px;padding:8px 11px;flex-shrink:0}
+    #sidebar-profile{display:none!important}                   /* na telefonu stačí dlaždice */
+    .container{padding:14px 14px}
+    #completeness-banner{padding:0 14px!important}
+    .ptiles.ptiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}   /* zdvojená třída kvůli pořadí pravidel (základní .ptiles je níž) */
+    .ptiles .ptile{padding:12px 11px 10px} .ptiles .ptile-t{font-size:13px} .ptiles .ptile-d{display:none}
+    .section{scroll-margin-top:120px}                                          /* pod lepicí lištou záložek */
+    .edit-table td:first-child{width:110px;padding:10px 10px;font-size:10px}
+    .edit-table td:last-child{padding:6px 8px 6px 0}
+    .section-head{padding:12px 12px;flex-wrap:wrap}
+    .section-body{padding:12px 12px}
+    .ord-item input, .ord-item select{min-width:0}
+    .ord-item .oi-name{flex-basis:100%}
+    #toast{left:14px;right:14px;bottom:14px;max-width:none}
+  }
+</style>
+<style>
+  /* Záložky portálu (varianta A) v levém menu */
+  .ptab-btn{all:unset;box-sizing:border-box;display:block;width:100%;cursor:pointer;padding:9px 12px;border-radius:8px;font-size:13.5px;font-weight:600;color:var(--text);font-family:var(--font-body,inherit)}
+  .ptab-btn:hover{background:var(--card)}
+  .ptab-btn[aria-current="true"]{background:var(--card);border:1px solid var(--border);color:var(--accent);font-weight:700}
+  .ptab-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  /* Dlaždice sekcí profilu */
+  .ptiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin:0 0 18px}
+  .ptiles[hidden]{display:none}   /* display:grid by jinak přebilo atribut hidden (mřížka se ukazovala i na Přehledu) */
+  .ptile{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;min-width:0;cursor:pointer;padding:14px 14px 12px;border-radius:12px;border:1px solid var(--border);background:var(--surface);font-family:var(--font-body,inherit);color:var(--text);transition:border-color .15s,transform .15s}
+  .ptile:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .ptile[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
+  .ptile:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .ptile-ico{font-size:22px;line-height:1}
+  .ptile-t{font-family:var(--font-head);font-size:14px;font-weight:700;line-height:1.3}
+  .ptile-d{font-size:12px;color:var(--muted);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .ptile-s{margin-top:auto;font-size:12px}
+</style>
 <div id="portal-sidebar" style="width:280px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:20px 0;position:sticky;top:60px;height:calc(100vh - 60px);overflow-y:auto">
   <div style="padding:0 16px;margin-bottom:8px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:600">Sekce</div>
   <div id="sidebar-nav"></div>
@@ -161,9 +211,13 @@ html{color-scheme:light}
 <div style="flex:1;min-width:0;overflow-y:auto">
 <div class="container" id="completeness-banner" style="max-width:100%;margin:16px 0 0;padding:0 32px"></div>
 
-<div class="container" style="max-width:100%;padding:10px 32px 0;display:flex;justify-content:flex-end;gap:8px">
-  <button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="setAllSections(true)">⊞ Rozbalit vše</button>
-  <button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="setAllSections(false)">⊟ Sbalit vše</button>
+<div class="container" style="max-width:100%;padding:10px 32px 0;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+  <!-- Vyzkoušet Alexe jako host — nahoře (uživatel 11. 10. 2026: „tlačítko nahoru") -->
+  <a id="try-alex-btn" class="btn btn-primary" href="#" target="_blank" rel="noopener" style="font-size:12px;padding:7px 14px;text-decoration:none;color:#ffffff" title="Otevře chat přesně tak, jak ho uvidí váš host">🧪 Vyzkoušet Alexe jako host</a>
+  <span style="display:flex;gap:8px">
+    <button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="setAllSections(true)">⊞ Rozbalit vše</button>
+    <button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="setAllSections(false)">⊟ Sbalit vše</button>
+  </span>
 </div>
 
 <div class="container" id="main-container">
@@ -373,8 +427,53 @@ const EN_MAP = {
   "Kód property najdete v adresním řádku po přihlášení do Apaleo — např.":"You’ll find the property code in the address bar after logging into Apaleo — e.g.",
   "→ kód je":"→ the code is","Odpojit Apaleo":"Disconnect Apaleo",
   "Propojte svůj hotelový systém":"Connect your hotel system","Používáte":"Do you use",
+  "Používáte Apaleo? Po propojení bude Alex znát pobyty hostů a odpoví jim osobně (check-out, balíček, délka pobytu). Se zápisovým oprávněním může po potvrzení hostem připsat objednanou službu na rezervaci — jen položky, které povolíte, do limitu, který nastavíte. Žádné kopírování klíčů — jedno kliknutí a souhlas v Apaleu.":"Do you use Apaleo? Once connected, Alex knows each guest's stay and answers personally (check-out, package, length of stay). With the write permission it can add a service the guest confirmed to the reservation — only items you allow, up to a limit you set. No keys to copy — one click and consent in Apaleo.",
+  "🧪 Vyzkoušet Alexe jako host":"🧪 Try Alex as a guest","Otevře chat přesně tak, jak ho uvidí váš host":"Opens the chat exactly as your guest sees it",
+  "🔌 Hotelový systém":"🔌 Hotel system","🛎 Objednávky v chatu":"🛎 Orders in chat","📬 Požadavky hostů":"📬 Guest requests","🏨 Vaše hotely":"🏨 Your hotels","➕ Přidat další hotel":"➕ Add another hotel","💳 Předplatné":"💳 Subscription","🧾 Faktury":"🧾 Invoices","🧭 Průvodce nastavením":"🧭 Setup guide","📈 Přehled & statistiky":"📈 Overview & stats",
+  "Propojení s Apaleem — pobyty hostů a zápis objednávek":"Apaleo connection — guest stays and order booking","Co smí Alex nabízet a objednat, ceny, limit":"What Alex may offer and book, prices, limit","Objednávky a žádosti hostů, odpovědi recepce":"Guest orders and requests, reception replies","Všechny hotely pod vaším účtem":"All hotels under your account","Další hotel na stejné předplatné":"Another hotel on the same subscription","Stav předplatného a platby":"Subscription status and payments","Vystavené faktury ke stažení":"Issued invoices to download","Co ještě doplnit, aby Alex odpovídal nejlépe":"What to add so Alex answers best","Kolik hostů Alex obsloužil a na co se ptali":"How many guests Alex served and what they asked",
+  "Původní hotel byl založen ručně (bez online předplatného), proto nejde nový hotel připočítat k jeho faktuře. Nový hotel je připravený — zaplaťte ho online a aktivuje se sám.":"The original hotel was set up manually (no online subscription), so the new hotel cannot be added to its invoice. The new hotel is ready — pay for it online and it activates automatically.",
+  "Zaplatit předplatné":"Pay the subscription","měsíc":"month",
+  "Požadavky hostů":"Guest requests","Co smí Alex objednat na účet pokoje, limit, kam chodí e-maily":"What Alex may book to the room account, the limit, where e-mails go","Položky, které smí Alex nabízet, ceny a jednotky, kam chodí e-maily":"Items Alex may offer, prices and units, where e-mails go","posledních 30 dní · odpověď recepce host vidí v chatu":"last 30 days · the guest sees reception's reply in chat","Čeká":"Waiting","Potvrzeno":"Confirmed","Nelze vyřídit":"Cannot arrange","Zapsáno do Apalea":"Written to Apaleo",
+  "Zatím žádný požadavek. Jakmile host něco objedná v chatu, objeví se tady i v e-mailu.":"No requests yet. As soon as a guest orders something in chat, it appears here and in your e-mail.",
+  "Odpovědět":"Reply","Pokoj":"Room","Stav":"Status","Čas":"Time","Co":"What","Vzkaz":"Message","Tento měsíc":"This month","Minulý měsíc":"Last month","Celkem":"All time",
+  "Požadavky hostů v chatu":"Guest requests in chat","požadavků tento měsíc":"requests this month","z toho čeká na odpověď":"waiting for a reply",
   "? Po propojení bude Alex znát pobyty hostů a odpoví jim osobně (check-out, balíček, délka pobytu). Žádné kopírování klíčů — jedno kliknutí a souhlas v Apaleu.":"? Once connected, Alex knows your guests’ stays and answers personally (check-out, package, length of stay). No copying API keys — one click and consent in Apaleo.",
   "Propojit s Apaleo →":"Connect to Apaleo →",
+  "🔑 Apaleo potřebuje nové oprávnění":"🔑 Apaleo needs a new permission",
+  "— aby Alex mohl hostům rovnou objednat služby a prodloužit pobyt, musí hotel udělit souhlas znovu (jedno kliknutí, nastavení zůstane).":"— so that Alex can book services and extend stays for your guests directly, the hotel has to grant consent again (one click, your settings stay).",
+  "Udělit oprávnění →":"Grant permission →",
+  "Objednávky v chatu":"Orders in chat",
+  "📊 Přehled":"📊 Overview","🏨 Profil hotelu":"🏨 Hotel profile","✦ Alex & objednávky":"✦ Alex & orders","🧾 Nasazení & účet":"🧾 Setup & account",
+  "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem.":"Alex can book a service to the guest's room account or send a request to reception. Nothing is ordered until the guest confirms with a button.",
+  "Alex přijme objednávku v chatu a pošle ji recepci e-mailem jako požadavek — host nemusí nikam volat. Recepce v e-mailu klikne Potvrdit nebo Nelze vyřídit (může připsat vzkaz) a host odpověď uvidí v chatu. Nic se nikam nezapisuje.":"Alex takes the order in chat and e-mails it to reception as a request — the guest doesn't have to call anyone. Reception clicks Confirm or Cannot arrange in the e-mail (optionally with a note) and the guest sees the answer in chat. Nothing is written anywhere.",
+  "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem. U požadavku recepce v e-mailu klikne Potvrdit / Nelze vyřídit a host odpověď uvidí v chatu.":"Alex can book a service straight to the room account or send reception a request. Nothing is booked without the guest confirming with a button. For a request, reception clicks Confirm / Cannot arrange in the e-mail and the guest sees the answer in chat.",
+  "Alex smí přijímat objednávky služeb":"Alex may take service orders",
+  "Snídaně, pozdní odhlášení, WLAN… — jen položky, které níže povolíte.":"Breakfast, late check-out, WLAN… — only the items you allow below.",
+  "Jen položky ze seznamu níže; cenu říká Alex hostovi přesně tak, jak ji napíšete.":"Only items from the list below; Alex quotes the price exactly as you enter it.",
+  "Alex smí přijímat žádosti o prodloužení pobytu":"Alex may take stay-extension requests",
+  "Alex nabídne přesnou cenu z Apalea; požadavek vždy potvrzuje recepce.":"Alex quotes the exact price from Apaleo; reception always confirms the request.",
+  "Alex pošle recepci požadavek, cenu a dostupnost potvrdíte vy.":"Alex sends reception a request; you confirm price and availability.",
+  "Co se stane po potvrzení hostem":"What happens after the guest confirms",
+  "Zapsat do Apalea na účet pokoje (do limitu)":"Book in Apaleo to the room account (up to the limit)",
+  "Jen poslat požadavek recepci":"Only send a request to reception",
+  "Limit na jednu objednávku":"Limit per order",
+  "Nad limit jde vždy jen požadavek recepci.":"Above the limit it is always just a request to reception.",
+  "Služby, které smí Alex nabízet k objednání (z vašeho Apalea)":"Services Alex may offer for ordering (from your Apaleo)",
+  "Načítám služby…":"Loading services…",
+  "Přidat kód":"Add code",
+  "Seznam se plní sám z nabídek, které Alex vidí u propojených pobytů. Kód služby najdete v Apaleu u dané služby.":"The list fills itself from offers Alex sees for linked stays. The service code is shown in Apaleo on the service.",
+  "Zatím žádné služby — objeví se, jakmile si host propojí pobyt, nebo přidejte kód ručně.":"No services yet — they appear once a guest links a stay, or add a code manually.",
+  "Položky k objednání (název, cena, jednotka)":"Items to order (name, price, unit)",
+  "+ Přidat položku":"+ Add item","za osobu a den (snídaně, polopenze)":"per person per day (breakfast, half board)","za osobu a noc (přistýlka)":"per person per night (extra bed)","za pokoj a noc (parkování, mazlíček)":"per room per night (parking, pet)","jednorázově za pobyt (pozdní odjezd)":"once per stay (late check-out)","za osobu, jednorázově (masáž, vstupenka)":"per person, once (massage, ticket)","Odebrat":"Remove",
+  "E-mail, kam chodí každá objednávka / požadavek (prázdné = e-mail hotelu)":"E-mail that receives every order / request (empty = hotel e-mail)",
+  "Zrušení objednávky v chatu je možné do této hodiny dne před službou (potom jen přes recepci)":"Guests can cancel an order in chat until this hour on the day before the service (after that only via reception)",
+  "např. 20 = do 20:00 předchozího dne; 24 = do půlnoci":"e.g. 20 = until 20:00 the day before; 24 = until midnight",
+  "Uložit objednávky":"Save orders","✓ Uloženo":"✓ Saved","✓ Uloženo — otevírám udělení oprávnění v Apaleu…":"✓ Saved — opening the Apaleo permission page…",
+  "Posílat e-mail i o objednávkách zapsaných do Apalea (jinak chodí jen požadavky a selhání — zapsané vidíte v Apaleu)":"Also e-mail orders that were written to Apaleo (otherwise only requests and failures are sent — written ones you see in Apaleo)",
+  "Seznam je váš katalog služeb z Apalea. Novou službu založte v Apaleu — tady se objeví do hodiny.":"This is your service catalogue from Apaleo. Create a new service in Apaleo — it shows up here within an hour.",
+  "Zatím žádné služby — v Apaleu zatím nemáte žádnou službu k dokoupení, nebo se katalog nepodařilo načíst.":"No services yet — your Apaleo has no bookable services, or the catalogue could not be loaded.",
+  "kód služby z Apalea (např. LND-BRKF)":"service code from Apaleo (e.g. LND-BRKF)","Snídaně":"Breakfast","/ osoba":"/ person",
+  "🔑 Aby Alex mohl do Apalea zapisovat, udělte nové oprávnění v sekci Hotelový systém výše. Do té doby půjdou objednávky jen jako požadavek recepci.":"🔑 For Alex to write to Apaleo, grant the new permission in the Hotel system section above. Until then orders go to reception as requests only.",
   "Opravdu odpojit hotelový systém (Apaleo)?\n\nAlex přestane znát pobyty hostů a bude odpovídat jen z profilu hotelu. Připojit ho můžete kdykoli znovu jedním kliknutím.":"Really disconnect your hotel system (Apaleo)?\n\nAlex will stop knowing guest stays and answer only from the hotel profile. You can reconnect anytime with one click.",
   "Zadejte kód property (např. BER)":"Enter the property code (e.g. BER)",
   "Uložení se nepovedlo: ":"Saving failed: ","Odpojení se nepovedlo: ":"Disconnecting failed: ",
@@ -516,7 +615,7 @@ function setPortalLang(lang){
   refreshStaticTexts();
   if(hotelData){
     renderPortal(); renderOnboarding(); loadCompleteness(); loadPaymentSection();
-    loadPmsSection(); loadGroupSection(); loadAddHotelSection(); loadInvoicesSection(); loadMonthlyReport();
+    loadPmsSection(); loadOrdersSection(); loadRequestsSection(); loadGroupSection(); loadAddHotelSection(); loadInvoicesSection(); loadMonthlyReport();
     setTimeout(initEmbedCode, 100);
   }
 }
@@ -551,7 +650,7 @@ async function loadHotel() {
     renderOnboarding();
     loadCompleteness();
     loadPaymentSection();
-    loadPmsSection();
+    loadPmsSection(); loadOrdersSection(); loadRequestsSection();
     loadGroupSection();
     loadAddHotelSection();
     loadInvoicesSection();
@@ -674,6 +773,8 @@ function renderPortal() {
     <div id="group-section"></div>
     <div id="add-hotel-section"></div>
     <div id="pms-section"></div>
+    <div id="orders-section"></div>
+    <div id="requests-section"></div>
 
     <div id="onboarding-wizard"></div>
 
@@ -844,21 +945,14 @@ function renderPortal() {
       </div>
     `, [])}
 
-    ${renderSection('🧪', 'Vyzkoušet Alexe', 'Otevřete chat přesně tak, jak ho uvidí váš host', `
-      <div style="margin-bottom:16px;font-size:14px;color:var(--muted);line-height:1.7">
-        Klikněte a vyzkoušejte si Alexe jako host — zeptejte se na WiFi, snídani, parkování nebo tipy na okolí. Uvidíte přesně to, co uvidí vaši hosté po naskenování QR kódu.
-        <br><br>💡 Čím víc údajů máte vyplněno výše, tím lépe Alex odpovídá — po každé úpravě si výsledek hned otestujte.
-      </div>
-      <a href="/h/${h.slug||h.id}" target="_blank" rel="noopener" style="display:inline-block;background:var(--accent);color:#ffffff;text-decoration:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700">🧪 Otevřít Alexe (jako host)</a>
-    `, [])}
-
     ${renderSection('🖨️', 'Tiskové materiály', 'QR plakát a letáky pro hosty — kdykoli ke stažení a tisku', `
       <div style="margin-bottom:16px;font-size:14px;color:var(--muted);line-height:1.7">
         Stejné materiály, které jste dostali v uvítacím e-mailu — QR plakát pro hosty i letáky (A4/A5). Otevřete je kdykoli znovu, vytiskněte nebo uložte jako PDF.
         <br><br>🔒 QR kód je <strong style="color:var(--text)">jedinečný pro váš hotel a neměnný</strong> — jednou vytištěný plakát platí napořád, nikdy se nemění.
       </div>
       <a href="/api/hotels/${h.id}/qr-poster" target="_blank" rel="noopener" style="display:inline-block;background:var(--accent);color:#ffffff;text-decoration:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700">🖨️ Otevřít tiskové materiály</a>
-      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+      <!-- QR kartičky na pokoje: skryté (uživatel 11. 10. 2026 „zatím zneaktivni, to nemáme hotové") — odebrat hidden, až bude hotovo -->
+      <div hidden style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
         <div style="font-size:13px;font-weight:700;margin-bottom:4px">🚪 QR kartičky na pokoje</div>
         <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">Kartičky 85×54 mm s QR kódem nesoucím číslo pokoje — host po naskenování dostane odpovědi přímo ke svému pobytu (check-out, délka pobytu). Zadejte pokoje: rozsahy i jednotlivě, např. <code>101-110, 201, 3.001</code></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -899,6 +993,8 @@ function renderPortal() {
   `;
 
   translateDom(document.getElementById('main-container'));
+  const tryBtn=document.getElementById('try-alex-btn'); if(tryBtn){ tryBtn.href='/h/'+(h.slug||h.id); translateDom(tryBtn.parentElement); }
+  applyPortalTab(currentPortalTab());   // záložky: ukázat jen bloky aktivní záložky
 
   // Init tag inputs
   initTagInput('amenities');
@@ -918,8 +1014,112 @@ function renderPortal() {
 let _sectionIdx = 0;
 let _sectionFields = {}; // uložíme fields pro každou sekci, scoring spočítáme po renderování
 
+// ── Záložky portálu (varianta A, vybrána uživatelem 11. 10. 2026) ──────────────────────
+// Jedna dlouhá stránka → 4 záložky: Přehled (statistiky, stav), Profil hotelu (sekce k vyplnění),
+// Alex & objednávky (Apaleo, objednávky, aktivní nabídka, vyzkoušet), Nasazení & účet (QR/tisk,
+// widget, předplatné, faktury, skupina). Obsah se nemění, jen se přepíná; Uložit změny zůstává.
+const PORTAL_TABS = [['prehled','📊 Přehled'],['profil','🏨 Profil hotelu'],['alex','✦ Alex & objednávky'],['ucet','🧾 Nasazení & účet']];
+const PORTAL_TAB_OF = {            // sekce z renderSection podle (českého) titulu; ostatní = profil
+  'Vyzkoušet Alexe':'alex', 'Aktivní nabídka pro hosty':'alex',
+  'Embed widget — vložit na web':'ucet', 'Tiskové materiály':'prehled'   // tisk = první na Přehledu (uživatel 11. 10.)
+};
+const PORTAL_SOLO = {};            // tab -> id bloku otevřeného z dlaždice (ostatní bloky tabu skryté); undefined = všechny
+const PORTAL_FIXED = {             // pevné bloky podle id / třídy
+  'completeness-banner':'profil', 'group-section':'ucet', 'add-hotel-section':'ucet', 'pms-section':'alex',
+  'orders-section':'alex', 'requests-section':'alex', 'onboarding-wizard':'prehled', 'payment-section':'ucet', 'invoices-section':'ucet',
+  'monthly-report-section':'prehled'
+};
+// Štítky dlaždic pevných bloků (sekce z renderSection si berou ikonu a titulek z DOM)
+const PORTAL_FIXED_TILE = {
+  'pms-section':'🔌 Hotelový systém', 'orders-section':'🛎 Objednávky v chatu', 'requests-section':'📬 Požadavky hostů',
+  'group-section':'🏨 Vaše hotely', 'add-hotel-section':'➕ Přidat další hotel', 'payment-section':'💳 Předplatné', 'invoices-section':'🧾 Faktury',
+  'onboarding-wizard':'🧭 Průvodce nastavením', 'monthly-report-section':'📈 Přehled & statistiky'
+};
+const PORTAL_FIXED_DESC = {
+  'pms-section':'Propojení s Apaleem — pobyty hostů a zápis objednávek', 'orders-section':'Co smí Alex nabízet a objednat, ceny, limit',
+  'requests-section':'Objednávky a žádosti hostů, odpovědi recepce', 'group-section':'Všechny hotely pod vaším účtem',
+  'add-hotel-section':'Další hotel na stejné předplatné', 'payment-section':'Stav předplatného a platby', 'invoices-section':'Vystavené faktury ke stažení',
+  'onboarding-wizard':'Co ještě doplnit, aby Alex odpovídal nejlépe', 'monthly-report-section':'Kolik hostů Alex obsloužil a na co se ptali'
+};
+function currentPortalTab(){
+  // Jen kotva v adrese; bez ní vždy Přehled — odkazy z e-mailů (uvítací, tisk) vedou na /portal?token=
+  // bez kotvy a hotel má hned vidět tiskové materiály (uživatel 11. 10.).
+  const h=(location.hash||'').replace('#',''); if(PORTAL_TABS.some(t=>t[0]===h)) return h;
+  return 'prehled';
+}
+function showPortalTab(tab){
+  try{ history.replaceState(null,'','#'+tab); }catch(e){}
+  applyPortalTab(tab);
+  window.scrollTo({top:0});
+}
+function applyPortalTab(tab){
+  const solo = PORTAL_SOLO[tab] || null;
+  Object.keys(PORTAL_FIXED).forEach(id=>{ const el=document.getElementById(id); if(el) el.hidden=(PORTAL_FIXED[id]!==tab) || (!!solo && id!==solo); });
+  const info=document.querySelector('#main-container .info-banner'); if(info) info.hidden=(tab!=='profil');
+  document.querySelectorAll('.section[data-ptab]').forEach(s=>{ s.hidden=(s.dataset.ptab!==tab) || (!!solo && s.id!==solo); });
+  document.querySelectorAll('.ptiles[data-tab]').forEach(g=>{ g.hidden=(g.dataset.tab!==tab); });
+  document.querySelectorAll('.ptab-btn').forEach(b=>b.setAttribute('aria-current', String(b.dataset.tab===tab)));
+  document.querySelectorAll('.ptile').forEach(t=>t.setAttribute('aria-current', String(!!solo && t.dataset.sec===solo)));
+  const prof=document.getElementById('sidebar-profile'); if(prof) prof.hidden=(tab!=='profil');
+}
+// Dlaždice na KAŽDÉ záložce (uživatel 11. 10.: „sekce profilu dej jako dlaždice" → „dlaždice…" i na Přehledu,
+// Alexovi a Nasazení): mřížka nad bloky záložky; klepnutí ukáže jen ten blok, druhé klepnutí (nebo
+// Rozbalit/Sbalit vše) vrátí všechny.
+function portalBlocksOf(tab){
+  const fixed = Object.keys(PORTAL_FIXED).filter(id => PORTAL_FIXED[id]===tab && PORTAL_FIXED_TILE[id])
+    .map(id => document.getElementById(id)).filter(el => el && el.children.length && el.innerHTML.trim());
+  const secs = Array.from(document.querySelectorAll('.section[id^="sec-"][data-ptab="'+tab+'"]'));
+  const all = [...fixed, ...secs];
+  all.sort((a,b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1);   // pořadí jako v DOM
+  return all;
+}
+function openPortalBlock(tab, id){
+  if (currentPortalTab() !== tab) showPortalTab(tab);
+  PORTAL_SOLO[tab] = (PORTAL_SOLO[tab] === id) ? null : id;
+  applyPortalTab(tab);
+  if (PORTAL_SOLO[tab]) {
+    const el = document.getElementById(id);
+    const sec = el && el.classList.contains('section') ? el : (el && el.querySelector('.section'));
+    const body = sec && sec.querySelector('.section-body');
+    if (body && !body.classList.contains('open')) toggleSection(sec.id);
+    // Na širokém displeji nahoru na dlaždice (blok je hned pod nimi), na telefonu rovnou na blok
+    const narrow = window.matchMedia('(max-width: 820px)').matches;
+    const target = narrow ? el : document.querySelector('.ptiles[data-tab="'+tab+'"]');
+    if (target) target.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+}
+function openProfileSection(id){ openPortalBlock('profil', id); }   // zpětná kompatibilita (odkazy v levém menu)
+function buildPortalTiles(){
+  PORTAL_TABS.forEach(([tab]) => {
+    const blocks = portalBlocksOf(tab);
+    let grid = document.querySelector('.ptiles[data-tab="'+tab+'"]');
+    if (blocks.length < 2) { if (grid) grid.remove(); return; }
+    if (!grid) { grid = document.createElement('div'); grid.className = 'ptiles'; grid.dataset.tab = tab; }
+    if (grid.nextElementSibling !== blocks[0]) blocks[0].parentNode.insertBefore(grid, blocks[0]);
+    grid.innerHTML = blocks.map(el => {
+      let icon = '', title = '', desc = '', scoreHtml = '';
+      if (el.classList.contains('section')) {
+        icon = (el.querySelector('.section-icon')||{}).innerHTML || '';
+        title = ((el.querySelector('.section-title')||{}).textContent || '').replace(/\(\d+\)/,'').trim();
+        desc = ((el.querySelector('.section-desc')||{}).textContent || '').trim();
+        const score = el.querySelector('.score-badge'); scoreHtml = score ? score.outerHTML : '';
+      } else {
+        const lbl = tr(PORTAL_FIXED_TILE[el.id] || el.id);
+        const m = lbl.match(/^(\S+)\s+(.*)$/); icon = m ? m[1] : '▪'; title = m ? m[2] : lbl;
+        desc = tr(PORTAL_FIXED_DESC[el.id] || '');
+        const pend = el.querySelector('.section-title span'); if (pend) scoreHtml = pend.outerHTML;   // (3) čekajících
+      }
+      return `<button type="button" class="ptile" data-sec="${el.id}" onclick="openPortalBlock('${tab}','${el.id}')" aria-current="${String(PORTAL_SOLO[tab]===el.id)}">
+        <div class="ptile-ico">${icon}</div><div class="ptile-t">${title}</div><div class="ptile-d">${desc}</div><div class="ptile-s">${scoreHtml}</div></button>`;
+    }).join('');
+    translateDom(grid);
+  });
+  applyPortalTab(currentPortalTab());
+}
+function buildProfileTiles(){ buildPortalTiles(); }
 function renderSection(icon, title, desc, content, fields, defaultOpen) {
   const id = 'sec-' + (_sectionIdx++);
+  const ptab = PORTAL_TAB_OF[title] || 'profil';
   // Ulož fields pro pozdější scoring (DOM ještě neexistuje)
   if (fields && fields.length) _sectionFields[id] = fields;
   const isOpen = defaultOpen ? 'open' : '';
@@ -927,7 +1127,7 @@ function renderSection(icon, title, desc, content, fields, defaultOpen) {
   const scorePlaceholder = fields && fields.length
     ? `<span class="section-score" id="score-${id}"><span class="score-badge empty">○ 0%</span></span>`
     : '';
-  return `<div class="section ${isOpen ? 'section-open' : ''}" id="${id}">
+  return `<div class="section ${isOpen ? 'section-open' : ''}" id="${id}" data-ptab="${ptab}">
     <div class="section-head ${isOpen}" onclick="toggleSection('${id}')">
       <div class="section-icon">${icon}</div>
       <div style="flex:1;min-width:0">
@@ -1051,27 +1251,41 @@ function buildSidebarNav() {
   const nav = document.getElementById('sidebar-nav');
   if (!nav) return;
   nav.innerHTML = '';
+  // Záložky portálu (varianta A) — nahoře v levém menu; seznam sekcí profilu jen v záložce Profil
+  const tabsBox = document.createElement('div');
+  tabsBox.style.cssText = 'display:flex;flex-direction:column;gap:2px;padding:0 10px 10px;border-bottom:1px solid var(--border);margin-bottom:8px';
+  PORTAL_TABS.forEach(([k, label]) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'ptab-btn'; b.dataset.tab = k; b.textContent = tr(label);
+    b.onclick = () => showPortalTab(k);
+    tabsBox.appendChild(b);
+  });
+  nav.appendChild(tabsBox);
+  const prof = document.createElement('div');
+  prof.id = 'sidebar-profile';
+  nav.appendChild(prof);
   // Přidej odkaz na top
   const topLink = document.createElement('a');
   topLink.textContent = tr('⬆ Nahoru');
   topLink.onclick = () => window.scrollTo({top: 0, behavior: 'smooth'});
-  nav.appendChild(topLink);
+  prof.appendChild(topLink);
   // Rozbalit / sbalit vše
   const ctl = document.createElement('div');
   ctl.style.cssText = 'display:flex;gap:6px;padding:6px 12px';
   ctl.innerHTML = '<a onclick="setAllSections(true)" title="'+tr('Rozbalit všechny sekce')+'" style="flex:1;justify-content:center;font-size:11px;padding:6px;border:1px solid var(--border);border-radius:6px">'+tr('⊞ Rozbalit vše')+'</a><a onclick="setAllSections(false)" title="'+tr('Sbalit všechny sekce')+'" style="flex:1;justify-content:center;font-size:11px;padding:6px;border:1px solid var(--border);border-radius:6px">'+tr('⊟ Sbalit vše')+'</a>';
-  nav.appendChild(ctl);
+  prof.appendChild(ctl);
   // Přidej separátor
   const sep = document.createElement('div');
   sep.className = 'sidebar-section';
   sep.textContent = tr('Sekce profilu');
-  nav.appendChild(sep);
-  // Najdi všechny sekce
-  document.querySelectorAll('.section[id^="sec-"]').forEach(sec => {
+  prof.appendChild(sep);
+  // Najdi všechny sekce (jen ty v záložce Profil)
+  document.querySelectorAll('.section[id^="sec-"][data-ptab="profil"]').forEach(sec => {
     const title = sec.querySelector('.section-title');
     const score = sec.querySelector('.score-badge');
     if (!title) return;
     const a = document.createElement('a');
+    a.className = 'sec-link';
     const t = title.textContent.trim();
     a.title = t;
     let scoreHtml = '';
@@ -1081,24 +1295,41 @@ function buildSidebarNav() {
     }
     a.innerHTML = '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + t + '</span>' + scoreHtml;
     a.onclick = () => {
-      sec.scrollIntoView({behavior: 'smooth', block: 'start'});
-      // Otevři sekci pokud je zavřená
-      const body = sec.querySelector('.section-body');
-      if (body && !body.classList.contains('open')) toggleSection(sec.id);
+      if (PORTAL_SOLO['profil'] !== sec.id) openProfileSection(sec.id);
+      else { const body = sec.querySelector('.section-body'); if (body && !body.classList.contains('open')) toggleSection(sec.id); }
     };
-    nav.appendChild(a);
+    prof.appendChild(a);
   });
+  // Tiskové materiály patří na Přehled jako PRVNÍ blok (uživatel 11. 10.) — v HTML jsou až za profilem
+  const printSec = Array.from(document.querySelectorAll('.section[data-ptab="prehled"]')).find(s => (s.querySelector('.section-title')||{}).textContent.trim() === tr('Tiskové materiály') || (s.querySelector('.section-title')||{}).textContent.trim() === 'Tiskové materiály');
+  const wiz = document.getElementById('onboarding-wizard');
+  if (printSec && wiz && printSec.nextElementSibling !== wiz) {
+    wiz.parentNode.insertBefore(printSec, wiz);
+    const pb = printSec.querySelector('.section-body');   // rovnou rozbalené — hotel přichází z mailu kvůli tisku
+    if (pb && !pb.classList.contains('open')) toggleSection(printSec.id);
+  }
+  buildPortalTiles();
+  // Pevné bloky (Apaleo, objednávky, požadavky, skupina, předplatné, faktury, statistiky) se překreslují
+  // asynchronně → po každém překreslení dlaždice obnovit (prázdný blok zmizí, „(N)" čekajících se aktualizuje)
+  if (!window._tilesObserver) {
+    let _tt = null;
+    window._tilesObserver = new MutationObserver(() => { clearTimeout(_tt); _tt = setTimeout(() => { try { buildPortalTiles(); } catch(e) {} }, 150); });
+    Object.keys(PORTAL_FIXED).forEach(id => { const el = document.getElementById(id); if (el) window._tilesObserver.observe(el, {childList: true}); });
+  }
+  applyPortalTab(currentPortalTab());
   // Aktivní sekce při scrollu
   updateActiveSidebarItem();
 }
 
 function updateActiveSidebarItem() {
-  const sections = document.querySelectorAll('.section[id^="sec-"]');
-  const navLinks = document.querySelectorAll('#sidebar-nav a');
+  // Scroll-spy jen pro sekce profilu (ostatní záložky vlastní seznam nemají); odkazy a sekce
+  // jsou ve stejném pořadí 1:1 (.sec-link ↔ .section[data-ptab="profil"]).
+  const sections = document.querySelectorAll('.section[id^="sec-"][data-ptab="profil"]');
+  const navLinks = document.querySelectorAll('#sidebar-profile a.sec-link');
   if (!navLinks.length) return;
   let activeIdx = 0;
   sections.forEach((sec, i) => {
-    if (sec.getBoundingClientRect().top < 120) activeIdx = i + 1;
+    if (!sec.hidden && sec.getBoundingClientRect().top < 120) activeIdx = i;
   });
   navLinks.forEach((a, i) => a.classList.toggle('active', i === activeIdx));
 }
@@ -1121,6 +1352,7 @@ function toggleSection(id) {
 }
 
 function setAllSections(open){
+  const _t = currentPortalTab(); if (PORTAL_SOLO[_t]) { PORTAL_SOLO[_t] = null; applyPortalTab(_t); }
   document.querySelectorAll('.section[id^="sec-"]').forEach(sec => {
     const body = sec.querySelector('.section-body');
     const head = sec.querySelector('.section-head');
@@ -1722,6 +1954,13 @@ async function submitAddHotel(){
       body:JSON.stringify({token,name,url,beds})});
     const d=await r.json();
     if(!r.ok)throw new Error(d.detail||('HTTP '+r.status));
+    if(d.status==='payment_required'){
+      // Původní hotel bez Stripe předplatného → nový hotel se platí zvlášť online (uživatel 11. 10.)
+      showMsg(`ℹ️ ${esc(tr(d.message||''))}<div style="margin-top:10px"><a href="${esc(d.checkout_url)}" style="display:inline-block;background:var(--accent);color:#fff;text-decoration:none;border-radius:8px;padding:9px 16px;font-weight:700">${tr('Zaplatit předplatné')} — ${esc(String(d.price))} EUR/${tr('měsíc')} →</a></div>`, true);
+      msg.style.color='var(--text)';
+      btn.disabled=false;btn.textContent=tr('Přidat hotel');
+      return;
+    }
     window._addHotelDone=true;
     document.getElementById('add-hotel-section').innerHTML=`
       <div style="background:rgba(46,204,135,.08);border:1px solid rgba(46,204,135,.35);border-radius:12px;padding:16px 20px;margin-bottom:24px;font-size:13px;color:var(--text)">
@@ -1744,6 +1983,10 @@ function loadPmsSection(){
     // selhání ukážeme varování místo zeleného „vše OK" (jinak hotel nepozná, že personalizace nejede).
     const failing=(h.pms_fail_count||0)>=3;
     const failInfo=failing?`<div style="margin-top:10px;background:rgba(255,90,90,.1);border:1px solid rgba(255,90,90,.35);border-radius:9px;padding:10px 14px;font-size:12px;color:#ff8a8a"><b>⚠️ Spojení s Apaleo aktuálně selhává</b>${h.pms_last_fail_at?` (naposledy ${new Date(h.pms_last_fail_at).toLocaleString('cs-CZ')})`:''} — Alex hostům dočasně odpovídá jen z profilu hotelu. Zkuste <b>Odpojit Apaleo</b> a hned poté znovu <b>Connect to Apaleo</b>. Pokud problém přetrvá, napište nám na support@smartestguide.com.</div>`:'';
+    // Zápis do rezervace (reservations.manage): hotel připojený starým souhlasem musí souhlas
+    // udělit znovu — server to pozná z uloženého scope (pms_needs_reconsent). Stejný odkaz
+    // jako první připojení; callback umí reconnect a property zachová.
+    const reconsentInfo=h.pms_needs_reconsent?`<div style="margin-top:10px;background:rgba(255,184,77,.1);border:1px solid rgba(255,184,77,.4);border-radius:9px;padding:10px 14px;font-size:12px;color:#ffb84d"><b>🔑 Apaleo potřebuje nové oprávnění</b> — aby Alex mohl hostům rovnou objednat služby a prodloužit pobyt, musí hotel udělit souhlas znovu (jedno kliknutí, nastavení zůstane). <a href="${API}/api/pms/apaleo/connect?token=${token}" style="color:#ffb84d;font-weight:700">Udělit oprávnění →</a></div>`:'';
     const discBtn = `<button onclick="disconnectPms()" style="background:transparent;border:none;color:var(--muted);font-size:11px;text-decoration:underline;cursor:pointer;font-family:var(--font-body);white-space:nowrap;padding:4px 2px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--muted)'">Odpojit Apaleo</button>`;
     const showPicker=!prop||window._pmsPickProp;
     // Picker se zobrazuje NA MÍSTĚ štítku Property (ne na druhém konci řádku) — edituje se to, na co host kliknul
@@ -1772,7 +2015,7 @@ function loadPmsSection(){
           </div>
           ${discBtn}
         </div>
-        ${failInfo}
+        ${failInfo}${reconsentInfo}
       </div>`;
     if(showPicker)loadPmsProperties();
   }else{
@@ -1782,7 +2025,7 @@ function loadPmsSection(){
           <div style="font-size:26px">🔌</div>
           <div style="flex:1;min-width:220px">
             <div style="font-family:var(--font-head);font-size:14px;font-weight:700">Propojte svůj hotelový systém</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:3px">Používáte <b>Apaleo</b>? Po propojení bude Alex znát pobyty hostů a odpoví jim osobně (check-out, balíček, délka pobytu). Žádné kopírování klíčů — jedno kliknutí a souhlas v Apaleu.</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px">Používáte <b>Apaleo</b>? Po propojení bude Alex znát pobyty hostů a odpoví jim osobně (check-out, balíček, délka pobytu). Se zápisovým oprávněním může po potvrzení hostem připsat objednanou službu na rezervaci — jen položky, které povolíte, do limitu, který nastavíte. Žádné kopírování klíčů — jedno kliknutí a souhlas v Apaleu.</div>
           </div>
           <a href="${API}/api/pms/apaleo/connect?token=${token}" style="background:var(--accent);color:#0a0b0f;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;white-space:nowrap">Propojit s Apaleo →</a>
         </div>
@@ -1809,6 +2052,195 @@ async function loadPmsProperties(){
       <button onclick="savePmsProperty()" style="background:var(--accent);color:#0a0b0f;border:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">${tr('Uložit')}</button>
       ${(hotelData&&hotelData.pms_property_id)?`<button onclick="window._pmsPickProp=false;loadPmsSection()" style="background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);padding:9px 12px;font-size:12.5px;cursor:pointer">${tr('Zrušit')}</button>`:''}`;
   }
+}
+
+// ── Požadavky hostů (seznam + statistiky; uživatel 11. 10. 2026) ──────────────────────────
+let _requestsCache=null;
+async function fetchRequests(){
+  try{ const r=await fetch(`${API}/api/hotel-portal/orders?token=${token}`); if(!r.ok) return null; _requestsCache=await r.json(); return _requestsCache; }catch(e){ return null; }
+}
+function fmtReqTime(iso){
+  if(!iso) return '';
+  try{ const d=new Date(iso+(iso.endsWith('Z')?'':'Z')); return d.toLocaleString(portalLang==='en'?'en-GB':'cs-CZ',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){ return iso; }
+}
+async function loadRequestsSection(){
+  const el=document.getElementById('requests-section');
+  if(!el||!hotelData||!hotelData.pms_write_available){ if(el) el.innerHTML=''; return; }
+  const d=await fetchRequests();
+  if(!d){ el.innerHTML=''; return; }
+  const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const human=s=>String(s||'').replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g,(m,y,mo,da)=>`${+da}. ${+mo}.`).replace(/(\d+)\.0\b/g,'$1');   // 12. 10. místo 2026-10-12, 700 místo 700.0
+  const st=d.stats||{}, tm=st.this_month||{};
+  const badge=(s)=>{
+    const map={pending:['Čeká','#ffaa33'],confirmed:['Potvrzeno','#2ecc87'],declined:['Nelze vyřídit','#ff4f6a']};
+    const [t,c]=map[s]||[s,'var(--muted)'];
+    return `<span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;color:${c};border:1px solid ${c};white-space:nowrap">${t}</span>`;
+  };
+  const chip=(label,n,color)=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;min-width:110px;text-align:center"><div style="font-size:22px;font-weight:800;color:${color}">${n||0}</div><div style="font-size:11px;color:var(--muted)">${label}</div></div>`;
+  const rows=(d.orders||[]).map(o=>`<tr style="border-top:1px solid var(--border)">
+      <td style="padding:8px 10px;white-space:nowrap;font-size:12px;color:var(--muted)">${fmtReqTime(o.created)}</td>
+      <td style="padding:8px 10px;font-weight:700">${esc(o.room)}</td>
+      <td style="padding:8px 10px"><div>${esc(o.title)}</div>${o.detail?`<div style="font-size:11.5px;color:var(--muted)">${esc(human(o.detail))}${o.price?' · '+esc(human(o.price)):''}</div>`:(o.price?`<div style="font-size:11.5px;color:var(--muted)">${esc(human(o.price))}</div>`:'')}</td>
+      <td style="padding:8px 10px">${badge(o.status)}</td>
+      <td style="padding:8px 10px;font-size:12px;color:var(--muted);max-width:260px">${(o.notes||[]).map(n=>(n.who==='guest'?'<span style="color:var(--accent2)">🧑 '+esc(n.text)+'</span>':'💬 '+esc(n.text))).join('<br>')}</td>
+      <td style="padding:8px 10px;white-space:nowrap"><a href="${esc(o.reply_link)}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700;text-decoration:none">${o.status==='pending'?'✍️ ':''}Odpovědět →</a></td>
+    </tr>`).join('');
+  const prevBody=el.querySelector('#sec-requests .section-body'); const openNow=prevBody?prevBody.classList.contains('open'):true; const oc=openNow?'open':'';
+  el.innerHTML=`<div class="section ${openNow?'section-open':''}" id="sec-requests" style="margin-bottom:24px">
+    <div class="section-head ${oc}" onclick="toggleSection('sec-requests')">
+      <div class="section-icon">📬</div>
+      <div style="flex:1;min-width:0"><div class="section-title">Požadavky hostů${d.pending_now?` <span style="color:#ffaa33">(${d.pending_now})</span>`:''}</div>
+      <div class="section-desc">posledních 30 dní · odpověď recepce host vidí v chatu</div></div>
+      <span class="section-toggle-lbl">${openNow?'Sbalit':'Rozbalit'}</span><div class="section-chevron ${oc}">▼</div>
+    </div>
+    <div class="section-body ${oc}">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      ${chip('Tento měsíc',tm.total,'var(--accent)')}${chip('Čeká',tm.pending,'#ffaa33')}${chip('Potvrzeno',tm.confirmed,'#2ecc87')}${chip('Nelze vyřídit',tm.declined,'#ff4f6a')}${hotelData.pms_type?chip('Zapsáno do Apalea',tm.booked,'var(--accent2)'):''}
+    </div>
+    ${rows?`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;text-align:left"><th style="padding:6px 10px">Čas</th><th style="padding:6px 10px">Pokoj</th><th style="padding:6px 10px">Co</th><th style="padding:6px 10px">Stav</th><th style="padding:6px 10px">Vzkaz</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+         :`<div style="font-size:13px;color:var(--muted)">Zatím žádný požadavek. Jakmile host něco objedná v chatu, objeví se tady i v e-mailu.</div>`}
+    </div>
+  </div>`;
+  translateDom(el);
+  try{ buildPortalTiles(); }catch(e){}
+}
+// obnova seznamu při návratu na záložku a každou minutu, dokud je záložka otevřená
+setInterval(()=>{ if(currentPortalTab()==='alex' && document.visibilityState==='visible') loadRequestsSection(); }, 60000);
+
+// ── Objednávky v chatu (zápis do rezervace, APALEO_ZAPIS_DO_REZERVACE_NAVRH.md) ─────────
+// Sekce se ukazuje jen tam, kde je zápis zapnutý na serveru (pms_write_available = gate).
+// Apaleo hotel: přepínače, režim auto/požadavek, allowlist služeb, strop. Hotel bez PMS:
+// vlastní položky → Alex pošle požadavek recepci (nic se nikam nezapisuje).
+function loadOrdersSection(){
+  const el=document.getElementById('orders-section');
+  if(!el||!hotelData)return;
+  const h=hotelData;
+  if(!h.pms_write_available){ el.innerHTML=''; return; }
+  const pms=!!h.pms_type;
+  const on=!!h.pms_write_services, ext=!!h.pms_write_extension;
+  const mode=h.pms_write_mode||'auto', cap=(h.pms_write_cap!==undefined&&h.pms_write_cap!==null)?h.pms_write_cap:100;
+  const allow=h.pms_write_allowlist||[], items=h.pms_write_items||[];
+  const inp='background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13.5px;padding:8px 10px;outline:none';
+  const sw=(id,checked,label,hint)=>`<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin-bottom:10px"><input type="checkbox" id="${id}" ${checked?'checked':''} style="margin-top:3px;width:18px;height:18px;accent-color:var(--accent)"><span><b style="font-size:14px">${label}</b><br><span style="font-size:12px;color:var(--muted)">${hint}</span></span></label>`;
+  const itemRows=(items.length?items:[]).map(it=>orderItemRowHtml(it)).join('');
+  // Stejný akordeon jako sekce profilu → Rozbalit/Sbalit vše platí i tady (uživatel 11. 10.); stav přežije přerender po uložení
+  const prevBody=el.querySelector('#sec-orders .section-body'); const openNow=prevBody?prevBody.classList.contains('open'):true;
+  const oc=openNow?'open':'';
+  el.innerHTML=`
+    <div class="section ${openNow?'section-open':''}" id="sec-orders" style="margin-bottom:24px">
+      <div class="section-head ${oc}" onclick="toggleSection('sec-orders')">
+        <div class="section-icon">🛎</div>
+        <div style="flex:1;min-width:0">
+          <div class="section-title">Objednávky v chatu</div>
+          <div class="section-desc">${pms?'Co smí Alex objednat na účet pokoje, limit, kam chodí e-maily':'Položky, které smí Alex nabízet, ceny a jednotky, kam chodí e-maily'}</div>
+        </div>
+        <span class="section-toggle-lbl">${openNow?'Sbalit':'Rozbalit'}</span><div class="section-chevron ${oc}">▼</div>
+      </div>
+      <div class="section-body ${oc}">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px">
+        <div style="flex:1;min-width:220px">
+          <div style="font-size:12.5px;color:var(--muted);margin-top:3px">${pms?'Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem. U požadavku recepce v e-mailu klikne Potvrdit / Nelze vyřídit a host odpověď uvidí v chatu.':'Alex přijme objednávku v chatu a pošle ji recepci e-mailem jako požadavek — host nemusí nikam volat. Recepce v e-mailu klikne Potvrdit nebo Nelze vyřídit (může připsat vzkaz) a host odpověď uvidí v chatu. Nic se nikam nezapisuje.'}</div>
+        </div>
+      </div>
+      ${sw('ord-services',on,'Alex smí přijímat objednávky služeb',pms?'Snídaně, pozdní odhlášení, WLAN… — jen položky, které níže povolíte.':'Jen položky ze seznamu níže; cenu říká Alex hostovi přesně tak, jak ji napíšete.')}
+      ${sw('ord-ext',ext,'Alex smí přijímat žádosti o prodloužení pobytu',pms?'Alex nabídne přesnou cenu z Apalea; požadavek vždy potvrzuje recepce.':'Alex pošle recepci požadavek, cenu a dostupnost potvrdíte vy.')}
+      ${pms?`
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 6px">
+        <div style="flex:1;min-width:220px">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:5px">Co se stane po potvrzení hostem</div>
+          <select id="ord-mode" style="${inp};width:100%">
+            <option value="auto" ${mode==='auto'?'selected':''}>Zapsat do Apalea na účet pokoje (do limitu)</option>
+            <option value="request" ${mode==='request'?'selected':''}>Jen poslat požadavek recepci</option>
+          </select>
+        </div>
+        <div style="min-width:160px">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:5px">Limit na jednu objednávku</div>
+          <div style="display:flex;align-items:center;gap:8px"><input id="ord-cap" type="number" min="0" step="1" value="${cap}" style="${inp};width:110px"><b id="ord-cur" style="font-size:14px">${(h.currency||'').toUpperCase()}</b></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Nad limit jde vždy jen požadavek recepci.</div>
+        </div>
+      </div>
+      <div style="margin:12px 0 6px;font-size:12px;color:var(--muted)">Služby, které smí Alex nabízet k objednání (z vašeho Apalea)</div>
+      <div id="ord-allow" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"><span style="font-size:12.5px;color:var(--muted)">Načítám služby…</span></div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Seznam je váš katalog služeb z Apalea. Novou službu založte v Apaleu — tady se objeví do hodiny.</div>
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin:4px 0 6px"><input type="checkbox" id="ord-notify-always" ${h.pms_write_notify_always?'checked':''} style="margin-top:3px;width:16px;height:16px;accent-color:var(--accent)"><span style="font-size:12.5px;color:var(--muted)">Posílat e-mail i o objednávkách zapsaných do Apalea (jinak chodí jen požadavky a selhání — zapsané vidíte v Apaleu)</span></label>
+      `:''}
+      ${pms?'':`
+      <div style="margin:12px 0 6px;font-size:12px;color:var(--muted)">Položky k objednání (název, cena, jednotka)</div>
+      <div id="ord-items" style="display:flex;flex-direction:column;gap:6px">${itemRows}</div>
+      <button onclick="addOrderItemRow()" style="margin-top:8px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--accent);font-weight:700;font-size:12.5px;padding:8px 12px;cursor:pointer">+ Přidat položku</button>
+      `}
+      <div style="margin:14px 0 6px;font-size:12px;color:var(--muted)">Zrušení objednávky v chatu je možné do této hodiny dne před službou (potom jen přes recepci)</div>
+      <div style="display:flex;align-items:center;gap:8px"><input id="ord-cancel-hour" type="number" min="0" max="24" step="1" value="${(h.pms_write_cancel_hour!==undefined&&h.pms_write_cancel_hour!==null)?h.pms_write_cancel_hour:20}" style="${inp};width:90px"><span style="font-size:13px">:00</span><span style="font-size:11px;color:var(--muted)">např. 20 = do 20:00 předchozího dne; 24 = do půlnoci</span></div>
+      <div style="margin:14px 0 6px;font-size:12px;color:var(--muted)">E-mail, kam chodí každá objednávka / požadavek (prázdné = e-mail hotelu)</div>
+      <input id="ord-email" type="email" value="${(h.pms_write_notify_email||'').replace(/"/g,'&quot;')}" placeholder="recepce@hotel.cz" style="${inp};width:100%;max-width:360px">
+      <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button onclick="saveOrdersSection()" style="background:var(--accent);color:#0a0b0f;border:none;padding:9px 18px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Uložit objednávky</button>
+        <span id="ord-saved" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+      ${(pms&&h.pms_needs_reconsent)?`<div style="margin-top:10px;font-size:12px;color:#ffb84d">🔑 Aby Alex mohl do Apalea zapisovat, udělte nové oprávnění v sekci Hotelový systém výše. Do té doby půjdou objednávky jen jako požadavek recepci.</div>`:''}
+      </div>
+    </div>`;
+  if(pms) loadAllowlist(allow);
+  translateDom(el);
+  try{ buildPortalTiles(); }catch(e){}
+}
+// Výchozí měna položky: měna hotelu (z Apalea), jinak podle země — hoteliér ji jinak
+// snadno zapomene a Alex pak říká jen číslo (stalo se u DEMO hotelu 11. 10.).
+function defaultOrderCurrency(){
+  const h=hotelData||{}; if(h.currency) return String(h.currency).toUpperCase();
+  const c=(h.country||'').toUpperCase().trim();
+  const map={CZ:'CZK',GB:'GBP',UK:'GBP',PL:'PLN',HU:'HUF',CH:'CHF',DK:'DKK',SE:'SEK',NO:'NOK',RO:'RON',BG:'BGN'};
+  if(map[c]) return map[c];
+  if(['SK','DE','AT','FR','IT','ES','NL','PT','BE','FI','IE','GR','HR','SI','LT','LV','EE','LU','MT','CY'].includes(c)) return 'EUR';
+  return '';
+}
+function orderItemRowHtml(it){
+  it=it||{}; const inp='background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:7px 9px;outline:none';
+  const esc=s=>String(s||'').replace(/"/g,'&quot;');
+  return `<div class="ord-item" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <input class="oi-name" type="text" value="${esc(it.name)}" placeholder="Snídaně" style="${inp};flex:2;min-width:140px">
+    <input class="oi-price" type="number" min="0" step="0.01" value="${it.price!==undefined?it.price:''}" placeholder="350" style="${inp};width:90px">
+    <input class="oi-cur" type="text" value="${esc(it.currency||defaultOrderCurrency())}" placeholder="CZK" maxlength="3" style="${inp};width:60px">
+    <select class="oi-unit" style="${inp}"><option value="person_day" ${it.unit==='person_day'?'selected':''}>za osobu a den (snídaně, polopenze)</option><option value="person" ${it.unit==='person'?'selected':''}>za osobu a noc (přistýlka)</option><option value="room" ${it.unit==='room'?'selected':''}>za pokoj a noc (parkování, mazlíček)</option><option value="flat" ${(!it.unit||it.unit==='flat')?'selected':''}>jednorázově za pobyt (pozdní odjezd)</option><option value="person_once" ${it.unit==='person_once'?'selected':''}>za osobu, jednorázově (masáž, vstupenka)</option></select>
+    <button onclick="this.parentElement.remove()" title="Odebrat" style="background:transparent;border:none;color:var(--muted);font-size:16px;cursor:pointer">✕</button>
+  </div>`;
+}
+function addOrderItemRow(){ const c=document.getElementById('ord-items'); if(!c)return; c.insertAdjacentHTML('beforeend',orderItemRowHtml({})); translateDom(c); }
+async function loadAllowlist(allow){
+  const box=document.getElementById('ord-allow'); if(!box)return;
+  let svcs=[];
+  try{ const r=await fetch(`${API}/api/hotel-portal/pms-services?token=${token}`); const d=await r.json(); svcs=d.services||[];
+       const cur=document.getElementById('ord-cur'); if(cur&&d.currency) cur.textContent=d.currency; }catch(e){}
+  const known=new Set(svcs.map(s=>s.id));
+  (allow||[]).forEach(code=>{ if(!known.has(code)) svcs.push({id:code,name:code}); });
+  if(!svcs.length){ box.innerHTML=`<span style="font-size:12.5px;color:var(--muted)">${tr('Zatím žádné služby — v Apaleu zatím nemáte žádnou službu k dokoupení, nebo se katalog nepodařilo načíst.')}</span>`; return; }
+  box.innerHTML=svcs.map(s=>`<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer"><input type="checkbox" class="ord-allow-cb" value="${s.id}" ${(allow||[]).includes(s.id)?'checked':''} style="accent-color:var(--accent);width:16px;height:16px"> ${s.name||s.id} <span style="color:var(--muted);font-size:12px">${s.id}${s.unit_price!==undefined&&s.unit_price!==null?` · ${s.unit_price} ${s.currency||''}${s.pricing_unit==='Person'?' '+tr('/ osoba'):''}`:''}</span></label>`).join('');
+}
+async function saveOrdersSection(){
+  const g=id=>document.getElementById(id);
+  const payload={pms_write_services:!!(g('ord-services')&&g('ord-services').checked), pms_write_extension:!!(g('ord-ext')&&g('ord-ext').checked),
+    pms_write_notify_email:(g('ord-email')&&g('ord-email').value||'').trim()};
+  if(g('ord-mode')) payload.pms_write_mode=g('ord-mode').value;
+  if(g('ord-notify-always')) payload.pms_write_notify_always=!!g('ord-notify-always').checked;
+  if(g('ord-cap')) payload.pms_write_cap=g('ord-cap').value;
+  if(g('ord-cancel-hour')) payload.pms_write_cancel_hour=g('ord-cancel-hour').value;
+  if(g('ord-allow')) payload.pms_write_allowlist=[...document.querySelectorAll('.ord-allow-cb:checked')].map(c=>c.value);
+  if(g('ord-items')) payload.pms_write_items=[...document.querySelectorAll('#ord-items .ord-item')].map(r=>({name:r.querySelector('.oi-name').value,price:r.querySelector('.oi-price').value,currency:r.querySelector('.oi-cur').value,unit:r.querySelector('.oi-unit').value})).filter(x=>x.name.trim());
+  const s=g('ord-saved'); if(s) s.textContent=tr('Ukládá se…');
+  try{
+    const r=await fetch(`${API}/api/hotel-portal/update?token=${token}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json(); const keep={pms_write_available:hotelData.pms_write_available,pms_needs_reconsent:hotelData.pms_needs_reconsent};
+    hotelData=Object.assign(d.hotel,keep);
+    loadOrdersSection();
+    const s2=g('ord-saved'); if(s2) s2.textContent=tr('✓ Uloženo');
+    // 6a: Apaleo hotel zapnul objednávky, ale souhlas v Apaleu ještě nepokrývá zápis → rovnou na udělení
+    // oprávnění (stejný odkaz jako „Propojit s Apaleo", server pozná re-consent ze starého scope).
+    if((payload.pms_write_services||payload.pms_write_extension) && hotelData.pms_type && hotelData.pms_needs_reconsent){
+      if(s2) s2.textContent=tr('✓ Uloženo — otevírám udělení oprávnění v Apaleu…');
+      setTimeout(()=>{ location.href=`${API}/api/pms/apaleo/connect?token=${token}`; }, 1200);
+    }
+  }catch(e){ if(s) s.textContent=''; alert(tr('Uložení se nepovedlo: ')+e.message); }
 }
 
 async function savePmsProperty(){
@@ -1850,7 +2282,7 @@ async function disconnectPms(){
     if(!r.ok)throw new Error('HTTP '+r.status);
     hotelData.pms_type='';
     hotelData.pms_refresh_token='';
-    loadPmsSection();
+    loadPmsSection(); loadOrdersSection(); loadRequestsSection();
   }catch(e){alert(tr('Odpojení se nepovedlo: ')+e.message);}
 }
 
@@ -2059,9 +2491,22 @@ async function loadMonthlyReport(){
     }).join('');
     const lastChat = a.last_chat ? new Date(a.last_chat).toLocaleDateString(cs?'cs-CZ':'en-GB') : '–';
     const totalVisits = d.total_visits||0;
+    // Požadavky hostů z chatu (objednávky) — stejná data jako sekce Požadavky hostů v záložce Alex
+    let reqHtml = '';
+    try{
+      const rq = (hotelData && hotelData.pms_write_available) ? (_requestsCache || await fetchRequests()) : null;
+      const tm = rq && rq.stats && rq.stats.this_month;
+      if(tm && (tm.total || (rq.stats.all_time||{}).total)){
+        const n = tm.total||0;
+        const lblReq = cs ? (n===1?'požadavek tento měsíc':(n>=2&&n<=4)?'požadavky tento měsíc':'požadavků tento měsíc') : (n===1?'request this month':'requests this month');
+        const lblWait = cs ? 'z toho čeká na odpověď' : 'waiting for a reply';
+        reqHtml = `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;cursor:pointer" onclick="showPortalTab('alex')" title="${cs?'Požadavky hostů v chatu':'Guest requests in chat'}"><div style="font-size:32px;font-weight:700;color:#ffaa33">${tm.total||0}</div><div style="font-size:12px;color:var(--muted)">🛎 ${lblReq}${tm.pending?`<br><span style="color:#ffaa33;font-weight:700">${tm.pending}</span> ${lblWait}`:''}</div></div>`;
+      }
+    }catch(e){}
     const allTimeHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:14px 0">
       ${totalVisits?`<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:32px;font-weight:700;color:var(--accent2)">${totalVisits}</div><div style="font-size:12px;color:var(--muted)">${L.totalVisits}</div></div>`:''}
       <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:32px;font-weight:700;color:var(--accent)">${a.total||0}</div><div style="font-size:12px;color:var(--muted)">${L.total}</div></div>
+      ${reqHtml}
       <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:18px;font-weight:700;color:var(--accent2)">${lastChat}</div><div style="font-size:12px;color:var(--muted)">${L.last}</div></div>
     </div>${topics.length?`<div style="font-size:12px;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">${L.topics}</div>${topicHtml}`:''}`;
     const hasMonthly = (rep.count || 0) > 0;

@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 import os, json, uuid, httpx, asyncio, re, base64, hmac, hashlib, logging, threading
 from datetime import datetime, timedelta
+import html
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from dotenv import load_dotenv
@@ -635,7 +636,8 @@ def _is_public_api(path: str) -> bool:
         return True
     for p in ("/api/guest/", "/api/hotel-portal/", "/api/app-icon/", "/api/docs/",
               "/api/ares/", "/api/stripe/", "/api/register", "/api/admin/",
-              "/api/pms/apaleo/"):  # OAuth connect/callback — hlídá se hotel tokenem + state
+              "/api/pms/apaleo/",   # OAuth connect/callback — hlídá se hotel tokenem + state
+              "/api/orders/"):      # odkaz z e-mailu recepci (Potvrdit / Nelze vyřídit) — hlídá HMAC podpis
         if path.startswith(p):
             return True
     if path.startswith("/api/hotels/"):
@@ -2021,13 +2023,16 @@ def hotel_portal_group(token: str):
     if not h:
         raise HTTPException(403, "Neplatný přístupový token")
     email = (h.get("registration_email") or h.get("email") or "").lower().strip()
-    if not email:
+    # DEMO hotel do skupiny nepatří (uživatel 11. 10. 2026: „proč je demo pod skupinou hotelů Apaleo?") —
+    # sdílí náš registrační e-mail s testovacími Apaleo hotely, ale je to ukázka, ne součást řetězce.
+    _is_demo = lambda x: bool(x.get("is_demo")) or (x.get("name") or "").strip().upper().startswith("DEMO")
+    if not email or _is_demo(h):
         return {"status": "ok", "hotels": []}
     db = db_load()
     out = []
     for hid, hh in db["hotels"].items():
         he = (hh.get("registration_email") or hh.get("email") or "").lower().strip()
-        if he != email or hh.get("archived"):
+        if he != email or hh.get("archived") or _is_demo(hh):
             continue
         a = (db.get("analytics", {}) or {}).get(hid, {}) or {}
         try:
@@ -2061,7 +2066,40 @@ def hotel_portal_me(token: str):
         raise HTTPException(403, "Neplatny pristupovy token")
     safe = {k: v for k, v in h.items() if k not in (
         "hotel_token", "pms_client_secret", "pms_refresh_token", "pms_oauth_state", "pms_oauth_state_at")}
+    # Zápis do rezervace: hotel připojený starým souhlasem (bez reservations.manage) musí
+    # souhlas udělit znovu — scope neplatí zpětně. Dokud je gate vypnutý, je to vždy False,
+    # takže portál dnes nic nového neukazuje.
+    safe["pms_needs_reconsent"] = bool(h.get("pms_type")) and _APALEO_REQUEST_WRITE_SCOPE and not _apaleo_has_write_scope(h)
+    safe["pms_write_available"] = _APALEO_REQUEST_WRITE_SCOPE   # gate zápisu (staging) → portál ukáže sekci Objednávky
     return {"status": "ok", "hotel": safe}
+
+@app.get("/api/hotel-portal/pms-services")
+async def hotel_portal_pms_services(token: str):
+    """Katalog služeb z Apalea pro allowlist v portálu + měna hotelu. Zdroj: celý katalog
+    property přes nabídky (offers.read, cache 1 h) sjednocený se službami, které Alex
+    viděl u propojených pobytů (pms_services_seen). Bez PMS prázdné."""
+    h = find_hotel_by_token(token)
+    if not h:
+        raise HTTPException(403, "Neplatny pristupovy token")
+    services, currency = {}, ""
+    for k, v in (h.get("pms_services_seen") or {}).items():
+        services[k] = {"id": k, **(v if isinstance(v, dict) else {"name": str(v)})}
+        currency = currency or (v.get("currency") if isinstance(v, dict) else "") or ""
+    if h.get("pms_type") and h.get("pms_property_id"):
+        try:
+            db = db_load()
+            hid = next((k for k, v in db["hotels"].items() if v.get("hotel_token") == token), None)
+            _ph = _pms_hotel_ctx(h, db_get_settings(), db)
+            cat = await pms_layer.apaleo_service_catalogue(_ph) or {}
+            for s in cat.get("services") or []:
+                services[s["id"]] = {**services.get(s["id"], {}), **s}
+            currency = cat.get("currency") or currency
+            if hid:
+                _persist_rotated_refresh_token(hid, _ph)
+        except Exception as e:
+            logging.warning("Katalog služeb z Apalea selhal: %s", e)
+    return {"status": "ok", "currency": currency,
+            "services": sorted(services.values(), key=lambda s: str(s.get("name") or s["id"]).lower())}
 
 class HotelPortalUpdate(BaseModel):
     description: Optional[str] = None
@@ -2107,6 +2145,147 @@ class HotelPortalUpdate(BaseModel):
     menu_urls: Optional[List[str]] = None
     custom_fields: Optional[List[dict]] = None
 
+# ── Zápis do rezervace: nastavení per hotel (rozhodnutí 9. 10. 2026) ──────────────────
+# Výchozí stav = VYPNUTO (pravidlo 1). Hoteliér zapíná v portálu; bez PMS má smysl jen
+# režim "request" (objednávka jde na recepci, hotel ji zadá sám — rozhodnutí č. 5).
+_WRITE_DEFAULTS = {
+    "pms_write_services": False,     # smí Alex přidávat služby na účet pokoje
+    "pms_write_extension": False,    # smí Alex prodlužovat pobyt
+    "pms_write_mode": "auto",        # "auto" = zapsat do PMS po potvrzení hostem | "request" = jen poslat recepci
+    "pms_write_allowlist": [],       # serviceId z Apalea, které smí Alex nabízet (pravidlo 3); [] = nic
+    "pms_write_cap": 100.0,          # strop na jednu akci v měně hotelu (pravidlo 4); nad něj ověření kódem
+    "pms_write_notify_email": "",    # kam hlásit požadavky a selhání; prázdné = e-mail hotelu
+    # Úspěšný zápis do Apalea recepce vidí v Apaleu — e-mail navíc jen když hotel chce
+    # (uživatel 11. 10.: „pokud je hotel napojen na Apaleo, nemusí chodit žádný e-mail").
+    "pms_write_notify_always": False,
+    # Hotely BEZ PMS (rozhodnutí č. 5): vlastní seznam věcí k objednání — Alex je nabídne
+    # a po potvrzení pošle požadavek recepci (nic se nikam nezapisuje, hotel zadá sám).
+    # [{id, name, price, currency, unit: "person"|"room"|"flat"}]
+    "pms_write_items": [],
+    # Zrušení objednané služby z chatu je možné do této hodiny DNE PŘED službou (uživatel 11. 10. 2026:
+    # „je tam nějaká logika, kdy to ještě cancel jde a kdy ne?"); potom jen přes recepci. Platí pro Apaleo i bez PMS.
+    "pms_write_cancel_hour": 20,
+}
+_ITEM_UNITS = ("person_day", "person", "room", "flat", "person_once")
+
+_COUNTRY_TZ = {"GB": "Europe/London", "IE": "Europe/Dublin", "PT": "Europe/Lisbon", "FI": "Europe/Helsinki", "GR": "Europe/Athens",
+               "RO": "Europe/Bucharest", "BG": "Europe/Sofia", "EE": "Europe/Tallinn", "LV": "Europe/Riga", "LT": "Europe/Vilnius",
+               "UA": "Europe/Kyiv", "TR": "Europe/Istanbul", "US": "America/New_York", "AE": "Asia/Dubai", "JP": "Asia/Tokyo"}
+
+def _hotel_now(h: dict):
+    """Místní čas hotelu (podle země; výchozí střední Evropa)."""
+    from zoneinfo import ZoneInfo
+    tz = _COUNTRY_TZ.get((h.get("country") or "").strip().upper(), "Europe/Prague")
+    try:
+        return datetime.now(ZoneInfo(tz))
+    except Exception:
+        return datetime.now(ZoneInfo("Europe/Prague"))
+
+def _cancel_allowed(h: dict, dates: list, hour: int):
+    """(smí se zrušit z chatu?, text termínu). Termín = `hour`:00 dne před PRVNÍM dnem služby
+    (hour 24 = do půlnoci před službou). Bez známého data služby se zrušit smí (rozhodne recepce)."""
+    ds = sorted(d for d in (dates or []) if d)
+    if not ds:
+        return True, ""
+    from datetime import date as _d, timedelta as _td
+    try:
+        first = _d.fromisoformat(ds[0][:10])
+    except Exception:
+        return True, ""
+    hour = max(0, min(24, int(hour if hour is not None else 20)))
+    now = _hotel_now(h)
+    dl_day = first - _td(days=1)
+    deadline = datetime(dl_day.year, dl_day.month, dl_day.day, tzinfo=now.tzinfo) + _td(hours=hour)
+    txt = f"{hour % 24:02d}:00 ({dl_day.day}. {dl_day.month})" if hour < 24 else f"24:00 ({dl_day.day}. {dl_day.month})"
+    return now < deadline, txt
+
+# Jak se položka počítá na kartě hosta (uživatel 11. 10. 2026: „proč je u snídaně počet nocí?
+# pracuj s těmi jednotkami inteligentně"):
+#   person_day  = za osobu a den   (snídaně, polopenze)  → osoby × dny
+#   person      = za osobu a noc   (přistýlka)           → osoby × noci; jídlo i tady = dny
+#   room        = za pokoj a noc   (parkování, mazlíček) → noci
+#   flat        = jednorázově      (pozdní odjezd)       → nic, jen čas/poznámka
+#   person_once = za osobu, jednou (masáž, vstupenka)    → osoby + čas
+_MEAL_WORDS = ("breakfast", "snídan", "snidan", "frühstück", "fruhstuck", "colazione", "desayuno", "śniadan", "ontbijt",
+               "dinner", "večeř", "vecer", "polopenz", "half board", "halbpension", "abendessen", "lunch", "oběd", "obed",
+               "plná penze", "full board", "vollpension")
+
+def _item_qty(it: dict) -> dict:
+    """Co host na kartě nastavuje: osoby (can_count), násobitel dnů/nocí (can_nights + qty_label)
+    a jestli má smysl ptát se na čas (time_hint). Jídlo se počítá na DNY, i když hotel zvolil
+    „za osobu a noc" — snídaně se nejí v noci."""
+    unit = it.get("unit") or "flat"
+    meal = any(w in (it.get("name") or "").lower() for w in _MEAL_WORDS)
+    if unit == "person_day":
+        return {"can_count": True, "can_nights": True, "qty_label": "days", "time_hint": False}
+    if unit == "person":
+        return {"can_count": True, "can_nights": True, "qty_label": "days" if meal else "nights", "time_hint": False}
+    if unit == "room":
+        return {"can_count": False, "can_nights": True, "qty_label": "days" if meal else "nights", "time_hint": False}
+    if unit == "person_once":
+        return {"can_count": True, "can_nights": False, "qty_label": None, "time_hint": True}
+    return {"can_count": False, "can_nights": False, "qty_label": None, "time_hint": True}
+
+def _normalize_items(v) -> list:
+    out, seen = [], set()
+    for it in (v if isinstance(v, list) else [])[:30]:
+        if not isinstance(it, dict):
+            continue
+        name = str(it.get("name") or "").strip()[:60]
+        if not name:
+            continue
+        try:
+            price = round(float(str(it.get("price") or 0).replace(",", ".")), 2)
+        except (TypeError, ValueError):
+            price = 0.0
+        unit = it.get("unit") if it.get("unit") in _ITEM_UNITS else "flat"
+        cur = str(it.get("currency") or "").strip().upper()[:3]
+        iid = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "item"
+        if iid in seen:
+            iid = f"{iid}-{len(out)+1}"
+        seen.add(iid)
+        out.append({"id": iid, "name": name, "price": max(0.0, price), "currency": cur, "unit": unit})
+    return out
+
+def _normalize_write_settings(data: dict):
+    """Vrátí normalizovanou podmnožinu polí pms_write_* z requestu, nebo None, když tam žádné
+    není. Neplatná hodnota → výchozí (bezpečnější) hodnota, nikdy výjimka — portál nesmí
+    spadnout kvůli překlepu ve stropu."""
+    keys = [k for k in _WRITE_DEFAULTS if k in data]
+    if not keys:
+        return None
+    out = {}
+    for k in keys:
+        v = data.get(k)
+        if k in ("pms_write_services", "pms_write_extension", "pms_write_notify_always"):
+            out[k] = v is True or str(v).strip().lower() in ("1", "true", "ano", "yes", "on")
+        elif k == "pms_write_mode":
+            out[k] = v if v in ("auto", "request") else "request"
+        elif k == "pms_write_allowlist":
+            out[k] = sorted({str(x).strip() for x in (v if isinstance(v, list) else []) if str(x).strip()})[:200]
+        elif k == "pms_write_cap":
+            try:
+                cap = float(str(v).replace(",", "."))
+                out[k] = round(cap, 2) if 0 <= cap <= 100000 else _WRITE_DEFAULTS[k]
+            except (TypeError, ValueError):
+                out[k] = _WRITE_DEFAULTS[k]
+        elif k == "pms_write_cancel_hour":
+            try:
+                hr = int(float(str(v).replace(",", ".")))
+                out[k] = hr if 0 <= hr <= 24 else _WRITE_DEFAULTS[k]
+            except (TypeError, ValueError):
+                out[k] = _WRITE_DEFAULTS[k]
+        elif k == "pms_write_notify_email":
+            s = str(v or "").strip()
+            out[k] = s if (s == "" or ("@" in s and "." in s.split("@")[-1] and len(s) <= 254)) else ""
+        elif k == "pms_write_items":
+            out[k] = _normalize_items(v)
+    return out
+
+def _write_settings(h: dict) -> dict:
+    """Efektivní nastavení zápisu hotelu (výchozí + uložené)."""
+    return {**_WRITE_DEFAULTS, **{k: h[k] for k in _WRITE_DEFAULTS if k in h}}
+
 _PORTAL_PROTECTED = {
     "id", "hotel_token", "created_at", "qr_code_id", "registered_bed_count",
     "subscription_active", "subscription_start", "subscription_period_end",
@@ -2131,6 +2310,13 @@ def hotel_portal_update(token: str, data: dict = Body(default={})):
         menus = [m.get("url") for r in rests for m in (r.get("menus") or []) if m.get("url")]
         update_data["menu_urls"] = menus or None
     current = db["hotels"][h["id"]]
+    # Nastavení zápisu do rezervace (APALEO_ZAPIS_DO_REZERVACE_NAVRH.md, pravidla 1–4):
+    # portál posílá libovolná pole, ale tahle rozhodují o tom, co smí Alex objednat na účet
+    # hosta — špatná hodnota (strop jako text, neznámý režim) by potichu vypnula pojistku,
+    # proto se normalizují tady a ne až při čtení.
+    _wr = _normalize_write_settings(update_data)
+    if _wr is not None:
+        update_data.update(_wr)
     # Při prvním nastavení lůžek u aktivního předplatného ulož jako zaplacená lůžka
     new_beds = update_data.get("bed_count")
     paid_beds = current.get("subscription_paid_beds", 0)
@@ -2207,6 +2393,54 @@ def hotel_portal_analytics(token: str):
         "last_chat": None
     })
     return {"status": "ok", "analytics": analytics}
+
+@app.get("/api/hotel-portal/orders")
+def hotel_portal_orders(token: str):
+    """Seznam požadavků hostů z chatu (30 dní, nejnovější první) + měsíční statistiky pro portál
+    (uživatel 11. 10. 2026: „seznam požadavků na portál zapracuj a dej to do statistik").
+    Bez osobních údajů: pokoj, co, kdy, stav, vzkazy recepce, odkaz na stránku odpovědi."""
+    h = find_hotel_by_token(token)
+    if not h:
+        raise HTTPException(403, "Neplatny token")
+    db = db_load()
+    hid = h["id"]
+    cs = (h.get("country") or "").strip().upper() in ("CZ", "SK")
+    ev_txt = {"confirmed": "✅ Potvrzeno" if cs else "✅ Confirmed", "declined": "❌ Nelze vyřídit" if cs else "❌ Cannot arrange"}
+    rows = []
+    for oid, rec in (db.get("orders") or {}).items():
+        if rec.get("hid") != hid:
+            continue
+        notes = [{"who": e.get("kind"), "text": e.get("text", "")} for e in (rec.get("events") or []) if e.get("kind") in ("note", "guest")]
+        rows.append({"id": oid, "created": rec.get("created", ""), "room": rec.get("room", ""), "kind": rec.get("kind", ""),
+                     "title": rec.get("title", ""), "detail": rec.get("detail", ""), "price": rec.get("price", ""),
+                     "status": rec.get("status", "pending"), "decided": rec.get("decided", ""), "notes": notes,
+                     "reply_link": _order_reply_link(oid)})
+    rows.sort(key=lambda r: r["created"], reverse=True)
+    a = (db.get("analytics", {}) or {}).get(hid, {}) or {}
+    monthly = a.get("orders_monthly", {}) or {}
+    now_key = datetime.utcnow().strftime("%Y-%m")
+    prev_key = _month_key_shift(now_key, -1)
+    def _sum(keys):
+        out = {"requested": 0, "confirmed": 0, "declined": 0, "booked": 0}
+        for k in keys:
+            for kk in out:
+                out[kk] += int((monthly.get(k) or {}).get(kk, 0))
+        out["pending"] = max(0, out["requested"] - out["confirmed"] - out["declined"])
+        out["total"] = out["requested"] + out["booked"]
+        return out
+    # Tento měsíc se počítá ze samotných záznamů (sedí se seznamem i s „(N)" v titulku — uživatel 11. 10.
+    # viděl 3 čekající v záhlaví a 0 v čipech, protože počítadla běží až od nasazení); „zapsáno do Apalea"
+    # záznam nemá, to bere z počítadel.
+    this_rows = [r for r in rows if (r["created"] or "")[:7] == now_key]
+    this_month = {"requested": len(this_rows),
+                  "confirmed": sum(1 for r in this_rows if r["status"] == "confirmed"),
+                  "declined": sum(1 for r in this_rows if r["status"] == "declined"),
+                  "pending": sum(1 for r in this_rows if r["status"] == "pending"),
+                  "booked": int((monthly.get(now_key) or {}).get("booked", 0))}
+    this_month["total"] = this_month["requested"] + this_month["booked"]
+    return {"status": "ok", "orders": rows[:50], "pending_now": sum(1 for r in rows if r["status"] == "pending"),
+            "stats": {"this_month": this_month, "prev_month": _sum([prev_key]), "all_time": _sum(list(monthly.keys())),
+                      "month_label": _month_label(now_key, "cs" if cs else "en"), "prev_label": _month_label(prev_key, "cs" if cs else "en")}}
 
 @app.get("/api/hotel-portal/monthly-report")
 def hotel_portal_monthly_report(token: str, month: str = ""):
@@ -4559,6 +4793,7 @@ def _handle_apaleo_group_checkout(obj: dict, reg_id: str) -> dict:
         if i == 0:
             parent_id = nid
             hotel["pms_refresh_token"] = reg.get("refresh_token", "")
+            hotel["pms_scope"] = reg.get("scope", "")   # viz apaleo_callback — udělený scope
             hotel["stripe_subscription_id"] = subscription_id
         else:
             hotel["pms_token_ref"] = parent_id
@@ -6108,9 +6343,13 @@ def get_guest_hotel(hotel_id: str):
     public = {k: v for k, v in h.items() if k not in (
         "hotel_token", "stripe_customer_id", "stripe_subscription_id",
         "pms_type", "pms_client_id", "pms_client_secret", "pms_property_id",
-        "pms_refresh_token", "pms_oauth_state", "pms_oauth_state_at")}
+        "pms_refresh_token", "pms_scope", "pms_oauth_state", "pms_oauth_state_at",
+        "pms_write_notify_email", "pms_write_allowlist", "pms_write_cap", "pms_write_mode", "pms_services_seen",
+        "pms_write_items")}
     # Jen boolean — guest app podle něj nabídne „propojit pobyt" (žádné PMS detaily ven)
     public["pms_connected"] = bool(h.get("pms_type"))
+    # Objednávky v chatu zapnuté → guest app u hotelu bez PMS nabídne „Můj pokoj" (jen číslo pokoje)
+    public["orders_enabled"] = bool(h.get("pms_write_services") or h.get("pms_write_extension"))
     return {"status": "ok", "hotel": public}
 
 class GuestVisitRequest(BaseModel):
@@ -6211,6 +6450,105 @@ async def _send_pms_alert_email(hid: str, h: dict, reason: str):
         logging.info("PMS alert pro %s: HTTP %s", hid, r.status_code)
     except Exception as e:
         logging.warning("PMS alert e-mail selhal (%s): %s", hid, e)
+
+async def _send_write_notification(hid: str, h: dict, room: str, action: dict):
+    """Hlášení recepci o každém zápisu / požadavku z chatu (zápis do rezervace, pravidlo 7:
+    „hotel se to dozví hned"). Jde na pms_write_notify_email, jinak na e-mail hotelu; BCC admin.
+    action = {"kind": "service"|"extension", "mode": "auto"|"request", "ok": bool,
+              "title": str, "detail": str, "price": str, "reservation_id": str}
+    Žádné osobní údaje hosta — jen pokoj, rezervace a co se objednalo. Nikdy nevyhazuje."""
+    brevo_key = os.getenv("BREVO_API_KEY", "")
+    wr = _write_settings(h)
+    to_email = (wr.get("pms_write_notify_email") or h.get("registration_email") or h.get("email") or "").strip()
+    if not brevo_key or not to_email:
+        logging.warning("Write notification: nelze odeslat (brevo=%s, email=%s), hotel %s", bool(brevo_key), bool(to_email), hid)
+        return
+    name = h.get("name") or hid
+    has_pms = bool(h.get("pms_type"))
+    cs = (h.get("country") or "").strip().upper() in ("CZ", "SK")   # české hotely dostanou mail česky
+    is_ext = action.get("kind") == "extension"
+    mode, ok = action.get("mode"), action.get("ok")
+    # Datum lidsky (11. 10. 2026) a cena bez „.0" — hoteliér to čte na mobilu u pultu
+    detail = re.sub(r"\b(\d{4})-(\d{2})-(\d{2})\b", lambda m: f"{int(m.group(3))}. {int(m.group(2))}. {m.group(1)}", str(action.get("detail") or ""))
+    price = re.sub(r"(\d+)\.0\b", r"\1", str(action.get("price") or ""))
+    from datetime import timedelta as _td
+    when = (datetime.utcnow() + _td(hours=2)).strftime("%d. %m. %Y %H:%M") if cs else datetime.utcnow().strftime("%d.%m.%Y %H:%M UTC")
+    # Přímý odkaz do portálu na záložku Alex & objednávky (uživatel 11. 10.: „rovnou odkazem")
+    portal_link = f"{(os.getenv('BASE_URL') or 'https://www.smartestguide.com').rstrip('/')}/portal?token={h.get('hotel_token', '')}#alex"
+    note = str(action.get("note") or "").strip()[:200]
+    if cs:
+        kind = "Prodloužení pobytu" if is_ext else ("Zrušení služby" if action.get("kind") == "cancel" else "Objednávka služby")
+        if mode == "request":
+            what = f"POŽADAVEK z pokoje {room}"
+            lead = ("Host požádal Alexe o následující. Objednávka se nikam nezapisuje — prosím vyřiďte ji na recepci "
+                    "a odpovězte hostovi tlačítkem níže (odpověď mu přijde do chatu):" if not has_pms else
+                    "Host požádal Alexe o následující. Hotel má objednávky nastavené jako požadavek, do Apalea se nic "
+                    "nezapsalo — prosím vyřiďte ji na recepci a odpovězte hostovi tlačítkem níže (odpověď mu přijde do chatu):")
+        elif ok:
+            what = f"zapsáno pro pokoj {room}"
+            lead = "Alex právě zapsal následující na rezervaci hosta v <b>Apaleu</b> poté, co to host potvrdil v chatu. Účtuje se na pokoj a vyrovná při odjezdu:"
+        else:
+            what = f"SELHALO pro pokoj {room}"
+            lead = "Host v chatu potvrdil následující, ale <b>zápis do Apalea selhal</b>. Prosím zkontrolujte rezervaci a vyřiďte ručně:"
+        labels = ("Pokoj", "Rezervace", "Detail", "Cena", "Čas")
+        settings_line = (f"Nastavení (co smí Alex nabízet, položky, tato adresa): <a href=\"{portal_link}\">Objednávky v chatu v portálu hotelu</a>."
+                         if not has_pms else f"Nastavení (co smí Alex objednat, limit, tato adresa): <a href=\"{portal_link}\">Objednávky v chatu v portálu hotelu</a>.")
+        hello = "Dobrý den,"
+    else:
+        kind = "Stay extension" if is_ext else ("Service cancellation" if action.get("kind") == "cancel" else "Service order")
+        if mode == "request":
+            what = f"REQUEST from room {room}"
+            lead = ("A guest asked Alex for the following. Nothing is written anywhere — please handle it at reception "
+                    "and reply to the guest with the button below (the reply appears in their chat):" if not has_pms else
+                    "A guest asked Alex for the following. This hotel runs orders as requests, so nothing was written to "
+                    "Apaleo — please handle it at reception and reply to the guest with the button below (the reply appears in their chat):")
+        elif ok:
+            what = f"booked for room {room}"
+            lead = "Alex has just written the following to the guest's reservation in <b>Apaleo</b> after the guest confirmed it in chat. It is charged to the room account and settled at check-out:"
+        else:
+            what = f"FAILED for room {room}"
+            lead = "A guest confirmed the following in chat, but <b>writing it to Apaleo failed</b>. Please check the reservation and handle it manually:"
+        labels = ("Room", "Reservation", "Detail", "Price", "Time")
+        settings_line = f"Settings (what Alex may offer, items, limits, this notification address): <a href=\"{portal_link}\">Orders in chat in your hotel portal</a>."
+        hello = "Hello,"
+    res_row = f"<li><b>{labels[1]}:</b> {action.get('reservation_id')}</li>" if action.get("reservation_id") else ""
+    # Tlačítka Potvrdit / Nelze vyřídit — stav se propíše hostovi do chatu (stránka po kliknutí umí i vzkaz)
+    buttons = ""
+    if action.get("order_id") and mode == "request":
+        # Nic se neodešle klepnutím v mailu: tlačítko otevře stránku, kde recepce dopíše vzkaz a teprve
+        # pak zvolí Potvrdit / Nelze vyřídit a pošle (uživatel 11. 10.).
+        _lnk = _order_reply_link(action["order_id"])
+        _b = "display:inline-block;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:700;background:#FF6B00;color:#fff"
+        buttons = (f"<p><a href=\"{_lnk}\" style=\"{_b}\">{'✍️ Odpovědět hostovi' if cs else '✍️ Reply to the guest'}</a><br>"
+                   f"<span style='font-size:12px;color:#666'>{'Na stránce dopíšete vzkaz a zvolíte Potvrdit / Nelze vyřídit — host odpověď uvidí v chatu.' if cs else 'On the page you write a message and choose Confirm / Cannot arrange — the guest sees the reply in chat.'}</span></p>")
+    payload = {
+        "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
+        "to": [{"email": to_email}],
+        "bcc": _admin_notify_bcc(exclude=to_email) or None,
+        "subject": f"🛎 {name}: {kind} — {what}",
+        "htmlContent": (
+            f"<p>{hello}</p><p>{lead}</p>"
+            f"<ul><li><b>{labels[0]}:</b> {room}</li>{res_row}"
+            f"<li><b>{kind}:</b> {action.get('title') or '—'}</li>"
+            + (f"<li><b>{labels[2]}:</b> {detail}</li>" if detail else "")   # prázdné řádky (prodloužení bez PMS) vynechat
+            + (f"<li><b>{'Čas / poznámka hosta' if cs else 'Guest time / note'}:</b> {note}</li>" if note else "")
+            + (f"<li><b>{labels[3]}:</b> {price}</li>" if price else "")
+            + f"<li><b>{labels[4]}:</b> {when}</li></ul>"
+            + (f"<p style='color:#b00'><b>Error:</b> {action.get('error')}</p>" if action.get("error") else "")
+            + buttons
+            + f"<p>{settings_line}</p>"
+            "<p>— SMARTEST GUIDE · support@smartestguide.com</p>"),
+        "textContent": f"{kind} — {what}. " + " — ".join(x for x in (action.get("title") or "", detail, price) if x) + f". {when}.",
+    }
+    if not payload["bcc"]:
+        payload.pop("bcc")
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post("https://api.brevo.com/v3/smtp/email", json=payload,
+                headers={"api-key": brevo_key, "Content-Type": "application/json"}, timeout=30)
+        logging.info("Write notification pro %s (%s): HTTP %s", hid, kind, r.status_code)
+    except Exception as e:
+        logging.warning("Write notification e-mail selhal (%s): %s", hid, e)
 
 def _pms_health_note(hid: str, fail):
     """Monitoring PMS spojení per hotel. fail: '' = úspěch, None = nevyhodnoceno, jinak důvod selhání.
@@ -6365,6 +6703,930 @@ def _alex_feminine_fix(text: str) -> str:
     text = _FEM_KTERA_RAD_RE.sub(lambda m: m.group(1) + "ráda", text)
     text = _CZ_BYSTE_RE.sub(lambda m: m.group(1), text)
     return text
+
+# ── Zápis do rezervace z chatu (APALEO_ZAPIS_DO_REZERVACE_NAVRH.md) ─────────────────────
+# Princip: SERVER rozhoduje, model jen mluví. Když má hotel zápis zapnutý, host ověřený pobyt
+# a zpráva ukazuje záměr, server sestaví konkrétní nabídku (služba, den, počet, cena) podle
+# allowlistu a stropu a vrátí ji vedle odpovědi jako kartu s tlačítkem. Jazykový model
+# dostane do promptu jen „host to může potvrdit tlačítkem níže" — sám nic neobjednává a
+# nerozhoduje. Potvrzení jde na /api/guest/order s opaque tokenem (15 min, vázaný na hotel
+# + rezervaci), všechno se před zápisem ověří znovu. Nad strop a prodloužení pobytu =
+# režim „request" (strukturovaný požadavek recepci) — e-mailový kód (rozhodnutí č. 2)
+# čeká na odemčení PII v Apaleu, pak se doplní jako další vrstva.
+# Tón nabídky (uživatel 11. 10. 2026: „tohle hosta vyděsí — nejdřív dej všechny informace a pak
+# nabídni, jestli to chce doobjednat"). Alex NIKDY nemluví, jako by už objednal.
+_ORDER_TONE = (
+    "POŘADÍ ODPOVĚDI: (1) nejdřív normálně odpověz na to, na co se host ptal — čas, místo, co to zahrnuje, "
+    "cena, jak to máš v podkladech; (2) teprve NA KONCI, jednou větou, NABÍDNI: že pokud chce, může si to "
+    "objednat tlačítkem pod touto zprávou. "
+    "ZAKÁZÁNO: psát 'objednávám', 'zaznamenala jsem objednávku', 'posílám/pošlu to recepci', 'je to v pořádku?', "
+    "'chcete ještě něco změnit?' nebo cokoli, co zní, jako by objednávka už běžela — NIC se neděje, dokud host "
+    "nestiskne tlačítko, a to řekni jen tehdy, když to dává smysl ('nic se neobjedná, dokud nepotvrdíte'). "
+    "Neptej se na počet osob, čas ani den — tlačítko už má přesné zadání (viz výše); nic nedopočítávej, "
+    "nenabízej jiné varianty. Pokud host jen oznámil číslo pokoje, nekomentuj ho dlouze — krátce potvrď a nabídni.")
+
+_ORDER_TTL = 900
+_ORDER_USED: dict = {}               # otisk tokenu -> čas použití (best-effort jednorázovost; zápis je idempotentní i tak)
+
+def _order_secret() -> bytes:
+    """Klíč pro podpis nabídek: ORDER_SIGN_SECRET, jinak APALEO_CLIENT_SECRET (na Railway je),
+    jinak náhodný per proces (= chování jako dřív: nabídka nepřežije restart)."""
+    global _ORDER_FALLBACK_SECRET
+    s = os.getenv("ORDER_SIGN_SECRET") or os.getenv("APALEO_CLIENT_SECRET") or ""
+    if s:
+        return s.encode("utf-8")
+    try:
+        return _ORDER_FALLBACK_SECRET
+    except NameError:
+        import secrets as _sec
+        _ORDER_FALLBACK_SECRET = _sec.token_bytes(32)
+        return _ORDER_FALLBACK_SECRET
+
+def _sign_proposal(payload: dict, ttl: int = None) -> str:
+    """Nabídka jako SAMONOSNÝ podepsaný token (base64url(json).podpis) — žádný stav na serveru,
+    přežije restart i víc instancí. Nález 11. 10. 2026: host klikl „Poslat recepci" během
+    nasazení stagingu → nabídka z paměti zmizela → „Nepovedlo se". ttl = platnost (výchozí 15 min;
+    tlačítko „Zrušit tuto objednávku" pod potvrzením má 48 h)."""
+    import base64, hmac, hashlib, time as _t
+    body = dict(payload); body["exp"] = int(_t.time()) + (ttl or _ORDER_TTL)
+    raw = base64.urlsafe_b64encode(json.dumps(body, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).decode().rstrip("=")
+    sig = hmac.new(_order_secret(), raw.encode(), hashlib.sha256).hexdigest()[:32]
+    return raw + "." + sig
+
+def _load_proposal(token: str):
+    """Ověří podpis a expiraci, vrátí payload nebo None. Použitý token se odmítne (best-effort)."""
+    import base64, hmac, hashlib, time as _t
+    try:
+        raw, sig = (token or "").rsplit(".", 1)
+        if not hmac.compare_digest(hmac.new(_order_secret(), raw.encode(), hashlib.sha256).hexdigest()[:32], sig):
+            return None
+        body = json.loads(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)).decode("utf-8"))
+        now = _t.time()
+        if body.get("exp", 0) < now or _ORDER_USED.get(sig, 0) > now - 48 * 3600:
+            return None
+        _ORDER_USED[sig] = now
+        for k in [k for k, v in _ORDER_USED.items() if v < now - 48 * 3600]:
+            _ORDER_USED.pop(k, None)
+        return body
+    except Exception:
+        return None
+_svc_offers_cache: dict = {}         # (hid, reservation_id) -> {"data": list, "expires": epoch}
+
+# Záměr objednat službu: synonyma pro nejčastější služby + slova z názvu služby v Apaleu.
+_SERVICE_SYNONYMS = {
+    "breakfast": ["breakfast", "snídan", "snidan", "frühstück", "fruhstuck", "petit déjeuner", "petit-dejeuner",
+                  "desayuno", "colazione", "śniadan", "sniadan", "ontbijt", "reggeli", "pequeno-almoço", "朝食"],
+    "wlan": ["wifi", "wi-fi", "wlan", "internet"],
+    "parking": ["parking", "parkov", "parkplatz", "garage", "garáž"],
+    "late check-out": ["late check", "later check", "pozdní", "pozdni", "späterer check", "late checkout"],
+    "yoga": ["yoga", "jóga", "joga"],
+    "spa": ["spa", "wellness", "sauna", "massage", "masáž", "masaz"],
+}
+# Záměr OBJEDNAT (ne jen zeptat se): bez něj se karta neukáže — „What time is breakfast?"
+# je informační dotaz, Alex smí službu zmínit, ale tlačítko „Potvrdit" by tlačilo.
+_ORDER_WORDS_RE = re.compile(r"(\b(book|order|add|reserve|get|want|wish|would like|'d like|i'd|could i|can i|may i|is it possible|"
+                             r"give me|bring|please|objedn|chci|chtěl|chtela|chtěla|prosím|prosim|dejte|přidej|pridej|dám si|dam si|"
+                             r"bestell|möchte|mochte|hätte gern|bitte|je voudrais|quiero|vorrei|per favore)\b)", re.I)
+_DAY_TODAY_RE = re.compile(r"\b(today|dnes|dneska|heute|aujourd|hoy|oggi|dzisiaj|ma\b|vandaag)", re.I)
+_DAY_TOMORROW_RE = re.compile(r"\b(tomorrow|zítra|zitra|morgen|demain|mañana|manana|domani|jutro|holnap)", re.I)
+# Zrušení objednané služby (uživatel 11. 10. 2026: „jak ji mohu jako host zrušit?")
+_CANCEL_INTENT_RE = re.compile(r"\b(cancel|zru[šs]|storn|odhl[áa]s|odvol|nechci u[žz]|u[žz] nechci|annul|stornier|abbestell|cancelar|anular|"
+                               r"annull|disdir|anuluj|odwo[łl]a|отмен|скасу)", re.I)
+_DAY_ALL_RE = re.compile(r"\b(every day|each day|every morning|each morning|daily|whole stay|all days|celý pobyt|cely pobyt|"
+                         r"každý den|kazdy den|každé ráno|kazde rano|jeden tag|täglich|taglich|ganzen aufenthalt|tous les|cada día|cada dia)", re.I)
+
+# Číslo pokoje napsané v chatu („101", „pokoj 1.003", „room 12", „Zimmer 204"). Hotel bez PMS
+# nemá tlačítko „Propojit pobyt", takže tohle je jediná cesta, jak se server pokoj dozví —
+# bez toho Alex řekne „napište číslo pokoje" a pak ho nikdy nedostane (nález 11. 10. 2026).
+_ROOM_IN_MSG_RE = re.compile(
+    r"(?:\b(?:pokoj|pokoji|pokoje|room|zimmer|chambre|habitaci[oó]n|camera|izba|pok[oó]j)\s*(?:č\.?|číslo|cislo|nr\.?|no\.?|number|#)?\s*"
+    r"([0-9]{1,4}(?:[.\-/][0-9]{1,3})?[a-z]?)\b)|(?:^\s*#?([0-9]{1,4}(?:[.\-/][0-9]{1,3})?[a-z]?)\s*[.!]?\s*$)", re.I)
+
+def _extract_room(message: str) -> str:
+    """Pokoj z aktuální zprávy: buď za slovem pokoj/room/…, nebo zpráva, která je JEN číslem."""
+    m = _ROOM_IN_MSG_RE.search((message or "").strip())
+    if not m:
+        return ""
+    room = (m.group(1) or m.group(2) or "").strip()
+    # holé číslo jako „2026" nebo rok/čas vynechat; pokoj má 1–4 číslice (+ volitelný oddělovač)
+    return room if 1 <= len(room.replace(".", "").replace("-", "").replace("/", "")) <= 5 else ""
+
+def _nights_from_message(msg: str) -> int:
+    """Počet nocí z věty („2 more nights", „dvě noci"); výchozí 1, strop 7."""
+    low = (msg or "").lower()
+    m = re.search(r"\b(\d{1,2})\b", low)
+    if m:
+        return max(1, min(int(m.group(1)), 7))
+    for w, v in _NIGHT_WORDS.items():
+        if re.search(r"\b" + w + r"\b", low):
+            return v
+    return 1
+
+def _service_matches(message: str, svc: dict) -> bool:
+    """Patří zpráva k této službě? Název služby může být v libovolném jazyce („Snídaně",
+    „Breakfast", „Frühstück") — skupina synonym se pozná z názvu i ze zprávy nezávisle.
+    message = aktuální zpráva + krátký kontext (poslední výměna), kvůli „mohu si JI objednat?"."""
+    low = (message or "").lower()
+    name = (svc.get("name") or "").lower()
+    for key, syns in _SERVICE_SYNONYMS.items():
+        group = [key] + syns
+        if any(s in name for s in group) and any(s in low for s in group):
+            return True
+    toks = [t for t in re.split(r"[^a-z0-9äöüßáčďéěíňóřšťúůýž]+", name) if len(t) >= 4 and t not in ("room", "with", "from", "the")]
+    return any(t in low for t in toks)
+
+def _pick_service_dates(message: str, svc: dict, stay) -> list:
+    """Dny, na které se služba objedná — VŽDY explicitně (bez `dates` by Apaleo zabookovalo
+    celý pobyt). Výchozí: zítra (pokud je v nabídce), jinak první výchozí den; „dnes"/„zítra"/
+    „každý den" z věty mají přednost."""
+    from datetime import date, timedelta
+    avail = [d["date"] for d in (svc.get("dates") or []) if d.get("date")]
+    if not avail:
+        return []
+    today, tomorrow = date.today().isoformat(), (date.today() + timedelta(days=1)).isoformat()
+    if _DAY_ALL_RE.search(message or ""):
+        return [d for d in avail if d >= today] or avail[:1]
+    if _DAY_TODAY_RE.search(message or "") and today in avail:
+        return [today]
+    if _DAY_TOMORROW_RE.search(message or "") and tomorrow in avail:
+        return [tomorrow]
+    if tomorrow in avail:
+        return [tomorrow]
+    fut = [d for d in avail if d >= today]
+    return fut[:1] or avail[:1]
+
+async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings: dict, db: dict, room: str = "", context: str = ""):
+    """Vrátí (akce pro klienta, blok do promptu). Akce = konkrétní, naceněné návrhy; nic se
+    nezapisuje. Každá dostane token do _ORDER_PROPOSALS.
+    Dvě cesty: (1) ověřený pobyt z Apalea → služby z allowlistu + prodloužení (zápis nebo
+    požadavek); (2) bez PMS / bez propojeného pobytu → vlastní položky hotelu
+    (pms_write_items) jako POŽADAVEK recepci — potřebuje jen číslo pokoje (rozhodnutí č. 5)."""
+    import secrets, time as _t
+    wr = _write_settings(h)
+    if not (wr["pms_write_services"] or wr["pms_write_extension"]):
+        return [], ""
+    rid = getattr(stay, "reservation_id", "") or "" if stay else ""
+    actions, lines = [], []
+    room = (room or (getattr(stay, "room", "") if stay else "") or "").strip()
+    # ── (2) bez rezervace: vlastní položky hotelu → požadavek recepci ──
+    if not rid:
+        items = wr["pms_write_items"] if wr["pms_write_services"] else []
+        # Prodej ve chvíli dotazu (rozhodnutí č. 1, potvrzeno uživatelem 11. 10.): karta se ukáže,
+        # jakmile se dotaz TÝKÁ objednatelné položky („Máte masáž?" → ano + tlačítko). Výslovný
+        # záměr objednat (wants) rozhoduje jen o tom, co dělat bez známého pokoje.
+        wants = bool(_ORDER_WORDS_RE.search(message or "") or _DAY_TODAY_RE.search(message or "")
+                     or _DAY_TOMORROW_RE.search(message or "") or _DAY_ALL_RE.search(message or ""))
+        # Nejdřív jen aktuální zpráva; kontext poslední výměny až když zpráva sama žádnou
+        # položku nejmenuje („mohu si JI objednat?"). Jinak se po odmítnuté snídani vracela
+        # snídaně i k dotazu na masáž (nález uživatele 11. 10.).
+        ext = wr["pms_write_extension"] and _EXTENSION_INTENT_RE.search(message or "")
+        # Kontext jen u odkazující věty s chutí objednat („mohu si JI objednat?"); u dotazu na
+        # prodloužení se snídaně z předchozí výměny nevrací (nález uživatele 11. 10., snímek).
+        hit = [it for it in items if _service_matches(message or "", it)] or \
+              ([it for it in items if _service_matches((message or "") + "\n" + (context or ""), it)] if (wants and not ext) else [])
+        if not (hit or ext):
+            return [], ""
+        if not room:
+            if wants:
+                # Chce objednat, ale bez pokoje nemá recepce co vyřídit — zeptat se, karta až pak.
+                return [], ("OBJEDNÁNÍ V CHATU: host chce objednat/prodloužit, ale neznáš číslo jeho pokoje. "
+                            "Zeptej se ho na číslo pokoje (jak je na klíči/dveřích) a řekni, že pak požadavek "
+                            "rovnou pošleš recepci. Nic jiného neslibuj, nic nedopočítávej.")
+            names = ", ".join(f"{it['name']} ({it['price']} {it['currency']})".strip() for it in hit[:2])
+            return [], (f"OBJEDNÁNÍ V CHATU: hotel umožňuje objednat přes tebe: {names}. Odpověz na dotaz a "
+                        "přirozeně dodej, že pokud chce objednat, stačí napsat číslo pokoje a ty to pošleš recepci. "
+                        "Nic nedopočítávej.")
+        from datetime import date, timedelta
+        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+        day = date.today().isoformat() if _DAY_TODAY_RE.search(message or "") else tomorrow
+        if hit and _CANCEL_INTENT_RE.search(message or ""):
+            # Hotel bez PMS nemá, co odebrat — zrušení jde recepci jako požadavek (stejná cesta jako objednávka)
+            for it in hit[:2]:
+                act = {"kind": "item", "service_id": it["id"], "title": it["name"], "cancel": True, "dates": [], "count": 1,
+                       "price": None, "currency": "", "mode": "request", "can_count": False, "can_nights": False, "time_hint": False,
+                       "detail": "cancel"}
+                act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": "", "room": room})
+                actions.append(act)
+                lines.append(f"- ZRUŠENÍ: {it['name']} — potvrzením odejde recepci požadavek na zrušení, odpověď přijde hostovi do chatu")
+            block = ("ZRUŠENÍ OBJEDNÁVKY — pod tvou odpovědí se hostovi zobrazí TLAČÍTKO 'Zrušit' pro:\n" + "\n".join(lines) +
+                     f"\nPokoj hosta: {room}. Řekni, že zrušení potvrdí tlačítkem a recepce ho vyřídí; sám nic nerušíš. " + _ORDER_TONE)
+            return actions, block
+        for it in hit[:2]:
+            q = _item_qty(it)
+            # Popisek jednotky pro Alexe se řídí tím, co ukazuje karta (snídaně „za osobu a noc" = per day)
+            unit_lbl = {"person_day": "per person per day", "person": "per person per night", "room": "per room per night",
+                        "flat": "once per stay", "person_once": "per person"}.get(it["unit"], "")
+            if q["qty_label"] == "days":
+                unit_lbl = unit_lbl.replace("per night", "per day")
+            _pr = f"{it['price']:g}" if isinstance(it["price"], float) else str(it["price"])
+            price_txt = f"{_pr} {it['currency']}".strip() + (f" {unit_lbl}" if unit_lbl else "")
+            act = {"kind": "item", "service_id": it["id"], "title": it["name"], "dates": [day], "count": 1,
+                   "price": it["price"], "currency": it["currency"], "mode": "request",
+                   "unit_price": float(it["price"]), "days": 1, "unit": it["unit"], "start": day, "nights": 1,
+                   # karta podle typu položky (viz _item_qty): snídaně = osoby × dny, parkování = noci, masáž = osoby + čas
+                   "can_count": q["can_count"], "can_nights": q["can_nights"], "qty_label": q["qty_label"], "time_hint": q["time_hint"],
+                   "detail": f"1× · {day}"}
+            act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": "", "room": room})
+            actions.append(act)
+            lines.append(f"- {it['name']}: PLATNÁ CENA {price_txt} (tuto cenu řekni hostovi; pokud profil hotelu uvádí u této "
+                         f"položky jinou částku, je zastaralá a NESMÍŠ ji použít), den {day} — potvrzením odejde požadavek recepci, "
+                         f"která ho vyřídí; odpověď recepce host dostane do chatu; zrušit v chatu jde do {int(wr.get('pms_write_cancel_hour') or 20)}:00 dne před službou")
+        if ext:
+            n = _nights_from_message(message)
+            # Titulek i popis si přeloží appka hosta (title_key); počet nocí host upraví na kartě.
+            act = {"kind": "item", "service_id": "extension", "title": f"Stay extension +{n} night(s)", "title_key": "extension",
+                   "dates": [], "count": n, "nights": n, "can_nights": True, "qty_label": "nights", "can_count": False,
+                   "price": None, "currency": "", "mode": "request", "detail": "reception will confirm availability and price"}
+            act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": "", "room": room})
+            actions.append(act)
+            lines.append(f"- Prodloužení pobytu o {n} noc/nocí — cenu a dostupnost potvrdí recepce, potvrzením odejde požadavek, "
+                         "odpověď přijde hostovi do chatu")
+        block = ("OBJEDNÁNÍ V CHATU — VÝJIMKA z pravidla 'nic neobjednávej': pod tvou odpovědí se hostovi zobrazí "
+                 "TLAČÍTKO, kterým může poslat recepci požadavek na:\n" + "\n".join(lines) +
+                 f"\nPokoj hosta: {room}.\n"
+                 # Snímek 11. 10.: Alex řekl „garáž za 600 Kč za noc" z profilu, karta pod tím měla 300 CZK.
+                 "CENY: cena u položky výše je ZÁVAZNÁ a shoduje se s kartou pod tvou odpovědí — uváděj ji; "
+                 "pokud profil hotelu uvádí jinou částku, tu NEPOUŽÍVEJ.\n" + _ORDER_TONE)
+        return actions, block
+    # ── (1) ověřený pobyt z Apalea ──
+    has_scope = _apaleo_has_write_scope(h, db)
+    base_mode = wr["pms_write_mode"] if has_scope else "request"   # bez scope jde jen požadavek recepci
+    _ph = _pms_hotel_ctx(h, settings, db)
+    cur = ""
+    # 0) ZRUŠENÍ už objednané služby („can I cancel the breakfast?") — nabídne se jen to, co na rezervaci je.
+    #    Apaleo odebere službu celou (všechny dny); potvrzení hosta tlačítkem, zápis přes apaleo_remove_service.
+    if wr["pms_write_services"] and _CANCEL_INTENT_RE.search(message or ""):
+        booked = await pms_layer.apaleo_booked_services(_ph, stay) or []
+        booked = [b for b in booked if b.get("service_id") and not all(d.get("mandatory") for d in (b.get("dates") or []))]
+        hits = [b for b in booked if _service_matches(message or "", b)] or (booked if len(booked) == 1 else [])
+        for bsvc in hits[:2]:
+            dts = [d["date"] for d in (bsvc.get("dates") or []) if d.get("date")]
+            total = float(bsvc.get("total") or 0)
+            allowed, dl = _cancel_allowed(h, dts, wr.get("pms_write_cancel_hour"))
+            if allowed:
+                act = {"kind": "cancel", "service_id": bsvc["service_id"], "title": bsvc["name"], "dates": dts,
+                       "count": max([int(d.get("count") or 1) for d in (bsvc.get("dates") or [])] or [1]),
+                       "price": round(total, 2), "currency": bsvc.get("currency") or "", "mode": "auto",
+                       "detail": ", ".join(dts)}
+                act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})
+                actions.append(act)
+                lines.append(f"- ZRUŠIT {bsvc['name']}: objednáno NA DEN {', '.join(dts)} (to je datum služby, ne příjezd), "
+                             f"{total:g} {bsvc.get('currency') or ''} — potvrzením se služba odebere z rezervace i z účtu pokoje"
+                             + (f"; zrušení v chatu je možné do {dl}" if dl else ""))
+            else:
+                # Po termínu: v chatu už ne — jen požadavek recepci (ta rozhodne)
+                act = {"kind": "item", "service_id": bsvc["service_id"], "title": bsvc["name"], "cancel": True, "dates": dts,
+                       "count": 1, "price": None, "currency": "", "mode": "request", "can_count": False, "can_nights": False,
+                       "time_hint": False, "detail": "cancel", "late": True}
+                act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})
+                actions.append(act)
+                lines.append(f"- {bsvc['name']} ({', '.join(dts)}): lhůta pro zrušení v chatu (do {dl}) už UPLYNULA — "
+                             "tlačítkem odejde jen žádost recepci, která rozhodne; neslibuj vrácení peněz")
+        if actions:
+            block = ("ZRUŠENÍ OBJEDNÁVKY — pod tvou odpovědí se hostovi zobrazí TLAČÍTKO 'Zrušit' pro:\n" + "\n".join(lines) +
+                     "\nŘekni, co má na rezervaci, do kdy jde zrušit v chatu, a že zrušení potvrdí tlačítkem; nic nezrušuj slovy sám. " + _ORDER_TONE)
+            return actions, block
+        if not hits:
+            return [], ("ZRUŠENÍ: host chce něco zrušit, ale na jeho rezervaci v Apaleu teď není žádná objednaná služba, kterou by šlo "
+                        "zrušit. Řekni mu to. NETVRĎ, že hotel službu nenabízí — nabízí; jen ji nemá objednanou. Pokud ji chce "
+                        "naopak objednat, ať to napíše.")
+    # a) služby z allowlistu (nabídky se čtou i s prázdným allowlistem — portál z nich
+    #    staví seznam zaškrtávátek přes pms_services_seen; nabídnout se smí jen povolené)
+    if wr["pms_write_services"]:
+        ck = (hid, rid)
+        c = _svc_offers_cache.get(ck)
+        if c and c["expires"] > _t.time():
+            offers = c["data"]
+        else:
+            offers = await pms_layer.apaleo_reservation_service_offers(_ph, stay) or []
+            _svc_offers_cache[ck] = {"data": offers, "expires": _t.time() + 600}
+            try:
+                seen = dict(h.get("pms_services_seen") or {})
+                new = {o["service_id"]: {"name": o["name"], "unit_price": o.get("unit_price"), "currency": o.get("currency"),
+                                         "pricing_unit": o.get("pricing_unit")} for o in offers if o.get("service_id")}
+                if any(k not in seen or seen[k].get("name") != v["name"] for k, v in new.items()):
+                    seen.update(new)
+                    _db = db_load()
+                    if hid in _db.get("hotels", {}):
+                        _db["hotels"][hid]["pms_services_seen"] = seen
+                        db_save(_db)
+                    h["pms_services_seen"] = seen
+            except Exception as e:
+                logging.warning("pms_services_seen se neuložilo: %s", e)
+        allowed = [o for o in offers if o["service_id"] in wr["pms_write_allowlist"] and not o.get("validation")]
+        # Prodej ve chvíli dotazu (rozhodnutí č. 1, potvrzeno uživatelem 11. 10.): karta se ukáže,
+        # jakmile se dotaz týká povolené služby — i u „What time is breakfast?". Host nic
+        # neobjedná, dokud neklepne; tlačítko je nabídka, ne nátlak.
+        # Nejdřív jen aktuální zpráva; kontext (poslední výměna) až když zpráva sama službu nejmenuje.
+        _wants = bool(_ORDER_WORDS_RE.search(message or ""))
+        _is_ext = bool(_EXTENSION_INTENT_RE.search(message or ""))
+        matched = [o for o in allowed if _service_matches(message or "", o)] or \
+                  ([o for o in allowed if _service_matches((message or "") + "\n" + (context or ""), o)] if (_wants and not _is_ext) else [])
+        for o in matched:
+            dates = _pick_service_dates(message, o, stay)
+            if not dates:
+                continue
+            per_person = o.get("pricing_unit") == "Person"
+            count = max(1, int(getattr(stay, "adults", 1) or 1)) if per_person else 1
+            unit = o.get("unit_price")
+            if unit is None:
+                continue
+            # Strop počtu = dostupné kusy v Apaleu (availableCount), výchozí = dospělí v rezervaci — nad kapacitu by
+            # Apaleo vrátilo 422 (rešerše 11. 10. 2026: Apaleo nemá finanční limit, jen dostupnost služby)
+            _avail = o.get("available_count")
+            max_count = max(1, min(10, int(_avail))) if isinstance(_avail, (int, float)) else 10
+            count = min(count, max_count)
+            total = round(float(unit) * count * len(dates), 2)
+            cur = o.get("currency") or cur
+            mode = base_mode if total <= float(wr["pms_write_cap"] or 0) else "request"   # nad strop → recepce
+            act = {"kind": "service", "service_id": o["service_id"], "title": o["name"],
+                   "dates": dates, "count": count, "price": total, "currency": cur, "mode": mode,
+                   "unit_price": float(unit), "days": len(dates), "can_count": per_person, "max_count": max_count,
+                   "detail": f"{count}× · {', '.join(dates)}"}
+            act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})
+            actions.append(act)
+            _meal = any(w in (o.get("name") or "").lower() for w in _MEAL_WORDS)
+            _unit_lbl = ("per person per day" if (per_person and _meal) else "per person per night" if per_person else
+                         "per room per day" if _meal else "per room per night")
+            lines.append(f"- {o['name']}: {count}× {', '.join(dates)} = {total:g} {cur} (PLATNÁ CENA {float(unit):g} {cur} {_unit_lbl}; "
+                         "říkej ji přesně takto, bez desetinné nuly)"
+                         + (" (potvrzením se připíše na účet pokoje)" if mode == "auto" else " (potvrzením odejde požadavek recepci, která ho vyřídí)"))
+            if len(actions) >= 2:
+                break
+    # b) prodloužení pobytu — zatím VŽDY jako požadavek recepci (čeká na ověřovací kód)
+    if wr["pms_write_extension"] and _EXTENSION_INTENT_RE.search(message or ""):
+        n = _nights_from_message(message)
+        offers = await pms_layer.apaleo_reservation_extension_offers(_ph, stay, n) or []
+        best = next((o for o in offers if not o.get("validation")), None)
+        if best:
+            act = {"kind": "extension", "title": f"+{best['new_nights']} night(s) → {best['departure'][:10]}", "title_key": "extension",
+                   "nights": best["new_nights"], "departure": best["departure"], "new_nights": best["new_nights"], "price": round(best["new_total"], 2),
+                   "currency": best["currency"], "mode": "request", "detail": f"{best['rate_plan']} · {best['unit_group']}"}
+            # nabídka (time slices) se do tokenu nedává — prodloužení je zatím vždy jen požadavek recepci
+            act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})
+            actions.append(act)
+            lines.append(f"- Prodloužení o {best['new_nights']} noc/nocí do {best['departure'][:10]} ve stejném pokoji: "
+                         f"{round(best['new_total'], 2)} {best['currency']} (potvrzením odejde požadavek recepci, která ho potvrdí)")
+    if not actions:
+        return [], ""
+    block = ("OBJEDNÁNÍ V CHATU — VÝJIMKA z pravidla 'nic neobjednávej': pod tvou odpovědí se hostovi zobrazí "
+             "TLAČÍTKO K POTVRZENÍ pro tyto položky:\n" + "\n".join(lines) + "\n" + _ORDER_TONE)
+    return actions, block
+
+class GuestOrderRequest(BaseModel):
+    hotel_id: str
+    action_id: str
+    device_id: Optional[str] = None
+    language: Optional[str] = "en"
+    count: Optional[int] = None      # počet osob z karty (jen u položek „za osobu"); 1–10
+    nights: Optional[int] = None     # počet dní/nocí z karty (násobitel; u prodloužení počet nocí); 1–14
+    start: Optional[str] = None      # první den YYYY-MM-DD (položky hotelu bez PMS)
+    note: Optional[str] = None       # preferovaný čas / poznámka pro recepci (≤200 znaků)
+
+_ORDER_MSG = {
+    "booked":    {"en": "✅ Done — {title} is booked and will be charged to your room account (settled at check-out).",
+                  "cs": "✅ Hotovo — {title} je objednáno a připíše se na účet vašeho pokoje (vyrovná se při odjezdu).",
+                  "sk": "✅ Hotovo — {title} je objednané a pripíše sa na účet vašej izby (vyrovná sa pri odchode).",
+                  "de": "✅ Erledigt — {title} ist gebucht und wird Ihrem Zimmerkonto belastet (Abrechnung beim Check-out)."},
+    # Potvrzení recepce chodí hostovi SEM do chatu (tlačítka v e-mailu recepci, uživatel 11. 10.:
+    # „jak mu to recepce potvrdí?") — proto žádné „co nevidět", ale „napíšu vám sem".
+    # Název položky je vždy ZA dvojtečkou — v češtině/slovenštině se nedá skloňovat („jakmile Snídaně potvrdí").
+    "requested": {"en": "📨 Sent to reception: {title}. I'll let you know here as soon as they confirm it.",
+                  "cs": "📨 Odesláno na recepci: {title}. Jakmile to recepce vyřídí, napíšu vám sem do chatu.",
+                  "sk": "📨 Odoslané na recepciu: {title}. Hneď ako to recepcia vybaví, napíšem vám sem do chatu.",
+                  "de": "📨 An die Rezeption gesendet: {title}. Sobald sie es bestätigt, melde ich mich hier."},
+    "confirmed": {"en": "✅ Reception has confirmed: {title}.", "cs": "✅ Recepce potvrdila: {title}.",
+                  "sk": "✅ Recepcia potvrdila: {title}.", "de": "✅ Die Rezeption hat bestätigt: {title}."},
+    "declined":  {"en": "❌ Unfortunately reception can't arrange this: {title}.", "cs": "❌ Recepce bohužel nemůže vyřídit: {title}.",
+                  "sk": "❌ Recepcia bohužiaľ nemôže vybaviť: {title}.", "de": "❌ Die Rezeption kann dies leider nicht ermöglichen: {title}."},
+    "recept_note": {"en": "Message from reception: {title}", "cs": "Vzkaz recepce: {title}", "sk": "Odkaz recepcie: {title}",
+                    "de": "Nachricht der Rezeption: {title}"},
+    "cancelled":   {"en": "✅ Cancelled — {title} has been removed from your reservation and room account.",
+                    "cs": "✅ Zrušeno — {title} je odebráno z vaší rezervace i z účtu pokoje.",
+                    "sk": "✅ Zrušené — {title} je odobraté z vašej rezervácie aj z účtu izby.",
+                    "de": "✅ Storniert — {title} wurde von Ihrer Reservierung und Ihrem Zimmerkonto entfernt.",
+                    "fr": "✅ Annulé — {title} a été retiré de votre réservation et du compte de votre chambre.",
+                    "it": "✅ Annullato — {title} è stato rimosso dalla prenotazione e dal conto della camera.",
+                    "es": "✅ Cancelado — {title} se ha eliminado de su reserva y de la cuenta de la habitación.",
+                    "pl": "✅ Anulowano — {title} usunięto z rezerwacji i rachunku pokoju.",
+                    "ru": "✅ Отменено — {title} удалено из вашей брони и со счёта номера.",
+                    "uk": "✅ Скасовано — {title} вилучено з вашого бронювання та рахунку номера."},
+    "cancel_late": {"en": "⏰ Cancelling in chat was possible until {title}. Please contact reception, they will help you.",
+                    "cs": "⏰ Zrušení v chatu bylo možné do {title}. Obraťte se prosím na recepci, pomůže vám.",
+                    "sk": "⏰ Zrušenie v chate bolo možné do {title}. Obráťte sa prosím na recepciu, pomôže vám.",
+                    "de": "⏰ Eine Stornierung im Chat war bis {title} möglich. Bitte wenden Sie sich an die Rezeption.",
+                    "fr": "⏰ L'annulation par chat était possible jusqu'au {title}. Veuillez vous adresser à la réception.",
+                    "it": "⏰ L'annullamento in chat era possibile fino alle {title}. Si rivolga alla reception.",
+                    "es": "⏰ La cancelación por chat era posible hasta las {title}. Por favor, acuda a recepción.",
+                    "pl": "⏰ Anulowanie na czacie było możliwe do {title}. Prosimy o kontakt z recepcją.",
+                    "ru": "⏰ Отмена в чате была возможна до {title}. Пожалуйста, обратитесь на ресепшен.",
+                    "uk": "⏰ Скасування в чаті було можливе до {title}. Будь ласка, зверніться на рецепцію."},
+    "cancel_title": {"en": "cancellation: {title}", "cs": "zrušení: {title}", "sk": "zrušenie: {title}", "de": "Stornierung: {title}",
+                     "fr": "annulation : {title}", "it": "annullamento: {title}", "es": "cancelación: {title}", "pl": "anulowanie: {title}",
+                     "ru": "отмена: {title}", "uk": "скасування: {title}"},
+    "failed":    {"en": "⚠️ I couldn't complete this right now. Reception has been notified and will take care of {title}.",
+                  "cs": "⚠️ Teď se to nepodařilo dokončit. Recepce dostala zprávu a {title} vyřídí.",
+                  "sk": "⚠️ Teraz sa to nepodarilo dokončiť. Recepcia dostala správu a {title} vybaví.",
+                  "de": "⚠️ Das hat gerade nicht geklappt. Die Rezeption wurde informiert und kümmert sich um {title}."},
+    "expired":   {"en": "This offer has expired — just ask me again.", "cs": "Nabídka už vypršela — stačí se zeptat znovu.",
+                  "sk": "Ponuka už vypršala — stačí sa opýtať znova.", "de": "Dieses Angebot ist abgelaufen — fragen Sie mich einfach noch einmal."},
+}
+
+# Zbylé jazyky appky hosta (fr, it, es, pl, ru, uk) — uživatel 11. 10.: „proč nepřeloženo do všech jazyků?"
+_ORDER_MSG["booked"].update({
+    "fr": "✅ C'est fait — {title} est réservé et sera porté sur le compte de votre chambre (réglé au départ).",
+    "it": "✅ Fatto — {title} è prenotato e sarà addebitato sul conto della camera (saldo al check-out).",
+    "es": "✅ Hecho — {title} está reservado y se cargará a la cuenta de su habitación (se liquida al salir).",
+    "pl": "✅ Gotowe — {title} jest zamówione i zostanie doliczone do rachunku pokoju (rozliczenie przy wymeldowaniu).",
+    "ru": "✅ Готово — {title} забронировано и будет записано на счёт номера (оплата при выезде).",
+    "uk": "✅ Готово — {title} заброньовано і буде записано на рахунок номера (оплата при виїзді)."})
+_ORDER_MSG["requested"].update({
+    "fr": "📨 Envoyé à la réception : {title}. Je vous préviens ici dès qu'elle confirme.",
+    "it": "📨 Inviato alla reception: {title}. La avviso qui non appena conferma.",
+    "es": "📨 Enviado a recepción: {title}. Le aviso aquí en cuanto lo confirmen.",
+    "pl": "📨 Wysłano do recepcji: {title}. Dam Ci znać tutaj, gdy tylko potwierdzi.",
+    "ru": "📨 Отправлено на ресепшен: {title}. Как только подтвердят, напишу здесь.",
+    "uk": "📨 Надіслано на рецепцію: {title}. Щойно підтвердять, напишу тут."})
+_ORDER_MSG["confirmed"].update({
+    "fr": "✅ La réception a confirmé : {title}.", "it": "✅ La reception ha confermato: {title}.",
+    "es": "✅ Recepción ha confirmado: {title}.", "pl": "✅ Recepcja potwierdziła: {title}.",
+    "ru": "✅ Ресепшен подтвердил: {title}.", "uk": "✅ Рецепція підтвердила: {title}."})
+_ORDER_MSG["declined"].update({
+    "fr": "❌ La réception ne peut malheureusement pas s'en charger : {title}.", "it": "❌ Purtroppo la reception non può provvedere: {title}.",
+    "es": "❌ Lamentablemente recepción no puede atenderlo: {title}.", "pl": "❌ Niestety recepcja nie może tego zrealizować: {title}.",
+    "ru": "❌ К сожалению, ресепшен не может это выполнить: {title}.", "uk": "❌ На жаль, рецепція не може це виконати: {title}."})
+_ORDER_MSG["recept_note"].update({
+    "fr": "Message de la réception : {title}", "it": "Messaggio della reception: {title}", "es": "Mensaje de recepción: {title}",
+    "pl": "Wiadomość od recepcji: {title}", "ru": "Сообщение ресепшена: {title}", "uk": "Повідомлення рецепції: {title}"})
+_ORDER_MSG["failed"].update({
+    "fr": "⚠️ Impossible de finaliser pour le moment. La réception est prévenue et s'occupera de : {title}.",
+    "it": "⚠️ Non sono riuscita a completare ora. La reception è avvisata e si occuperà di: {title}.",
+    "es": "⚠️ No pude completarlo ahora. Recepción está avisada y se encargará de: {title}.",
+    "pl": "⚠️ Teraz się nie udało. Recepcja została powiadomiona i zajmie się: {title}.",
+    "ru": "⚠️ Сейчас не удалось завершить. Ресепшен уведомлён и займётся: {title}.",
+    "uk": "⚠️ Зараз не вдалося завершити. Рецепцію повідомлено, вона займеться: {title}."})
+_ORDER_MSG["expired"].update({
+    "fr": "Cette offre a expiré — redemandez-moi simplement.", "it": "Questa offerta è scaduta — mi chieda di nuovo.",
+    "es": "Esta oferta ha caducado — vuelva a preguntarme.", "pl": "Ta oferta wygasła — po prostu zapytaj mnie ponownie.",
+    "ru": "Это предложение истекло — просто спросите меня снова.", "uk": "Ця пропозиція минула — просто запитайте мене знову."})
+
+def _order_msg(key: str, lang: str, title: str) -> str:
+    d = _ORDER_MSG.get(key) or {}
+    return (d.get((lang or "en")[:2]) or d.get("en") or "").format(title=title)
+
+def _ext_title(n: int, lang: str) -> str:
+    """„prodloužení o 2 noci" v jazyce hosta (do zpráv v chatu) / hotelu (do e-mailu)."""
+    n = max(1, int(n or 1))
+    l = (lang or "en")[:2]
+    if l == "cs":
+        return f"prodloužení pobytu o {n} " + ("noc" if n == 1 else "noci" if n < 5 else "nocí")
+    if l == "sk":
+        return f"predĺženie pobytu o {n} " + ("noc" if n == 1 else "noci" if n < 5 else "nocí")
+    if l == "de":
+        return f"die Verlängerung um {n} " + ("Nacht" if n == 1 else "Nächte")
+    if l == "fr":
+        return f"la prolongation du séjour de {n} nuit" + ("" if n == 1 else "s")
+    if l == "it":
+        return f"il prolungamento del soggiorno di {n} " + ("notte" if n == 1 else "notti")
+    if l == "es":
+        return f"la prolongación de la estancia por {n} noche" + ("" if n == 1 else "s")
+    if l == "pl":
+        return f"przedłużenie pobytu o {n} " + ("noc" if n == 1 else "noce" if 2 <= n <= 4 else "nocy")
+    if l == "ru":
+        return f"продление проживания на {n} " + ("ночь" if n == 1 else "ночи" if 2 <= n <= 4 else "ночей")
+    if l == "uk":
+        return f"продовження проживання на {n} " + ("ніч" if n == 1 else "ночі" if 2 <= n <= 4 else "ночей")
+    return f"the stay extension by {n} night" + ("" if n == 1 else "s")
+
+# ── Požadavky recepci se stavem (pending → confirmed/declined) ──
+# Hotel bez PMS (nebo režim „požadavek") nemá kam zapsat, host ale potřebuje odpověď. Recepce
+# klikne v e-mailu na Potvrdit / Nelze vyřídit, appka hosta se každých ~20 s ptá na stav a napíše
+# odpověď do chatu. Záznamy žijí v DB pod "orders" (bez osobních údajů: pokoj, co, kdy, stav).
+_ORDER_KEEP_DAYS = 30     # seznam požadavků v portálu ukazuje 30 dní; statistiky po měsících žijí v analytics
+
+def _orders_stat(db: dict, hid: str, month_key: str, key: str, delta: int = 1):
+    """Měsíční počítadla požadavků/zápisů z chatu (analytics[hid]["orders_monthly"][YYYY-MM][key]).
+    key: requested | confirmed | declined | booked. Přežijí úklid samotných záznamů."""
+    try:
+        a = db.setdefault("analytics", {}).setdefault(hid, {})
+        m = a.setdefault("orders_monthly", {}).setdefault(month_key, {})
+        m[key] = max(0, int(m.get(key, 0)) + delta)
+    except Exception as e:
+        logging.warning("orders_stat %s/%s: %s", hid, key, e)
+
+def _order_sig(oid: str, decision: str) -> str:
+    import hmac, hashlib
+    return hmac.new(_order_secret(), f"order:{oid}:{decision}".encode("utf-8"), hashlib.sha256).hexdigest()[:24]
+
+def _order_decide_link(oid: str, decision: str) -> str:
+    base = (os.getenv("BASE_URL") or "https://www.smartestguide.com").rstrip("/")
+    return f"{base}/api/orders/{oid}/decide?d={decision}&s={_order_sig(oid, decision)}"
+
+def _order_record_new(hid: str, room: str, title: str, detail: str, price: str, lang: str, device_id: str, kind: str) -> str:
+    """Založí čekající požadavek a vrátí jeho id. Staré záznamy (> _ORDER_KEEP_DAYS) se při tom uklidí."""
+    import uuid
+    from datetime import timedelta as _td
+    oid = uuid.uuid4().hex[:16]
+    now = datetime.utcnow()
+    try:
+        db = db_load()
+        orders = db.setdefault("orders", {})
+        cutoff = (now - _td(days=_ORDER_KEEP_DAYS)).isoformat(timespec="seconds")
+        for k in [k for k, v in orders.items() if (v.get("created") or "") < cutoff]:
+            orders.pop(k, None)
+        orders[oid] = {"hid": hid, "room": str(room or "")[:20], "title": str(title or "")[:120], "detail": str(detail or "")[:200],
+                       "price": str(price or "")[:40], "lang": (lang or "en")[:2], "device_id": str(device_id or "")[:64],
+                       "kind": kind, "status": "pending", "created": now.isoformat(timespec="seconds"), "decided": "", "message": "", "events": []}
+        _orders_stat(db, hid, now.strftime("%Y-%m"), "requested")
+        db_save(db)
+    except Exception as e:
+        logging.warning("order record se neuložil (%s): %s", hid, e)
+    return oid
+
+def _order_reply_link(oid: str) -> str:
+    base = (os.getenv("BASE_URL") or "https://www.smartestguide.com").rstrip("/")
+    return f"{base}/api/orders/{oid}/reply?s={_order_sig(oid, 'reply')}"
+
+def _order_reply_page(rec: dict, oid: str, s: str, cs: bool, flash: str = "") -> str:
+    """Stránka pro recepci (z e-mailu): NIC se neodešle klepnutím v mailu — recepce tady dopíše
+    vzkaz a teprve tlačítkem rozhodne a pošle (uživatel 11. 10. 2026: „nech to na nich, aby dopsali
+    tu zprávu a pak poslali/ano/ne"). Stejná stránka umí poslat další vzkaz i změnit rozhodnutí."""
+    st = rec.get("status") or "pending"
+    _det = re.sub(r"\b(\d{4})-(\d{2})-(\d{2})\b", lambda mm: f"{int(mm.group(3))}. {int(mm.group(2))}. {mm.group(1)}", str(rec.get("detail") or ""))
+    what = f"{rec.get('title', '')} — {('pokoj' if cs else 'room')} {rec.get('room', '')}" + (f" — {_det}" if _det else "")
+    if rec.get("price"):
+        what += f" — {rec['price']}"
+    events = rec.get("events") or []
+    if cs:
+        title = "Odpověď hostovi"
+        st_lbl = {"pending": "⏳ Čeká na vaši odpověď", "confirmed": "✅ Potvrzeno", "declined": "❌ Nelze vyřídit"}[st]
+        lbl_m = "Vzkaz hostovi (volitelné, zobrazí se mu v chatu):"
+        ph = "např. Snídaně je 7–10 h v restauraci v přízemí."
+        b_ok, b_no, b_note = "✅ Potvrdit a poslat", "❌ Nelze vyřídit a poslat", "Poslat jen vzkaz"
+        hist_lbl = "Průběh (co host dostal a co odpověděl):"
+        hint = "Host vidí odpověď v chatu během pár sekund a může vám z chatu odepsat — přijde vám e-mail. Vzkaz i rozhodnutí můžete poslat opakovaně (48 h od požadavku)."
+        ev_txt = {"confirmed": "✅ Potvrzeno", "declined": "❌ Nelze vyřídit"}
+        guest_lbl = "🧑 Host"
+    else:
+        title = "Reply to the guest"
+        st_lbl = {"pending": "⏳ Waiting for your reply", "confirmed": "✅ Confirmed", "declined": "❌ Cannot arrange"}[st]
+        lbl_m = "Message to the guest (optional, shown in chat):"
+        ph = "e.g. Breakfast is served 7–10 in the ground-floor restaurant."
+        b_ok, b_no, b_note = "✅ Confirm and send", "❌ Cannot arrange — send", "Send message only"
+        hist_lbl = "Thread (what the guest received and replied):"
+        hint = "The guest sees your reply in chat within seconds and can write back from the chat — you get an e-mail. You can send messages or change the decision again (48 h after the request)."
+        ev_txt = {"confirmed": "✅ Confirmed", "declined": "❌ Cannot arrange"}
+        guest_lbl = "🧑 Guest"
+    hist = ""
+    if events:
+        items = []
+        for e in events:
+            if e.get("kind") == "status":
+                items.append(f"<li>{ev_txt.get(e.get('status'), e.get('status'))}</li>")
+            elif e.get("kind") == "note":
+                items.append(f"<li>💬 {html.escape(e.get('text', ''))}</li>")
+            elif e.get("kind") == "guest":
+                items.append(f"<li style='color:#0b63c6'><b>{guest_lbl}:</b> {html.escape(e.get('text', ''))}</li>")
+        hist = f"<p><b>{hist_lbl}</b></p><ul>{''.join(items)}</ul>"
+    flash_html = f"<p class='ok'>{html.escape(flash)}</p>" if flash else ""
+    note_btn = f"<button type='submit' name='d' value='note' class='sec'>{b_note}</button>" if st != "pending" else ""
+    return f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SMARTEST GUIDE</title><style>body{{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:32px auto;padding:0 16px;color:#1a1a1a}}
+h1{{font-size:22px;margin:0 0 12px}} .box{{background:#f4f6f8;border-radius:12px;padding:14px 16px;margin:12px 0}} .st{{font-weight:700;margin:6px 0 14px}}
+textarea{{width:100%;min-height:84px;padding:10px;border:1px solid #bbb;border-radius:8px;font-size:15px;box-sizing:border-box;font-family:inherit}}
+.btns{{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}} button{{border:none;border-radius:8px;padding:12px 16px;font-size:15px;cursor:pointer;color:#fff;font-weight:700}}
+.ok-btn{{background:#1f9d55}} .no-btn{{background:#c0392b}} .sec{{background:#555}} .ok{{color:#1f9d55;font-weight:700}} ul{{padding-left:18px}} .hint{{font-size:12px;color:#777}}</style></head><body>
+<h1>{title}</h1><div class="box">{html.escape(what)}</div><div class="st">{st_lbl}</div>{flash_html}{hist}
+<form method="post" action="/api/orders/{oid}/reply"><input type="hidden" name="s" value="{html.escape(s)}">
+<label>{lbl_m}<br><textarea name="m" maxlength="300" placeholder="{ph}"></textarea></label>
+<div class="btns"><button type="submit" name="d" value="confirm" class="ok-btn">{b_ok}</button><button type="submit" name="d" value="decline" class="no-btn">{b_no}</button>{note_btn}</div></form>
+<p class="hint" style="margin-top:22px">{hint}</p>
+<p class="hint">SMARTEST GUIDE · support@smartestguide.com</p></body></html>"""
+
+def _order_reply_load(oid: str, s: str):
+    import hmac as _hmac
+    db = db_load()
+    rec = (db.get("orders") or {}).get(oid)
+    if not rec or not _hmac.compare_digest(_order_sig(oid, "reply"), s or ""):
+        return None, None, None
+    h = db["hotels"].get(rec.get("hid")) or {}
+    cs = (h.get("country") or "").strip().upper() in ("CZ", "SK")
+    return db, rec, cs
+
+@app.get("/api/orders/{oid}/reply", response_class=HTMLResponse)
+async def order_reply_page(oid: str, s: str = ""):
+    db, rec, cs = _order_reply_load(oid, s)
+    if rec is None:
+        return HTMLResponse("<p style='font-family:sans-serif'>Odkaz není platný. / This link is not valid.</p>", status_code=404)
+    return HTMLResponse(_order_reply_page(rec, oid, s, cs))
+
+@app.post("/api/orders/{oid}/reply", response_class=HTMLResponse)
+async def order_reply_send(oid: str, request: Request):
+    """Formulář ze stránky: d=confirm|decline|note + m (vzkaz). Teprve tady se něco odešle hostovi."""
+    from urllib.parse import parse_qs
+    form = {k: v[0] for k, v in parse_qs((await request.body()).decode("utf-8", "replace")).items()}
+    s, d = form.get("s", ""), form.get("d", "")
+    db, rec, cs = _order_reply_load(oid, s)
+    if rec is None:
+        return HTMLResponse("<p style='font-family:sans-serif'>Odkaz není platný. / This link is not valid.</p>", status_code=404)
+    m = re.sub(r"\s+", " ", str(form.get("m") or "")).strip()[:300]
+    events = rec.setdefault("events", [])
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    sent = []
+    want = {"confirm": "confirmed", "decline": "declined"}.get(d)
+    if want and rec.get("status") != want:
+        _mk = (rec.get("created") or now)[:7]
+        if rec.get("status") in ("confirmed", "declined"):
+            _orders_stat(db, rec.get("hid", ""), _mk, rec["status"], -1)   # obrácené rozhodnutí: odečíst staré
+        _orders_stat(db, rec.get("hid", ""), _mk, want, 1)
+        rec["status"] = want
+        rec["decided"] = now
+        events.append({"seq": len(events) + 1, "kind": "status", "status": want, "t": now})
+        sent.append("status")
+    if m:
+        events.append({"seq": len(events) + 1, "kind": "note", "text": m, "t": now})
+        rec["message"] = m
+        sent.append("note")
+    if sent:
+        db_save(db)
+        flash = ("Odesláno hostovi do chatu." if cs else "Sent to the guest's chat.")
+    elif want:
+        flash = ("Host už toto rozhodnutí má — připište vzkaz, pokud chcete něco dodat." if cs else
+                 "The guest already has this decision — add a message if you want to say more.")
+    else:
+        flash = ("Nic neodesláno — napište vzkaz nebo zvolte rozhodnutí." if cs else "Nothing sent — write a message or choose a decision.")
+    return HTMLResponse(_order_reply_page(rec, oid, s, cs, flash))
+
+@app.get("/api/orders/{oid}/decide")
+async def order_decide_legacy(oid: str, d: str = "", s: str = ""):
+    """Staré odkazy (Potvrdit / Nelze vyřídit přímo z mailu) → jen otevřou stránku odpovědi, nic neprovedou."""
+    import hmac as _hmac
+    from fastapi.responses import RedirectResponse
+    if d in ("confirm", "decline") and _hmac.compare_digest(_order_sig(oid, d), s or ""):
+        return RedirectResponse(_order_reply_link(oid), status_code=302)
+    return HTMLResponse("<p style='font-family:sans-serif'>Odkaz není platný. / This link is not valid.</p>", status_code=404)
+
+class GuestOrderMessage(BaseModel):
+    hotel_id: str
+    order_id: str
+    device_id: Optional[str] = None
+    text: str
+
+@app.post("/api/guest/orders/message")
+async def guest_order_message(req: GuestOrderMessage, request: Request):
+    """Host odpoví recepci na její zprávu (uživatel 11. 10. 2026: „můžu na zprávu recepce reagovat?
+    čili si bude host a recepce povídat"). Zpráva se připojí k požadavku jako událost „guest",
+    recepce dostane e-mail s tlačítkem Odpovědět hostovi a vidí ji na stránce odpovědi."""
+    key = (req.device_id or "").strip()[:64] or _client_ip(request)
+    if not _rate_limit_ok("ordermsg:" + key, max_hits=10):
+        raise HTTPException(429, "Příliš mnoho zpráv. Zkuste to prosím za chvíli.")
+    text = re.sub(r"\s+", " ", str(req.text or "")).strip()[:300]
+    if not text:
+        raise HTTPException(400, "Prázdná zpráva")
+    db = db_load()
+    hid, h = _resolve_hotel(db, req.hotel_id)
+    rec = (db.get("orders") or {}).get((req.order_id or "").strip())
+    if not h or not rec or rec.get("hid") != hid or (rec.get("device_id") or "") != (req.device_id or "")[:64]:
+        raise HTTPException(404, "Požadavek nenalezen")
+    events = rec.setdefault("events", [])
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    events.append({"seq": len(events) + 1, "kind": "guest", "text": text, "t": now})
+    db_save(db)
+    asyncio.create_task(_send_guest_message_notification(hid, dict(h), rec, req.order_id.strip(), text))
+    return {"status": "ok"}
+
+async def _send_guest_message_notification(hid: str, h: dict, rec: dict, oid: str, text: str):
+    """Krátký mail recepci: host odpověděl na zprávu k požadavku → tlačítko Odpovědět hostovi."""
+    brevo_key = os.getenv("BREVO_API_KEY", "")
+    wr = _write_settings(h)
+    to_email = (wr.get("pms_write_notify_email") or h.get("registration_email") or h.get("email") or "").strip()
+    if not brevo_key or not to_email:
+        return
+    cs = (h.get("country") or "").strip().upper() in ("CZ", "SK")
+    name = h.get("name") or hid
+    room = rec.get("room", "")
+    link = _order_reply_link(oid)
+    _b = "display:inline-block;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:700;background:#FF6B00;color:#fff"
+    if cs:
+        subject = f"💬 {name}: host z pokoje {room} odpověděl — {rec.get('title', '')}"
+        body = (f"<p>Dobrý den,</p><p>host z pokoje <b>{room}</b> reagoval v chatu na vaši zprávu k požadavku "
+                f"<b>{html.escape(rec.get('title', ''))}</b>:</p><blockquote style='border-left:3px solid #FF6B00;margin:0;padding:6px 12px;color:#333'>{html.escape(text)}</blockquote>"
+                f"<p><a href=\"{link}\" style=\"{_b}\">✍️ Odpovědět hostovi</a><br><span style='font-size:12px;color:#666'>Host odpověď uvidí v chatu.</span></p>")
+    else:
+        subject = f"💬 {name}: guest in room {room} replied — {rec.get('title', '')}"
+        body = (f"<p>Hello,</p><p>the guest in room <b>{room}</b> replied in chat to your message about "
+                f"<b>{html.escape(rec.get('title', ''))}</b>:</p><blockquote style='border-left:3px solid #FF6B00;margin:0;padding:6px 12px;color:#333'>{html.escape(text)}</blockquote>"
+                f"<p><a href=\"{link}\" style=\"{_b}\">✍️ Reply to the guest</a><br><span style='font-size:12px;color:#666'>The guest sees your reply in chat.</span></p>")
+    payload = {"sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"}, "to": [{"email": to_email}],
+               "subject": subject, "htmlContent": body + "<p>— SMARTEST GUIDE · support@smartestguide.com</p>",
+               "textContent": f"{subject}: {text}"}
+    bcc = _admin_notify_bcc(exclude=to_email)
+    if bcc:
+        payload["bcc"] = bcc
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post("https://api.brevo.com/v3/smtp/email", json=payload,
+                                  headers={"api-key": brevo_key, "Content-Type": "application/json"}, timeout=30)
+        logging.info("Guest reply notification %s: HTTP %s", hid, r.status_code)
+    except Exception as e:
+        logging.warning("Guest reply notification selhala (%s): %s", hid, e)
+
+@app.get("/api/guest/orders/status")
+async def guest_order_status(hotel_id: str, ids: str = "", device_id: str = ""):
+    """Appka hosta se ptá na stav svých požadavků (jen ty, které založilo totéž zařízení).
+    Vrací UDÁLOSTI (seq, text) — appka si pamatuje, kolik jich už ukázala, takže každý další vzkaz
+    recepce i změna rozhodnutí dorazí do chatu. Cesta má dva segmenty schválně —
+    /api/guest/{slug} by jednoslovnou cestu sežral jako slug (404)."""
+    db = db_load()
+    hid, h = _resolve_hotel(db, hotel_id)
+    if not h:
+        raise HTTPException(404, "Hotel nenalezen")
+    out = []
+    orders = db.get("orders") or {}
+    for oid in [x.strip() for x in (ids or "").split(",") if x.strip()][:20]:
+        rec = orders.get(oid)
+        if not rec or rec.get("hid") != hid or (rec.get("device_id") or "") != (device_id or "")[:64]:
+            out.append({"id": oid, "status": "unknown", "events": []})
+            continue
+        lang = rec.get("lang") or "en"
+        title = rec.get("title") or ""
+        evs = []
+        for e in rec.get("events") or []:
+            if e.get("kind") == "status":
+                evs.append({"seq": e["seq"], "text": _order_msg(e.get("status") or "", lang, title)})
+            elif e.get("kind") == "note":
+                evs.append({"seq": e["seq"], "text": _order_msg("recept_note", lang, e.get("text") or "")})
+            # kind "guest" = vlastní zpráva hosta, v chatu už ji má — nevracet
+        # záznamy z doby před událostmi (jen status + message)
+        if not evs and rec.get("status") in ("confirmed", "declined"):
+            msg = _order_msg(rec["status"], lang, title)
+            if rec.get("message"):
+                msg += "\n" + _order_msg("recept_note", lang, rec["message"])
+            evs.append({"seq": 1, "text": msg})
+        out.append({"id": oid, "status": rec.get("status") or "pending", "title": title, "events": evs})
+    return {"orders": out}
+
+@app.post("/api/guest/order")
+async def guest_order(req: GuestOrderRequest):
+    """Potvrzení nabídky z chatu. Všechno se ověří ZNOVU (nastavení hotelu, scope, allowlist,
+    strop, že host je pořád v domě) — klient posílá jen token. Zápis přes pms_layer
+    (idempotentní, explicitní dny), hlášení recepci vždy."""
+    p = _load_proposal(req.action_id)   # podepsaný samonosný token: ověří podpis, expiraci, jednorázovost
+    lang = (req.language or "en")
+    if not p:
+        return {"status": "expired", "message": _order_msg("expired", lang, "")}
+    db = db_load()
+    hid = p["hid"]
+    h = db["hotels"].get(hid)
+    # Guest appka posílá hotel_id jako id NEBO slug (/h/<slug>) — stejně jako chat → _resolve_hotel.
+    # Dřív se srovnávalo jen s id → 403 → v appce „Nepovedlo se" (nález 11. 10. 2026, třetí pokus).
+    _rh, _rhot = _resolve_hotel(db, req.hotel_id)
+    if not h or _rh != hid:
+        raise HTTPException(403, "Nesedí hotel")
+    settings = db_get_settings()
+    wr = _write_settings(h)
+    title = p.get("title", "")
+    kind = p.get("kind")
+    # Parametry z karty: osoby (za osobu), noci + první den (za osobu/pokoj a noc), čas/poznámka.
+    # Cena se přepočítá tady (strop se kontroluje z ní), nic z klienta se nebere jako cena.
+    if p.get("can_count") and req.count and 1 <= int(req.count) <= int(p.get("max_count") or 10):
+        p["count"] = int(req.count)
+    is_ext_item = kind == "item" and p.get("service_id") == "extension"
+    hotel_cs = (h.get("country") or "").strip().upper() in ("CZ", "SK")
+    is_cancel_item = kind == "item" and bool(p.get("cancel"))
+    if is_cancel_item:
+        # Lhůta pro zrušení z chatu (stejné pravidlo jako u Apalea): po termínu jen osobně na recepci
+        _allowed, _dl = _cancel_allowed(h, p.get("dates") or [], wr.get("pms_write_cancel_hour"))
+        if not _allowed and not p.get("late"):
+            return {"status": "ok", "done": "too_late", "message": _order_msg("cancel_late", lang, _dl)}
+        title = _order_msg("cancel_title", lang, p.get("title") or "")
+        p["title"] = _order_msg("cancel_title", "cs" if hotel_cs else "en", p.get("title") or "")
+        _dts = p.get("dates") or []
+        p["dates"] = []
+        p["days"] = 1
+        p["detail"] = (", ".join(_dts) if _dts else "") + (" (po lhůtě pro zrušení v chatu)" if p.get("late") and hotel_cs else " (after the chat cancellation deadline)" if p.get("late") else "")
+    elif is_ext_item:
+        # Prodloužení bez PMS: host na kartě nastaví počet nocí; titulek v jazyce hosta (chat) i hotelu (e-mail)
+        n = int(req.nights) if (req.nights and 1 <= int(req.nights) <= 14) else max(1, int(p.get("count") or 1))
+        p["count"] = n
+        p["dates"] = []
+        p["days"] = 1
+        title = _ext_title(n, lang)
+        # do mailu jen „o 2 noci" — druh „Prodloužení pobytu" je v mailu už jako popisek řádku
+        p["title"] = _ext_title(n, "cs" if hotel_cs else "en").replace("prodloužení pobytu ", "").replace("the stay extension ", "")
+        p["detail"] = ""
+    elif kind == "item":
+        from datetime import date as _d, timedelta as _td2
+        try:
+            start = _d.fromisoformat((req.start or "")[:10]) if req.start else _d.fromisoformat(p.get("start") or p["dates"][0])
+            if start < _d.today():
+                start = _d.today()
+        except Exception:
+            start = _d.today()
+        nights = int(req.nights) if (p.get("can_nights") and req.nights and 1 <= int(req.nights) <= 14) else 1
+        p["dates"] = [(start + _td2(days=i)).isoformat() for i in range(nights)]
+        p["days"] = len(p["dates"]) or 1
+    p["note"] = str(req.note or "").strip()[:200]
+    if p.get("unit_price") is not None and p.get("price") is not None:
+        p["price"] = round(float(p["unit_price"]) * max(1, int(p.get("count") or 1)) * max(1, int(p.get("days") or 1)), 2)
+    if p.get("dates"):
+        p["detail"] = f"{p.get('count') or 1}× · {', '.join(p['dates'])}"
+    if kind == "item":
+        # Hotel bez PMS / bez propojeného pobytu: jen požadavek recepci, žádný zápis, žádné ověření rezervace
+        if not wr["pms_write_services"] and not wr["pms_write_extension"]:
+            return {"status": "expired", "message": _order_msg("expired", lang, title)}
+        price_txt = (f"{float(p['price']):g} {p.get('currency', '')}".strip() if p.get("price") is not None else "")   # 700, ne 700.0
+        _rk = "cancel" if is_cancel_item else "extension" if is_ext_item else "service"
+        oid = _order_record_new(hid, p.get("room", ""), title, p.get("detail", ""), price_txt, lang, req.device_id or "", _rk)
+        asyncio.create_task(_send_write_notification(hid, dict(h), p.get("room", ""),
+            {"kind": _rk, "mode": "request", "ok": True, "order_id": oid,
+             "title": p.get("title") or title, "detail": p.get("detail", ""), "price": price_txt, "reservation_id": p.get("reservation_id", ""), "note": p.get("note", "")}))
+        out = {"status": "ok", "done": "requested", "order_id": oid, "message": _order_msg("requested", lang, title)}
+        if not is_cancel_item and not is_ext_item:
+            # Tlačítko „Zrušit tuto objednávku" i u požadavku bez PMS — zrušení jde recepci jako požadavek, se lhůtou
+            cancel = {"kind": "item", "service_id": p["service_id"], "title": p.get("title") or title, "cancel": True,
+                      "dates": p.get("dates") or [], "count": 1, "price": None, "currency": "", "mode": "request",
+                      "can_count": False, "can_nights": False, "time_hint": False, "detail": "cancel", "orig_order": oid}
+            cancel["id"] = _sign_proposal({**cancel, "hid": hid, "reservation_id": "", "room": p.get("room", "")}, ttl=48 * 3600)
+            out["cancel_action"] = cancel
+        return out
+    stay = await _fetch_stay_for_hotel(h, hid, p.get("room", ""), settings)
+    if not stay or (getattr(stay, "reservation_id", "") or "") != p["reservation_id"]:
+        return {"status": "expired", "message": _order_msg("expired", lang, title)}
+    _ph = _pms_hotel_ctx(h, settings, db)
+    if kind == "cancel":
+        # Zrušení objednané služby: odebrat z rezervace (všechny dny), nic nejde recepci, pokud se to povede
+        if not wr["pms_write_services"] or not _apaleo_has_write_scope(h, db):
+            return {"status": "expired", "message": _order_msg("expired", lang, title)}
+        _allowed, _dl = _cancel_allowed(h, p.get("dates") or [], wr.get("pms_write_cancel_hour"))
+        if not _allowed:
+            return {"status": "ok", "done": "too_late", "message": _order_msg("cancel_late", lang, _dl)}
+        res = await pms_layer.apaleo_remove_service(_ph, stay, p["service_id"])
+        _persist_rotated_refresh_token(hid, _ph)
+        _svc_offers_cache.pop((hid, p["reservation_id"]), None)
+        ok = bool(res.get("ok"))
+        logging.warning("Guest cancel service hotel=%s res=%s %s → ok=%s status=%s", hid, p["reservation_id"], title, ok, res.get("status"))
+        if not ok:
+            asyncio.create_task(_send_write_notification(hid, dict(h), p.get("room", ""),
+                {"kind": "cancel", "mode": "auto", "ok": False, "title": title, "detail": p.get("detail", ""),
+                 "price": f"{float(p.get('price') or 0):g} {p.get('currency', '')}".strip(), "reservation_id": p["reservation_id"], "error": res.get("error", "")}))
+        return {"status": "ok", "done": "cancelled" if ok else "failed",
+                "message": _order_msg("cancelled" if ok else "failed", lang, title)}
+    mode = p.get("mode", "request")
+    # znovu: zapnuto? scope? allowlist? strop?
+    if kind == "service":
+        if not wr["pms_write_services"] or p["service_id"] not in wr["pms_write_allowlist"]:
+            mode = "request"
+        if float(p.get("price") or 0) > float(wr["pms_write_cap"] or 0):
+            mode = "request"
+    if kind == "extension" or wr["pms_write_mode"] == "request" or not _apaleo_has_write_scope(h, db):
+        mode = "request"
+    price_txt = (f"{float(p['price']):g} {p.get('currency', '')}".strip() if p.get("price") is not None else "")
+    detail = p.get("detail", "")
+    if mode == "request":
+        guest_title = _ext_title(p.get("new_nights") or 1, lang) if kind == "extension" else title
+        if kind == "extension":
+            _dep = str(p.get("departure") or "")[:10]
+            _dep_h = re.sub(r"^(\d{4})-(\d{2})-(\d{2})$", lambda mm: f"{int(mm.group(3))}. {int(mm.group(2))}. {mm.group(1)}", _dep)
+            mail_title = (_ext_title(p.get("new_nights") or 1, "cs" if hotel_cs else "en")
+                          .replace("prodloužení pobytu ", "").replace("the stay extension ", "") + f" → {_dep_h}")
+        else:
+            mail_title = title
+        oid = _order_record_new(hid, p.get("room", ""), guest_title, detail, price_txt, lang, req.device_id or "", kind)
+        asyncio.create_task(_send_write_notification(hid, dict(h), p.get("room", ""),
+            {"kind": kind, "mode": "request", "ok": True, "order_id": oid, "title": mail_title, "detail": detail, "price": price_txt,
+             "reservation_id": p["reservation_id"], "note": p.get("note", "")}))
+        return {"status": "ok", "done": "requested", "order_id": oid, "message": _order_msg("requested", lang, guest_title)}
+    # auto → skutečný zápis (jen služby; prodloužení je vždy request)
+    res = await pms_layer.apaleo_book_service(_ph, stay, p["service_id"], count=p.get("count", 1),
+                                              dates=[{"date": d, "count": p.get("count", 1)} for d in p.get("dates", [])])
+    _persist_rotated_refresh_token(hid, _ph)
+    _svc_offers_cache.pop((hid, p["reservation_id"]), None)
+    ok = bool(res.get("ok"))
+    if ok:
+        try:   # statistika „zapsáno do Apalea" (portál: Přehled + Požadavky hostů)
+            _db2 = db_load()
+            _orders_stat(_db2, hid, datetime.utcnow().strftime("%Y-%m"), "booked")
+            db_save(_db2)
+        except Exception as e:
+            logging.warning("orders_stat booked: %s", e)
+    # Úspěšný zápis recepce vidí v Apaleu — e-mail jen při selhání, nebo když si hotel přeje kopii o všem
+    if not ok or wr.get("pms_write_notify_always"):
+        asyncio.create_task(_send_write_notification(hid, dict(h), p.get("room", ""),
+            {"kind": kind, "mode": "auto", "ok": ok, "title": title, "detail": detail, "price": price_txt,
+             "reservation_id": p["reservation_id"], "error": "" if ok else res.get("error", "")}))
+    logging.warning("Guest order %s hotel=%s res=%s %s → ok=%s already=%s status=%s", kind, hid, p["reservation_id"], title, ok, res.get("already"), res.get("status"))
+    out = {"status": "ok", "done": "booked" if ok else "failed", "already": bool(res.get("already")),
+           "message": _order_msg("booked" if ok else "failed", lang, title)}
+    if ok:
+        # Tlačítko „Zrušit tuto objednávku" rovnou pod potvrzením (uživatel 11. 10.) — podepsaná akce na 48 h,
+        # samotné zrušení pořád potvrzuje host kartou (ochrana proti omylu)
+        cancel = {"kind": "cancel", "service_id": p["service_id"], "title": title, "dates": p.get("dates") or [],
+                  "count": int(p.get("count") or 1), "price": p.get("price"), "currency": p.get("currency", ""),
+                  "mode": "auto", "detail": ", ".join(p.get("dates") or [])}
+        cancel["id"] = _sign_proposal({**cancel, "hid": hid, "reservation_id": p["reservation_id"], "room": p.get("room", "")}, ttl=48 * 3600)
+        out["cancel_action"] = cancel
+    return out
 
 @app.post("/api/guest/chat")
 async def guest_chat(req: GuestChatRequest, request: Request):
@@ -6580,6 +7842,31 @@ Guest name: {req.guest_name or 'Guest'}"""
         except Exception as e:
             logging.warning("Apaleo služby/prodloužení přeskočeny: %s", e)
 
+    # Zápis do rezervace: konkrétní nabídka k potvrzení tlačítkem (server rozhoduje, model mluví).
+    # Jen s ověřeným pobytem (reservation_id) a zapnutým zápisem u hotelu; jinak nic.
+    order_actions = []
+    _room_detected = ""
+    _wr_on = bool(h.get("pms_write_services") or h.get("pms_write_extension"))
+    if _wr_on and (_stay_obj or not h.get("pms_type") or not req.arrival):
+        # S ověřeným pobytem → Apaleo cesta; bez PMS nebo bez propojeného pobytu → položky hotelu (požadavek)
+        try:
+            # Kontext = poslední výměna (host: „kdy je snídaně?" → Alex: … → host: „mohu si JI objednat?")
+            _ctx = " ".join(str(m.get("content") or "")[:400] for m in (req.history or [])[-2:] if isinstance(m, dict))
+            _room = (req.room or "").strip()
+            if not _room and not _stay_obj:
+                # Host napsal číslo pokoje do chatu (jediná cesta u hotelu bez PMS) → použít a vrátit
+                # klientovi, ať si ho uloží pro další zprávy.
+                _room = _extract_room(req.message or "")
+                _room_detected = _room
+            order_actions, _order_block = await _build_order_proposals(
+                h, _hid, _stay_obj if (_stay_obj and getattr(_stay_obj, "reservation_id", "")) else None,
+                req.message or "", settings, db, room=_room, context=_ctx)
+            if _order_block:
+                pms_extra_blocks.append(_order_block)
+        except Exception as e:
+            logging.warning("Nabídka k objednání přeskočena: %s", e)
+            order_actions = []
+
     messages = []
     # Omez historii na posledních 10 zpráv (~5 výměn) — starší kontext jen zbytečně žere vstupní tokeny
     for m in (req.history or [])[-10:]:
@@ -6615,7 +7902,8 @@ Guest name: {req.guest_name or 'Guest'}"""
         logging.warning("Log dotazu hosta selhal: %s", e)
     # „lang" vracíme jen když jsme jazyk přepsali na základě jednoznačného důkazu —
     # klient si ho pak uloží a vyléčí tím dřív špatně uložený jazyk (anglické „Welcome back").
-    return {"status": "ok", "reply": reply, "lang": reply_lang if _lang_forced else None}
+    return {"status": "ok", "reply": reply, "lang": reply_lang if _lang_forced else None,
+            "actions": order_actions or None, "room_detected": _room_detected or None}
 
 # ─────────────────────────────────────────────
 # TTS — Alex čte odpověď nahlas. HLAVNÍ: ElevenLabs, hlas „Sarah" (rozhodnuto 7. 8. 2026).
@@ -7230,6 +8518,34 @@ _APALEO_AUTHORIZE_URL = "https://identity.apaleo.com/connect/authorize"
 # s živou cenou + nabídka služeb. Vše read-only, bez PII, bez folios/invoices/accounting.
 _APALEO_SCOPES = "offline_access reservations.read setup.read availability.read offers.read"
 
+# Zápis do rezervace (9. 10. 2026, požadavek Apalea po certifikačním callu — přidání
+# služeb, prodloužení pobytu; viz APALEO_ZAPIS_DO_REZERVACE_NAVRH.md). Scope se
+# POŽADUJE jen za gatem: registrace aplikace v Apaleo Console ho musí mít povolený
+# DŘÍV, než ho začneme chtít — jinak authorize vrátí invalid_scope a spadne každé
+# nové připojení. Registrace scope povolený má (9. 10. 2026). Scope neplatí zpětně: každý
+# hotel připojený starým souhlasem ho musí udělit znovu (portál ukazuje pms_needs_reconsent).
+# Gate je proměnná prostředí, ne konstanta: stejný kód jede na stagingu i v produkci —
+# staging zapne APALEO_REQUEST_WRITE_SCOPE=1 a otestuje souhlas na dev účtu, produkce
+# zůstane čtecí, dokud nebudou hotové texty k souhlasu (listing, /apaleo) a Apaleo
+# nebude o změně scope informováno.
+_APALEO_WRITE_SCOPE = "reservations.manage"
+_APALEO_REQUEST_WRITE_SCOPE = os.getenv("APALEO_REQUEST_WRITE_SCOPE", "").strip() == "1"
+
+def _apaleo_scopes() -> str:
+    """Scope string pro authorize — základ + zápis, je-li zapnutý."""
+    return _APALEO_SCOPES + (" " + _APALEO_WRITE_SCOPE if _APALEO_REQUEST_WRITE_SCOPE else "")
+
+def _apaleo_has_write_scope(h: dict, db: dict = None) -> bool:
+    """Udělil hotel při souhlasu scope pro zápis? Udělený scope se ukládá z token
+    odpovědi do pms_scope; skupinové hotely ho čtou z vlastníka tokenu (pms_token_ref).
+    Starý souhlas bez uloženého scope = False — to je stav „připojeno, chybí oprávnění"."""
+    src = h
+    if not h.get("pms_refresh_token") and h.get("pms_token_ref"):
+        if db is None:
+            db = db_load()
+        src = (db.get("hotels") or {}).get(h["pms_token_ref"]) or {}
+    return _APALEO_WRITE_SCOPE in (src.get("pms_scope") or "").split()
+
 def _pms_hotel_ctx(h: dict, settings: dict, db: dict = None) -> dict:
     """Kopie hotelu s doplněnými app-level credentials pro pms vrstvu (Connect režim).
     Skupinové hotely (aktivované hromadně z jednoho Apaleo účtu) NEMAJÍ vlastní refresh
@@ -7288,7 +8604,7 @@ def apaleo_connect(token: str, request: Request):
     redirect_uri = f"{get_base_url(request)}/api/pms/apaleo/callback"
     from urllib.parse import urlencode
     q = urlencode({"response_type": "code", "client_id": client_id,
-                   "redirect_uri": redirect_uri, "scope": _APALEO_SCOPES, "state": state,
+                   "redirect_uri": redirect_uri, "scope": _apaleo_scopes(), "state": state,
                    "prompt": "consent"})  # vynutí consent obrazovku i při opakovaném připojení
     return RedirectResponse(f"{_APALEO_AUTHORIZE_URL}?{q}")
 
@@ -7409,7 +8725,7 @@ def apaleo_connect_register(request: Request):
     from urllib.parse import urlencode
     q = urlencode({"response_type": "code", "client_id": client_id,
                    "redirect_uri": f"{get_base_url(request)}/api/pms/apaleo/callback",
-                   "scope": _APALEO_SCOPES, "state": state, "prompt": "consent"})
+                   "scope": _apaleo_scopes(), "state": state, "prompt": "consent"})
     return RedirectResponse(f"{_APALEO_AUTHORIZE_URL}?{q}")
 
 async def _apaleo_registration_callback(request: Request, code: str, reg: dict, db: dict, _page):
@@ -7471,6 +8787,7 @@ async def _apaleo_registration_callback(request: Request, code: str, reg: dict, 
     if _ph.get("_new_refresh_token"):
         refresh_token = _ph["_new_refresh_token"]
     reg.update({"status": "form", "refresh_token": refresh_token, "properties": enriched,
+                "scope": tok.get("scope", ""),   # udělený scope → při založení hotelu do pms_scope
                 "token_at": datetime.utcnow().isoformat()})
     reg.pop("state", None)   # state je jednorázový
     db["pending_apaleo_regs"][reg["id"]] = reg
@@ -7544,6 +8861,9 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
         return _page("Missing refresh token", "Apaleo did not grant offline access. Please contact support@smartestguide.com.", ok=False, portal_url=portal_url)
     db["hotels"][hid]["pms_type"] = "apaleo"
     db["hotels"][hid]["pms_refresh_token"] = refresh_token
+    # Udělený scope z token odpovědi — jediný způsob, jak později poznat hotel se
+    # starým souhlasem (bez reservations.manage), aniž by se zkoušel zápis a chytal 403.
+    db["hotels"][hid]["pms_scope"] = tok.get("scope", "")
     db["hotels"][hid].pop("pms_oauth_state", None)
     db["hotels"][hid].pop("pms_oauth_state_at", None)
     db_save(db)
@@ -7601,6 +8921,8 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
             prop_note = " One last step: select your property in the PMS section of your portal."
     logging.info("Apaleo Connect: hotel %s připojen.", hid)
     return _page("Apaleo connected", f"{h.get('name','Your hotel')} is now connected to SMARTEST GUIDE. Alex, the AI concierge, can answer your guests using their reservation details (check-out time, length of stay, package).{prop_note}", portal_url=portal_url, extra=picker_html)
+
+# (diag/write, diag/reservations, diag/testbed smazány 11. 10. 2026 před nasazením do produkce — testovací vrstva zápisu)
 
 @app.get("/api/pms/apaleo/properties")
 async def apaleo_properties(token: str):
@@ -8029,14 +9351,44 @@ async def portal_add_hotel(req: PortalAddHotelRequest, request: Request):
     parent_id = h.get("group_parent") or h.get("id")
     parent = db["hotels"].get(parent_id) or h
     sub_id = parent.get("stripe_subscription_id", "")
-    if not (parent.get("subscription_active") and sub_id):
-        raise HTTPException(400, "Pro přidání hotelu je potřeba aktivní online předplatné. "
-                                 "Napište nám na support@smartestguide.com — přidáme hotel ručně.")
     s = db_get_settings()
     stripe_key = s.get("stripe_secret_key", "")
     if not stripe_key:
         raise HTTPException(503, "Platby nejsou nakonfigurovány")
     price = _pricing_price_for_beds(beds, s)
+    if not (parent.get("subscription_active") and sub_id):
+        # Původní hotel byl založen ručně (bez Stripe subscription) → není k čemu položku připočítat.
+        # Uživatel 11. 10. 2026: hlášku vysvětlit a dát možnost zaplatit rovnou přes Stripe → nový hotel
+        # založíme neaktivní a vrátíme Checkout; po zaplacení ho webhook aktivuje jako vlastní předplatné.
+        now = datetime.utcnow().isoformat()
+        nid = str(uuid.uuid4())
+        hotel = {
+            "id": nid, "created_at": now, "updated_at": now,
+            "qr_code_id": str(uuid.uuid4()), "hotel_token": str(uuid.uuid4()).replace("-", ""),
+            "name": name, "origin": "standard_group", "origin_source": f"portal_add_via_{h.get('id')}_checkout",
+            "subscription_active": False, "subscription_price": price, "awaiting_payment": True,
+            "group_parent": parent_id,
+            "email": parent.get("email", ""), "registration_email": parent.get("registration_email", ""),
+            "phone": parent.get("phone", ""), "contact_name": parent.get("contact_name", ""),
+            "country": parent.get("country", ""), "ico": parent.get("ico", ""),
+            "dic": parent.get("dic", ""), "billing_name": parent.get("billing_name", ""),
+            "acquired_by": parent.get("acquired_by", "auto"), "referral_code": parent.get("referral_code", ""),
+            "acquisition_channel": "portal_add", "acquired_at": now,
+            "bed_count": beds, "registered_bed_count": beds, "trial_used": True,
+        }
+        if url:
+            hotel["url"] = url
+            hotel["source_url"] = url
+        _ensure_slug(db, nid, hotel)
+        db["hotels"][nid] = hotel
+        db_save(db)
+        co = await stripe_checkout(nid, request)
+        logging.warning("FLOW4: parent %s bez Stripe subscription → nový hotel '%s' (%s) čeká na zaplacení přes Checkout",
+                        parent_id, name, nid)
+        return {"status": "payment_required", "hotel_id": nid, "name": name, "price": price,
+                "checkout_url": co.get("checkout_url"),
+                "message": "Původní hotel byl založen ručně (bez online předplatného), proto nejde nový hotel připočítat "
+                           "k jeho faktuře. Nový hotel je připravený — zaplaťte ho online a aktivuje se sám."}
     _sh = {"Authorization": f"Bearer {stripe_key}",
            "Content-Type": "application/x-www-form-urlencoded"}
     async with httpx.AsyncClient() as client:
