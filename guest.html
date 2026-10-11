@@ -1596,20 +1596,22 @@ function hideTyping(){
 // ══ ODESLÁNÍ ═════════════════════════════════
 // Detekce jazyka z textu
 function detectLangFromText(text){
-  const patterns = {
-    cs:/[áčďéěíňóřšťúůýž]/i,
-    sk:/[áäčďéíĺľňóôŕšťúýž]/i,
-    de:/[äöüß]|\b(ich|ist|das|und|nicht|haben|sein|werden|mit|auf|wo|wann|kann|bitte|danke|zimmer|uhr|heute|morgen|gibt)\b/i,
-    fr:/[àâçèêëîïôùûü]|\b(je|est|les|des|une|pas|pour|avec)\b/i,
-    es:/[áéíóúüñ]|\b(que|los|las|una|para|por|con|hay)\b/i,
-    pl:/[ąćęłńóśźż]/i,
-    it:/[àèéìíîòóùú]|\b(che|sono|una|per|con|del|della|non)\b/i,
-    ru:/[а-яё]/i,
-    uk:/[іїєґ]/i,
-    hu:/[áéíóöőúüű]/i,
+  // Jen jednoznačné důkazy: unikátní písmena jazyka, nebo ≥ 2 typická slova. Dřív stačilo jedno „é"
+  // a francouzská věta přepnula rozhraní do češtiny (11. 10. 2026: „Avez-vous un petit déjeuner ?" → cs).
+  const uniq = [
+    ['uk',/[іїєґ]/i], ['ru',/[а-яё]/i], ['sk',/[ôľĺŕ]/i], ['cs',/[ěřů]/i], ['pl',/[ąęłńśźż]/i], ['hu',/[őű]/i],
+    ['de',/ß/], ['es',/[ñ¿¡]/],
+  ];
+  for(const [lang,re] of uniq){ if(re.test(text)) return lang; }
+  const words = {
+    de:/\b(ich|ist|das|und|nicht|haben|sein|werden|mit|auf|wo|wann|kann|bitte|danke|zimmer|uhr|heute|morgen|gibt|frühstück)\b/gi,
+    fr:/\b(je|est|les|des|une|pas|pour|avec|vous|merci|bonjour|où|quelle|quel|petit|déjeuner|chambre|avez)\b/gi,
+    es:/\b(que|los|las|una|para|por|con|hay|gracias|hola|dónde|cuál|desayuno|habitación|tienen)\b/gi,
+    it:/\b(che|sono|una|per|con|del|della|non|grazie|ciao|dove|quando|colazione|camera|avete)\b/gi,
   };
-  for(const [lang,re] of Object.entries(patterns)){
-    if(re.test(text)) return lang;
+  for(const [lang,re] of Object.entries(words)){
+    const hits = new Set((text.toLowerCase().match(re)||[]));
+    if(hits.size >= 2) return lang;
   }
   // Bez speciálních znaků rozhoduj podle angličtiny až od DVOU různých slov —
   // jedno „check-in" nebo „wifi" v české větě dřív přepnulo celé UI do angličtiny.
