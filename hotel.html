@@ -429,7 +429,7 @@ const EN_MAP = {
   "Propojte svůj hotelový systém":"Connect your hotel system","Používáte":"Do you use",
   "Používáte Apaleo? Po propojení bude Alex znát pobyty hostů a odpoví jim osobně (check-out, balíček, délka pobytu). Se zápisovým oprávněním může po potvrzení hostem připsat objednanou službu na rezervaci — jen položky, které povolíte, do limitu, který nastavíte. Žádné kopírování klíčů — jedno kliknutí a souhlas v Apaleu.":"Do you use Apaleo? Once connected, Alex knows each guest's stay and answers personally (check-out, package, length of stay). With the write permission it can add a service the guest confirmed to the reservation — only items you allow, up to a limit you set. No keys to copy — one click and consent in Apaleo.",
   "🧪 Vyzkoušet Alexe jako host":"🧪 Try Alex as a guest","Otevře chat přesně tak, jak ho uvidí váš host":"Opens the chat exactly as your guest sees it",
-  "Požadavky hostů":"Guest requests","posledních 30 dní · odpověď recepce host vidí v chatu":"last 30 days · the guest sees reception's reply in chat","Čeká":"Waiting","Potvrzeno":"Confirmed","Nelze vyřídit":"Cannot arrange","Zapsáno do Apalea":"Written to Apaleo",
+  "Požadavky hostů":"Guest requests","Co smí Alex objednat na účet pokoje, limit, kam chodí e-maily":"What Alex may book to the room account, the limit, where e-mails go","Položky, které smí Alex nabízet, ceny a jednotky, kam chodí e-maily":"Items Alex may offer, prices and units, where e-mails go","posledních 30 dní · odpověď recepce host vidí v chatu":"last 30 days · the guest sees reception's reply in chat","Čeká":"Waiting","Potvrzeno":"Confirmed","Nelze vyřídit":"Cannot arrange","Zapsáno do Apalea":"Written to Apaleo",
   "Zatím žádný požadavek. Jakmile host něco objedná v chatu, objeví se tady i v e-mailu.":"No requests yet. As soon as a guest orders something in chat, it appears here and in your e-mail.",
   "Odpovědět":"Reply","Pokoj":"Room","Stav":"Status","Čas":"Time","Co":"What","Vzkaz":"Message","Tento měsíc":"This month","Minulý měsíc":"Last month","Celkem":"All time",
   "Požadavky hostů v chatu":"Guest requests in chat","požadavků tento měsíc":"requests this month","z toho čeká na odpověď":"waiting for a reply",
@@ -2034,17 +2034,21 @@ async function loadRequestsSection(){
       <td style="padding:8px 10px;font-size:12px;color:var(--muted);max-width:260px">${(o.notes||[]).map(n=>(n.who==='guest'?'<span style="color:var(--accent2)">🧑 '+esc(n.text)+'</span>':'💬 '+esc(n.text))).join('<br>')}</td>
       <td style="padding:8px 10px;white-space:nowrap"><a href="${esc(o.reply_link)}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700;text-decoration:none">${o.status==='pending'?'✍️ ':''}Odpovědět →</a></td>
     </tr>`).join('');
-  el.innerHTML=`<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:24px">
-    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px">
-      <div style="font-size:26px">📬</div>
-      <div style="flex:1;min-width:200px"><div style="font-family:var(--font-head);font-size:14px;font-weight:700">Požadavky hostů${d.pending_now?` <span style="color:#ffaa33">(${d.pending_now})</span>`:''}</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:3px">posledních 30 dní · odpověď recepce host vidí v chatu</div></div>
+  const prevBody=el.querySelector('#sec-requests .section-body'); const openNow=prevBody?prevBody.classList.contains('open'):true; const oc=openNow?'open':'';
+  el.innerHTML=`<div class="section ${openNow?'section-open':''}" id="sec-requests" style="margin-bottom:24px">
+    <div class="section-head ${oc}" onclick="toggleSection('sec-requests')">
+      <div class="section-icon">📬</div>
+      <div style="flex:1;min-width:0"><div class="section-title">Požadavky hostů${d.pending_now?` <span style="color:#ffaa33">(${d.pending_now})</span>`:''}</div>
+      <div class="section-desc">posledních 30 dní · odpověď recepce host vidí v chatu</div></div>
+      <span class="section-toggle-lbl">${openNow?'Sbalit':'Rozbalit'}</span><div class="section-chevron ${oc}">▼</div>
     </div>
+    <div class="section-body ${oc}">
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
       ${chip('Tento měsíc',tm.total,'var(--accent)')}${chip('Čeká',tm.pending,'#ffaa33')}${chip('Potvrzeno',tm.confirmed,'#2ecc87')}${chip('Nelze vyřídit',tm.declined,'#ff4f6a')}${hotelData.pms_type?chip('Zapsáno do Apalea',tm.booked,'var(--accent2)'):''}
     </div>
     ${rows?`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;text-align:left"><th style="padding:6px 10px">Čas</th><th style="padding:6px 10px">Pokoj</th><th style="padding:6px 10px">Co</th><th style="padding:6px 10px">Stav</th><th style="padding:6px 10px">Vzkaz</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
          :`<div style="font-size:13px;color:var(--muted)">Zatím žádný požadavek. Jakmile host něco objedná v chatu, objeví se tady i v e-mailu.</div>`}
+    </div>
   </div>`;
   translateDom(el);
 }
@@ -2067,12 +2071,22 @@ function loadOrdersSection(){
   const inp='background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13.5px;padding:8px 10px;outline:none';
   const sw=(id,checked,label,hint)=>`<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin-bottom:10px"><input type="checkbox" id="${id}" ${checked?'checked':''} style="margin-top:3px;width:18px;height:18px;accent-color:var(--accent)"><span><b style="font-size:14px">${label}</b><br><span style="font-size:12px;color:var(--muted)">${hint}</span></span></label>`;
   const itemRows=(items.length?items:[]).map(it=>orderItemRowHtml(it)).join('');
+  // Stejný akordeon jako sekce profilu → Rozbalit/Sbalit vše platí i tady (uživatel 11. 10.); stav přežije přerender po uložení
+  const prevBody=el.querySelector('#sec-orders .section-body'); const openNow=prevBody?prevBody.classList.contains('open'):true;
+  const oc=openNow?'open':'';
   el.innerHTML=`
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:24px">
+    <div class="section ${openNow?'section-open':''}" id="sec-orders" style="margin-bottom:24px">
+      <div class="section-head ${oc}" onclick="toggleSection('sec-orders')">
+        <div class="section-icon">🛎</div>
+        <div style="flex:1;min-width:0">
+          <div class="section-title">Objednávky v chatu</div>
+          <div class="section-desc">${pms?'Co smí Alex objednat na účet pokoje, limit, kam chodí e-maily':'Položky, které smí Alex nabízet, ceny a jednotky, kam chodí e-maily'}</div>
+        </div>
+        <span class="section-toggle-lbl">${openNow?'Sbalit':'Rozbalit'}</span><div class="section-chevron ${oc}">▼</div>
+      </div>
+      <div class="section-body ${oc}">
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px">
-        <div style="font-size:26px">🛎</div>
         <div style="flex:1;min-width:220px">
-          <div style="font-family:var(--font-head);font-size:15px;font-weight:700">Objednávky v chatu</div>
           <div style="font-size:12.5px;color:var(--muted);margin-top:3px">${pms?'Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem. U požadavku recepce v e-mailu klikne Potvrdit / Nelze vyřídit a host odpověď uvidí v chatu.':'Alex přijme objednávku v chatu a pošle ji recepci e-mailem jako požadavek — host nemusí nikam volat. Recepce v e-mailu klikne Potvrdit nebo Nelze vyřídit (může připsat vzkaz) a host odpověď uvidí v chatu. Nic se nikam nezapisuje.'}</div>
         </div>
       </div>
@@ -2110,6 +2124,7 @@ function loadOrdersSection(){
         <span id="ord-saved" style="font-size:12px;color:var(--muted)"></span>
       </div>
       ${(pms&&h.pms_needs_reconsent)?`<div style="margin-top:10px;font-size:12px;color:#ffb84d">🔑 Aby Alex mohl do Apalea zapisovat, udělte nové oprávnění v sekci Hotelový systém výše. Do té doby půjdou objednávky jen jako požadavek recepci.</div>`:''}
+      </div>
     </div>`;
   if(pms) loadAllowlist(allow);
   translateDom(el);
