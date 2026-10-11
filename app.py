@@ -2367,7 +2367,7 @@ def hotel_portal_orders(token: str):
     for oid, rec in (db.get("orders") or {}).items():
         if rec.get("hid") != hid:
             continue
-        notes = [e.get("text", "") for e in (rec.get("events") or []) if e.get("kind") == "note"]
+        notes = [{"who": e.get("kind"), "text": e.get("text", "")} for e in (rec.get("events") or []) if e.get("kind") in ("note", "guest")]
         rows.append({"id": oid, "created": rec.get("created", ""), "room": rec.get("room", ""), "kind": rec.get("kind", ""),
                      "title": rec.get("title", ""), "detail": rec.get("detail", ""), "price": rec.get("price", ""),
                      "status": rec.get("status", "pending"), "decided": rec.get("decided", ""), "notes": notes,
@@ -7075,18 +7075,20 @@ def _order_reply_page(rec: dict, oid: str, s: str, cs: bool, flash: str = "") ->
         lbl_m = "Vzkaz hostovi (volitelné, zobrazí se mu v chatu):"
         ph = "např. Snídaně je 7–10 h v restauraci v přízemí."
         b_ok, b_no, b_note = "✅ Potvrdit a poslat", "❌ Nelze vyřídit a poslat", "Poslat jen vzkaz"
-        hist_lbl = "Co host zatím dostal:"
-        hint = "Host vidí odpověď v chatu během pár sekund. Vzkaz i rozhodnutí můžete poslat opakovaně (24 h od požadavku)."
+        hist_lbl = "Průběh (co host dostal a co odpověděl):"
+        hint = "Host vidí odpověď v chatu během pár sekund a může vám z chatu odepsat — přijde vám e-mail. Vzkaz i rozhodnutí můžete poslat opakovaně (48 h od požadavku)."
         ev_txt = {"confirmed": "✅ Potvrzeno", "declined": "❌ Nelze vyřídit"}
+        guest_lbl = "🧑 Host"
     else:
         title = "Reply to the guest"
         st_lbl = {"pending": "⏳ Waiting for your reply", "confirmed": "✅ Confirmed", "declined": "❌ Cannot arrange"}[st]
         lbl_m = "Message to the guest (optional, shown in chat):"
         ph = "e.g. Breakfast is served 7–10 in the ground-floor restaurant."
         b_ok, b_no, b_note = "✅ Confirm and send", "❌ Cannot arrange — send", "Send message only"
-        hist_lbl = "What the guest has received so far:"
-        hint = "The guest sees your reply in chat within seconds. You can send messages or change the decision again (24 h after the request)."
+        hist_lbl = "Thread (what the guest received and replied):"
+        hint = "The guest sees your reply in chat within seconds and can write back from the chat — you get an e-mail. You can send messages or change the decision again (48 h after the request)."
         ev_txt = {"confirmed": "✅ Confirmed", "declined": "❌ Cannot arrange"}
+        guest_lbl = "🧑 Guest"
     hist = ""
     if events:
         items = []
@@ -7095,6 +7097,8 @@ def _order_reply_page(rec: dict, oid: str, s: str, cs: bool, flash: str = "") ->
                 items.append(f"<li>{ev_txt.get(e.get('status'), e.get('status'))}</li>")
             elif e.get("kind") == "note":
                 items.append(f"<li>💬 {html.escape(e.get('text', ''))}</li>")
+            elif e.get("kind") == "guest":
+                items.append(f"<li style='color:#0b63c6'><b>{guest_lbl}:</b> {html.escape(e.get('text', ''))}</li>")
         hist = f"<p><b>{hist_lbl}</b></p><ul>{''.join(items)}</ul>"
     flash_html = f"<p class='ok'>{html.escape(flash)}</p>" if flash else ""
     note_btn = f"<button type='submit' name='d' value='note' class='sec'>{b_note}</button>" if st != "pending" else ""
@@ -7174,6 +7178,71 @@ async def order_decide_legacy(oid: str, d: str = "", s: str = ""):
         return RedirectResponse(_order_reply_link(oid), status_code=302)
     return HTMLResponse("<p style='font-family:sans-serif'>Odkaz není platný. / This link is not valid.</p>", status_code=404)
 
+class GuestOrderMessage(BaseModel):
+    hotel_id: str
+    order_id: str
+    device_id: Optional[str] = None
+    text: str
+
+@app.post("/api/guest/orders/message")
+async def guest_order_message(req: GuestOrderMessage, request: Request):
+    """Host odpoví recepci na její zprávu (uživatel 11. 10. 2026: „můžu na zprávu recepce reagovat?
+    čili si bude host a recepce povídat"). Zpráva se připojí k požadavku jako událost „guest",
+    recepce dostane e-mail s tlačítkem Odpovědět hostovi a vidí ji na stránce odpovědi."""
+    key = (req.device_id or "").strip()[:64] or _client_ip(request)
+    if not _rate_limit_ok("ordermsg:" + key, max_hits=10):
+        raise HTTPException(429, "Příliš mnoho zpráv. Zkuste to prosím za chvíli.")
+    text = re.sub(r"\s+", " ", str(req.text or "")).strip()[:300]
+    if not text:
+        raise HTTPException(400, "Prázdná zpráva")
+    db = db_load()
+    hid, h = _resolve_hotel(db, req.hotel_id)
+    rec = (db.get("orders") or {}).get((req.order_id or "").strip())
+    if not h or not rec or rec.get("hid") != hid or (rec.get("device_id") or "") != (req.device_id or "")[:64]:
+        raise HTTPException(404, "Požadavek nenalezen")
+    events = rec.setdefault("events", [])
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    events.append({"seq": len(events) + 1, "kind": "guest", "text": text, "t": now})
+    db_save(db)
+    asyncio.create_task(_send_guest_message_notification(hid, dict(h), rec, req.order_id.strip(), text))
+    return {"status": "ok"}
+
+async def _send_guest_message_notification(hid: str, h: dict, rec: dict, oid: str, text: str):
+    """Krátký mail recepci: host odpověděl na zprávu k požadavku → tlačítko Odpovědět hostovi."""
+    brevo_key = os.getenv("BREVO_API_KEY", "")
+    wr = _write_settings(h)
+    to_email = (wr.get("pms_write_notify_email") or h.get("registration_email") or h.get("email") or "").strip()
+    if not brevo_key or not to_email:
+        return
+    cs = (h.get("country") or "").strip().upper() in ("CZ", "SK")
+    name = h.get("name") or hid
+    room = rec.get("room", "")
+    link = _order_reply_link(oid)
+    _b = "display:inline-block;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:700;background:#FF6B00;color:#fff"
+    if cs:
+        subject = f"💬 {name}: host z pokoje {room} odpověděl — {rec.get('title', '')}"
+        body = (f"<p>Dobrý den,</p><p>host z pokoje <b>{room}</b> reagoval v chatu na vaši zprávu k požadavku "
+                f"<b>{html.escape(rec.get('title', ''))}</b>:</p><blockquote style='border-left:3px solid #FF6B00;margin:0;padding:6px 12px;color:#333'>{html.escape(text)}</blockquote>"
+                f"<p><a href=\"{link}\" style=\"{_b}\">✍️ Odpovědět hostovi</a><br><span style='font-size:12px;color:#666'>Host odpověď uvidí v chatu.</span></p>")
+    else:
+        subject = f"💬 {name}: guest in room {room} replied — {rec.get('title', '')}"
+        body = (f"<p>Hello,</p><p>the guest in room <b>{room}</b> replied in chat to your message about "
+                f"<b>{html.escape(rec.get('title', ''))}</b>:</p><blockquote style='border-left:3px solid #FF6B00;margin:0;padding:6px 12px;color:#333'>{html.escape(text)}</blockquote>"
+                f"<p><a href=\"{link}\" style=\"{_b}\">✍️ Reply to the guest</a><br><span style='font-size:12px;color:#666'>The guest sees your reply in chat.</span></p>")
+    payload = {"sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"}, "to": [{"email": to_email}],
+               "subject": subject, "htmlContent": body + "<p>— SMARTEST GUIDE · support@smartestguide.com</p>",
+               "textContent": f"{subject}: {text}"}
+    bcc = _admin_notify_bcc(exclude=to_email)
+    if bcc:
+        payload["bcc"] = bcc
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post("https://api.brevo.com/v3/smtp/email", json=payload,
+                                  headers={"api-key": brevo_key, "Content-Type": "application/json"}, timeout=30)
+        logging.info("Guest reply notification %s: HTTP %s", hid, r.status_code)
+    except Exception as e:
+        logging.warning("Guest reply notification selhala (%s): %s", hid, e)
+
 @app.get("/api/guest/orders/status")
 async def guest_order_status(hotel_id: str, ids: str = "", device_id: str = ""):
     """Appka hosta se ptá na stav svých požadavků (jen ty, které založilo totéž zařízení).
@@ -7199,13 +7268,14 @@ async def guest_order_status(hotel_id: str, ids: str = "", device_id: str = ""):
                 evs.append({"seq": e["seq"], "text": _order_msg(e.get("status") or "", lang, title)})
             elif e.get("kind") == "note":
                 evs.append({"seq": e["seq"], "text": _order_msg("recept_note", lang, e.get("text") or "")})
+            # kind "guest" = vlastní zpráva hosta, v chatu už ji má — nevracet
         # záznamy z doby před událostmi (jen status + message)
         if not evs and rec.get("status") in ("confirmed", "declined"):
             msg = _order_msg(rec["status"], lang, title)
             if rec.get("message"):
                 msg += "\n" + _order_msg("recept_note", lang, rec["message"])
             evs.append({"seq": 1, "text": msg})
-        out.append({"id": oid, "status": rec.get("status") or "pending", "events": evs})
+        out.append({"id": oid, "status": rec.get("status") or "pending", "title": title, "events": evs})
     return {"orders": out}
 
 @app.post("/api/guest/order")

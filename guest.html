@@ -193,6 +193,9 @@
     .msg.bot.reception .msg-bubble{background:rgba(0,212,170,.14);border-color:rgba(0,212,170,.55)}
     .msg.bot.reception .msg-av{background:var(--accent2)!important;color:#0a0b0f!important}
     .msg-from{display:block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent2);margin-bottom:4px}
+    .reply-rec-btn{background:transparent;border:1px solid rgba(0,212,170,.55);color:var(--accent2);border-radius:20px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body,inherit)}
+    #reply-bar{display:none;align-items:center;justify-content:space-between;gap:8px;margin:0 0 6px;padding:6px 10px;border-radius:10px;background:rgba(0,212,170,.14);border:1px solid rgba(0,212,170,.5);font-size:12.5px;color:var(--text)}
+    #reply-bar button{background:transparent;border:none;color:var(--text);font-size:14px;cursor:pointer;padding:2px 6px}
     .msg-time{font-size:10px;color:var(--muted)}
     .msg.user .msg-time{text-align:right}
     .msg-meta{display:flex;align-items:center;gap:8px;margin-top:3px}
@@ -804,7 +807,7 @@ async function loadHotel(){
   }
       // Obnov předchozí konverzaci — kontext se neztrácí
       if(history.length){
-        history.forEach(m => { if(m.role==='user') addUser(m.content); else if(m.role==='assistant') addBot(m.content,{reception:m.src==='reception'}); });
+        history.forEach(m => { if(m.role==='user') addUser(m.content); else if(m.role==='assistant') addBot(m.content,{reception:m.src==='reception',oid:m.oid||'',title:m.title||''}); });
       }
   const greetFn=GREETINGS[guestLang]||GREETINGS['en'];
       // Pozor: chybějící jazyk v téhle mapě = anglické uvítání i pro Čecha (tester 7. 8. 2026).
@@ -1010,13 +1013,17 @@ Object.assign(UI_T.de,{link_stay:'🛎 Aufenthalt verknüpfen',ls_title:'Aufenth
   stay_unlinked:'🔓 Ihr Aufenthalt wurde getrennt. Ich antworte jetzt nur aus den allgemeinen Hotelinformationen — Sie können ihn jederzeit wieder verknüpfen.'});
 // Zápis do rezervace — karty k potvrzení (ostatní jazyky padají na EN přes uiT)
 Object.assign(UI_T.en,{order_persons:'Persons',order_nights:'Nights',order_days:'Days',order_from:'From',order_time_ph:'Preferred time (e.g. 16:00)',order_note_ph:'Note for reception (optional)',
-  ext_title:'Extend stay',ext_detail:'Reception will confirm availability and price.',ext_to:'until',from_reception:'Reception'});
+  ext_title:'Extend stay',ext_detail:'Reception will confirm availability and price.',ext_to:'until',from_reception:'Reception',
+  reply_to_reception:'Reply to reception',replying_to:'Writing to reception',reply_ph:'Your message to reception…',reply_sent:'📨 Passed on to reception — their reply will appear here.'});
 Object.assign(UI_T.cs,{order_persons:'Počet osob',order_nights:'Počet nocí',order_days:'Počet dní',order_from:'Od',order_time_ph:'Preferovaný čas (např. 16:00)',order_note_ph:'Poznámka pro recepci (volitelné)',
-  ext_title:'Prodloužení pobytu',ext_detail:'Dostupnost a cenu potvrdí recepce.',ext_to:'do',from_reception:'Recepce'});
+  ext_title:'Prodloužení pobytu',ext_detail:'Dostupnost a cenu potvrdí recepce.',ext_to:'do',from_reception:'Recepce',
+  reply_to_reception:'Odpovědět recepci',replying_to:'Píšete recepci',reply_ph:'Vaše zpráva pro recepci…',reply_sent:'📨 Předáno recepci — její odpověď se objeví tady.'});
 Object.assign(UI_T.sk,{order_persons:'Počet osôb',order_nights:'Počet nocí',order_days:'Počet dní',order_from:'Od',order_time_ph:'Preferovaný čas (napr. 16:00)',order_note_ph:'Poznámka pre recepciu (voliteľné)',
-  ext_title:'Predĺženie pobytu',ext_detail:'Dostupnosť a cenu potvrdí recepcia.',ext_to:'do',from_reception:'Recepcia'});
+  ext_title:'Predĺženie pobytu',ext_detail:'Dostupnosť a cenu potvrdí recepcia.',ext_to:'do',from_reception:'Recepcia',
+  reply_to_reception:'Odpovedať recepcii',replying_to:'Píšete recepcii',reply_ph:'Vaša správa pre recepciu…',reply_sent:'📨 Odovzdané recepcii — jej odpoveď sa objaví tu.'});
 if(UI_T.de)Object.assign(UI_T.de,{order_persons:'Personen',order_nights:'Nächte',order_days:'Tage',order_from:'Ab',order_time_ph:'Gewünschte Uhrzeit (z. B. 16:00)',order_note_ph:'Hinweis für die Rezeption (optional)',
-  ext_title:'Aufenthalt verlängern',ext_detail:'Verfügbarkeit und Preis bestätigt die Rezeption.',ext_to:'bis',from_reception:'Rezeption'});
+  ext_title:'Aufenthalt verlängern',ext_detail:'Verfügbarkeit und Preis bestätigt die Rezeption.',ext_to:'bis',from_reception:'Rezeption',
+  reply_to_reception:'Der Rezeption antworten',replying_to:'Nachricht an die Rezeption',reply_ph:'Ihre Nachricht an die Rezeption…',reply_sent:'📨 An die Rezeption weitergeleitet — ihre Antwort erscheint hier.'});
 Object.assign(UI_T.en,{order_confirm:'Confirm',order_send:'Send to reception',order_cancel:'Not now',
   order_room_charge:'Charged to your room account and settled at check-out. Nothing is booked until you confirm.',
   order_request_note:'This goes to reception as a request. Their answer will appear here in the chat.',
@@ -1342,8 +1349,8 @@ function saveTrackedOrders(a){ try{ localStorage.setItem(ORDER_KEY, JSON.stringi
 function trackOrder(id){ const a=loadTrackedOrders().filter(o=>o.id!==id); a.push({id:id,ts:Date.now(),seen:0}); saveTrackedOrders(a); pollOrders(true); }
 async function pollOrders(now){
   if(_orderPollTimer){ clearTimeout(_orderPollTimer); _orderPollTimer=null; }
-  // Sleduje se 24 h od požadavku i po rozhodnutí — recepce může poslat další vzkaz nebo rozhodnutí změnit
-  let list=loadTrackedOrders().filter(o=>Date.now()-(o.ts||0)<24*3600*1000);
+  // Sleduje se 48 h od požadavku i po rozhodnutí — recepce může poslat další vzkaz, rozhodnutí změnit, host odepsat
+  let list=loadTrackedOrders().filter(o=>Date.now()-(o.ts||0)<48*3600*1000);
   saveTrackedOrders(list);
   if(!list.length) return;
   const run=async()=>{
@@ -1355,18 +1362,44 @@ async function pollOrders(now){
           const t=list.find(x=>x.id===o.id); if(!t) return;
           if(o.status==='unknown'){ list=list.filter(x=>x.id!==o.id); return; }
           (o.events||[]).filter(e=>e.seq>(t.seen||0)).sort((a,b)=>a.seq-b.seq).forEach(e=>{
-            addBot(e.text,{reception:true}); history.push({role:'assistant',content:e.text,src:'reception'}); t.seen=e.seq;
+            addBot(e.text,{reception:true,oid:o.id,title:o.title||''}); history.push({role:'assistant',content:e.text,src:'reception',oid:o.id,title:o.title||''}); t.seen=e.seq;
           });
         });
         saveHistory(); saveTrackedOrders(list);
       }
     }catch(e){}
-    if(list.length) _orderPollTimer=setTimeout(run,20000);
+    if(list.length) _orderPollTimer=setTimeout(run,30000);
   };
   if(now) run(); else _orderPollTimer=setTimeout(run,3000);
 }
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') pollOrders(true); });
 setTimeout(()=>pollOrders(false),1500);
+
+// ── Odpověď hosta recepci: další zpráva jde k požadavku (ne Alexovi), recepce dostane mail ──
+let REPLY_ORDER=null;   // {id,title} když host právě píše recepci
+function startReplyToReception(oid,title){
+  REPLY_ORDER={id:oid,title:title||''};
+  let bar=document.getElementById('reply-bar');
+  if(!bar){ bar=document.createElement('div'); bar.id='reply-bar'; document.querySelector('.input-area').prepend(bar); }
+  bar.innerHTML=`<span>✍️ ${uiT('replying_to')}${title?': '+escapeHtmlOrder(title):''}</span><button type="button" onclick="cancelReplyToReception()" aria-label="${uiT('order_cancel')}">✕</button>`;
+  bar.style.display='flex';
+  const inp=document.getElementById('msg-input'); inp.placeholder=uiT('reply_ph'); inp.focus();
+}
+function cancelReplyToReception(){
+  REPLY_ORDER=null;
+  const bar=document.getElementById('reply-bar'); if(bar) bar.style.display='none';
+  try{ applyGuestLangUI(); }catch(e){}   // vrátí původní placeholder v jazyce hosta
+}
+async function sendReplyToReception(text){
+  const oid=REPLY_ORDER.id; cancelReplyToReception();
+  addUser(text); history.push({role:'user',content:text}); saveHistory();
+  try{
+    const r=await fetch(`${API}/api/guest/orders/message`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({hotel_id:hotelId,order_id:oid,device_id:deviceId,text:text})});
+    if(r.ok){ const m=uiT('reply_sent'); addBot(m,{reception:true,oid:oid}); history.push({role:'assistant',content:m,src:'reception',oid:oid}); saveHistory(); trackOrder(oid); }
+    else { addBot(uiT('order_fail')); }
+  }catch(e){ addBot(uiT('order_fail')); }
+}
 
 function quickSend(t){
   if(t.includes('Počasí')||t.includes('Weather')||t.includes('Wetter')||t.includes('Météo')||
@@ -1418,7 +1451,9 @@ function addBot(text, opts){
   d.className='msg bot'+(opts.reception?' reception':'');
   const av=opts.reception?'🛎':'✦';
   const from=opts.reception?`<span class="msg-from">${uiT('from_reception')}</span>`:'';
-  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#ffffff;font-weight:800;font-size:16px">${av}</div><div class="msg-body"><div class="msg-bubble">${from}${html}</div><div class="msg-meta"><span class="msg-time">${time}</span></div></div>`;
+  // Host může recepci odepsat (uživatel 11. 10.: „bude si host a recepce povídat") — odkaz pod zprávou
+  const replyLink=(opts.reception&&opts.oid)?`<div style="margin-top:8px"><button type="button" class="reply-rec-btn" onclick="startReplyToReception('${escapeHtmlOrder(opts.oid)}','${escapeHtmlOrder(opts.title||'')}')">↩︎ ${uiT('reply_to_reception')}</button></div>`:'';
+  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#ffffff;font-weight:800;font-size:16px">${av}</div><div class="msg-body"><div class="msg-bubble">${from}${html}${replyLink}</div><div class="msg-meta"><span class="msg-time">${time}</span></div></div>`;
   const meta=d.querySelector('.msg-meta');
   const btn=document.createElement('button');
   btn.type='button'; btn.className='speak-btn'; btn.textContent='🔊';
@@ -1525,6 +1560,7 @@ async function sendMsg(){
   const text=inp.value.trim();
   if(!text||isTyping)return;
   inp.value='';inp.style.height='auto';
+  if(REPLY_ORDER){ await sendReplyToReception(text); return; }   // zpráva recepci, ne Alexovi
   document.getElementById('send-btn').disabled=true;
   isTyping=true;
 
