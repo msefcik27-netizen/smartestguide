@@ -6653,6 +6653,17 @@ async def _send_write_notification(hid: str, h: dict, room: str, action: dict):
         settings_line = f"Settings (what Alex may offer, items, this notification address): <a href=\"{portal_link}\">Orders in chat in your hotel portal</a>."
         hello = "Hello,"
     res_row = f"<li><b>{labels[1]}:</b> {action.get('reservation_id')}</li>" if action.get("reservation_id") else ""
+    # Prodloužení zapsáno, ale kontrola po zápisu nesedí (viz guest_order) — recepce to musí vidět
+    warn_txt = {
+        "room": ((f"STĚHOVÁNÍ: pokoj {room} je na přidané noci obsazený, Apaleo na ně přiřadilo "
+                  + (f"pokoj {action.get('warn_units')}" if action.get("warn_units") else "jiný pokoj (nebo zatím žádný)")
+                  + ". Host o tom v chatu ví — prosím domluvte s ním přestěhování.") if cs else
+                 (f"ROOM MOVE: room {room} is taken for the added nights, Apaleo assigned "
+                  + (f"room {action.get('warn_units')}" if action.get("warn_units") else "a different room (or none yet)")
+                  + " for them. The guest was told in chat — please arrange the move with them.")),
+        "departure": ("Zkontrolujte prosím rezervaci: Apaleo zápis potvrdilo, ale odjezd v rezervaci nesedí s prodloužením." if cs else
+                      "Please check the reservation: Apaleo confirmed the change, but the departure does not match the extension."),
+    }.get(str(action.get("warn") or ""), "")
     # Tlačítka Potvrdit / Nelze vyřídit — stav se propíše hostovi do chatu (stránka po kliknutí umí i vzkaz)
     buttons = ""
     if action.get("order_id") and mode == "request":
@@ -6676,6 +6687,7 @@ async def _send_write_notification(hid: str, h: dict, room: str, action: dict):
             + (f"<li><b>{labels[3]}:</b> {price}</li>" if price else "")
             + f"<li><b>{labels[4]}:</b> {when}</li></ul>"
             + (f"<p style='color:#b00'><b>Error:</b> {action.get('error')}</p>" if action.get("error") else "")
+            + (f"<p style='color:#b00'><b>{warn_txt}</b></p>" if warn_txt else "")
             + buttons
             + f"<p>{settings_line}</p>"
             "<p>— SMARTEST GUIDE · support@smartestguide.com</p>"),
@@ -6965,16 +6977,84 @@ def _extract_room(message: str) -> str:
     # holé číslo jako „2026" nebo rok/čas vynechat; pokoj má 1–4 číslice (+ volitelný oddělovač)
     return room if 1 <= len(room.replace(".", "").replace("-", "").replace("/", "")) <= 5 else ""
 
-def _nights_from_message(msg: str) -> int:
-    """Počet nocí z věty („2 more nights", „dvě noci"); výchozí 1, strop 7."""
-    low = (msg or "").lower()
+# Čas dne („do 18 hodin", „until 6 pm", „18:00") není počet nocí ani datum — před čtením čísel se vyřízne.
+_EXT_TIME_RE = re.compile(r"\b\d{1,2}:\d{2}\b|\b\d{1,2}\s*(?:h|hod\w*|uhr|a\.?m\.?|p\.?m\.?|o'?clock)(?![\w])", re.IGNORECASE)
+_EXT_MONTHS = [(r"jan\w*|ledn\w*", 1), (r"feb\w*|únor\w*|unor\w*", 2), (r"mar\w*|mär\w*|březn\w*|brezn\w*", 3),
+               (r"apr\w*|dubn\w*", 4), (r"may|mai|květn\w*|kvetn\w*", 5), (r"jun\w*|červn\w*|cervn\w*", 6),
+               (r"jul\w*|červenc\w*|cervenc\w*", 7), (r"aug\w*|srpn\w*", 8), (r"sep\w*|září|zari", 9),
+               (r"oct\w*|okt\w*|říjn\w*|rijn\w*", 10), (r"nov\w*|listopad\w*", 11), (r"dec\w*|dez\w*|prosin\w*", 12)]
+_EXT_UNTIL = r"(?:až do|do|until|till|til|through|to|bis zum|bis|jusqu'?au|hasta el|fino al)"
+_EXT_NOT_NIGHTS = r"(?!\s*(?:more|extra|additional|night|noc|nacht|nächte|naechte|nuit|notte|notti|noche|dn[íiůu]|day|tag))"
+# „do 18.", „až do 18. 10.", „until the 18th", „bis zum 18. Oktober", „to 18 October"
+_EXT_UNTIL_DAY_RE = re.compile(
+    r"\b(" + _EXT_UNTIL + r")\s+(?:the\s+)?(\d{1,2})(st|nd|rd|th)?\b\.?" + _EXT_NOT_NIGHTS +
+    r"(?:\s*[./]\s*(\d{1,2})\b\.?|\s*(?:of\s+)?([a-zäéěířúůžčšá]{3,}))?", re.IGNORECASE)
+# „until October 18", „till Oct 18th"
+_EXT_UNTIL_MONTH_RE = re.compile(r"\b" + _EXT_UNTIL + r"\s+([a-zäéěířúůžčšá]{3,})\s+(\d{1,2})(?:st|nd|rd|th)?\b", re.IGNORECASE)
+_EXT_ISO_RE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
+
+def _ext_month(word: str) -> int:
+    w = (word or "").lower()
+    return next((n for rx, n in _EXT_MONTHS if re.fullmatch(rx, w)), 0)
+
+def _ext_until_date(low: str, departure: str):
+    """Datum, DO kterého chce host zůstat („až do 18." → nový odjezd 18.). Vrací (počet přidaných
+    nocí nebo 0, text bez nalezeného data). Bez měsíce se bere první takový den po odjezdu.
+    Nález 11. 10. 2026: „until the 18th" se četlo jako 18 nocí."""
+    from datetime import date
+    try:
+        dep = date.fromisoformat((departure or "")[:10])
+    except ValueError:
+        dep = None
+    def _nights(day: int, month: int = 0, year: int = 0) -> int:
+        if not dep:
+            return 0
+        try:
+            if year:
+                tgt = date(year, month, day)
+            elif month:
+                tgt = date(dep.year, month, day)
+                if tgt <= dep:
+                    tgt = date(dep.year + 1, month, day)
+            else:
+                tgt = date(dep.year, dep.month, day) if day > dep.day else \
+                      date(dep.year + (dep.month == 12), dep.month % 12 + 1, day)
+        except ValueError:
+            return 0
+        n = (tgt - dep).days
+        return n if 1 <= n <= 60 else 0
+    m = _EXT_ISO_RE.search(low)
+    if m:
+        return _nights(int(m.group(3)), int(m.group(2)), int(m.group(1))), low.replace(m.group(0), " ")
+    m = _EXT_UNTIL_MONTH_RE.search(low)
+    if m and _ext_month(m.group(1)):
+        return _nights(int(m.group(2)), _ext_month(m.group(1))), low.replace(m.group(0), " ")
+    m = _EXT_UNTIL_DAY_RE.search(low)
+    if m:
+        month = int(m.group(4)) if m.group(4) else _ext_month(m.group(5))
+        # holé „to 3" je spíš počet („extend to 3 nights") — datum jen s řadovou příponou nebo měsícem
+        if not (m.group(1).lower() == "to" and not m.group(3) and not month) and not (m.group(4) and not 1 <= month <= 12):
+            return _nights(int(m.group(2)), month), low.replace(m.group(0), " ")
+    return 0, low
+
+def _ext_nights_wanted(msg: str, departure: str = "") -> int:
+    """Kolik nocí chce host přidat — BEZ stropu 7 (ať jde říct „chtěl jste 10, v chatu jde 7").
+    Pořadí: datum („až do 18.", potřebuje dnešní odjezd) > číslo > slovní číslovka > 1."""
+    low = _EXT_TIME_RE.sub(" ", (msg or "").lower())
+    n, low = _ext_until_date(low, departure)
+    if n:
+        return n
     m = re.search(r"\b(\d{1,2})\b", low)
     if m:
-        return max(1, min(int(m.group(1)), 7))
+        return max(1, min(int(m.group(1)), 60))
     for w, v in _NIGHT_WORDS.items():
         if re.search(r"\b" + w + r"\b", low):
             return v
     return 1
+
+def _nights_from_message(msg: str, departure: str = "") -> int:
+    """Počet nocí z věty („2 more nights", „dvě noci", „až do 18."); výchozí 1, strop 7."""
+    return min(_ext_nights_wanted(msg, departure), 7)
 
 def _service_matches(message: str, svc: dict) -> bool:
     """Patří zpráva k této službě? Název služby může být v libovolném jazyce („Snídaně",
@@ -7211,9 +7291,27 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
     #    (uživatel 11. 10. 2026: „zrušme tedy ten limit a kód emailem"). Jen ve stejném typu pokoje
     #    (_norm_stay_offers dává jiný typ do validation → nenabídne se).
     if wr["pms_write_extension"] and _EXTENSION_INTENT_RE.search(message or ""):
-        n = _nights_from_message(message)
-        offers = await pms_layer.apaleo_reservation_extension_offers(_ph, stay, n) or []
-        best = next((o for o in offers if not o.get("validation")), None)
+        wanted = _ext_nights_wanted(message, getattr(stay, "departure", "") or "")
+        n = min(wanted, 7)
+        async def _ext_valid(k: int):
+            _offs = await pms_layer.apaleo_reservation_extension_offers(_ph, stay, k) or []
+            return next((o for o in _offs if not o.get("validation")), None)
+        best = await _ext_valid(n)
+        if not best and n > 1:
+            # Chtěných N nocí není ve stejném typu pokoje volných → nabídnout nejdelší kratší prodloužení
+            # (nález 11. 10. 2026: chtěl 5, volné 3 → žádná karta). Půlením, nejvýš 3 dotazy do Apalea.
+            _lo, _hi = 1, n - 1
+            while _lo <= _hi:
+                _mid = (_lo + _hi) // 2
+                _o = await _ext_valid(_mid)
+                if _o:
+                    best, _lo = _o, _mid + 1
+                else:
+                    _hi = _mid - 1
+        if not best and not actions:
+            return [], (f"PRODLOUŽENÍ V CHATU: host chce prodloužit o {wanted} noc/nocí, ale ve STEJNÉM typu pokoje teď není volná "
+                        "ani jedna další noc → žádné tlačítko se nezobrazí. Řekni to hostovi na rovinu a odkaž ho na recepci "
+                        "(může nabídnout jiný typ pokoje). Neslibuj prodloužení v chatu.")
         if best:
             act = {"kind": "extension", "title": f"+{best['new_nights']} night(s) → {best['departure'][:10]}", "title_key": "extension",
                    "nights": best["new_nights"], "departure": best["departure"], "new_nights": best["new_nights"], "price": round(best["new_total"], 2),
@@ -7230,6 +7328,24 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
                          "(PLATNÁ CENA, říkej ji přesně takto, bez desetinné nuly)"
                          + (" (potvrzením se prodloužení hned zapíše do rezervace a připíše na účet pokoje)" if base_mode == "auto"
                             else " (potvrzením odejde požadavek recepci, která ho potvrdí)"))
+            # Typ pokoje volný, ale KONKRÉTNÍ pokoj hosta na přidané noci obsazený → Apaleo by přiřadilo jiný
+            # (stěhování). Host to má vědět PŘED potvrzením, ne až po něm.
+            try:
+                _room_free = await pms_layer.apaleo_room_free_for_extension(_ph, stay, best["departure"])
+            except Exception as e:
+                _room_free = None
+                logging.warning("Kontrola volného pokoje pro prodloužení selhala: %s", e)
+            if _room_free is False:
+                act["room_move"] = True
+                lines.append("  STĚHOVÁNÍ: hostův současný pokoj je na přidané noci OBSAZENÝ — na ty noci dostane jiný pokoj "
+                             "stejného typu a bude se muset přestěhovat. Řekni mu to výslovně JEŠTĚ PŘED potvrzením "
+                             "(stejný typ pokoje, stejná cena, přestěhování domluví recepce). Neslibuj, že zůstane ve svém pokoji.")
+            if best["new_nights"] < wanted:
+                lines.append(f"  POZOR: host chtěl {wanted} noc/nocí, tlačítko je jen na {best['new_nights']} — "
+                             + ("v chatu jde prodloužit nejvýš o 7 nocí" if best["new_nights"] == 7 else
+                                "víc nocí ve stejném typu pokoje volných není")
+                             + ". Řekni to hned na začátku odpovědi, nabídni tuto kratší variantu a pro delší pobyt odkaž na recepci. "
+                               "Pokud blok PRODLOUŽENÍ POBYTU uvádí delší termín nebo jinou cenu, NEPOUŽÍVEJ ho — platí tento řádek.")
     if not actions:
         return [], ""
     block = ("OBJEDNÁNÍ V CHATU — VÝJIMKA z pravidla 'nic neobjednávej': pod tvou odpovědí se hostovi zobrazí "
@@ -7251,6 +7367,11 @@ _ORDER_MSG = {
                   "cs": "✅ Hotovo — {title} je objednáno a připíše se na účet vašeho pokoje (vyrovná se při odjezdu).",
                   "sk": "✅ Hotovo — {title} je objednané a pripíše sa na účet vašej izby (vyrovná sa pri odchode).",
                   "de": "✅ Erledigt — {title} ist gebucht und wird Ihrem Zimmerkonto belastet (Abrechnung beim Check-out)."},
+    # Dovětek k „booked" u prodloužení, když je hostův pokoj na přidané noci obsazený (Apaleo přiřadí jiný)
+    "room_move": {"en": " Please note: your current room is taken for the added nights, so you will move to another room of the same type — reception will arrange it with you.",
+                  "cs": " Upozornění: váš současný pokoj je na přidané noci obsazený, přestěhujete se proto do jiného pokoje stejného typu — recepce se s vámi domluví.",
+                  "sk": " Upozornenie: vaša súčasná izba je na pridané noci obsadená, presťahujete sa preto do inej izby rovnakého typu — recepcia sa s vami dohodne.",
+                  "de": " Bitte beachten: Ihr jetziges Zimmer ist für die zusätzlichen Nächte belegt, Sie ziehen daher in ein anderes Zimmer derselben Kategorie um — die Rezeption stimmt das mit Ihnen ab."},
     # Potvrzení recepce chodí hostovi SEM do chatu (tlačítka v e-mailu recepci, uživatel 11. 10.:
     # „jak mu to recepce potvrdí?") — proto žádné „co nevidět", ale „napíšu vám sem".
     # Název položky je vždy ZA dvojtečkou — v češtině/slovenštině se nedá skloňovat („jakmile Snídaně potvrdí").
@@ -7799,13 +7920,30 @@ async def guest_order(req: GuestOrderRequest):
         ext_price = f"{float(offer.get('new_total') or 0):g} {offer.get('currency') or p.get('currency', '')}".strip()
         mail_title = (_ext_title(n_new, "cs" if hotel_cs else "en").replace("prodloužení pobytu ", "").replace("the stay extension ", "")
                       + (f" → {dep_h}" if dep_h else ""))
-        if not ok or wr.get("pms_write_notify_always"):
+        # Typ pokoje může být volný, a přitom KONKRÉTNÍ pokoj hosta na přidané noci obsazený. Apaleo
+        # pak zápis neodmítne: přiřadí na ty noci jiný pokoj a označí stěhování (Apaleo Training Kit:
+        # Reservation Management). Proto se rezervace po zápisu načte znovu — stěhování se řekne
+        # hostovi a jde recepci do mailu vždy.
+        room_warn, move_units = "", ""
+        if ok:
+            try:
+                _chk = await pms_layer.apaleo_extension_check(_ph, stay)
+                if _chk and _chk.get("moved"):
+                    room_warn = "room"
+                    move_units = ", ".join(dict.fromkeys(u for u in _chk.get("units") or [] if u))
+                elif _chk and _chk.get("departure") and _chk["departure"] != want_dep:
+                    room_warn = "departure"
+            except Exception as e:
+                logging.warning("Guest extension hotel=%s res=%s: kontrola po zápisu selhala: %s", hid, p["reservation_id"], e)
+        # E-mail o zapsaném prodloužení je volitelný („posílat i zapsané"); selhání a nesedící kontrola jdou vždy.
+        if not ok or room_warn or wr.get("pms_write_notify_always"):
             asyncio.create_task(_send_write_notification(hid, dict(h), p.get("room", ""),
                 {"kind": "extension", "mode": "auto", "ok": ok, "title": mail_title, "detail": detail, "price": ext_price,
-                 "reservation_id": p["reservation_id"], "error": "" if ok else res.get("error", "")}))
+                 "reservation_id": p["reservation_id"], "error": "" if ok else res.get("error", ""), "warn": room_warn, "warn_units": move_units}))
         logging.warning("Guest extension hotel=%s res=%s +%d → %s ok=%s status=%s", hid, p["reservation_id"], n_new, want_dep, ok, res.get("status"))
         return {"status": "ok", "done": "booked" if ok else "failed", "already": False,
-                "message": _order_msg("booked" if ok else "failed", lang, guest_title)}
+                "message": _order_msg("booked" if ok else "failed", lang, guest_title)
+                           + (_order_msg("room_move", lang, "") if room_warn == "room" else "")}
     # auto → skutečný zápis služby
     res = await pms_layer.apaleo_book_service(_ph, stay, p["service_id"], count=p.get("count", 1),
                                               dates=[{"date": d, "count": p.get("count", 1)} for d in p.get("dates", [])])
@@ -8035,16 +8173,8 @@ Guest name: {req.guest_name or 'Guest'}"""
                 pms_extra_blocks.append(pms_layer.format_services_block(
                     _svcs, getattr(_stay_obj, "nights", 0) or 0))
             if _EXTENSION_INTENT_RE.search(req.message or ""):
-                # Počet nocí: číslo kdekoli ve zprávě (i „2 MORE nights"), pak slovní číslovky
-                _n, _low_msg = 1, (req.message or "").lower()
-                _m = re.search(r"\b(\d{1,2})\b", _low_msg)
-                if _m:
-                    _n = max(1, min(int(_m.group(1)), 7))
-                else:
-                    for _w, _v in _NIGHT_WORDS.items():
-                        if re.search(r"\b" + _w + r"\b", _low_msg):
-                            _n = _v
-                            break
+                # Počet nocí: datum („až do 18."), číslo kdekoli ve zprávě (i „2 MORE nights"), slovní číslovky
+                _n = _nights_from_message(req.message or "", getattr(_stay_obj, "departure", "") or "")
                 _ext = await pms_layer.apaleo_extension_offer(_ph_x, _stay_obj, _n)
                 if _ext:
                     pms_extra_blocks.append(pms_layer.format_extension_block(_ext))

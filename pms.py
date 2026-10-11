@@ -1008,6 +1008,44 @@ async def apaleo_reservation_extension_offers(hotel: dict, stay: "Stay", nights:
         return []   # 204 = žádná kapacita
     return _norm_stay_offers(d, stay)
 
+async def apaleo_room_free_for_extension(hotel: dict, stay: "Stay", new_departure: str) -> Optional[bool]:
+    """Je hostův KONKRÉTNÍ pokoj volný i na přidané noci? GET /availability/v1/reservations/{id}/units
+    (scope availability.read — máme) za období původní odjezd → nový odjezd. True = host zůstane
+    ve svém pokoji, False = pokoj je obsazený (Apaleo by při prodloužení přiřadilo jiný = stěhování),
+    None = nejde zjistit (chyba, neznámý pokoj) → nic netvrdit."""
+    rid = _rid(stay)
+    cur = (stay.room or "").strip().lower()
+    d_from = stay.departure_iso or stay.departure
+    if not (rid and cur and d_from and new_departure):
+        return None
+    params = {"from": d_from, "to": new_departure, "pageSize": 500}
+    if getattr(stay, "unit_group_id", ""):
+        params["unitGroupId"] = stay.unit_group_id
+    d = await _apaleo_get(hotel, f"/availability/v1/reservations/{rid}/units", params, quiet=True)
+    if d is None:
+        return None
+    return any(((u.get("name") or "").strip().lower() == cur) for u in d.get("units") or [])
+
+async def apaleo_extension_check(hotel: dict, stay: "Stay") -> Optional[dict]:
+    """Stav rezervace PO prodloužení: GET /booking/v1/reservations/{id}?expand=timeSlices
+    (scope reservations.read). Apaleo při prodloužení s obsazeným pokojem zápis neodmítne —
+    přiřadí na přidané noci JINÝ pokoj a označí stěhování (Apaleo Training Kit: Reservation
+    Management). Vrací {departure, moved, units}: units = pokoje přidaných nocí (od původního
+    odjezdu), moved = některá přidaná noc není v hostově pokoji (jiný pokoj / nepřiřazeno)."""
+    rid = _rid(stay)
+    if not rid:
+        return None
+    d = await _apaleo_get(hotel, f"/booking/v1/reservations/{rid}", {"expand": "timeSlices"}, quiet=True)
+    if not d:
+        return None
+    old_dep = (stay.departure or "")[:10]
+    added = [ts for ts in d.get("timeSlices") or [] if old_dep and str(ts.get("from") or "")[:10] >= old_dep]
+    units = [((ts.get("unit") or {}).get("name") or "").strip() for ts in added]
+    cur = (stay.room or "").strip().lower()
+    return {"departure": str(d.get("departure") or "")[:10],
+            "units": units,
+            "moved": bool(cur) and any(u.lower() != cur for u in units)}
+
 async def apaleo_amend_stay(hotel: dict, stay: "Stay", offer: dict) -> dict:
     """PUT /booking/v1/reservation-actions/{id}/amend (scope reservations.manage).
     offer = položka z apaleo_reservation_extension_offers. Vrací {ok, status, error}.
