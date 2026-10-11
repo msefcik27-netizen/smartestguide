@@ -2196,7 +2196,7 @@ def _cancel_allowed(h: dict, dates: list, hour: int):
     now = _hotel_now(h)
     dl_day = first - _td(days=1)
     deadline = datetime(dl_day.year, dl_day.month, dl_day.day, tzinfo=now.tzinfo) + _td(hours=hour)
-    txt = f"{hour % 24:02d}:00 {dl_day.day}. {dl_day.month}." if hour < 24 else f"24:00 {dl_day.day}. {dl_day.month}."
+    txt = f"{hour % 24:02d}:00 ({dl_day.day}. {dl_day.month})" if hour < 24 else f"24:00 ({dl_day.day}. {dl_day.month})"
     return now < deadline, txt
 
 # Jak se položka počítá na kartě hosta (uživatel 11. 10. 2026: „proč je u snídaně počet nocí?
