@@ -6993,6 +6993,19 @@ _EXT_UNTIL_DAY_RE = re.compile(
 _EXT_UNTIL_MONTH_RE = re.compile(r"\b" + _EXT_UNTIL + r"\s+([a-zäéěířúůžčšá]{3,})\s+(\d{1,2})(?:st|nd|rd|th)?\b", re.IGNORECASE)
 _EXT_ISO_RE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
 
+# „Can I stay until the 18th?" / „můžu zůstat do 18.?" — prodloužení řečené datem, bez slova „prodloužit"
+_EXT_STAY_UNTIL_RE = re.compile(r"\bstay(?:ing)?\s+(?:here\s+)?(?:until|till|til|through)\b|\bz[ůu]sta(?:t|nu|neme)\s+(?:a[žz]\s+)?do\b|"
+                                r"\bbleiben\s+bis\b|\brester\s+jusqu|\bquedar(?:me|nos)?\s+hasta\b|\brestare\s+fino\b", re.IGNORECASE)
+_EXT_NIGHT_WORD_RE = re.compile(r"night|noc|nacht|nächt|nuit|nott[ei]|noche|ноч|ніч", re.IGNORECASE)
+
+def _ext_intent(msg: str) -> bool:
+    """Chce host PRODLOUŽIT POBYT? Věta s časem dne a bez zmínky o noci („stay longer until 6 pm",
+    „zůstat déle do 18 hodin") je pozdní odjezd, ne prodloužení — karta na další noc k ní nepatří."""
+    m = msg or ""
+    if not (_EXTENSION_INTENT_RE.search(m) or _EXT_STAY_UNTIL_RE.search(m)):
+        return False
+    return not (_EXT_TIME_RE.search(m) and not _EXT_NIGHT_WORD_RE.search(m))
+
 def _ext_month(word: str) -> int:
     w = (word or "").lower()
     return next((n for rx, n in _EXT_MONTHS if re.fullmatch(rx, w)), 0)
@@ -7113,7 +7126,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         # Nejdřív jen aktuální zpráva; kontext poslední výměny až když zpráva sama žádnou
         # položku nejmenuje („mohu si JI objednat?"). Jinak se po odmítnuté snídani vracela
         # snídaně i k dotazu na masáž (nález uživatele 11. 10.).
-        ext = wr["pms_write_extension"] and _EXTENSION_INTENT_RE.search(message or "")
+        ext = wr["pms_write_extension"] and _ext_intent(message)
         # Kontext jen u odkazující věty s chutí objednat („mohu si JI objednat?"); u dotazu na
         # prodloužení se snídaně z předchozí výměny nevrací (nález uživatele 11. 10., snímek).
         hit = [it for it in items if _service_matches(message or "", it)] or \
@@ -7253,7 +7266,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         # neobjedná, dokud neklepne; tlačítko je nabídka, ne nátlak.
         # Nejdřív jen aktuální zpráva; kontext (poslední výměna) až když zpráva sama službu nejmenuje.
         _wants = bool(_ORDER_WORDS_RE.search(message or ""))
-        _is_ext = bool(_EXTENSION_INTENT_RE.search(message or ""))
+        _is_ext = bool(_ext_intent(message))
         matched = [o for o in allowed if _service_matches(message or "", o)] or \
                   ([o for o in allowed if _service_matches((message or "") + "\n" + (context or ""), o)] if (_wants and not _is_ext) else [])
         for o in matched:
@@ -7290,7 +7303,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
     # b) prodloužení pobytu — po potvrzení hostem se zapíše rovnou do rezervace (amend), stejně jako služby
     #    (uživatel 11. 10. 2026: „zrušme tedy ten limit a kód emailem"). Jen ve stejném typu pokoje
     #    (_norm_stay_offers dává jiný typ do validation → nenabídne se).
-    if wr["pms_write_extension"] and _EXTENSION_INTENT_RE.search(message or ""):
+    if wr["pms_write_extension"] and _ext_intent(message):
         wanted = _ext_nights_wanted(message, getattr(stay, "departure", "") or "")
         n = min(wanted, 7)
         async def _ext_valid(k: int):
@@ -8172,7 +8185,7 @@ Guest name: {req.guest_name or 'Guest'}"""
             if _svcs:
                 pms_extra_blocks.append(pms_layer.format_services_block(
                     _svcs, getattr(_stay_obj, "nights", 0) or 0))
-            if _EXTENSION_INTENT_RE.search(req.message or ""):
+            if _ext_intent(req.message):
                 # Počet nocí: datum („až do 18."), číslo kdekoli ve zprávě (i „2 MORE nights"), slovní číslovky
                 _n = _nights_from_message(req.message or "", getattr(_stay_obj, "departure", "") or "")
                 _ext = await pms_layer.apaleo_extension_offer(_ph_x, _stay_obj, _n)
