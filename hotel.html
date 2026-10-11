@@ -466,6 +466,8 @@ const EN_MAP = {
   "Položky k objednání (název, cena, jednotka)":"Items to order (name, price, unit)",
   "+ Přidat položku":"+ Add item","za osobu a den (snídaně, polopenze)":"per person per day (breakfast, half board)","za osobu a noc (přistýlka)":"per person per night (extra bed)","za pokoj a noc (parkování, mazlíček)":"per room per night (parking, pet)","jednorázově za pobyt (pozdní odjezd)":"once per stay (late check-out)","za osobu, jednorázově (masáž, vstupenka)":"per person, once (massage, ticket)","Odebrat":"Remove",
   "E-mail, kam chodí každá objednávka / požadavek (prázdné = e-mail hotelu)":"E-mail that receives every order / request (empty = hotel e-mail)",
+  "Zrušení objednávky v chatu je možné do této hodiny dne před službou (potom jen přes recepci)":"Guests can cancel an order in chat until this hour on the day before the service (after that only via reception)",
+  "např. 20 = do 20:00 předchozího dne; 24 = do půlnoci":"e.g. 20 = until 20:00 the day before; 24 = until midnight",
   "Uložit objednávky":"Save orders","✓ Uloženo":"✓ Saved","✓ Uloženo — otevírám udělení oprávnění v Apaleu…":"✓ Saved — opening the Apaleo permission page…",
   "Posílat e-mail i o objednávkách zapsaných do Apalea (jinak chodí jen požadavky a selhání — zapsané vidíte v Apaleu)":"Also e-mail orders that were written to Apaleo (otherwise only requests and failures are sent — written ones you see in Apaleo)",
   "Seznam je váš katalog služeb z Apalea. Novou službu založte v Apaleu — tady se objeví do hodiny.":"This is your service catalogue from Apaleo. Create a new service in Apaleo — it shows up here within an hour.",
@@ -2167,6 +2169,8 @@ function loadOrdersSection(){
       <div id="ord-items" style="display:flex;flex-direction:column;gap:6px">${itemRows}</div>
       <button onclick="addOrderItemRow()" style="margin-top:8px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--accent);font-weight:700;font-size:12.5px;padding:8px 12px;cursor:pointer">+ Přidat položku</button>
       `}
+      <div style="margin:14px 0 6px;font-size:12px;color:var(--muted)">Zrušení objednávky v chatu je možné do této hodiny dne před službou (potom jen přes recepci)</div>
+      <div style="display:flex;align-items:center;gap:8px"><input id="ord-cancel-hour" type="number" min="0" max="24" step="1" value="${(h.pms_write_cancel_hour!==undefined&&h.pms_write_cancel_hour!==null)?h.pms_write_cancel_hour:20}" style="${inp};width:90px"><span style="font-size:13px">:00</span><span style="font-size:11px;color:var(--muted)">např. 20 = do 20:00 předchozího dne; 24 = do půlnoci</span></div>
       <div style="margin:14px 0 6px;font-size:12px;color:var(--muted)">E-mail, kam chodí každá objednávka / požadavek (prázdné = e-mail hotelu)</div>
       <input id="ord-email" type="email" value="${(h.pms_write_notify_email||'').replace(/"/g,'&quot;')}" placeholder="recepce@hotel.cz" style="${inp};width:100%;max-width:360px">
       <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -2219,6 +2223,7 @@ async function saveOrdersSection(){
   if(g('ord-mode')) payload.pms_write_mode=g('ord-mode').value;
   if(g('ord-notify-always')) payload.pms_write_notify_always=!!g('ord-notify-always').checked;
   if(g('ord-cap')) payload.pms_write_cap=g('ord-cap').value;
+  if(g('ord-cancel-hour')) payload.pms_write_cancel_hour=g('ord-cancel-hour').value;
   if(g('ord-allow')) payload.pms_write_allowlist=[...document.querySelectorAll('.ord-allow-cb:checked')].map(c=>c.value);
   if(g('ord-items')) payload.pms_write_items=[...document.querySelectorAll('#ord-items .ord-item')].map(r=>({name:r.querySelector('.oi-name').value,price:r.querySelector('.oi-price').value,currency:r.querySelector('.oi-cur').value,unit:r.querySelector('.oi-unit').value})).filter(x=>x.name.trim());
   const s=g('ord-saved'); if(s) s.textContent=tr('Ukládá se…');

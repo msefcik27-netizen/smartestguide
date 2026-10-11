@@ -2162,8 +2162,42 @@ _WRITE_DEFAULTS = {
     # a po potvrzení pošle požadavek recepci (nic se nikam nezapisuje, hotel zadá sám).
     # [{id, name, price, currency, unit: "person"|"room"|"flat"}]
     "pms_write_items": [],
+    # Zrušení objednané služby z chatu je možné do této hodiny DNE PŘED službou (uživatel 11. 10. 2026:
+    # „je tam nějaká logika, kdy to ještě cancel jde a kdy ne?"); potom jen přes recepci. Platí pro Apaleo i bez PMS.
+    "pms_write_cancel_hour": 20,
 }
 _ITEM_UNITS = ("person_day", "person", "room", "flat", "person_once")
+
+_COUNTRY_TZ = {"GB": "Europe/London", "IE": "Europe/Dublin", "PT": "Europe/Lisbon", "FI": "Europe/Helsinki", "GR": "Europe/Athens",
+               "RO": "Europe/Bucharest", "BG": "Europe/Sofia", "EE": "Europe/Tallinn", "LV": "Europe/Riga", "LT": "Europe/Vilnius",
+               "UA": "Europe/Kyiv", "TR": "Europe/Istanbul", "US": "America/New_York", "AE": "Asia/Dubai", "JP": "Asia/Tokyo"}
+
+def _hotel_now(h: dict):
+    """Místní čas hotelu (podle země; výchozí střední Evropa)."""
+    from zoneinfo import ZoneInfo
+    tz = _COUNTRY_TZ.get((h.get("country") or "").strip().upper(), "Europe/Prague")
+    try:
+        return datetime.now(ZoneInfo(tz))
+    except Exception:
+        return datetime.now(ZoneInfo("Europe/Prague"))
+
+def _cancel_allowed(h: dict, dates: list, hour: int):
+    """(smí se zrušit z chatu?, text termínu). Termín = `hour`:00 dne před PRVNÍM dnem služby
+    (hour 24 = do půlnoci před službou). Bez známého data služby se zrušit smí (rozhodne recepce)."""
+    ds = sorted(d for d in (dates or []) if d)
+    if not ds:
+        return True, ""
+    from datetime import date as _d, timedelta as _td
+    try:
+        first = _d.fromisoformat(ds[0][:10])
+    except Exception:
+        return True, ""
+    hour = max(0, min(24, int(hour if hour is not None else 20)))
+    now = _hotel_now(h)
+    dl_day = first - _td(days=1)
+    deadline = datetime(dl_day.year, dl_day.month, dl_day.day, tzinfo=now.tzinfo) + _td(hours=hour)
+    txt = f"{hour % 24:02d}:00 {dl_day.day}. {dl_day.month}." if hour < 24 else f"24:00 {dl_day.day}. {dl_day.month}."
+    return now < deadline, txt
 
 # Jak se položka počítá na kartě hosta (uživatel 11. 10. 2026: „proč je u snídaně počet nocí?
 # pracuj s těmi jednotkami inteligentně"):
@@ -2233,6 +2267,12 @@ def _normalize_write_settings(data: dict):
             try:
                 cap = float(str(v).replace(",", "."))
                 out[k] = round(cap, 2) if 0 <= cap <= 100000 else _WRITE_DEFAULTS[k]
+            except (TypeError, ValueError):
+                out[k] = _WRITE_DEFAULTS[k]
+        elif k == "pms_write_cancel_hour":
+            try:
+                hr = int(float(str(v).replace(",", ".")))
+                out[k] = hr if 0 <= hr <= 24 else _WRITE_DEFAULTS[k]
             except (TypeError, ValueError):
                 out[k] = _WRITE_DEFAULTS[k]
         elif k == "pms_write_notify_email":
@@ -6890,7 +6930,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
             actions.append(act)
             lines.append(f"- {it['name']}: PLATNÁ CENA {price_txt} (tuto cenu řekni hostovi; pokud profil hotelu uvádí u této "
                          f"položky jinou částku, je zastaralá a NESMÍŠ ji použít), den {day} — potvrzením odejde požadavek recepci, "
-                         "která ho vyřídí; odpověď recepce host dostane do chatu")
+                         f"která ho vyřídí; odpověď recepce host dostane do chatu; zrušit v chatu jde do {int(wr.get('pms_write_cancel_hour') or 20)}:00 dne před službou")
         if ext:
             n = _nights_from_message(message)
             # Titulek i popis si přeloží appka hosta (title_key); počet nocí host upraví na kartě.
@@ -6922,17 +6962,29 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         for bsvc in hits[:2]:
             dts = [d["date"] for d in (bsvc.get("dates") or []) if d.get("date")]
             total = float(bsvc.get("total") or 0)
-            act = {"kind": "cancel", "service_id": bsvc["service_id"], "title": bsvc["name"], "dates": dts,
-                   "count": max([int(d.get("count") or 1) for d in (bsvc.get("dates") or [])] or [1]),
-                   "price": round(total, 2), "currency": bsvc.get("currency") or "", "mode": "auto",
-                   "detail": ", ".join(dts)}
-            act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})
-            actions.append(act)
-            lines.append(f"- ZRUŠIT {bsvc['name']}: objednáno NA DEN {', '.join(dts)} (to je datum služby, ne příjezd), "
-                         f"{total:g} {bsvc.get('currency') or ''} — potvrzením se služba odebere z rezervace i z účtu pokoje")
+            allowed, dl = _cancel_allowed(h, dts, wr.get("pms_write_cancel_hour"))
+            if allowed:
+                act = {"kind": "cancel", "service_id": bsvc["service_id"], "title": bsvc["name"], "dates": dts,
+                       "count": max([int(d.get("count") or 1) for d in (bsvc.get("dates") or [])] or [1]),
+                       "price": round(total, 2), "currency": bsvc.get("currency") or "", "mode": "auto",
+                       "detail": ", ".join(dts)}
+                act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})
+                actions.append(act)
+                lines.append(f"- ZRUŠIT {bsvc['name']}: objednáno NA DEN {', '.join(dts)} (to je datum služby, ne příjezd), "
+                             f"{total:g} {bsvc.get('currency') or ''} — potvrzením se služba odebere z rezervace i z účtu pokoje"
+                             + (f"; zrušení v chatu je možné do {dl}" if dl else ""))
+            else:
+                # Po termínu: v chatu už ne — jen požadavek recepci (ta rozhodne)
+                act = {"kind": "item", "service_id": bsvc["service_id"], "title": bsvc["name"], "cancel": True, "dates": dts,
+                       "count": 1, "price": None, "currency": "", "mode": "request", "can_count": False, "can_nights": False,
+                       "time_hint": False, "detail": "cancel", "late": True}
+                act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})
+                actions.append(act)
+                lines.append(f"- {bsvc['name']} ({', '.join(dts)}): lhůta pro zrušení v chatu (do {dl}) už UPLYNULA — "
+                             "tlačítkem odejde jen žádost recepci, která rozhodne; neslibuj vrácení peněz")
         if actions:
             block = ("ZRUŠENÍ OBJEDNÁVKY — pod tvou odpovědí se hostovi zobrazí TLAČÍTKO 'Zrušit' pro:\n" + "\n".join(lines) +
-                     "\nŘekni, co má na rezervaci, a že zrušení potvrdí tlačítkem; nic nezrušuj slovy sám. " + _ORDER_TONE)
+                     "\nŘekni, co má na rezervaci, do kdy jde zrušit v chatu, a že zrušení potvrdí tlačítkem; nic nezrušuj slovy sám. " + _ORDER_TONE)
             return actions, block
         if not hits:
             return [], ("ZRUŠENÍ: host chce něco zrušit, ale na jeho rezervaci v Apaleu teď není žádná objednaná služba, kterou by šlo "
@@ -7054,6 +7106,16 @@ _ORDER_MSG = {
                     "pl": "✅ Anulowano — {title} usunięto z rezerwacji i rachunku pokoju.",
                     "ru": "✅ Отменено — {title} удалено из вашей брони и со счёта номера.",
                     "uk": "✅ Скасовано — {title} вилучено з вашого бронювання та рахунку номера."},
+    "cancel_late": {"en": "⏰ Cancelling in chat was possible until {title}. Please contact reception, they will help you.",
+                    "cs": "⏰ Zrušení v chatu bylo možné do {title}. Obraťte se prosím na recepci, pomůže vám.",
+                    "sk": "⏰ Zrušenie v chate bolo možné do {title}. Obráťte sa prosím na recepciu, pomôže vám.",
+                    "de": "⏰ Eine Stornierung im Chat war bis {title} möglich. Bitte wenden Sie sich an die Rezeption.",
+                    "fr": "⏰ L'annulation par chat était possible jusqu'au {title}. Veuillez vous adresser à la réception.",
+                    "it": "⏰ L'annullamento in chat era possibile fino alle {title}. Si rivolga alla reception.",
+                    "es": "⏰ La cancelación por chat era posible hasta las {title}. Por favor, acuda a recepción.",
+                    "pl": "⏰ Anulowanie na czacie było możliwe do {title}. Prosimy o kontakt z recepcją.",
+                    "ru": "⏰ Отмена в чате была возможна до {title}. Пожалуйста, обратитесь на ресепшен.",
+                    "uk": "⏰ Скасування в чаті було можливе до {title}. Будь ласка, зверніться на рецепцію."},
     "cancel_title": {"en": "cancellation: {title}", "cs": "zrušení: {title}", "sk": "zrušenie: {title}", "de": "Stornierung: {title}",
                      "fr": "annulation : {title}", "it": "annullamento: {title}", "es": "cancelación: {title}", "pl": "anulowanie: {title}",
                      "ru": "отмена: {title}", "uk": "скасування: {title}"},
@@ -7428,11 +7490,16 @@ async def guest_order(req: GuestOrderRequest):
     hotel_cs = (h.get("country") or "").strip().upper() in ("CZ", "SK")
     is_cancel_item = kind == "item" and bool(p.get("cancel"))
     if is_cancel_item:
+        # Lhůta pro zrušení z chatu (stejné pravidlo jako u Apalea): po termínu jen osobně na recepci
+        _allowed, _dl = _cancel_allowed(h, p.get("dates") or [], wr.get("pms_write_cancel_hour"))
+        if not _allowed and not p.get("late"):
+            return {"status": "ok", "done": "too_late", "message": _order_msg("cancel_late", lang, _dl)}
         title = _order_msg("cancel_title", lang, p.get("title") or "")
         p["title"] = _order_msg("cancel_title", "cs" if hotel_cs else "en", p.get("title") or "")
+        _dts = p.get("dates") or []
         p["dates"] = []
         p["days"] = 1
-        p["detail"] = ""
+        p["detail"] = (", ".join(_dts) if _dts else "") + (" (po lhůtě pro zrušení v chatu)" if p.get("late") and hotel_cs else " (after the chat cancellation deadline)" if p.get("late") else "")
     elif is_ext_item:
         # Prodloužení bez PMS: host na kartě nastaví počet nocí; titulek v jazyce hosta (chat) i hotelu (e-mail)
         n = int(req.nights) if (req.nights and 1 <= int(req.nights) <= 14) else max(1, int(p.get("count") or 1))
@@ -7464,12 +7531,20 @@ async def guest_order(req: GuestOrderRequest):
         if not wr["pms_write_services"] and not wr["pms_write_extension"]:
             return {"status": "expired", "message": _order_msg("expired", lang, title)}
         price_txt = (f"{float(p['price']):g} {p.get('currency', '')}".strip() if p.get("price") is not None else "")   # 700, ne 700.0
-        oid = _order_record_new(hid, p.get("room", ""), title, p.get("detail", ""), price_txt, lang, req.device_id or "",
-                                "extension" if is_ext_item else "service")
+        _rk = "cancel" if is_cancel_item else "extension" if is_ext_item else "service"
+        oid = _order_record_new(hid, p.get("room", ""), title, p.get("detail", ""), price_txt, lang, req.device_id or "", _rk)
         asyncio.create_task(_send_write_notification(hid, dict(h), p.get("room", ""),
-            {"kind": "extension" if is_ext_item else "service", "mode": "request", "ok": True, "order_id": oid,
-             "title": p.get("title") or title, "detail": p.get("detail", ""), "price": price_txt, "reservation_id": "", "note": p.get("note", "")}))
-        return {"status": "ok", "done": "requested", "order_id": oid, "message": _order_msg("requested", lang, title)}
+            {"kind": _rk, "mode": "request", "ok": True, "order_id": oid,
+             "title": p.get("title") or title, "detail": p.get("detail", ""), "price": price_txt, "reservation_id": p.get("reservation_id", ""), "note": p.get("note", "")}))
+        out = {"status": "ok", "done": "requested", "order_id": oid, "message": _order_msg("requested", lang, title)}
+        if not is_cancel_item and not is_ext_item:
+            # Tlačítko „Zrušit tuto objednávku" i u požadavku bez PMS — zrušení jde recepci jako požadavek, se lhůtou
+            cancel = {"kind": "item", "service_id": p["service_id"], "title": p.get("title") or title, "cancel": True,
+                      "dates": p.get("dates") or [], "count": 1, "price": None, "currency": "", "mode": "request",
+                      "can_count": False, "can_nights": False, "time_hint": False, "detail": "cancel", "orig_order": oid}
+            cancel["id"] = _sign_proposal({**cancel, "hid": hid, "reservation_id": "", "room": p.get("room", "")}, ttl=48 * 3600)
+            out["cancel_action"] = cancel
+        return out
     stay = await _fetch_stay_for_hotel(h, hid, p.get("room", ""), settings)
     if not stay or (getattr(stay, "reservation_id", "") or "") != p["reservation_id"]:
         return {"status": "expired", "message": _order_msg("expired", lang, title)}
@@ -7478,6 +7553,9 @@ async def guest_order(req: GuestOrderRequest):
         # Zrušení objednané služby: odebrat z rezervace (všechny dny), nic nejde recepci, pokud se to povede
         if not wr["pms_write_services"] or not _apaleo_has_write_scope(h, db):
             return {"status": "expired", "message": _order_msg("expired", lang, title)}
+        _allowed, _dl = _cancel_allowed(h, p.get("dates") or [], wr.get("pms_write_cancel_hour"))
+        if not _allowed:
+            return {"status": "ok", "done": "too_late", "message": _order_msg("cancel_late", lang, _dl)}
         res = await pms_layer.apaleo_remove_service(_ph, stay, p["service_id"])
         _persist_rotated_refresh_token(hid, _ph)
         _svc_offers_cache.pop((hid, p["reservation_id"]), None)
