@@ -177,6 +177,12 @@
     /* Bubliny: zaoblené rohy s „ocáskem" u avatara; na desktopu max 720 px, aby se dlouhý
        řádek dal číst (uživatel 11. 10. 2026: „nebylo by hezčí, aby konverzace měla zaoblené rohy?") */
     .msg{display:flex;gap:8px;max-width:min(88%,720px);animation:msgIn .2s ease}
+    /* Široký monitor: chat v jednom sloupci uprostřed — bublina hosta byla úplně vpravo, 1,5 m od odpovědi
+       (uživatel 11. 10.: „není vidět, co jsem napsal") */
+    @media (min-width: 960px){
+      #messages,#quick-replies,.input-area{padding-left:calc(50% - 440px);padding-right:calc(50% - 440px)}
+      .msg{max-width:min(92%,760px)}
+    }
     @keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
     .msg.user{align-self:flex-end;flex-direction:row-reverse}
     .msg.bot{align-self:flex-start}
