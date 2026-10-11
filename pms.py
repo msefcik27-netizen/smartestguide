@@ -912,6 +912,9 @@ def _norm_stay_offers(d: dict, stay: "Stay") -> list:
                     if ct.get("name") and ct["name"] not in tax_names:
                         tax_names.append(str(ct["name"]))
         fee_names = [str(f.get("name") or f.get("code") or "") for f in o.get("fees") or [] if f.get("name") or f.get("code")]
+        fees = [{"id": str(f.get("id") or f.get("code") or ""), "name": str(f.get("name") or f.get("code") or ""),
+                 "gross": (f.get("totalAmount") or {}).get("grossAmount"),
+                 "currency": (f.get("totalAmount") or {}).get("currency") or ""} for f in o.get("fees") or []]
         offers.append({"arrival": str(o.get("arrival") or ""), "departure": str(o.get("departure") or ""),
                        "total": tg.get("amount"), "currency": tg.get("currency") or "",
                        "available_units": o.get("availableUnits"),
@@ -920,7 +923,7 @@ def _norm_stay_offers(d: dict, stay: "Stay") -> list:
                        "new_nights": len(new_slices),
                        "new_total": sum(float(ts["gross"]) for ts in new_slices if ts.get("gross") is not None),
                        "time_slices": slices,
-                       "new_city_tax": round(tax_sum, 2), "city_tax_name": ", ".join(tax_names), "fee_names": fee_names,
+                       "new_city_tax": round(tax_sum, 2), "city_tax_name": ", ".join(tax_names), "fee_names": fee_names, "fees": fees,
                        "cancellation_fee": {"name": str(cf.get("name") or ""), "due": str(cf.get("dueDateTime") or ""),
                                             "amount": (cf.get("fee") or {}).get("amount"),
                                             "currency": (cf.get("fee") or {}).get("currency") or ""},
@@ -1044,6 +1047,35 @@ async def apaleo_reservation_extension_offers(hotel: dict, stay: "Stay", nights:
         return []   # 204 = žádná kapacita
     return _norm_stay_offers(d, stay)
 
+async def apaleo_extension_fee_delta(hotel: dict, stay: "Stay", offer: dict) -> Optional[list]:
+    """Poplatky (fees) připadající na PŘIDANÉ noci. Nabídka je uvádí jen za celý pobyt, proto se
+    načte i nabídka pro pobyt BEZE ZMĚNY (stejné volání bez nového odjezdu) a vrátí se rozdíl po
+    jednotlivých poplatcích: [{name, amount, currency}] (jen kladné). None = nejde spočítat."""
+    rid = _rid(stay)
+    if not (rid and offer and offer.get("fees")):
+        return [] if offer and not offer.get("fees") else None
+    params = {"adults": max(1, int(stay.adults or 1)), "requote": "false"}
+    if stay.children_ages:
+        params["childrenAges"] = list(stay.children_ages)
+    d = await _apaleo_get(hotel, f"/booking/v1/reservations/{rid}/offers", params, quiet=True)
+    if not d:
+        return None
+    base_offers = [b for b in _norm_stay_offers(d, stay) if (b.get("departure") or "")[:10] == (stay.departure or "")[:10]]
+    n_old = len(offer["time_slices"]) - int(offer.get("new_nights") or 0)
+    want = [ts["rate_plan_id"] for ts in offer["time_slices"][:n_old]]
+    base = next((b for b in base_offers if [ts["rate_plan_id"] for ts in b["time_slices"]] == want), None)
+    if not base:
+        return None
+    have = {f["id"]: float(f["gross"]) for f in base.get("fees") or [] if f.get("gross") is not None}
+    out = []
+    for f in offer["fees"]:
+        if f.get("gross") is None:
+            return None
+        diff = round(float(f["gross"]) - have.get(f["id"], 0.0), 2)
+        if diff > 0:
+            out.append({"name": f["name"], "amount": diff, "currency": f["currency"]})
+    return out
+
 async def apaleo_room_free_for_extension(hotel: dict, stay: "Stay", new_departure: str) -> Optional[bool]:
     """Je hostův KONKRÉTNÍ pokoj volný i na přidané noci? GET /availability/v1/reservations/{id}/units
     (scope availability.read — máme) za období původní odjezd → nový odjezd. True = host zůstane
@@ -1075,7 +1107,7 @@ async def apaleo_extension_precheck(hotel: dict, stay: "Stay") -> Optional[dict]
     act = next((a for a in d.get("actions") or [] if a.get("action") == "AmendDeparture"), None)
     if act is None:
         return None
-    return {"allowed": bool(act.get("isAllowed")),
+    return {"allowed": bool(act.get("isAllowed")), "block": bool(d.get("blockId")),
             "reasons": [str(x.get("code") or "") for x in act.get("reasons") or [] if x.get("code")]}
 
 async def apaleo_extension_check(hotel: dict, stay: "Stay") -> Optional[dict]:

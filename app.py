@@ -7326,6 +7326,10 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
             _offs = await pms_layer.apaleo_reservation_extension_offers(_ph, stay, k) or []
             return next((o for o in _offs if not o.get("validation")), None)
         best = await _ext_valid(n)
+        # Rezervace ze skupinového bloku: Apaleo při změně cenu VŽDY přepočítá podle bloku (swagger amend:
+        # „prices … will be re-quoted … reservation is part of a block"), cena z karty tedy není zaručená
+        # → jen požadavek recepci, žádný přímý zápis.
+        ext_mode = "request" if (_pre and _pre.get("block")) else base_mode
         if not best and n > 1:
             # Chtěných N nocí není ve stejném typu pokoje volných → nabídnout nejdelší kratší prodloužení
             # (nález 11. 10. 2026: chtěl 5, volné 3 → žádná karta). Půlením, nejvýš 3 dotazy do Apalea.
@@ -7344,28 +7348,41 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         if best:
             act = {"kind": "extension", "title": f"+{best['new_nights']} night(s) → {best['departure'][:10]}", "title_key": "extension",
                    "nights": best["new_nights"], "departure": best["departure"], "new_nights": best["new_nights"], "price": round(best["new_total"], 2),
-                   "currency": best["currency"], "mode": base_mode,
+                   "currency": best["currency"], "mode": ext_mode,
                    # městská taxa za přidané noci se účtuje navíc → host ji vidí na kartě hned pod cenou
                    "detail": f"{best['rate_plan']} · {best['unit_group']}"
                              + (f" · + {best.get('city_tax_name') or 'City tax'} {best['new_city_tax']:g} {best['currency']}" if best.get("new_city_tax") else ""),
                    "rate_plan_id": best.get("rate_plan_id", ""), "unit_group_id": best.get("unit_group_id", "")}
             # Time slices do tokenu nejdou: při potvrzení se nabídka načte z Apalea znovu (čerstvá cena a dostupnost)
             # a zapíše se jen tehdy, když sedí odjezd, typ pokoje a cena nepřesáhne to, co host viděl.
-            act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})
-            actions.append(act)
             _cur_dep = (getattr(stay, "departure", "") or "")[:10]
             lines.append(f"- Prodloužení o {best['new_nights']} noc/nocí: PŘIDANÉ noci od {_cur_dep} do {best['departure'][:10]} "
                          f"(nový odjezd {best['departure'][:10]}; mluv jen o přidaných nocích, ne o celém pobytu) ve stejném typu pokoje "
                          f"({best['unit_group']}, sazba {best['rate_plan']}): {round(best['new_total'], 2):g} {best['currency']} "
                          "(PLATNÁ CENA, říkej ji přesně takto, bez desetinné nuly)"
-                         + (" (potvrzením se prodloužení hned zapíše do rezervace a připíše na účet pokoje)" if base_mode == "auto"
+                         + (" (potvrzením se prodloužení hned zapíše do rezervace a připíše na účet pokoje)" if ext_mode == "auto"
                             else " (potvrzením odejde požadavek recepci, která ho potvrdí)"))
             if best.get("new_city_tax"):
                 lines.append(f"  NAVÍC k této ceně se za přidané noci připíše {best.get('city_tax_name') or 'městská taxa'}: "
                              f"{best['new_city_tax']:g} {best['currency']} (není v ceně; řekni to hostovi spolu s cenou, částky nesčítej).")
-            if best.get("fee_names"):
-                lines.append(f"  Hotel k pobytu účtuje i poplatek: {', '.join(best['fee_names'])}. Jeho výši za přidané noci NEZNÁŠ — "
-                             "řekni, že se může připsat navíc a přesnou částku sdělí recepce.")
+            if best.get("fees"):
+                # Poplatky nabídka uvádí za celý pobyt → část za přidané noci = rozdíl proti nabídce beze změny
+                try:
+                    _fees = await pms_layer.apaleo_extension_fee_delta(_ph, stay, best)
+                except Exception as e:
+                    _fees = None
+                    logging.warning("Poplatky k prodloužení se nepodařilo spočítat: %s", e)
+                if _fees:
+                    _ftxt = ", ".join(f"{f['name']} {f['amount']:g} {f['currency']}" for f in _fees)
+                    act["detail"] += f" · + {_ftxt}"
+                    lines.append(f"  NAVÍC k této ceně se za přidané noci připíše poplatek: {_ftxt} (není v ceně; řekni to hostovi "
+                                 "spolu s cenou, částky nesčítej).")
+                elif _fees is None:
+                    lines.append(f"  Hotel k pobytu účtuje i poplatek: {', '.join(best['fee_names'])}. Jeho výši za přidané noci se "
+                                 "nepodařilo zjistit — řekni, že se může připsat navíc k uvedené ceně.")
+            # podpis až teď — detail už nese taxu i poplatky (jde i do požadavku a mailu recepci)
+            act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})
+            actions.append(act)
             # Typ pokoje volný, ale KONKRÉTNÍ pokoj hosta na přidané noci obsazený → Apaleo by přiřadilo jiný
             # (stěhování). Host to má vědět PŘED potvrzením, ne až po něm.
             try:
