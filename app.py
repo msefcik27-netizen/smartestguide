@@ -7223,7 +7223,9 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
             # a zapíše se jen tehdy, když sedí odjezd, typ pokoje a cena nepřesáhne to, co host viděl.
             act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})
             actions.append(act)
-            lines.append(f"- Prodloužení o {best['new_nights']} noc/nocí do {best['departure'][:10]} ve stejném typu pokoje "
+            _cur_dep = (getattr(stay, "departure", "") or "")[:10]
+            lines.append(f"- Prodloužení o {best['new_nights']} noc/nocí: PŘIDANÉ noci od {_cur_dep} do {best['departure'][:10]} "
+                         f"(nový odjezd {best['departure'][:10]}; mluv jen o přidaných nocích, ne o celém pobytu) ve stejném typu pokoje "
                          f"({best['unit_group']}, sazba {best['rate_plan']}): {round(best['new_total'], 2):g} {best['currency']} "
                          "(PLATNÁ CENA, říkej ji přesně takto, bez desetinné nuly)"
                          + (" (potvrzením se prodloužení hned zapíše do rezervace a připíše na účet pokoje)" if base_mode == "auto"
