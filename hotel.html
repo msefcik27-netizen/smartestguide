@@ -172,8 +172,8 @@ html{color-scheme:light}
     #sidebar-profile{display:none!important}                   /* na telefonu stačí dlaždice */
     .container{padding:14px 14px}
     #completeness-banner{padding:0 14px!important}
-    #profile-tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}   /* id kvůli pořadí pravidel (základní .ptiles je níž) */
-    #profile-tiles .ptile{padding:12px 11px 10px} #profile-tiles .ptile-t{font-size:13px} #profile-tiles .ptile-d{display:none}
+    .ptiles.ptiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}   /* zdvojená třída kvůli pořadí pravidel (základní .ptiles je níž) */
+    .ptiles .ptile{padding:12px 11px 10px} .ptiles .ptile-t{font-size:13px} .ptiles .ptile-d{display:none}
     .section{scroll-margin-top:120px}                                          /* pod lepicí lištou záložek */
     .edit-table td:first-child{width:110px;padding:10px 10px;font-size:10px}
     .edit-table td:last-child{padding:6px 8px 6px 0}
@@ -1017,11 +1017,17 @@ const PORTAL_TAB_OF = {            // sekce z renderSection podle (českého) ti
   'Vyzkoušet Alexe':'alex', 'Aktivní nabídka pro hosty':'alex',
   'Embed widget — vložit na web':'ucet', 'Tiskové materiály':'prehled'   // tisk = první na Přehledu (uživatel 11. 10.)
 };
-let PROFILE_SOLO = null;           // id sekce profilu otevřené z dlaždice (ostatní skryté); null = všechny
+const PORTAL_SOLO = {};            // tab -> id bloku otevřeného z dlaždice (ostatní bloky tabu skryté); undefined = všechny
 const PORTAL_FIXED = {             // pevné bloky podle id / třídy
   'completeness-banner':'profil', 'group-section':'ucet', 'add-hotel-section':'ucet', 'pms-section':'alex',
   'orders-section':'alex', 'requests-section':'alex', 'onboarding-wizard':'prehled', 'payment-section':'ucet', 'invoices-section':'ucet',
   'monthly-report-section':'prehled'
+};
+// Štítky dlaždic pevných bloků (sekce z renderSection si berou ikonu a titulek z DOM)
+const PORTAL_FIXED_TILE = {
+  'pms-section':'🔌 Hotelový systém', 'orders-section':'🛎 Objednávky v chatu', 'requests-section':'📬 Požadavky hostů',
+  'group-section':'🏨 Vaše hotely', 'add-hotel-section':'➕ Přidat další hotel', 'payment-section':'💳 Předplatné', 'invoices-section':'🧾 Faktury',
+  'onboarding-wizard':'🧭 Průvodce nastavením', 'monthly-report-section':'📈 Přehled & statistiky'
 };
 function currentPortalTab(){
   // Jen kotva v adrese; bez ní vždy Přehled — odkazy z e-mailů (uvítací, tisk) vedou na /portal?token=
@@ -1035,51 +1041,69 @@ function showPortalTab(tab){
   window.scrollTo({top:0});
 }
 function applyPortalTab(tab){
-  Object.keys(PORTAL_FIXED).forEach(id=>{ const el=document.getElementById(id); if(el) el.hidden=(PORTAL_FIXED[id]!==tab); });
+  const solo = PORTAL_SOLO[tab] || null;
+  Object.keys(PORTAL_FIXED).forEach(id=>{ const el=document.getElementById(id); if(el) el.hidden=(PORTAL_FIXED[id]!==tab) || (!!solo && id!==solo); });
   const info=document.querySelector('#main-container .info-banner'); if(info) info.hidden=(tab!=='profil');
-  document.querySelectorAll('.section[data-ptab]').forEach(s=>{
-    s.hidden=(s.dataset.ptab!==tab) || (tab==='profil' && !!PROFILE_SOLO && s.id!==PROFILE_SOLO);
-  });
-  const tiles=document.getElementById('profile-tiles'); if(tiles) tiles.hidden=(tab!=='profil');
+  document.querySelectorAll('.section[data-ptab]').forEach(s=>{ s.hidden=(s.dataset.ptab!==tab) || (!!solo && s.id!==solo); });
+  document.querySelectorAll('.ptiles[data-tab]').forEach(g=>{ g.hidden=(g.dataset.tab!==tab); });
   document.querySelectorAll('.ptab-btn').forEach(b=>b.setAttribute('aria-current', String(b.dataset.tab===tab)));
-  document.querySelectorAll('.ptile').forEach(t=>t.setAttribute('aria-current', String(!!PROFILE_SOLO && t.dataset.sec===PROFILE_SOLO)));
+  document.querySelectorAll('.ptile').forEach(t=>t.setAttribute('aria-current', String(!!solo && t.dataset.sec===solo)));
   const prof=document.getElementById('sidebar-profile'); if(prof) prof.hidden=(tab!=='profil');
 }
-// Dlaždice sekcí profilu (uživatel 11. 10.: „sekce profilu dej jako dlaždice"): mřížka nad sekcemi,
-// klepnutí ukáže jen tu jednu sekci rozbalenou; druhé klepnutí (nebo Rozbalit/Sbalit vše) vrátí všechny.
-function openProfileSection(id){
-  if (currentPortalTab() !== 'profil') showPortalTab('profil');
-  PROFILE_SOLO = (PROFILE_SOLO === id) ? null : id;
-  applyPortalTab('profil');
-  if (PROFILE_SOLO) {
-    const sec = document.getElementById(id);
+// Dlaždice na KAŽDÉ záložce (uživatel 11. 10.: „sekce profilu dej jako dlaždice" → „dlaždice…" i na Přehledu,
+// Alexovi a Nasazení): mřížka nad bloky záložky; klepnutí ukáže jen ten blok, druhé klepnutí (nebo
+// Rozbalit/Sbalit vše) vrátí všechny.
+function portalBlocksOf(tab){
+  const fixed = Object.keys(PORTAL_FIXED).filter(id => PORTAL_FIXED[id]===tab && PORTAL_FIXED_TILE[id])
+    .map(id => document.getElementById(id)).filter(el => el && el.children.length && el.innerHTML.trim());
+  const secs = Array.from(document.querySelectorAll('.section[id^="sec-"][data-ptab="'+tab+'"]'));
+  const all = [...fixed, ...secs];
+  all.sort((a,b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1);   // pořadí jako v DOM
+  return all;
+}
+function openPortalBlock(tab, id){
+  if (currentPortalTab() !== tab) showPortalTab(tab);
+  PORTAL_SOLO[tab] = (PORTAL_SOLO[tab] === id) ? null : id;
+  applyPortalTab(tab);
+  if (PORTAL_SOLO[tab]) {
+    const el = document.getElementById(id);
+    const sec = el && el.classList.contains('section') ? el : (el && el.querySelector('.section'));
     const body = sec && sec.querySelector('.section-body');
-    if (body && !body.classList.contains('open')) toggleSection(id);
-    // Na širokém displeji nahoru na dlaždice (sekce je hned pod nimi), na telefonu rovnou na sekci —
-    // jinak by host musel projet všech 11 dlaždic.
+    if (body && !body.classList.contains('open')) toggleSection(sec.id);
+    // Na širokém displeji nahoru na dlaždice (blok je hned pod nimi), na telefonu rovnou na blok
     const narrow = window.matchMedia('(max-width: 820px)').matches;
-    const target = narrow ? sec : document.getElementById('profile-tiles');
+    const target = narrow ? el : document.querySelector('.ptiles[data-tab="'+tab+'"]');
     if (target) target.scrollIntoView({behavior:'smooth', block:'start'});
   }
 }
-function buildProfileTiles(){
-  const sections = Array.from(document.querySelectorAll('.section[id^="sec-"][data-ptab="profil"]'));
-  if (!sections.length) return;
-  let grid = document.getElementById('profile-tiles');
-  if (!grid) {
-    grid = document.createElement('div'); grid.id = 'profile-tiles'; grid.className = 'ptiles';
-    sections[0].parentNode.insertBefore(grid, sections[0]);
-  }
-  grid.innerHTML = sections.map(sec => {
-    const icon = (sec.querySelector('.section-icon')||{}).innerHTML || '';
-    const title = (sec.querySelector('.section-title')||{}).textContent || '';
-    const desc = (sec.querySelector('.section-desc')||{}).textContent || '';
-    const score = sec.querySelector('.score-badge');
-    const scoreHtml = score ? score.outerHTML : '';
-    return `<button type="button" class="ptile" data-sec="${sec.id}" onclick="openProfileSection('${sec.id}')" aria-current="${String(PROFILE_SOLO===sec.id)}">
-      <div class="ptile-ico">${icon}</div><div class="ptile-t">${title.trim()}</div><div class="ptile-d">${desc.trim()}</div><div class="ptile-s">${scoreHtml}</div></button>`;
-  }).join('');
+function openProfileSection(id){ openPortalBlock('profil', id); }   // zpětná kompatibilita (odkazy v levém menu)
+function buildPortalTiles(){
+  PORTAL_TABS.forEach(([tab]) => {
+    const blocks = portalBlocksOf(tab);
+    let grid = document.querySelector('.ptiles[data-tab="'+tab+'"]');
+    if (blocks.length < 2) { if (grid) grid.remove(); return; }
+    if (!grid) { grid = document.createElement('div'); grid.className = 'ptiles'; grid.dataset.tab = tab; }
+    if (grid.nextElementSibling !== blocks[0]) blocks[0].parentNode.insertBefore(grid, blocks[0]);
+    grid.innerHTML = blocks.map(el => {
+      let icon = '', title = '', desc = '', scoreHtml = '';
+      if (el.classList.contains('section')) {
+        icon = (el.querySelector('.section-icon')||{}).innerHTML || '';
+        title = ((el.querySelector('.section-title')||{}).textContent || '').replace(/\(\d+\)/,'').trim();
+        desc = ((el.querySelector('.section-desc')||{}).textContent || '').trim();
+        const score = el.querySelector('.score-badge'); scoreHtml = score ? score.outerHTML : '';
+      } else {
+        const lbl = tr(PORTAL_FIXED_TILE[el.id] || el.id);
+        const m = lbl.match(/^(\S+)\s+(.*)$/); icon = m ? m[1] : '▪'; title = m ? m[2] : lbl;
+        const pend = el.querySelector('.section-title span'); if (pend) scoreHtml = pend.outerHTML;   // (3) čekajících
+      }
+      return `<button type="button" class="ptile" data-sec="${el.id}" onclick="openPortalBlock('${tab}','${el.id}')" aria-current="${String(PORTAL_SOLO[tab]===el.id)}">
+        <div class="ptile-ico">${icon}</div><div class="ptile-t">${title}</div><div class="ptile-d">${desc}</div><div class="ptile-s">${scoreHtml}</div></button>`;
+    }).join('');
+    translateDom(grid);
+  });
+  applyPortalTab(currentPortalTab());
 }
+function buildProfileTiles(){ buildPortalTiles(); }
 function renderSection(icon, title, desc, content, fields, defaultOpen) {
   const id = 'sec-' + (_sectionIdx++);
   const ptab = PORTAL_TAB_OF[title] || 'profil';
@@ -1258,7 +1282,7 @@ function buildSidebarNav() {
     }
     a.innerHTML = '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + t + '</span>' + scoreHtml;
     a.onclick = () => {
-      if (PROFILE_SOLO !== sec.id) openProfileSection(sec.id);
+      if (PORTAL_SOLO['profil'] !== sec.id) openProfileSection(sec.id);
       else { const body = sec.querySelector('.section-body'); if (body && !body.classList.contains('open')) toggleSection(sec.id); }
     };
     prof.appendChild(a);
@@ -1271,7 +1295,14 @@ function buildSidebarNav() {
     const pb = printSec.querySelector('.section-body');   // rovnou rozbalené — hotel přichází z mailu kvůli tisku
     if (pb && !pb.classList.contains('open')) toggleSection(printSec.id);
   }
-  buildProfileTiles();
+  buildPortalTiles();
+  // Pevné bloky (Apaleo, objednávky, požadavky, skupina, předplatné, faktury, statistiky) se překreslují
+  // asynchronně → po každém překreslení dlaždice obnovit (prázdný blok zmizí, „(N)" čekajících se aktualizuje)
+  if (!window._tilesObserver) {
+    let _tt = null;
+    window._tilesObserver = new MutationObserver(() => { clearTimeout(_tt); _tt = setTimeout(() => { try { buildPortalTiles(); } catch(e) {} }, 150); });
+    Object.keys(PORTAL_FIXED).forEach(id => { const el = document.getElementById(id); if (el) window._tilesObserver.observe(el, {childList: true}); });
+  }
   applyPortalTab(currentPortalTab());
   // Aktivní sekce při scrollu
   updateActiveSidebarItem();
@@ -1308,7 +1339,7 @@ function toggleSection(id) {
 }
 
 function setAllSections(open){
-  if (PROFILE_SOLO) { PROFILE_SOLO = null; applyPortalTab(currentPortalTab()); }
+  const _t = currentPortalTab(); if (PORTAL_SOLO[_t]) { PORTAL_SOLO[_t] = null; applyPortalTab(_t); }
   document.querySelectorAll('.section[id^="sec-"]').forEach(sec => {
     const body = sec.querySelector('.section-body');
     const head = sec.querySelector('.section-head');
@@ -2051,6 +2082,7 @@ async function loadRequestsSection(){
     </div>
   </div>`;
   translateDom(el);
+  try{ buildPortalTiles(); }catch(e){}
 }
 // obnova seznamu při návratu na záložku a každou minutu, dokud je záložka otevřená
 setInterval(()=>{ if(currentPortalTab()==='alex' && document.visibilityState==='visible') loadRequestsSection(); }, 60000);
@@ -2128,6 +2160,7 @@ function loadOrdersSection(){
     </div>`;
   if(pms) loadAllowlist(allow);
   translateDom(el);
+  try{ buildPortalTiles(); }catch(e){}
 }
 // Výchozí měna položky: měna hotelu (z Apalea), jinak podle země — hoteliér ji jinak
 // snadno zapomene a Alex pak říká jen číslo (stalo se u DEMO hotelu 11. 10.).
