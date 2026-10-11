@@ -1342,17 +1342,19 @@ function showOrderCards(actions){
   (actions||[]).forEach(a=>{
     if(!a||!a.id) return;
     const price=(a.price!==undefined&&a.price!==null)?`${a.price} ${a.currency||''}`.trim():'';
-    const note=a.mode==='auto'?uiT('order_room_charge'):uiT('order_request_note');
     const isExt=a.kind==='extension'||a.service_id==='extension'||a.title_key==='extension';
-    const isItem=a.kind==='item'&&!isExt;
+    const isCancel=a.kind==='cancel'||!!a.cancel;      // zrušení objednané služby (Apaleo přímo / bez PMS požadavek recepci)
+    const isItem=a.kind==='item'&&!isExt&&!isCancel;
     ORDER_STATE[a.id]={count:a.count||1,nights:a.nights||1,start:a.start||((a.dates||[])[0]||''),unit_price:a.unit_price,days:a.days||1,
       cur:a.currency||'',can:!!a.can_count,canN:!!a.can_nights,kind:a.kind,unit:a.unit||'',note:''};
     const dates=(a.dates||[]).map(fmtOrderDate).join(', ');
     // Co host na kartě nastaví: datum od (položky hotelu), osoby (za osobu), dny/noci podle druhu
     // (snídaně = dny, parkování = noci, prodloužení = noci), čas (masáž, pozdní odjezd) nebo poznámka.
     // Prodloužení je v jazyce hosta (title_key) — server posílá jen anglickou zálohu.
-    const title=isExt?`${uiT('ext_title')}${a.departure?` ${uiT('ext_to')} ${fmtOrderDate(String(a.departure).slice(0,10))}`:''}`:(a.title||'');
-    const subtitle=isExt?(a.kind==='extension'&&a.detail?escapeHtmlOrder(a.detail):uiT('ext_detail')):(dates?escapeHtmlOrder(dates):escapeHtmlOrder(a.detail||''));
+    const title=isCancel?`${uiT('cancel_title')}: ${a.title||''}`:isExt?`${uiT('ext_title')}${a.departure?` ${uiT('ext_to')} ${fmtOrderDate(String(a.departure).slice(0,10))}`:''}`:(a.title||'');
+    const subtitle=isCancel?(dates?escapeHtmlOrder(dates):''):isExt?(a.kind==='extension'&&a.detail?escapeHtmlOrder(a.detail):uiT('ext_detail')):(dates?escapeHtmlOrder(dates):escapeHtmlOrder(a.detail||''));
+    const note=isCancel?(a.mode==='auto'?uiT('cancel_note'):uiT('order_request_note')):(a.mode==='auto'?uiT('order_room_charge'):uiT('order_request_note'));
+    const mainBtn=isCancel?uiT('cancel_btn'):(a.mode==='auto'?uiT('order_confirm'):uiT('order_send'));
     const dateRow=isItem?`<div style="display:flex;align-items:center;gap:10px;margin:6px 0"><span style="font-size:12.5px;color:var(--muted);min-width:92px">${uiT('order_from')}</span><input type="date" value="${escapeHtmlOrder(a.start||'')}" onchange="orderStart('${a.id}',this.value)" style="${inp};width:auto;flex:1"></div>`:'';
     const persons=a.can_count?stepperHtml(a.id,uiT('order_persons'),'ocnt',a.count||1,'orderCount'):'';
     const qtyLbl=a.qty_label==='days'?uiT('order_days'):uiT('order_nights');
@@ -1362,13 +1364,13 @@ function showOrderCards(actions){
     d.className='msg bot'; d.id='order-'+a.id;
     d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#fff;font-weight:800">✦</div>
       <div class="msg-body"><div class="msg-bubble" style="min-width:250px;max-width:340px">
-        <div style="font-weight:700;font-size:14px;margin-bottom:6px">${isExt?'🛏':'🛎'} ${escapeHtmlOrder(title)}</div>
+        <div style="font-weight:700;font-size:14px;margin-bottom:6px">${isCancel?'🗑':isExt?'🛏':'🛎'} ${escapeHtmlOrder(title)}</div>
         ${isItem?'':`<div style="font-size:12.5px;color:var(--muted);margin-bottom:4px">${subtitle}</div>`}
         ${dateRow}${persons}${nights}${noteRow}
         ${price?`<div id="oprice-${a.id}" style="font-size:16px;font-weight:800;margin:8px 0 10px">${escapeHtmlOrder(price)}</div>`:''}
         <div style="font-size:11.5px;color:var(--muted);line-height:1.45;margin-bottom:12px">${note}</div>
         <div style="display:flex;gap:8px">
-          <button onclick="confirmOrder('${a.id}')" style="flex:1;background:var(--accent);color:#0a0b0f;border:none;border-radius:10px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font-body,inherit)">${a.mode==='auto'?uiT('order_confirm'):uiT('order_send')}</button>
+          <button onclick="confirmOrder('${a.id}')" style="flex:1;background:${isCancel?'#ff4f6a':'var(--accent)'};color:${isCancel?'#fff':'#0a0b0f'};border:none;border-radius:10px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font-body,inherit)">${mainBtn}</button>
           <button onclick="document.getElementById('order-${a.id}').remove()" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:10px;padding:11px 14px;font-size:13px;cursor:pointer;font-family:var(--font-body,inherit)">${uiT('order_cancel')}</button>
         </div>
         <div class="order-err" style="display:none;margin-top:10px;font-size:12px;line-height:1.5;color:#ff4f6a"></div>
