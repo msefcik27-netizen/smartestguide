@@ -9315,14 +9315,44 @@ async def portal_add_hotel(req: PortalAddHotelRequest, request: Request):
     parent_id = h.get("group_parent") or h.get("id")
     parent = db["hotels"].get(parent_id) or h
     sub_id = parent.get("stripe_subscription_id", "")
-    if not (parent.get("subscription_active") and sub_id):
-        raise HTTPException(400, "Pro přidání hotelu je potřeba aktivní online předplatné. "
-                                 "Napište nám na support@smartestguide.com — přidáme hotel ručně.")
     s = db_get_settings()
     stripe_key = s.get("stripe_secret_key", "")
     if not stripe_key:
         raise HTTPException(503, "Platby nejsou nakonfigurovány")
     price = _pricing_price_for_beds(beds, s)
+    if not (parent.get("subscription_active") and sub_id):
+        # Původní hotel byl založen ručně (bez Stripe subscription) → není k čemu položku připočítat.
+        # Uživatel 11. 10. 2026: hlášku vysvětlit a dát možnost zaplatit rovnou přes Stripe → nový hotel
+        # založíme neaktivní a vrátíme Checkout; po zaplacení ho webhook aktivuje jako vlastní předplatné.
+        now = datetime.utcnow().isoformat()
+        nid = str(uuid.uuid4())
+        hotel = {
+            "id": nid, "created_at": now, "updated_at": now,
+            "qr_code_id": str(uuid.uuid4()), "hotel_token": str(uuid.uuid4()).replace("-", ""),
+            "name": name, "origin": "standard_group", "origin_source": f"portal_add_via_{h.get('id')}_checkout",
+            "subscription_active": False, "subscription_price": price, "awaiting_payment": True,
+            "group_parent": parent_id,
+            "email": parent.get("email", ""), "registration_email": parent.get("registration_email", ""),
+            "phone": parent.get("phone", ""), "contact_name": parent.get("contact_name", ""),
+            "country": parent.get("country", ""), "ico": parent.get("ico", ""),
+            "dic": parent.get("dic", ""), "billing_name": parent.get("billing_name", ""),
+            "acquired_by": parent.get("acquired_by", "auto"), "referral_code": parent.get("referral_code", ""),
+            "acquisition_channel": "portal_add", "acquired_at": now,
+            "bed_count": beds, "registered_bed_count": beds, "trial_used": True,
+        }
+        if url:
+            hotel["url"] = url
+            hotel["source_url"] = url
+        _ensure_slug(db, nid, hotel)
+        db["hotels"][nid] = hotel
+        db_save(db)
+        co = await stripe_checkout(nid, request)
+        logging.warning("FLOW4: parent %s bez Stripe subscription → nový hotel '%s' (%s) čeká na zaplacení přes Checkout",
+                        parent_id, name, nid)
+        return {"status": "payment_required", "hotel_id": nid, "name": name, "price": price,
+                "checkout_url": co.get("checkout_url"),
+                "message": "Původní hotel byl založen ručně (bez online předplatného), proto nejde nový hotel připočítat "
+                           "k jeho faktuře. Nový hotel je připravený — zaplaťte ho online a aktivuje se sám."}
     _sh = {"Authorization": f"Bearer {stripe_key}",
            "Content-Type": "application/x-www-form-urlencoded"}
     async with httpx.AsyncClient() as client:
