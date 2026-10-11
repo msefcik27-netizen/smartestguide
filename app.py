@@ -6446,7 +6446,7 @@ async def _send_write_notification(hid: str, h: dict, room: str, action: dict):
             + buttons
             + f"<p>{settings_line}</p>"
             "<p>— SMARTEST GUIDE · support@smartestguide.com</p>"),
-        "textContent": f"{kind} — {what}. {action.get('title') or ''} — {detail} — {price}. {when}.",
+        "textContent": f"{kind} — {what}. " + " — ".join(x for x in (action.get("title") or "", detail, price) if x) + f". {when}.",
     }
     if not payload["bcc"]:
         payload.pop("bcc")

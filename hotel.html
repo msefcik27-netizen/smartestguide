@@ -420,7 +420,7 @@ const EN_MAP = {
   "Položky k objednání (název, cena, jednotka)":"Items to order (name, price, unit)",
   "+ Přidat položku":"+ Add item","za osobu a den (snídaně, polopenze)":"per person per day (breakfast, half board)","za osobu a noc (přistýlka)":"per person per night (extra bed)","za pokoj a noc (parkování, mazlíček)":"per room per night (parking, pet)","jednorázově za pobyt (pozdní odjezd)":"once per stay (late check-out)","za osobu, jednorázově (masáž, vstupenka)":"per person, once (massage, ticket)","Odebrat":"Remove",
   "E-mail, kam chodí každá objednávka / požadavek (prázdné = e-mail hotelu)":"E-mail that receives every order / request (empty = hotel e-mail)",
-  "Uložit objednávky":"Save orders","✓ Uloženo":"✓ Saved",
+  "Uložit objednávky":"Save orders","✓ Uloženo":"✓ Saved","✓ Uloženo — otevírám udělení oprávnění v Apaleu…":"✓ Saved — opening the Apaleo permission page…",
   "Posílat e-mail i o objednávkách zapsaných do Apalea (jinak chodí jen požadavky a selhání — zapsané vidíte v Apaleu)":"Also e-mail orders that were written to Apaleo (otherwise only requests and failures are sent — written ones you see in Apaleo)",
   "Seznam je váš katalog služeb z Apalea. Novou službu založte v Apaleu — tady se objeví do hodiny.":"This is your service catalogue from Apaleo. Create a new service in Apaleo — it shows up here within an hour.",
   "Zatím žádné služby — v Apaleu zatím nemáte žádnou službu k dokoupení, nebo se katalog nepodařilo načíst.":"No services yet — your Apaleo has no bookable services, or the catalogue could not be loaded.",
@@ -2076,6 +2076,12 @@ async function saveOrdersSection(){
     hotelData=Object.assign(d.hotel,keep);
     loadOrdersSection();
     const s2=g('ord-saved'); if(s2) s2.textContent=tr('✓ Uloženo');
+    // 6a: Apaleo hotel zapnul objednávky, ale souhlas v Apaleu ještě nepokrývá zápis → rovnou na udělení
+    // oprávnění (stejný odkaz jako „Propojit s Apaleo", server pozná re-consent ze starého scope).
+    if((payload.pms_write_services||payload.pms_write_extension) && hotelData.pms_type && hotelData.pms_needs_reconsent){
+      if(s2) s2.textContent=tr('✓ Uloženo — otevírám udělení oprávnění v Apaleu…');
+      setTimeout(()=>{ location.href=`${API}/api/pms/apaleo/connect?token=${token}`; }, 1200);
+    }
   }catch(e){ if(s) s.textContent=''; alert(tr('Uložení se nepovedlo: ')+e.message); }
 }
 
