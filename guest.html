@@ -815,7 +815,7 @@ async function loadHotel(){
       if(history.length){
         // Starší zprávy recepce v historii (před 11. 10.) nemají oid → tlačítko Odpovědět recepci se naváže na poslední sledovaný požadavek
         let _lastTracked=''; try{ const _t=JSON.parse(localStorage.getItem('sg_orders_'+hotelId)||'[]'); if(_t.length) _lastTracked=_t[_t.length-1].id||''; }catch(e){}
-        history.forEach(m => { if(m.role==='user') addUser(m.content); else if(m.role==='assistant') addBot(m.content,{reception:m.src==='reception',oid:m.oid||(m.src==='reception'?_lastTracked:''),title:m.title||''}); });
+        history.forEach(m => { if(m.role==='user') addUser(m.content); else if(m.role==='assistant') addBot(m.content,{reception:m.src==='reception',oid:m.oid||(m.src==='reception'?_lastTracked:''),title:m.title||'',cancelAction:m.cancel_action||null}); });
       }
   const greetFn=GREETINGS[guestLang]||GREETINGS['en'];
       // Pozor: chybějící jazyk v téhle mapě = anglické uvítání i pro Čecha (tester 7. 8. 2026).
@@ -1022,16 +1022,16 @@ Object.assign(UI_T.de,{link_stay:'🛎 Aufenthalt verknüpfen',ls_title:'Aufenth
 // Zápis do rezervace — karty k potvrzení (ostatní jazyky padají na EN přes uiT)
 Object.assign(UI_T.en,{order_persons:'Persons',order_nights:'Nights',order_days:'Days',order_from:'From',order_time_ph:'Preferred time (e.g. 16:00)',order_note_ph:'Note for reception (optional)',
   ext_title:'Extend stay',ext_detail:'Reception will confirm availability and price.',ext_to:'until',from_reception:'Reception',
-  reply_to_reception:'Reply to reception',replying_to:'Writing to reception',reply_ph:'Your message to reception…',reply_sent:'📨 Passed on to reception — their reply will appear here.',cancel_title:'Cancellation',cancel_btn:'Cancel the service',cancel_note:'The service is removed from your reservation and room account.'});
+  reply_to_reception:'Reply to reception',replying_to:'Writing to reception',reply_ph:'Your message to reception…',reply_sent:'📨 Passed on to reception — their reply will appear here.',cancel_title:'Cancellation',cancel_btn:'Cancel the service',cancel_note:'The service is removed from your reservation and room account.',cancel_this:'Cancel this order'});
 Object.assign(UI_T.cs,{order_persons:'Počet osob',order_nights:'Počet nocí',order_days:'Počet dní',order_from:'Od',order_time_ph:'Preferovaný čas (např. 16:00)',order_note_ph:'Poznámka pro recepci (volitelné)',
   ext_title:'Prodloužení pobytu',ext_detail:'Dostupnost a cenu potvrdí recepce.',ext_to:'do',from_reception:'Recepce',
-  reply_to_reception:'Odpovědět recepci',replying_to:'Píšete recepci',reply_ph:'Vaše zpráva pro recepci…',reply_sent:'📨 Předáno recepci — její odpověď se objeví tady.',cancel_title:'Zrušení',cancel_btn:'Zrušit službu',cancel_note:'Služba se odebere z vaší rezervace i z účtu pokoje.'});
+  reply_to_reception:'Odpovědět recepci',replying_to:'Píšete recepci',reply_ph:'Vaše zpráva pro recepci…',reply_sent:'📨 Předáno recepci — její odpověď se objeví tady.',cancel_title:'Zrušení',cancel_btn:'Zrušit službu',cancel_note:'Služba se odebere z vaší rezervace i z účtu pokoje.',cancel_this:'Zrušit tuto objednávku'});
 Object.assign(UI_T.sk,{order_persons:'Počet osôb',order_nights:'Počet nocí',order_days:'Počet dní',order_from:'Od',order_time_ph:'Preferovaný čas (napr. 16:00)',order_note_ph:'Poznámka pre recepciu (voliteľné)',
   ext_title:'Predĺženie pobytu',ext_detail:'Dostupnosť a cenu potvrdí recepcia.',ext_to:'do',from_reception:'Recepcia',
-  reply_to_reception:'Odpovedať recepcii',replying_to:'Píšete recepcii',reply_ph:'Vaša správa pre recepciu…',reply_sent:'📨 Odovzdané recepcii — jej odpoveď sa objaví tu.',cancel_title:'Zrušenie',cancel_btn:'Zrušiť službu',cancel_note:'Služba sa odoberie z vašej rezervácie aj z účtu izby.'});
+  reply_to_reception:'Odpovedať recepcii',replying_to:'Píšete recepcii',reply_ph:'Vaša správa pre recepciu…',reply_sent:'📨 Odovzdané recepcii — jej odpoveď sa objaví tu.',cancel_title:'Zrušenie',cancel_btn:'Zrušiť službu',cancel_note:'Služba sa odoberie z vašej rezervácie aj z účtu izby.',cancel_this:'Zrušiť túto objednávku'});
 if(UI_T.de)Object.assign(UI_T.de,{order_persons:'Personen',order_nights:'Nächte',order_days:'Tage',order_from:'Ab',order_time_ph:'Gewünschte Uhrzeit (z. B. 16:00)',order_note_ph:'Hinweis für die Rezeption (optional)',
   ext_title:'Aufenthalt verlängern',ext_detail:'Verfügbarkeit und Preis bestätigt die Rezeption.',ext_to:'bis',from_reception:'Rezeption',
-  reply_to_reception:'Der Rezeption antworten',replying_to:'Nachricht an die Rezeption',reply_ph:'Ihre Nachricht an die Rezeption…',reply_sent:'📨 An die Rezeption weitergeleitet — ihre Antwort erscheint hier.',cancel_title:'Stornierung',cancel_btn:'Leistung stornieren',cancel_note:'Die Leistung wird von Ihrer Reservierung und Ihrem Zimmerkonto entfernt.'});
+  reply_to_reception:'Der Rezeption antworten',replying_to:'Nachricht an die Rezeption',reply_ph:'Ihre Nachricht an die Rezeption…',reply_sent:'📨 An die Rezeption weitergeleitet — ihre Antwort erscheint hier.',cancel_title:'Stornierung',cancel_btn:'Leistung stornieren',cancel_note:'Die Leistung wird von Ihrer Reservierung und Ihrem Zimmerkonto entfernt.',cancel_this:'Diese Bestellung stornieren'});
 Object.assign(UI_T.en,{order_confirm:'Confirm',order_send:'Send to reception',order_cancel:'Not now',
   order_room_charge:'Charged to your room account and settled at check-out. Nothing is booked until you confirm.',
   order_request_note:'This goes to reception as a request. Their answer will appear here in the chat.',
@@ -1071,7 +1071,7 @@ Object.assign(UI_T.fr,{order_persons:'Personnes',order_nights:'Nuits',order_days
   order_fail:'⚠️ Cela n\'a pas fonctionné. Réessayez ou adressez-vous à la réception.',
   my_room:'🛎 Ma chambre',mr_title:'Votre numéro de chambre',mr_submit:'Enregistrer',forget_room:'🔓 Oublier ma chambre',
   room_saved:'✅ C\'est noté — chambre {room}. Vos commandes et demandes partent maintenant directement à la réception avec votre numéro de chambre.',
-  room_forgotten:'🔓 Numéro de chambre effacé. Indiquez-le-moi à nouveau quand vous voudrez commander.',cancel_title:'Annulation',cancel_btn:'Annuler le service',cancel_note:'Le service est retiré de votre réservation et du compte de votre chambre.'});
+  room_forgotten:'🔓 Numéro de chambre effacé. Indiquez-le-moi à nouveau quand vous voudrez commander.',cancel_title:'Annulation',cancel_btn:'Annuler le service',cancel_note:'Le service est retiré de votre réservation et du compte de votre chambre.',cancel_this:'Annuler cette commande'});
 Object.assign(UI_T.it,{order_persons:'Persone',order_nights:'Notti',order_days:'Giorni',order_from:'Dal',order_time_ph:'Orario preferito (es. 16:00)',order_note_ph:'Nota per la reception (facoltativa)',
   ext_title:'Prolungare il soggiorno',ext_detail:'La reception confermerà disponibilità e prezzo.',ext_to:'fino al',from_reception:'Reception',
   reply_to_reception:'Rispondi alla reception',replying_to:'Messaggio alla reception',reply_ph:'Il suo messaggio per la reception…',reply_sent:'📨 Inoltrato alla reception — la risposta apparirà qui.',
@@ -1081,7 +1081,7 @@ Object.assign(UI_T.it,{order_persons:'Persone',order_nights:'Notti',order_days:'
   order_fail:'⚠️ Non è andata a buon fine. Riprovi o si rivolga alla reception.',
   my_room:'🛎 La mia camera',mr_title:'Il numero della sua camera',mr_submit:'Salva',forget_room:'🔓 Dimentica la camera',
   room_saved:'✅ Fatto — camera {room}. Ordini e richieste vanno ora direttamente alla reception con il numero della camera.',
-  room_forgotten:'🔓 Numero di camera cancellato. Me lo dica di nuovo quando vorrà ordinare qualcosa.',cancel_title:'Annullamento',cancel_btn:'Annulla il servizio',cancel_note:'Il servizio viene rimosso dalla prenotazione e dal conto della camera.'});
+  room_forgotten:'🔓 Numero di camera cancellato. Me lo dica di nuovo quando vorrà ordinare qualcosa.',cancel_title:'Annullamento',cancel_btn:'Annulla il servizio',cancel_note:'Il servizio viene rimosso dalla prenotazione e dal conto della camera.',cancel_this:'Annulla questo ordine'});
 Object.assign(UI_T.es,{order_persons:'Personas',order_nights:'Noches',order_days:'Días',order_from:'Desde',order_time_ph:'Hora preferida (p. ej. 16:00)',order_note_ph:'Nota para recepción (opcional)',
   ext_title:'Prolongar la estancia',ext_detail:'Recepción confirmará disponibilidad y precio.',ext_to:'hasta el',from_reception:'Recepción',
   reply_to_reception:'Responder a recepción',replying_to:'Mensaje a recepción',reply_ph:'Su mensaje para recepción…',reply_sent:'📨 Enviado a recepción — su respuesta aparecerá aquí.',
@@ -1091,7 +1091,7 @@ Object.assign(UI_T.es,{order_persons:'Personas',order_nights:'Noches',order_days
   order_fail:'⚠️ No se pudo completar. Inténtelo de nuevo o acuda a recepción.',
   my_room:'🛎 Mi habitación',mr_title:'Su número de habitación',mr_submit:'Guardar',forget_room:'🔓 Olvidar habitación',
   room_saved:'✅ Anotado — habitación {room}. Los pedidos y solicitudes irán ahora directamente a recepción con su número de habitación.',
-  room_forgotten:'🔓 Número de habitación borrado. Dígamelo de nuevo cuando quiera pedir algo.',cancel_title:'Cancelación',cancel_btn:'Cancelar el servicio',cancel_note:'El servicio se elimina de su reserva y de la cuenta de la habitación.'});
+  room_forgotten:'🔓 Número de habitación borrado. Dígamelo de nuevo cuando quiera pedir algo.',cancel_title:'Cancelación',cancel_btn:'Cancelar el servicio',cancel_note:'El servicio se elimina de su reserva y de la cuenta de la habitación.',cancel_this:'Cancelar este pedido'});
 Object.assign(UI_T.pl,{order_persons:'Liczba osób',order_nights:'Liczba nocy',order_days:'Liczba dni',order_from:'Od',order_time_ph:'Preferowana godzina (np. 16:00)',order_note_ph:'Uwaga dla recepcji (opcjonalnie)',
   ext_title:'Przedłużenie pobytu',ext_detail:'Dostępność i cenę potwierdzi recepcja.',ext_to:'do',from_reception:'Recepcja',
   reply_to_reception:'Odpowiedz recepcji',replying_to:'Piszesz do recepcji',reply_ph:'Twoja wiadomość do recepcji…',reply_sent:'📨 Przekazano recepcji — jej odpowiedź pojawi się tutaj.',
@@ -1101,7 +1101,7 @@ Object.assign(UI_T.pl,{order_persons:'Liczba osób',order_nights:'Liczba nocy',o
   order_fail:'⚠️ Nie udało się. Spróbuj ponownie lub zapytaj w recepcji.',
   my_room:'🛎 Mój pokój',mr_title:'Numer Twojego pokoju',mr_submit:'Zapisz',forget_room:'🔓 Zapomnij pokój',
   room_saved:'✅ Zapisane — pokój {room}. Zamówienia i prośby trafią teraz prosto do recepcji z numerem Twojego pokoju.',
-  room_forgotten:'🔓 Numer pokoju usunięty. Podaj mi go ponownie, gdy zechcesz coś zamówić.',cancel_title:'Anulowanie',cancel_btn:'Anuluj usługę',cancel_note:'Usługa zostanie usunięta z rezerwacji i rachunku pokoju.'});
+  room_forgotten:'🔓 Numer pokoju usunięty. Podaj mi go ponownie, gdy zechcesz coś zamówić.',cancel_title:'Anulowanie',cancel_btn:'Anuluj usługę',cancel_note:'Usługa zostanie usunięta z rezerwacji i rachunku pokoju.',cancel_this:'Anuluj to zamówienie'});
 Object.assign(UI_T.ru,{order_persons:'Человек',order_nights:'Ночей',order_days:'Дней',order_from:'С',order_time_ph:'Удобное время (напр. 16:00)',order_note_ph:'Примечание для ресепшена (необязательно)',
   ext_title:'Продлить проживание',ext_detail:'Наличие и цену подтвердит ресепшен.',ext_to:'до',from_reception:'Ресепшен',
   reply_to_reception:'Ответить ресепшену',replying_to:'Сообщение ресепшену',reply_ph:'Ваше сообщение для ресепшена…',reply_sent:'📨 Передано ресепшену — ответ появится здесь.',
@@ -1111,7 +1111,7 @@ Object.assign(UI_T.ru,{order_persons:'Человек',order_nights:'Ночей',
   order_fail:'⚠️ Не получилось. Попробуйте ещё раз или обратитесь на ресепшен.',
   my_room:'🛎 Мой номер',mr_title:'Номер вашей комнаты',mr_submit:'Сохранить',forget_room:'🔓 Забыть номер',
   room_saved:'✅ Записано — номер {room}. Заказы и запросы теперь идут прямо на ресепшен с номером вашей комнаты.',
-  room_forgotten:'🔓 Номер комнаты удалён. Назовите его снова, когда захотите что-то заказать.',cancel_title:'Отмена',cancel_btn:'Отменить услугу',cancel_note:'Услуга удаляется из вашей брони и со счёта номера.'});
+  room_forgotten:'🔓 Номер комнаты удалён. Назовите его снова, когда захотите что-то заказать.',cancel_title:'Отмена',cancel_btn:'Отменить услугу',cancel_note:'Услуга удаляется из вашей брони и со счёта номера.',cancel_this:'Отменить этот заказ'});
 Object.assign(UI_T.uk,{order_persons:'Осіб',order_nights:'Ночей',order_days:'Днів',order_from:'З',order_time_ph:'Зручний час (напр. 16:00)',order_note_ph:'Примітка для рецепції (необов\'язково)',
   ext_title:'Продовжити проживання',ext_detail:'Наявність і ціну підтвердить рецепція.',ext_to:'до',from_reception:'Рецепція',
   reply_to_reception:'Відповісти рецепції',replying_to:'Повідомлення рецепції',reply_ph:'Ваше повідомлення для рецепції…',reply_sent:'📨 Передано рецепції — відповідь з\'явиться тут.',
@@ -1121,7 +1121,7 @@ Object.assign(UI_T.uk,{order_persons:'Осіб',order_nights:'Ночей',order_
   order_fail:'⚠️ Не вдалося. Спробуйте ще раз або зверніться на рецепцію.',
   my_room:'🛎 Мій номер',mr_title:'Номер вашої кімнати',mr_submit:'Зберегти',forget_room:'🔓 Забути номер',
   room_saved:'✅ Записано — номер {room}. Замовлення й запити тепер ідуть прямо на рецепцію з номером вашої кімнати.',
-  room_forgotten:'🔓 Номер кімнати видалено. Назвіть його знову, коли захочете щось замовити.',cancel_title:'Скасування',cancel_btn:'Скасувати послугу',cancel_note:'Послугу буде вилучено з вашого бронювання та рахунку номера.'});
+  room_forgotten:'🔓 Номер кімнати видалено. Назвіть його знову, коли захочете щось замовити.',cancel_title:'Скасування',cancel_btn:'Скасувати послугу',cancel_note:'Послугу буде вилучено з вашого бронювання та рахунку номера.',cancel_this:'Скасувати це замовлення'});
 function uiT(k){ const d=UI_T[guestLang]||UI_T.en; return (d[k]!==undefined)?d[k]:UI_T.en[k]; }
 function applyGuestLangUI(){
   const set=(id,html)=>{const e=document.getElementById(id); if(e) e.innerHTML=html;};
@@ -1397,8 +1397,8 @@ async function confirmOrder(id, attempt){
     let d=null; try{ d=await r.json(); }catch(e){}
     if(r.ok && d && d.message){
       card.remove();
-      addBot(d.message);
-      history.push({role:'assistant',content:d.message}); saveHistory();
+      addBot(d.message,{cancelAction:d.cancel_action||null});
+      history.push({role:'assistant',content:d.message,cancel_action:d.cancel_action||undefined}); saveHistory();
       if(d.order_id) trackOrder(d.order_id);
     }else if(r.status>=500 && !attempt){
       setTimeout(()=>confirmOrder(id,1),2500);
@@ -1530,7 +1530,13 @@ function addBot(text, opts){
   // Host může recepci odepsat (uživatel 11. 10.: „bude si host a recepce povídat") — odkaz pod zprávou
   const replyLink=(opts.reception&&opts.oid)?`<div style="margin-top:8px"><button type="button" class="reply-rec-btn" onclick="startReplyToReception('${escapeHtmlOrder(opts.oid)}','${escapeHtmlOrder(opts.title||'')}')">↩︎ ${uiT('reply_to_reception')}</button></div>`:'';
   if(replyLink) document.querySelectorAll('.reply-rec-btn').forEach(b=>b.parentElement.remove());   // tlačítko jen u poslední zprávy recepce
-  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#ffffff;font-weight:800;font-size:16px">${av}</div><div class="msg-body"><div class="msg-bubble">${from}${html}${replyLink}</div><div class="msg-meta"><span class="msg-time">${time}</span></div></div>`;
+  // „Zrušit tuto objednávku" pod potvrzením zápisu do Apalea (uživatel 11. 10.) — otevře kartu zrušení (ta je potvrzení)
+  let cancelBtn='';
+  if(opts.cancelAction&&opts.cancelAction.id){
+    const key='ca'+Math.random().toString(36).slice(2,8); window._cancelActs=window._cancelActs||{}; window._cancelActs[key]=opts.cancelAction;
+    cancelBtn=`<div style="margin-top:8px"><button type="button" class="reply-rec-btn" style="border-color:rgba(255,79,106,.55);color:#ff4f6a" onclick="showOrderCards([window._cancelActs['${key}']]);this.parentElement.remove()">🗑 ${uiT('cancel_this')}</button></div>`;
+  }
+  d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#ffffff;font-weight:800;font-size:16px">${av}</div><div class="msg-body"><div class="msg-bubble">${from}${html}${replyLink}${cancelBtn}</div><div class="msg-meta"><span class="msg-time">${time}</span></div></div>`;
   const meta=d.querySelector('.msg-meta');
   const btn=document.createElement('button');
   btn.type='button'; btn.className='speak-btn'; btn.textContent='🔊';

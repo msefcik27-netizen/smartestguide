@@ -6702,12 +6702,13 @@ def _order_secret() -> bytes:
         _ORDER_FALLBACK_SECRET = _sec.token_bytes(32)
         return _ORDER_FALLBACK_SECRET
 
-def _sign_proposal(payload: dict) -> str:
+def _sign_proposal(payload: dict, ttl: int = None) -> str:
     """Nabídka jako SAMONOSNÝ podepsaný token (base64url(json).podpis) — žádný stav na serveru,
     přežije restart i víc instancí. Nález 11. 10. 2026: host klikl „Poslat recepci" během
-    nasazení stagingu → nabídka z paměti zmizela → „Nepovedlo se"."""
+    nasazení stagingu → nabídka z paměti zmizela → „Nepovedlo se". ttl = platnost (výchozí 15 min;
+    tlačítko „Zrušit tuto objednávku" pod potvrzením má 48 h)."""
     import base64, hmac, hashlib, time as _t
-    body = dict(payload); body["exp"] = int(_t.time()) + _ORDER_TTL
+    body = dict(payload); body["exp"] = int(_t.time()) + (ttl or _ORDER_TTL)
     raw = base64.urlsafe_b64encode(json.dumps(body, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).decode().rstrip("=")
     sig = hmac.new(_order_secret(), raw.encode(), hashlib.sha256).hexdigest()[:32]
     return raw + "." + sig
@@ -6721,10 +6722,10 @@ def _load_proposal(token: str):
             return None
         body = json.loads(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)).decode("utf-8"))
         now = _t.time()
-        if body.get("exp", 0) < now or _ORDER_USED.get(sig, 0) > now - _ORDER_TTL:
+        if body.get("exp", 0) < now or _ORDER_USED.get(sig, 0) > now - 48 * 3600:
             return None
         _ORDER_USED[sig] = now
-        for k in [k for k, v in _ORDER_USED.items() if v < now - _ORDER_TTL]:
+        for k in [k for k, v in _ORDER_USED.items() if v < now - 48 * 3600]:
             _ORDER_USED.pop(k, None)
         return body
     except Exception:
@@ -7532,8 +7533,17 @@ async def guest_order(req: GuestOrderRequest):
             {"kind": kind, "mode": "auto", "ok": ok, "title": title, "detail": detail, "price": price_txt,
              "reservation_id": p["reservation_id"], "error": "" if ok else res.get("error", "")}))
     logging.warning("Guest order %s hotel=%s res=%s %s → ok=%s already=%s status=%s", kind, hid, p["reservation_id"], title, ok, res.get("already"), res.get("status"))
-    return {"status": "ok", "done": "booked" if ok else "failed", "already": bool(res.get("already")),
-            "message": _order_msg("booked" if ok else "failed", lang, title)}
+    out = {"status": "ok", "done": "booked" if ok else "failed", "already": bool(res.get("already")),
+           "message": _order_msg("booked" if ok else "failed", lang, title)}
+    if ok:
+        # Tlačítko „Zrušit tuto objednávku" rovnou pod potvrzením (uživatel 11. 10.) — podepsaná akce na 48 h,
+        # samotné zrušení pořád potvrzuje host kartou (ochrana proti omylu)
+        cancel = {"kind": "cancel", "service_id": p["service_id"], "title": title, "dates": p.get("dates") or [],
+                  "count": int(p.get("count") or 1), "price": p.get("price"), "currency": p.get("currency", ""),
+                  "mode": "auto", "detail": ", ".join(p.get("dates") or [])}
+        cancel["id"] = _sign_proposal({**cancel, "hid": hid, "reservation_id": p["reservation_id"], "room": p.get("room", "")}, ttl=48 * 3600)
+        out["cancel_action"] = cancel
+    return out
 
 @app.post("/api/guest/chat")
 async def guest_chat(req: GuestChatRequest, request: Request):
