@@ -6944,7 +6944,11 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
                    "detail": f"{count}× · {', '.join(dates)}"}
             act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})
             actions.append(act)
-            lines.append(f"- {o['name']}: {count}× {', '.join(dates)} = {total} {cur}"
+            _meal = any(w in (o.get("name") or "").lower() for w in _MEAL_WORDS)
+            _unit_lbl = ("per person per day" if (per_person and _meal) else "per person per night" if per_person else
+                         "per room per day" if _meal else "per room per night")
+            lines.append(f"- {o['name']}: {count}× {', '.join(dates)} = {total:g} {cur} (PLATNÁ CENA {float(unit):g} {cur} {_unit_lbl}; "
+                         "říkej ji přesně takto, bez desetinné nuly)"
                          + (" (potvrzením se připíše na účet pokoje)" if mode == "auto" else " (potvrzením odejde požadavek recepci, která ho vyřídí)"))
             if len(actions) >= 2:
                 break
