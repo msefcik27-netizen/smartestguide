@@ -429,6 +429,8 @@ const EN_MAP = {
   "Propojte svůj hotelový systém":"Connect your hotel system","Používáte":"Do you use",
   "Používáte Apaleo? Po propojení bude Alex znát pobyty hostů a odpoví jim osobně (check-out, balíček, délka pobytu). Se zápisovým oprávněním může po potvrzení hostem připsat objednanou službu na rezervaci — jen položky, které povolíte, do limitu, který nastavíte. Žádné kopírování klíčů — jedno kliknutí a souhlas v Apaleu.":"Do you use Apaleo? Once connected, Alex knows each guest's stay and answers personally (check-out, package, length of stay). With the write permission it can add a service the guest confirmed to the reservation — only items you allow, up to a limit you set. No keys to copy — one click and consent in Apaleo.",
   "🧪 Vyzkoušet Alexe jako host":"🧪 Try Alex as a guest","Otevře chat přesně tak, jak ho uvidí váš host":"Opens the chat exactly as your guest sees it",
+  "🔌 Hotelový systém":"🔌 Hotel system","🛎 Objednávky v chatu":"🛎 Orders in chat","📬 Požadavky hostů":"📬 Guest requests","🏨 Vaše hotely":"🏨 Your hotels","➕ Přidat další hotel":"➕ Add another hotel","💳 Předplatné":"💳 Subscription","🧾 Faktury":"🧾 Invoices","🧭 Průvodce nastavením":"🧭 Setup guide","📈 Přehled & statistiky":"📈 Overview & stats",
+  "Propojení s Apaleem — pobyty hostů a zápis objednávek":"Apaleo connection — guest stays and order booking","Co smí Alex nabízet a objednat, ceny, limit":"What Alex may offer and book, prices, limit","Objednávky a žádosti hostů, odpovědi recepce":"Guest orders and requests, reception replies","Všechny hotely pod vaším účtem":"All hotels under your account","Další hotel na stejné předplatné":"Another hotel on the same subscription","Stav předplatného a platby":"Subscription status and payments","Vystavené faktury ke stažení":"Issued invoices to download","Co ještě doplnit, aby Alex odpovídal nejlépe":"What to add so Alex answers best","Kolik hostů Alex obsloužil a na co se ptali":"How many guests Alex served and what they asked",
   "Požadavky hostů":"Guest requests","Co smí Alex objednat na účet pokoje, limit, kam chodí e-maily":"What Alex may book to the room account, the limit, where e-mails go","Položky, které smí Alex nabízet, ceny a jednotky, kam chodí e-maily":"Items Alex may offer, prices and units, where e-mails go","posledních 30 dní · odpověď recepce host vidí v chatu":"last 30 days · the guest sees reception's reply in chat","Čeká":"Waiting","Potvrzeno":"Confirmed","Nelze vyřídit":"Cannot arrange","Zapsáno do Apalea":"Written to Apaleo",
   "Zatím žádný požadavek. Jakmile host něco objedná v chatu, objeví se tady i v e-mailu.":"No requests yet. As soon as a guest orders something in chat, it appears here and in your e-mail.",
   "Odpovědět":"Reply","Pokoj":"Room","Stav":"Status","Čas":"Time","Co":"What","Vzkaz":"Message","Tento měsíc":"This month","Minulý měsíc":"Last month","Celkem":"All time",
@@ -1029,6 +1031,12 @@ const PORTAL_FIXED_TILE = {
   'group-section':'🏨 Vaše hotely', 'add-hotel-section':'➕ Přidat další hotel', 'payment-section':'💳 Předplatné', 'invoices-section':'🧾 Faktury',
   'onboarding-wizard':'🧭 Průvodce nastavením', 'monthly-report-section':'📈 Přehled & statistiky'
 };
+const PORTAL_FIXED_DESC = {
+  'pms-section':'Propojení s Apaleem — pobyty hostů a zápis objednávek', 'orders-section':'Co smí Alex nabízet a objednat, ceny, limit',
+  'requests-section':'Objednávky a žádosti hostů, odpovědi recepce', 'group-section':'Všechny hotely pod vaším účtem',
+  'add-hotel-section':'Další hotel na stejné předplatné', 'payment-section':'Stav předplatného a platby', 'invoices-section':'Vystavené faktury ke stažení',
+  'onboarding-wizard':'Co ještě doplnit, aby Alex odpovídal nejlépe', 'monthly-report-section':'Kolik hostů Alex obsloužil a na co se ptali'
+};
 function currentPortalTab(){
   // Jen kotva v adrese; bez ní vždy Přehled — odkazy z e-mailů (uvítací, tisk) vedou na /portal?token=
   // bez kotvy a hotel má hned vidět tiskové materiály (uživatel 11. 10.).
@@ -1094,6 +1102,7 @@ function buildPortalTiles(){
       } else {
         const lbl = tr(PORTAL_FIXED_TILE[el.id] || el.id);
         const m = lbl.match(/^(\S+)\s+(.*)$/); icon = m ? m[1] : '▪'; title = m ? m[2] : lbl;
+        desc = tr(PORTAL_FIXED_DESC[el.id] || '');
         const pend = el.querySelector('.section-title span'); if (pend) scoreHtml = pend.outerHTML;   // (3) čekajících
       }
       return `<button type="button" class="ptile" data-sec="${el.id}" onclick="openPortalBlock('${tab}','${el.id}')" aria-current="${String(PORTAL_SOLO[tab]===el.id)}">
