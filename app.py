@@ -2385,8 +2385,18 @@ def hotel_portal_orders(token: str):
         out["pending"] = max(0, out["requested"] - out["confirmed"] - out["declined"])
         out["total"] = out["requested"] + out["booked"]
         return out
+    # Tento měsíc se počítá ze samotných záznamů (sedí se seznamem i s „(N)" v titulku — uživatel 11. 10.
+    # viděl 3 čekající v záhlaví a 0 v čipech, protože počítadla běží až od nasazení); „zapsáno do Apalea"
+    # záznam nemá, to bere z počítadel.
+    this_rows = [r for r in rows if (r["created"] or "")[:7] == now_key]
+    this_month = {"requested": len(this_rows),
+                  "confirmed": sum(1 for r in this_rows if r["status"] == "confirmed"),
+                  "declined": sum(1 for r in this_rows if r["status"] == "declined"),
+                  "pending": sum(1 for r in this_rows if r["status"] == "pending"),
+                  "booked": int((monthly.get(now_key) or {}).get("booked", 0))}
+    this_month["total"] = this_month["requested"] + this_month["booked"]
     return {"status": "ok", "orders": rows[:50], "pending_now": sum(1 for r in rows if r["status"] == "pending"),
-            "stats": {"this_month": _sum([now_key]), "prev_month": _sum([prev_key]), "all_time": _sum(list(monthly.keys())),
+            "stats": {"this_month": this_month, "prev_month": _sum([prev_key]), "all_time": _sum(list(monthly.keys())),
                       "month_label": _month_label(now_key, "cs" if cs else "en"), "prev_label": _month_label(prev_key, "cs" if cs else "en")}}
 
 @app.get("/api/hotel-portal/monthly-report")

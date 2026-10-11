@@ -211,9 +211,13 @@ html{color-scheme:light}
 <div style="flex:1;min-width:0;overflow-y:auto">
 <div class="container" id="completeness-banner" style="max-width:100%;margin:16px 0 0;padding:0 32px"></div>
 
-<div class="container" style="max-width:100%;padding:10px 32px 0;display:flex;justify-content:flex-end;gap:8px">
-  <button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="setAllSections(true)">⊞ Rozbalit vše</button>
-  <button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="setAllSections(false)">⊟ Sbalit vše</button>
+<div class="container" style="max-width:100%;padding:10px 32px 0;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+  <!-- Vyzkoušet Alexe jako host — nahoře (uživatel 11. 10. 2026: „tlačítko nahoru") -->
+  <a id="try-alex-btn" class="btn btn-primary" href="#" target="_blank" rel="noopener" style="font-size:12px;padding:7px 14px;text-decoration:none;color:#ffffff" title="Otevře chat přesně tak, jak ho uvidí váš host">🧪 Vyzkoušet Alexe jako host</a>
+  <span style="display:flex;gap:8px">
+    <button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="setAllSections(true)">⊞ Rozbalit vše</button>
+    <button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="setAllSections(false)">⊟ Sbalit vše</button>
+  </span>
 </div>
 
 <div class="container" id="main-container">
@@ -424,6 +428,7 @@ const EN_MAP = {
   "→ kód je":"→ the code is","Odpojit Apaleo":"Disconnect Apaleo",
   "Propojte svůj hotelový systém":"Connect your hotel system","Používáte":"Do you use",
   "Používáte Apaleo? Po propojení bude Alex znát pobyty hostů a odpoví jim osobně (check-out, balíček, délka pobytu). Se zápisovým oprávněním může po potvrzení hostem připsat objednanou službu na rezervaci — jen položky, které povolíte, do limitu, který nastavíte. Žádné kopírování klíčů — jedno kliknutí a souhlas v Apaleu.":"Do you use Apaleo? Once connected, Alex knows each guest's stay and answers personally (check-out, package, length of stay). With the write permission it can add a service the guest confirmed to the reservation — only items you allow, up to a limit you set. No keys to copy — one click and consent in Apaleo.",
+  "🧪 Vyzkoušet Alexe jako host":"🧪 Try Alex as a guest","Otevře chat přesně tak, jak ho uvidí váš host":"Opens the chat exactly as your guest sees it",
   "Požadavky hostů":"Guest requests","posledních 30 dní · odpověď recepce host vidí v chatu":"last 30 days · the guest sees reception's reply in chat","Čeká":"Waiting","Potvrzeno":"Confirmed","Nelze vyřídit":"Cannot arrange","Zapsáno do Apalea":"Written to Apaleo",
   "Zatím žádný požadavek. Jakmile host něco objedná v chatu, objeví se tady i v e-mailu.":"No requests yet. As soon as a guest orders something in chat, it appears here and in your e-mail.",
   "Odpovědět":"Reply","Pokoj":"Room","Stav":"Status","Čas":"Time","Co":"What","Vzkaz":"Message","Tento měsíc":"This month","Minulý měsíc":"Last month","Celkem":"All time",
@@ -934,14 +939,6 @@ function renderPortal() {
       </div>
     `, [])}
 
-    ${renderSection('🧪', 'Vyzkoušet Alexe', 'Otevřete chat přesně tak, jak ho uvidí váš host', `
-      <div style="margin-bottom:16px;font-size:14px;color:var(--muted);line-height:1.7">
-        Klikněte a vyzkoušejte si Alexe jako host — zeptejte se na WiFi, snídani, parkování nebo tipy na okolí. Uvidíte přesně to, co uvidí vaši hosté po naskenování QR kódu.
-        <br><br>💡 Čím víc údajů máte vyplněno výše, tím lépe Alex odpovídá — po každé úpravě si výsledek hned otestujte.
-      </div>
-      <a href="/h/${h.slug||h.id}" target="_blank" rel="noopener" style="display:inline-block;background:var(--accent);color:#ffffff;text-decoration:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700">🧪 Otevřít Alexe (jako host)</a>
-    `, [])}
-
     ${renderSection('🖨️', 'Tiskové materiály', 'QR plakát a letáky pro hosty — kdykoli ke stažení a tisku', `
       <div style="margin-bottom:16px;font-size:14px;color:var(--muted);line-height:1.7">
         Stejné materiály, které jste dostali v uvítacím e-mailu — QR plakát pro hosty i letáky (A4/A5). Otevřete je kdykoli znovu, vytiskněte nebo uložte jako PDF.
@@ -990,6 +987,7 @@ function renderPortal() {
   `;
 
   translateDom(document.getElementById('main-container'));
+  const tryBtn=document.getElementById('try-alex-btn'); if(tryBtn){ tryBtn.href='/h/'+(h.slug||h.id); translateDom(tryBtn.parentElement); }
   applyPortalTab(currentPortalTab());   // záložky: ukázat jen bloky aktivní záložky
 
   // Init tag inputs
