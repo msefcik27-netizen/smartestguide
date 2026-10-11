@@ -807,7 +807,9 @@ async function loadHotel(){
   }
       // Obnov předchozí konverzaci — kontext se neztrácí
       if(history.length){
-        history.forEach(m => { if(m.role==='user') addUser(m.content); else if(m.role==='assistant') addBot(m.content,{reception:m.src==='reception',oid:m.oid||'',title:m.title||''}); });
+        // Starší zprávy recepce v historii (před 11. 10.) nemají oid → tlačítko Odpovědět recepci se naváže na poslední sledovaný požadavek
+        let _lastTracked=''; try{ const _t=JSON.parse(localStorage.getItem('sg_orders_'+hotelId)||'[]'); if(_t.length) _lastTracked=_t[_t.length-1].id||''; }catch(e){}
+        history.forEach(m => { if(m.role==='user') addUser(m.content); else if(m.role==='assistant') addBot(m.content,{reception:m.src==='reception',oid:m.oid||(m.src==='reception'?_lastTracked:''),title:m.title||''}); });
       }
   const greetFn=GREETINGS[guestLang]||GREETINGS['en'];
       // Pozor: chybějící jazyk v téhle mapě = anglické uvítání i pro Čecha (tester 7. 8. 2026).
