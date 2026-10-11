@@ -10,6 +10,7 @@
 #   - Minimalizace dat: tahá se jen aktuální pobyt pro daný pokoj, nic se neukládá do DB.
 #   - Credentials per hotel (pms_client_id/secret v hotelu, jen pro admin — nikdy ke guestům).
 
+import asyncio
 import base64
 import logging
 import re
@@ -330,6 +331,13 @@ def _drop_connect_token(hotel: dict):
     """Zahodí cachovaný Connect access token (po 401/403 — token zneplatněn)."""
     _connect_token_cache.pop((hotel.get("id") or "") + ":" + (hotel.get("pms_property_id") or ""), None)
 
+def _retry_after(r) -> float:
+    """Kolik vteřin počkat po 429 (hlavička Retry-After), nejvýš 3 — host čeká na odpověď v chatu."""
+    try:
+        return max(0.2, min(float(r.headers.get("Retry-After") or 1), 3.0))
+    except (TypeError, ValueError):
+        return 1.0
+
 async def _apaleo_get(hotel: dict, path: str, params: dict, quiet: bool = False):
     """GET na Apaleo API s tokenem hotelu. Vrací JSON dict nebo None.
     quiet=True: 403 (chybějící scope u starého souhlasu) NEoznačuje _pms_fail —
@@ -342,6 +350,11 @@ async def _apaleo_get(hotel: dict, path: str, params: dict, quiet: bool = False)
     async with httpx.AsyncClient(timeout=8.0) as client:
         r = await client.get(f"{_APALEO_API}{path}",
                              headers={"Authorization": f"Bearer {token}"}, params=params)
+        if r.status_code == 429:
+            # Rate limit (apaleo.dev/guides/api/rate-limiting): počkat podle Retry-After a zkusit jednou znovu
+            await asyncio.sleep(_retry_after(r))
+            r = await client.get(f"{_APALEO_API}{path}",
+                                 headers={"Authorization": f"Bearer {token}"}, params=params)
     if r.status_code == 200:
         try:
             return r.json()
@@ -777,10 +790,21 @@ async def _apaleo_send(hotel: dict, method: str, path: str, params: dict = None,
     token = await _apaleo_access_token(hotel)
     if not token:
         return 0, "token"
-    async with httpx.AsyncClient(timeout=12.0) as client:
-        r = await client.request(method, f"{_APALEO_API}{path}",
-                                 headers={"Authorization": f"Bearer {token}"},
-                                 params=params or None, json=body)
+    try:
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            r = await client.request(method, f"{_APALEO_API}{path}",
+                                     headers={"Authorization": f"Bearer {token}"},
+                                     params=params or None, json=body)
+            if r.status_code == 429:
+                # 429 = požadavek se nezpracoval → po Retry-After ho lze bezpečně poslat znovu
+                await asyncio.sleep(_retry_after(r))
+                r = await client.request(method, f"{_APALEO_API}{path}",
+                                         headers={"Authorization": f"Bearer {token}"},
+                                         params=params or None, json=body)
+    except httpx.TimeoutException:
+        # Zápis nemá idempotency key: po timeoutu se NEVÍ, jestli proběhl → -1, volající stav ověří čtením
+        logging.warning("Apaleo %s %s: timeout (výsledek neznámý)", method, path)
+        return -1, "timeout"
     if r.status_code == 204:
         return 204, {}
     if r.status_code == 200:
@@ -1026,6 +1050,22 @@ async def apaleo_room_free_for_extension(hotel: dict, stay: "Stay", new_departur
         return None
     return any(((u.get("name") or "").strip().lower() == cur) for u in d.get("units") or [])
 
+async def apaleo_extension_precheck(hotel: dict, stay: "Stay") -> Optional[dict]:
+    """Smí se u rezervace měnit odjezd? GET /booking/v1/reservations/{id}?expand=actions → akce
+    AmendDeparture (Apaleo ji zakáže např. u zavřeného/zavíraného hlavního účtu nebo ve stavu mimo
+    Confirmed/InHouse). Vrací {allowed, reasons} nebo None (nejde zjistit → rozhodne až amend)."""
+    rid = _rid(stay)
+    if not rid:
+        return None
+    d = await _apaleo_get(hotel, f"/booking/v1/reservations/{rid}", {"expand": "actions"}, quiet=True)
+    if not d:
+        return None
+    act = next((a for a in d.get("actions") or [] if a.get("action") == "AmendDeparture"), None)
+    if act is None:
+        return None
+    return {"allowed": bool(act.get("isAllowed")),
+            "reasons": [str(x.get("code") or "") for x in act.get("reasons") or [] if x.get("code")]}
+
 async def apaleo_extension_check(hotel: dict, stay: "Stay") -> Optional[dict]:
     """Stav rezervace PO prodloužení: GET /booking/v1/reservations/{id}?expand=timeSlices
     (scope reservations.read). Apaleo při prodloužení s obsazeným pokojem zápis neodmítne —
@@ -1042,9 +1082,12 @@ async def apaleo_extension_check(hotel: dict, stay: "Stay") -> Optional[dict]:
     added = [ts for ts in d.get("timeSlices") or [] if old_dep and str(ts.get("from") or "")[:10] >= old_dep]
     units = [((ts.get("unit") or {}).get("name") or "").strip() for ts in added]
     cur = (stay.room or "").strip().lower()
-    return {"departure": str(d.get("departure") or "")[:10],
-            "units": units,
-            "moved": bool(cur) and any(u.lower() != cur for u in units)}
+    # Apaleo stěhování samo hlásí validační zprávou AutoUnitAssignment/UnitMoved. Ta ale může být
+    # i z dřívějška, proto rozhodují pokoje přidaných nocí; zpráva jen když noci pokoj nenesou.
+    flagged = any(m.get("code") == "UnitMoved" or m.get("category") == "AutoUnitAssignment"
+                  for m in d.get("validationMessages") or [])
+    moved = bool(cur) and any(u.lower() != cur for u in units) if any(units) else flagged
+    return {"departure": str(d.get("departure") or "")[:10], "units": units, "moved": moved, "flagged": flagged}
 
 async def apaleo_amend_stay(hotel: dict, stay: "Stay", offer: dict) -> dict:
     """PUT /booking/v1/reservation-actions/{id}/amend (scope reservations.manage).

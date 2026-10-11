@@ -7306,6 +7306,22 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
     if wr["pms_write_extension"] and _ext_intent(message):
         wanted = _ext_nights_wanted(message, getattr(stay, "departure", "") or "")
         n = min(wanted, 7)
+        # Smí se u téhle rezervace vůbec měnit odjezd? (Apaleo akce AmendDeparture — zakázaná např. při
+        # zavřeném účtu.) Když ne, karta se nenabízí a host jde na recepci; amend by skončil 422.
+        try:
+            _pre = await pms_layer.apaleo_extension_precheck(_ph, stay)
+        except Exception as e:
+            _pre = None
+            logging.warning("Kontrola AmendDeparture selhala: %s", e)
+        if _pre and _pre.get("allowed") is False:
+            logging.warning("Guest extension hotel=%s res=%s: AmendDeparture není povoleno (%s)", hid, rid, ", ".join(_pre.get("reasons") or []))
+            if actions:
+                block = ("OBJEDNÁNÍ V CHATU — VÝJIMKA z pravidla 'nic neobjednávej': pod tvou odpovědí se hostovi zobrazí "
+                         "TLAČÍTKO K POTVRZENÍ pro tyto položky:\n" + "\n".join(lines) + "\n" + _ORDER_TONE)
+                return actions, block
+            return [], ("PRODLOUŽENÍ V CHATU: u této rezervace teď hotelový systém změnu odjezdu nedovoluje → žádné tlačítko "
+                        "se nezobrazí. Řekni hostovi, že prodloužení v chatu zařídit nejde, a odkaž ho na recepci. "
+                        "Neuváděj cenu ani dostupnost jako jistou.")
         async def _ext_valid(k: int):
             _offs = await pms_layer.apaleo_reservation_extension_offers(_ph, stay, k) or []
             return next((o for o in _offs if not o.get("validation")), None)
@@ -7922,6 +7938,16 @@ async def guest_order(req: GuestOrderRequest):
         res = await pms_layer.apaleo_amend_stay(_ph, stay, offer)
         _persist_rotated_refresh_token(hid, _ph)
         ok = bool(res.get("ok"))
+        _chk = None
+        try:
+            # Jedno čtení po zápisu: (1) po timeoutu rozhodne, jestli se zápis provedl (amend nemá
+            # idempotency key, naslepo se neopakuje), (2) odhalí stěhování do jiného pokoje.
+            if ok or res.get("status") == -1:
+                _chk = await pms_layer.apaleo_extension_check(_ph, stay)
+        except Exception as e:
+            logging.warning("Guest extension hotel=%s res=%s: kontrola po zápisu selhala: %s", hid, p["reservation_id"], e)
+        if not ok and res.get("status") == -1 and _chk and _chk.get("departure") == want_dep:
+            ok = True   # odpověď nedorazila, ale odjezd v Apaleu už je nový
         if ok:
             _stay_cache_drop(hid, p["reservation_id"], p.get("room", ""))   # nový odjezd hned pro další dotaz
             try:
@@ -7938,16 +7964,12 @@ async def guest_order(req: GuestOrderRequest):
         # Reservation Management). Proto se rezervace po zápisu načte znovu — stěhování se řekne
         # hostovi a jde recepci do mailu vždy.
         room_warn, move_units = "", ""
-        if ok:
-            try:
-                _chk = await pms_layer.apaleo_extension_check(_ph, stay)
-                if _chk and _chk.get("moved"):
-                    room_warn = "room"
-                    move_units = ", ".join(dict.fromkeys(u for u in _chk.get("units") or [] if u))
-                elif _chk and _chk.get("departure") and _chk["departure"] != want_dep:
-                    room_warn = "departure"
-            except Exception as e:
-                logging.warning("Guest extension hotel=%s res=%s: kontrola po zápisu selhala: %s", hid, p["reservation_id"], e)
+        if ok and _chk:
+            if _chk.get("moved"):
+                room_warn = "room"
+                move_units = ", ".join(dict.fromkeys(u for u in _chk.get("units") or [] if u))
+            elif _chk.get("departure") and _chk["departure"] != want_dep:
+                room_warn = "departure"
         # E-mail o zapsaném prodloužení je volitelný („posílat i zapsané"); selhání a nesedící kontrola jdou vždy.
         if not ok or room_warn or wr.get("pms_write_notify_always"):
             asyncio.create_task(_send_write_notification(hid, dict(h), p.get("room", ""),
