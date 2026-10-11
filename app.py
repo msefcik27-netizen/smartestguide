@@ -6927,13 +6927,16 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
                    "detail": ", ".join(dts)}
             act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})
             actions.append(act)
-            lines.append(f"- ZRUŠIT {bsvc['name']} ({', '.join(dts)}, {total:g} {bsvc.get('currency') or ''}) — potvrzením se služba odebere z rezervace i z účtu pokoje")
+            lines.append(f"- ZRUŠIT {bsvc['name']}: objednáno NA DEN {', '.join(dts)} (to je datum služby, ne příjezd), "
+                         f"{total:g} {bsvc.get('currency') or ''} — potvrzením se služba odebere z rezervace i z účtu pokoje")
         if actions:
             block = ("ZRUŠENÍ OBJEDNÁVKY — pod tvou odpovědí se hostovi zobrazí TLAČÍTKO 'Zrušit' pro:\n" + "\n".join(lines) +
                      "\nŘekni, co má na rezervaci, a že zrušení potvrdí tlačítkem; nic nezrušuj slovy sám. " + _ORDER_TONE)
             return actions, block
-        if booked == [] and _CANCEL_INTENT_RE.search(message or ""):
-            return [], "ZRUŠENÍ: host chce něco zrušit, ale na rezervaci v Apaleu není žádná objednaná služba. Řekni mu to a nabídni recepci."
+        if not hits:
+            return [], ("ZRUŠENÍ: host chce něco zrušit, ale na jeho rezervaci v Apaleu teď není žádná objednaná služba, kterou by šlo "
+                        "zrušit. Řekni mu to. NETVRĎ, že hotel službu nenabízí — nabízí; jen ji nemá objednanou. Pokud ji chce "
+                        "naopak objednat, ať to napíše.")
     # a) služby z allowlistu (nabídky se čtou i s prázdným allowlistem — portál z nich
     #    staví seznam zaškrtávátek přes pms_services_seen; nabídnout se smí jen povolené)
     if wr["pms_write_services"]:
