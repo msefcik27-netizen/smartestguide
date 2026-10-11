@@ -93,6 +93,7 @@ async def _reminder_background_loop():
             await _send_monthly_reports_if_due()
             await _apaleo_daily_health_check()
             _cleanup_pending_apaleo_regs()
+            _cleanup_abandoned_landing_regs()
         except Exception as e:
             logging.error("Background loop error: %s", e)
         await asyncio.sleep(6 * 60 * 60)
@@ -120,6 +121,54 @@ def _cleanup_pending_apaleo_regs():
             logging.info("Uklizeno %d starých pending Apaleo registrací", len(stale))
     except Exception as e:
         logging.warning("Úklid pending Apaleo registrací selhal: %s", e)
+
+def _cleanup_abandoned_landing_regs():
+    """Auto-archivace opuštěných registrací z landing page starších 48 h.
+    Hoteliér vyplnil formulář, ale u Stripe checkoutu odpadl → neaktivní „duch"
+    záznam leží v DB donekonečna (ukazuje se i ve skupině hotelů a chodí mu
+    připomínka). Po 48 h ho archivujeme (NE mažeme — mazání jen s výslovným
+    souhlasem). Chrání se Apaleo i DEMO hotely a cokoliv, co kdy platilo."""
+    try:
+        db = db_load()
+        now = datetime.utcnow()
+        changed = False
+        for hid, h in db.get("hotels", {}).items():
+            try:
+                # už aktivní / archivovaný / free → nechat být
+                if h.get("subscription_active") or h.get("archived") or h.get("is_free"):
+                    continue
+                # jen registrace z landing page
+                if not (h.get("origin_source") == "landing_page" or h.get("origin") == "automatic"):
+                    continue
+                # NIKDY nearchivovat Apaleo původ (origin_source "apaleo*" nebo kanál apaleo_store)
+                if str(h.get("origin_source") or "").lower().startswith("apaleo") \
+                        or (h.get("acquisition_channel") or "") == "apaleo_store":
+                    continue
+                # NIKDY nearchivovat DEMO hotel
+                if h.get("is_demo") or (h.get("name") or "").strip().upper().startswith("DEMO"):
+                    continue
+                # cokoliv co kdy platilo nebo mělo trial → není to duch
+                if h.get("stripe_subscription_id") or h.get("trial_used"):
+                    continue
+                # defenzivní parsování created_at — při selhání záznam NEARCHIVOVAT
+                created_str = h.get("created_at") or ""
+                try:
+                    created = datetime.fromisoformat(str(created_str).replace("Z", ""))
+                except Exception:
+                    continue
+                if (now - created).total_seconds() <= 48 * 3600:
+                    continue
+                h["archived"] = True
+                h["archived_reason"] = "abandoned_registration_auto"
+                h["archived_at"] = now.isoformat()
+                changed = True
+                logging.info("Auto-archivován opuštěný landing záznam %s (%s)", hid, h.get("name", ""))
+            except Exception:
+                continue
+        if changed:
+            db_save(db)
+    except Exception as e:
+        logging.warning("Úklid opuštěných landing registrací selhal: %s", e)
 
 async def _apaleo_daily_health_check():
     """Denní proaktivní kontrola PMS spojení (1. 8. 2026, na Martinovo přání).
@@ -308,6 +357,95 @@ async def _email_backup(src) -> bool:
         logging.warning("E-mail zálohy selhal: %s", e)
         return False
 
+# Jazyk připomínky nedokončené registrace podle země hotelu (h["country"]).
+# Neznámá / nevyplněná země → en (fallback).
+_REG_MAIL_LANG = {
+    "CZ": "cs",
+    "SK": "sk",
+    "DE": "de", "AT": "de", "CH": "de",
+    "PL": "pl",
+}
+# Překlady. HTML struktura i styl tlačítka zůstávají stejné, mění se jen lidské
+# texty. {name} se dosazuje; za greeting se volitelně přidá jméno kontaktu.
+_REG_MAIL_TXT = {
+    "en": {
+        "subject": "Your SMARTEST GUIDE registration for {name} is one click away",
+        "greeting": "Hello",
+        "line1": "you started setting up the AI concierge for <b>{name}</b> — the only step left is "
+                 "activating your <b>14-day free trial</b> (no charge today).",
+        "button": "Finish registration →",
+        "line2": "Your details are saved — this takes under a minute. Alex will start answering "
+                 "your guests' questions in 100+ languages the same day.",
+        "disclaimer": "The link is valid for 24 hours from your registration. If it has expired, just "
+                      "register again at smartestguide.com — it only takes a moment. Didn't request this? "
+                      "Simply ignore this e-mail and nothing will be created or charged.",
+        "signoff": "Questions? Just reply.<br>— SMARTEST GUIDE · support@smartestguide.com",
+        "text": "Finish your SMARTEST GUIDE registration for {name}: {url} "
+                "(link valid 24h; no charge today - 14-day free trial)",
+    },
+    "cs": {
+        "subject": "Vaše registrace SMARTEST GUIDE pro {name} je na jedno kliknutí",
+        "greeting": "Dobrý den",
+        "line1": "začali jste nastavovat AI concierge pro <b>{name}</b> — zbývá už jen aktivovat vaši "
+                 "<b>14denní zkušební verzi zdarma</b> (dnes bez poplatku).",
+        "button": "Dokončit registraci →",
+        "line2": "Vaše údaje jsou uložené — zabere to necelou minutu. Alex začne odpovídat na dotazy "
+                 "vašich hostů ve více než 100 jazycích ještě tentýž den.",
+        "disclaimer": "Odkaz je platný 24 hodin od vaší registrace. Pokud vypršel, stačí se znovu "
+                      "zaregistrovat na smartestguide.com — je to otázka chvilky. Neregistrovali jste se? "
+                      "Tento e-mail klidně ignorujte, nic se nevytvoří ani nebude účtováno.",
+        "signoff": "Máte dotaz? Stačí odpovědět.<br>— SMARTEST GUIDE · support@smartestguide.com",
+        "text": "Dokončete svou registraci SMARTEST GUIDE pro {name}: {url} "
+                "(odkaz platí 24 h; dnes bez poplatku – 14denní zkušební verze zdarma)",
+    },
+    "sk": {
+        "subject": "Vaša registrácia SMARTEST GUIDE pre {name} je na jedno kliknutie",
+        "greeting": "Dobrý deň",
+        "line1": "začali ste nastavovať AI concierge pre <b>{name}</b> — zostáva už len aktivovať vašu "
+                 "<b>14-dňovú skúšobnú verziu zadarmo</b> (dnes bez poplatku).",
+        "button": "Dokončiť registráciu →",
+        "line2": "Vaše údaje sú uložené — zaberie to necelú minútu. Alex začne odpovedať na otázky "
+                 "vašich hostí vo viac než 100 jazykoch ešte v ten istý deň.",
+        "disclaimer": "Odkaz je platný 24 hodín od vašej registrácie. Ak vypršal, stačí sa znova "
+                      "zaregistrovať na smartestguide.com — je to otázka chvíľky. Neregistrovali ste sa? "
+                      "Tento e-mail pokojne ignorujte, nič sa nevytvorí ani nebude účtované.",
+        "signoff": "Máte otázku? Stačí odpovedať.<br>— SMARTEST GUIDE · support@smartestguide.com",
+        "text": "Dokončite svoju registráciu SMARTEST GUIDE pre {name}: {url} "
+                "(odkaz platí 24 h; dnes bez poplatku – 14-dňová skúšobná verzia zadarmo)",
+    },
+    "de": {
+        "subject": "Ihre SMARTEST GUIDE-Registrierung für {name} ist nur einen Klick entfernt",
+        "greeting": "Hallo",
+        "line1": "Sie haben begonnen, den KI-Concierge für <b>{name}</b> einzurichten — es fehlt nur noch "
+                 "die Aktivierung Ihrer <b>14-tägigen kostenlosen Testphase</b> (heute keine Kosten).",
+        "button": "Registrierung abschließen →",
+        "line2": "Ihre Daten sind gespeichert — das dauert weniger als eine Minute. Alex beantwortet die "
+                 "Fragen Ihrer Gäste noch am selben Tag in über 100 Sprachen.",
+        "disclaimer": "Der Link ist 24 Stunden ab Ihrer Registrierung gültig. Falls er abgelaufen ist, "
+                      "registrieren Sie sich einfach erneut auf smartestguide.com — das geht im Handumdrehen. "
+                      "Sie haben das nicht angefordert? Ignorieren Sie diese E-Mail einfach, es wird nichts "
+                      "angelegt oder berechnet.",
+        "signoff": "Fragen? Antworten Sie einfach.<br>— SMARTEST GUIDE · support@smartestguide.com",
+        "text": "Schließen Sie Ihre SMARTEST GUIDE-Registrierung für {name} ab: {url} "
+                "(Link 24 Std. gültig; heute keine Kosten – 14 Tage kostenlos testen)",
+    },
+    "pl": {
+        "subject": "Twoja rejestracja SMARTEST GUIDE dla {name} jest o jedno kliknięcie",
+        "greeting": "Dzień dobry",
+        "line1": "zacząłeś konfigurować concierge AI dla <b>{name}</b> — pozostało już tylko aktywowanie "
+                 "<b>14-dniowego bezpłatnego okresu próbnego</b> (dziś bez opłat).",
+        "button": "Dokończ rejestrację →",
+        "line2": "Twoje dane są zapisane — zajmie to mniej niż minutę. Alex zacznie odpowiadać na pytania "
+                 "Twoich gości w ponad 100 językach jeszcze tego samego dnia.",
+        "disclaimer": "Link jest ważny 24 godziny od rejestracji. Jeśli wygasł, po prostu zarejestruj się "
+                      "ponownie na smartestguide.com — to chwila. Nie rejestrowałeś się? Zignoruj tę "
+                      "wiadomość, nic nie zostanie utworzone ani naliczone.",
+        "signoff": "Masz pytania? Wystarczy odpowiedzieć.<br>— SMARTEST GUIDE · support@smartestguide.com",
+        "text": "Dokończ rejestrację SMARTEST GUIDE dla {name}: {url} "
+                "(link ważny 24 h; dziś bez opłat – 14 dni za darmo)",
+    },
+}
+
 async def _check_abandoned_registrations():
     """Nedokončená registrace: hoteliér vyplnil formulář, ale u Stripe checkoutu odpadl.
     Pošle JEDNOU e-mail s původním checkout odkazem (Stripe session platí 24 h).
@@ -347,25 +485,25 @@ async def _check_abandoned_registrations():
             if not email:
                 continue
             name = h.get("name", "your hotel")
+            # Lokalizace podle země hotelu; neznámá země → en (fallback).
+            _lang = _REG_MAIL_LANG.get((h.get("country") or "").upper().strip(), "en")
+            t = _REG_MAIL_TXT.get(_lang, _REG_MAIL_TXT["en"])
+            _greet = f"{t['greeting']}{(' ' + h.get('contact_name')) if h.get('contact_name') else ''}"
             payload = {
                 "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
                 "to": [{"email": email}],
                 "bcc": _admin_notify_bcc(exclude=email) or None,
-                "subject": f"Your SMARTEST GUIDE registration for {name} is one click away",
+                "subject": t["subject"].format(name=name),
                 "htmlContent": (
-                    f"<p>Hello{(' ' + h.get('contact_name')) if h.get('contact_name') else ''},</p>"
-                    f"<p>you started setting up the AI concierge for <b>{name}</b> — the only step left is "
-                    f"activating your <b>14-day free trial</b> (no charge today).</p>"
+                    f"<p>{_greet},</p>"
+                    f"<p>{t['line1'].format(name=name)}</p>"
                     f"<p style='margin:22px 0'><a href='{h['checkout_url']}' "
                     f"style='background:#2c5fae;color:#ffffff;text-decoration:none;padding:12px 26px;"
-                    f"border-radius:10px;font-weight:700'>Finish registration →</a></p>"
-                    f"<p>Your details are saved — this takes under a minute. Alex will start answering "
-                    f"your guests' questions in 100+ languages the same day.</p>"
-                    f"<p style='color:#888;font-size:12px'>The link is valid for 24 hours from your registration. "
-                    f"If it has expired, just register again at smartestguide.com — it only takes a moment. "
-                    f"Didn't request this? Simply ignore this e-mail and nothing will be created or charged.</p>"
-                    f"<p>Questions? Just reply.<br>— SMARTEST GUIDE · support@smartestguide.com</p>"),
-                "textContent": f"Finish your SMARTEST GUIDE registration for {name}: {h['checkout_url']} (link valid 24h; no charge today - 14-day free trial)",
+                    f"border-radius:10px;font-weight:700'>{t['button']}</a></p>"
+                    f"<p>{t['line2']}</p>"
+                    f"<p style='color:#888;font-size:12px'>{t['disclaimer']}</p>"
+                    f"<p>{t['signoff']}</p>"),
+                "textContent": t["text"].format(name=name, url=h['checkout_url']),
             }
             if not payload["bcc"]:
                 payload.pop("bcc")
@@ -2030,9 +2168,16 @@ def hotel_portal_group(token: str):
         return {"status": "ok", "hotels": []}
     db = db_load()
     out = []
+    # „Duch" = nikdy neplacená opuštěná landing registrace (ještě před 48h auto-archivací).
+    # Skrýt hned, ať vlastníkovi nekazí seznam. Stejná podmínka jako ve Fix 1, bez kontroly
+    # stáří. Aktivní / kdy placené nebo s trialem zůstávají vidět.
+    _is_ghost = lambda x: (not x.get("subscription_active")
+                           and not x.get("stripe_subscription_id")
+                           and not x.get("trial_used")
+                           and x.get("origin_source") == "landing_page")
     for hid, hh in db["hotels"].items():
         he = (hh.get("registration_email") or hh.get("email") or "").lower().strip()
-        if he != email or hh.get("archived") or _is_demo(hh):
+        if he != email or hh.get("archived") or _is_demo(hh) or _is_ghost(hh):
             continue
         a = (db.get("analytics", {}) or {}).get(hid, {}) or {}
         try:
