@@ -2020,6 +2020,7 @@ async function loadRequestsSection(){
   const d=await fetchRequests();
   if(!d){ el.innerHTML=''; return; }
   const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const human=s=>String(s||'').replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g,(m,y,mo,da)=>`${+da}. ${+mo}.`).replace(/(\d+)\.0\b/g,'$1');   // 12. 10. místo 2026-10-12, 700 místo 700.0
   const st=d.stats||{}, tm=st.this_month||{};
   const badge=(s)=>{
     const map={pending:['Čeká','#ffaa33'],confirmed:['Potvrzeno','#2ecc87'],declined:['Nelze vyřídit','#ff4f6a']};
@@ -2030,7 +2031,7 @@ async function loadRequestsSection(){
   const rows=(d.orders||[]).map(o=>`<tr style="border-top:1px solid var(--border)">
       <td style="padding:8px 10px;white-space:nowrap;font-size:12px;color:var(--muted)">${fmtReqTime(o.created)}</td>
       <td style="padding:8px 10px;font-weight:700">${esc(o.room)}</td>
-      <td style="padding:8px 10px"><div>${esc(o.title)}</div>${o.detail?`<div style="font-size:11.5px;color:var(--muted)">${esc(o.detail)}${o.price?' · '+esc(o.price):''}</div>`:(o.price?`<div style="font-size:11.5px;color:var(--muted)">${esc(o.price)}</div>`:'')}</td>
+      <td style="padding:8px 10px"><div>${esc(o.title)}</div>${o.detail?`<div style="font-size:11.5px;color:var(--muted)">${esc(human(o.detail))}${o.price?' · '+esc(human(o.price)):''}</div>`:(o.price?`<div style="font-size:11.5px;color:var(--muted)">${esc(human(o.price))}</div>`:'')}</td>
       <td style="padding:8px 10px">${badge(o.status)}</td>
       <td style="padding:8px 10px;font-size:12px;color:var(--muted);max-width:260px">${(o.notes||[]).map(n=>'💬 '+esc(n)).join('<br>')}</td>
       <td style="padding:8px 10px;white-space:nowrap"><a href="${esc(o.reply_link)}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700;text-decoration:none">${o.status==='pending'?'✍️ ':''}Odpovědět →</a></td>
@@ -2427,7 +2428,8 @@ async function loadMonthlyReport(){
       const rq = (hotelData && hotelData.pms_write_available) ? (_requestsCache || await fetchRequests()) : null;
       const tm = rq && rq.stats && rq.stats.this_month;
       if(tm && (tm.total || (rq.stats.all_time||{}).total)){
-        const lblReq = cs ? 'požadavků tento měsíc' : 'requests this month';
+        const n = tm.total||0;
+        const lblReq = cs ? (n===1?'požadavek tento měsíc':(n>=2&&n<=4)?'požadavky tento měsíc':'požadavků tento měsíc') : (n===1?'request this month':'requests this month');
         const lblWait = cs ? 'z toho čeká na odpověď' : 'waiting for a reply';
         reqHtml = `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;cursor:pointer" onclick="showPortalTab('alex')" title="${cs?'Požadavky hostů v chatu':'Guest requests in chat'}"><div style="font-size:32px;font-weight:700;color:#ffaa33">${tm.total||0}</div><div style="font-size:12px;color:var(--muted)">🛎 ${lblReq}${tm.pending?`<br><span style="color:#ffaa33;font-weight:700">${tm.pending}</span> ${lblWait}`:''}</div></div>`;
       }

@@ -7265,7 +7265,7 @@ async def guest_order(req: GuestOrderRequest):
         # Hotel bez PMS / bez propojeného pobytu: jen požadavek recepci, žádný zápis, žádné ověření rezervace
         if not wr["pms_write_services"] and not wr["pms_write_extension"]:
             return {"status": "expired", "message": _order_msg("expired", lang, title)}
-        price_txt = (f"{p.get('price')} {p.get('currency', '')}".strip() if p.get("price") is not None else "")
+        price_txt = (f"{float(p['price']):g} {p.get('currency', '')}".strip() if p.get("price") is not None else "")   # 700, ne 700.0
         oid = _order_record_new(hid, p.get("room", ""), title, p.get("detail", ""), price_txt, lang, req.device_id or "",
                                 "extension" if is_ext_item else "service")
         asyncio.create_task(_send_write_notification(hid, dict(h), p.get("room", ""),
@@ -7285,7 +7285,7 @@ async def guest_order(req: GuestOrderRequest):
             mode = "request"
     if kind == "extension" or wr["pms_write_mode"] == "request" or not _apaleo_has_write_scope(h, db):
         mode = "request"
-    price_txt = f"{p.get('price')} {p.get('currency', '')}".strip()
+    price_txt = (f"{float(p['price']):g} {p.get('currency', '')}".strip() if p.get("price") is not None else "")
     detail = p.get("detail", "")
     if mode == "request":
         guest_title = _ext_title(p.get("new_nights") or 1, lang) if kind == "extension" else title
