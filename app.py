@@ -7031,12 +7031,17 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
             unit = o.get("unit_price")
             if unit is None:
                 continue
+            # Strop počtu = dostupné kusy v Apaleu (availableCount), výchozí = dospělí v rezervaci — nad kapacitu by
+            # Apaleo vrátilo 422 (rešerše 11. 10. 2026: Apaleo nemá finanční limit, jen dostupnost služby)
+            _avail = o.get("available_count")
+            max_count = max(1, min(10, int(_avail))) if isinstance(_avail, (int, float)) else 10
+            count = min(count, max_count)
             total = round(float(unit) * count * len(dates), 2)
             cur = o.get("currency") or cur
             mode = base_mode if total <= float(wr["pms_write_cap"] or 0) else "request"   # nad strop → recepce
             act = {"kind": "service", "service_id": o["service_id"], "title": o["name"],
                    "dates": dates, "count": count, "price": total, "currency": cur, "mode": mode,
-                   "unit_price": float(unit), "days": len(dates), "can_count": per_person,
+                   "unit_price": float(unit), "days": len(dates), "can_count": per_person, "max_count": max_count,
                    "detail": f"{count}× · {', '.join(dates)}"}
             act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})
             actions.append(act)
@@ -7484,7 +7489,7 @@ async def guest_order(req: GuestOrderRequest):
     kind = p.get("kind")
     # Parametry z karty: osoby (za osobu), noci + první den (za osobu/pokoj a noc), čas/poznámka.
     # Cena se přepočítá tady (strop se kontroluje z ní), nic z klienta se nebere jako cena.
-    if p.get("can_count") and req.count and 1 <= int(req.count) <= 10:
+    if p.get("can_count") and req.count and 1 <= int(req.count) <= int(p.get("max_count") or 10):
         p["count"] = int(req.count)
     is_ext_item = kind == "item" and p.get("service_id") == "extension"
     hotel_cs = (h.get("country") or "").strip().upper() in ("CZ", "SK")
@@ -8917,139 +8922,7 @@ async def apaleo_callback(request: Request, code: str = "", state: str = "", err
     logging.info("Apaleo Connect: hotel %s připojen.", hid)
     return _page("Apaleo connected", f"{h.get('name','Your hotel')} is now connected to SMARTEST GUIDE. Alex, the AI concierge, can answer your guests using their reservation details (check-out time, length of stay, package).{prop_note}", portal_url=portal_url, extra=picker_html)
 
-@app.get("/api/pms/apaleo/diag/write")
-async def apaleo_diag_write(token: str, room: str, nights: int = 1):
-    """DIAGNOSTIKA zápisové vrstvy (10. 10. 2026, viz APALEO_ZAPIS_DO_REZERVACE_NAVRH.md):
-    pro daný pokoj vrátí normalizovaný pobyt (vč. reservation_id) + per-reservation nabídky
-    služeb, už zabookované služby a nabídky prodloužení. JEN ČTENÍ, nic nezapisuje.
-    Chráněno hotel tokenem (jako portál) a existuje jen tam, kde je zapnutý gate pro zápis
-    (staging) — v produkci 404. Účel: ověřit skutečný tvar odpovědí Apalea proti swaggeru
-    na dev účtu, než se vrstva napojí do chatu. Po napojení smazat."""
-    if not _APALEO_REQUEST_WRITE_SCOPE:
-        raise HTTPException(404)
-    db = db_load()
-    hid, h = next(((k, v) for k, v in db["hotels"].items() if v.get("hotel_token") == token), (None, None))
-    if not h or not h.get("pms_type"):
-        raise HTTPException(403, "Neplatny token nebo hotel bez PMS")
-    from dataclasses import asdict
-    s = db_get_settings()
-    _ph = _pms_hotel_ctx(h, s, db)
-    stay = await pms_layer.get_stay_for_room(_ph, room)
-    out = {"status": "ok", "room": room, "has_write_scope": _apaleo_has_write_scope(h, db),
-           "stay": asdict(stay) if stay else None, "service_offers": None, "booked_services": None,
-           "extension_offers": None, "errors": []}
-    if stay:
-        for key, coro in (("service_offers", pms_layer.apaleo_reservation_service_offers(_ph, stay)),
-                          ("booked_services", pms_layer.apaleo_booked_services(_ph, stay)),
-                          ("extension_offers", pms_layer.apaleo_reservation_extension_offers(_ph, stay, nights))):
-            try:
-                out[key] = await coro
-            except Exception as e:
-                out["errors"].append(f"{key}: {str(e)[:200]}")
-    _persist_rotated_refresh_token(hid, _ph)
-    return out
-
-@app.get("/api/pms/apaleo/diag/reservations")
-async def apaleo_diag_reservations(token: str, status: str = "Confirmed,InHouse", days: int = 7):
-    """DIAGNOSTIKA (jen staging, viz diag/write): přehled rezervací property pro hledání
-    testovacího pobytu — id, pokoj, příjezd/odjezd, stav. Jen čtení, bez PII (primaryGuest
-    se nevrací). Po napojení zápisu do chatu smazat spolu s diag/write."""
-    if not _APALEO_REQUEST_WRITE_SCOPE:
-        raise HTTPException(404)
-    db = db_load()
-    hid, h = next(((k, v) for k, v in db["hotels"].items() if v.get("hotel_token") == token), (None, None))
-    if not h or not h.get("pms_type") or not h.get("pms_property_id"):
-        raise HTTPException(403, "Neplatny token nebo hotel bez PMS/property")
-    from datetime import date, timedelta
-    _ph = _pms_hotel_ctx(h, db_get_settings(), db)
-    today = date.today()
-    params = {"propertyIds": h["pms_property_id"], "status": [s.strip() for s in status.split(",") if s.strip()],
-              # swagger: from/to jsou date-time (bez zlomků sekund) — holé datum vrací 400
-              "from": (today - timedelta(days=days)).isoformat() + "T00:00:00Z",
-              "to": (today + timedelta(days=days)).isoformat() + "T23:59:59Z",
-              "dateFilter": "Stay", "pageSize": 100}
-    d = await pms_layer._apaleo_get(_ph, "/booking/v1/reservations", params, quiet=True)
-    _persist_rotated_refresh_token(hid, _ph)
-    if d is None:
-        return {"status": "error", "detail": "Apaleo GET reservations selhal", "params": params}
-    rows = [{"id": r.get("id"), "room": ((r.get("unit") or {}).get("name") or ""),
-             "unit_group": ((r.get("unitGroup") or {}).get("name") or ""),
-             "arrival": (r.get("arrival") or "")[:16], "departure": (r.get("departure") or "")[:16],
-             "status": r.get("status"), "adults": r.get("adults"), "rate_plan": ((r.get("ratePlan") or {}).get("name") or "")}
-            for r in (d.get("reservations") or [])]
-    return {"status": "ok", "count": d.get("count"), "property": h["pms_property_id"], "params": params, "reservations": rows}
-
-@app.post("/api/pms/apaleo/diag/testbed")
-async def apaleo_diag_testbed(token: str, action: str, reservation_id: str, arrival: str = "", departure: str = "",
-                              service_id: str = "", count: int = 1):
-    """TESTBED ZÁPISU (jen staging, gate + hotel token; smazat po napojení do chatu).
-    Připraví na DEV účtu testovací pobyt a prověří vrstvu zápisu naostro:
-      offers          GET /reservations/{id}/offers?arrival&departure → normalizované nabídky
-      amend           totéž + PUT amend první platnou nabídkou (příjezd/odjezd z nabídky)
-      checkin / revert_checkin / checkout   PUT reservation-actions
-      book_service    pms_layer.apaleo_book_service (idempotentní)   remove_service  DELETE
-      booked          seznam zabookovaných služeb
-    Vše přes stejné funkce, které pak použije chat — žádná paralelní implementace."""
-    if not _APALEO_REQUEST_WRITE_SCOPE:
-        raise HTTPException(404)
-    db = db_load()
-    hid, h = next(((k, v) for k, v in db["hotels"].items() if v.get("hotel_token") == token), (None, None))
-    if not h or not h.get("pms_type"):
-        raise HTTPException(403, "Neplatny token nebo hotel bez PMS")
-    from dataclasses import asdict
-    _ph = _pms_hotel_ctx(h, db_get_settings(), db)
-    rid = reservation_id.strip()
-    out = {"status": "ok", "action": action, "reservation_id": rid}
-    try:
-        raw = await pms_layer._apaleo_get(_ph, f"/booking/v1/reservations/{rid}", {}, quiet=True)
-        if raw is None:
-            return {"status": "error", "detail": "rezervace nenalezena / GET selhal"}
-        stay = pms_layer._apaleo_normalize(raw)
-        out["stay_before"] = asdict(stay)
-        if action in ("offers", "amend"):
-            params = {"adults": max(1, int(stay.adults or 1))}
-            if arrival:
-                params["arrival"] = arrival
-            if departure:
-                params["departure"] = departure
-            if stay.children_ages:
-                params["childrenAges"] = list(stay.children_ages)
-            d = await pms_layer._apaleo_get(_ph, f"/booking/v1/reservations/{rid}/offers", params, quiet=True)
-            offers = [] if d == {} else (None if d is None else pms_layer._norm_stay_offers(d, stay))
-            out["offers"] = offers
-            if action == "amend":
-                valid = [o for o in (offers or []) if not o.get("validation")]
-                if not valid:
-                    return {**out, "status": "error", "detail": "žádná platná nabídka pro amend"}
-                o = valid[0]
-                body = {"arrival": o["arrival"], "departure": o["departure"], "adults": max(1, int(stay.adults or 1)),
-                        "requote": False,
-                        "timeSlices": [{"ratePlanId": ts["rate_plan_id"],
-                                        **({"totalGrossAmount": {"amount": ts["gross"], "currency": ts["currency"]}}
-                                           if ts.get("gross") is not None and ts.get("currency") else {})}
-                                       for ts in o["time_slices"]]}
-                if stay.children_ages:
-                    body["childrenAges"] = list(stay.children_ages)
-                st, data = await pms_layer._apaleo_send(_ph, "PUT", f"/booking/v1/reservation-actions/{rid}/amend", body=body)
-                out["amend"] = {"status": st, "data": data, "body": body}
-        elif action in ("checkin", "revert_checkin", "checkout"):
-            path = {"checkin": "checkin", "revert_checkin": "revert-checkin", "checkout": "checkout"}[action]
-            st, data = await pms_layer._apaleo_send(_ph, "PUT", f"/booking/v1/reservation-actions/{rid}/{path}")
-            out[action] = {"status": st, "data": data}
-        elif action == "book_service":
-            out["book_service"] = await pms_layer.apaleo_book_service(_ph, stay, service_id, count=count)
-        elif action == "remove_service":
-            out["remove_service"] = await pms_layer.apaleo_remove_service(_ph, stay, service_id)
-        elif action == "booked":
-            out["booked"] = await pms_layer.apaleo_booked_services(_ph, stay)
-        else:
-            return {"status": "error", "detail": f"neznámá akce {action}"}
-        raw2 = await pms_layer._apaleo_get(_ph, f"/booking/v1/reservations/{rid}", {}, quiet=True)
-        out["stay_after"] = asdict(pms_layer._apaleo_normalize(raw2)) if raw2 else None
-    except Exception as e:
-        out.update({"status": "error", "detail": str(e)[:300]})
-    _persist_rotated_refresh_token(hid, _ph)
-    return out
+# (diag/write, diag/reservations, diag/testbed smazány 11. 10. 2026 před nasazením do produkce — testovací vrstva zápisu)
 
 @app.get("/api/pms/apaleo/properties")
 async def apaleo_properties(token: str):

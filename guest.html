@@ -1327,7 +1327,7 @@ function orderRecalc(id){
     const tot=Math.round(s.unit_price*s.count*mult*100)/100; p.textContent=`${tot} ${s.cur}`.trim();
   }
 }
-function orderCount(id,delta){ const s=ORDER_STATE[id]; if(!s||!s.can) return; s.count=Math.min(10,Math.max(1,(s.count||1)+delta)); orderRecalc(id); }
+function orderCount(id,delta){ const s=ORDER_STATE[id]; if(!s||!s.can) return; s.count=Math.min(s.max||10,Math.max(1,(s.count||1)+delta)); orderRecalc(id); }
 function orderNights(id,delta){ const s=ORDER_STATE[id]; if(!s||!s.canN) return; s.nights=Math.min(14,Math.max(1,(s.nights||1)+delta)); orderRecalc(id); }
 function orderStart(id,val){ const s=ORDER_STATE[id]; if(s) s.start=val||s.start; }
 function orderNote(id,val){ const s=ORDER_STATE[id]; if(s) s.note=(val||'').slice(0,200); }
@@ -1346,7 +1346,7 @@ function showOrderCards(actions){
     const isCancel=a.kind==='cancel'||!!a.cancel;      // zrušení objednané služby (Apaleo přímo / bez PMS požadavek recepci)
     const isItem=a.kind==='item'&&!isExt&&!isCancel;
     ORDER_STATE[a.id]={count:a.count||1,nights:a.nights||1,start:a.start||((a.dates||[])[0]||''),unit_price:a.unit_price,days:a.days||1,
-      cur:a.currency||'',can:!!a.can_count,canN:!!a.can_nights,kind:a.kind,unit:a.unit||'',note:''};
+      cur:a.currency||'',can:!!a.can_count,canN:!!a.can_nights,kind:a.kind,unit:a.unit||'',note:'',max:a.max_count||10};
     const dates=(a.dates||[]).map(fmtOrderDate).join(', ');
     // Co host na kartě nastaví: datum od (položky hotelu), osoby (za osobu), dny/noci podle druhu
     // (snídaně = dny, parkování = noci, prodloužení = noci), čas (masáž, pozdní odjezd) nebo poznámka.
