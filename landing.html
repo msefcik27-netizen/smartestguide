@@ -149,6 +149,9 @@ section{padding:80px 5vw}
 .feature{position:relative;overflow:hidden;border-radius:18px;padding:0;display:block;min-height:210px;border:none;background:var(--navy);transition:transform .2s}
 .feature:hover{transform:translateY(-4px)}
 .feature:first-child{grid-row:span 2;min-height:440px}
+/* 6. karta (Objednávky a přímá linka na recepci) přes celou šířku — prodejní argument, ne osiřelá dlaždice */
+.feature:nth-child(6){grid-column:1/-1;min-height:200px}
+.feature:nth-child(6) .feat-body{max-width:720px}
 .feat-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .feat-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(12,27,51,.15) 20%,rgba(12,27,51,.92))}
 .feature:first-child .feat-shade{background:linear-gradient(180deg,transparent 40%,rgba(12,27,51,.9))}
