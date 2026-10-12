@@ -6998,6 +6998,10 @@ _EXT_STAY_UNTIL_RE = re.compile(r"\bstay(?:ing)?\s+(?:here\s+)?(?:until|till|til
                                 r"\bbleiben\s+bis\b|\brester\s+jusqu|\bquedar(?:me|nos)?\s+hasta\b|\brestare\s+fino\b", re.IGNORECASE)
 _EXT_NIGHT_WORD_RE = re.compile(r"night|noc|nacht|nächt|nuit|nott[ei]|noche|ноч|ніч", re.IGNORECASE)
 
+# Alexova starší odpověď, která nese údaje o pobytu (odjezd, příjezd, noci, prodloužení) — viz historie v chatu
+_STAY_FACT_RE = re.compile(r"check.?out|check.?in|odjezd|odhl[áa][šs]|p[řr][íi]jezd|abreise|anreise|d[ée]part|arriv|salida|llegada|partenza|"
+                           r"night|noc[ií]?\b|nacht|nächt|nuit|nott[ei]|noche|prodlou|predĺ|extend|extension|verläng|prolong", re.IGNORECASE)
+
 def _ext_intent(msg: str) -> bool:
     """Chce host PRODLOUŽIT POBYT? Věta s časem dne a bez zmínky o noci („stay longer until 6 pm",
     „zůstat déle do 18 hodin") je pozdní odjezd, ne prodloužení — karta na další noc k ní nepatří."""
@@ -7413,7 +7417,8 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
                                  "id": _sign_proposal({**_v, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})})
                 act["options"] = opts
                 lines.append(f"  Host si může počet nocí na kartě ZMĚNIT ({', '.join(str(o['nights']) for o in opts)}), cena se na kartě "
-                             "přepočítá — zmiň to jednou krátkou větou. Ceny jiných variant sám neuváděj ani nepočítej.")
+                             "přepočítá — zmiň to jednou krátkou větou. Ceny jiných variant sám neuváděj ani nepočítej. Kvůli více nocím "
+                             "v tomto rozsahu NEODKAZUJ na recepci — tu zmiň jen pro prodloužení delší, než karta nabízí.")
             # Typ pokoje volný, ale KONKRÉTNÍ pokoj hosta na přidané noci obsazený → Apaleo by přiřadilo jiný
             # (stěhování). Host to má vědět PŘED potvrzením, ne až po něm.
             try:
@@ -8306,6 +8311,11 @@ Guest name: {req.guest_name or 'Guest'}"""
     # odjezd 18. 10., Alex řekl 15. 10.; při testu vrátil i starou cenu). Odpověď stojí celá na bloku z Apalea.
     _hist = [] if any(a.get("kind") == "extension" for a in order_actions) else (req.history or [])[-10:]
     for m in _hist:
+        # S ověřeným pobytem se z historie vynechají starší Alexovy odpovědi o pobytu (odjezd, noci,
+        # prodloužení): pobyt se mohl mezitím změnit a model stará data opakoval i proti aktuálnímu bloku
+        # z Apalea (snímek uživatele 13. 10. 2026: odjezd 20. 10., odpověď „15 October, 5 nights").
+        if _stay_obj and isinstance(m, dict) and m.get("role") == "assistant" and _STAY_FACT_RE.search(str(m.get("content") or "")):
+            continue
         if isinstance(m, dict) and m.get("role") in ("user", "assistant"):
             messages.append({"role": m["role"], "content": m["content"]})
     messages.append({"role": "user", "content": req.message})
