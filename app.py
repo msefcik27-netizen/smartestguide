@@ -8310,14 +8310,20 @@ Guest name: {req.guest_name or 'Guest'}"""
     # prodloužení a model je opakoval i proti aktuálním údajům v promptu (snímek uživatele 12. 10. 2026:
     # odjezd 18. 10., Alex řekl 15. 10.; při testu vrátil i starou cenu). Odpověď stojí celá na bloku z Apalea.
     _hist = [] if any(a.get("kind") == "extension" for a in order_actions) else (req.history or [])[-10:]
+    _q_open = False   # poslední přidaná zpráva je dotaz hosta, na který ještě nepřišla Alexova odpověď
     for m in _hist:
         # S ověřeným pobytem se z historie vynechají starší Alexovy odpovědi o pobytu (odjezd, noci,
         # prodloužení): pobyt se mohl mezitím změnit a model stará data opakoval i proti aktuálnímu bloku
         # z Apalea (snímek uživatele 13. 10. 2026: odjezd 20. 10., odpověď „15 October, 5 nights").
+        # S odpovědí jde pryč i dotaz, na který reagovala — jinak na něj Alex odpovídá znovu.
         if _stay_obj and isinstance(m, dict) and m.get("role") == "assistant" and _STAY_FACT_RE.search(str(m.get("content") or "")):
+            if _q_open and messages:
+                messages.pop()
+            _q_open = False
             continue
         if isinstance(m, dict) and m.get("role") in ("user", "assistant"):
             messages.append({"role": m["role"], "content": m["content"]})
+            _q_open = m["role"] == "user"
     messages.append({"role": "user", "content": req.message})
 
     async with httpx.AsyncClient() as client:
