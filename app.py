@@ -8272,7 +8272,11 @@ Guest name: {req.guest_name or 'Guest'}"""
 
     messages = []
     # Omez historii na posledních 10 zpráv (~5 výměn) — starší kontext jen zbytečně žere vstupní tokeny
-    for m in (req.history or [])[-10:]:
+    # U nabídky prodloužení se historie NEPOSÍLÁ: starší zprávy nesou odjezd a cenu z dřívějších
+    # prodloužení a model je opakoval i proti aktuálním údajům v promptu (snímek uživatele 12. 10. 2026:
+    # odjezd 18. 10., Alex řekl 15. 10.; při testu vrátil i starou cenu). Odpověď stojí celá na bloku z Apalea.
+    _hist = [] if any(a.get("kind") == "extension" for a in order_actions) else (req.history or [])[-10:]
+    for m in _hist:
         if isinstance(m, dict) and m.get("role") in ("user", "assistant"):
             messages.append({"role": m["role"], "content": m["content"]})
     messages.append({"role": "user", "content": req.message})
