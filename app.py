@@ -7325,22 +7325,24 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         async def _ext_valid(k: int):
             _offs = await pms_layer.apaleo_reservation_extension_offers(_ph, stay, k) or []
             return next((o for o in _offs if not o.get("validation")), None)
-        best = await _ext_valid(n)
+        # Nabídky pro 1–7 nocí najednou: host si na kartě přepíná počet nocí a u každého vidí skutečnou cenu
+        # z Apalea (uživatel 12. 10. 2026: „co když chci jen jednu noc? nemělo by tam být počet nocí?").
+        # Nejvýš 3 dotazy souběžně (dev účet Apalea má limit 5 dotazů za vteřinu).
+        _sem = asyncio.Semaphore(3)
+        async def _ext_k(k: int):
+            async with _sem:
+                try:
+                    return await _ext_valid(k)
+                except Exception as e:
+                    logging.warning("Nabídka prodloužení o %d nocí selhala: %s", k, e)
+                    return None
+        ext_opts = {o["new_nights"]: o for o in await asyncio.gather(*[_ext_k(k) for k in range(1, 8)]) if o}
+        # Výchozí = chtěný počet; není-li volný, nejdelší kratší (nález 11. 10. 2026: chtěl 5, volné 3 → žádná karta)
+        best = ext_opts.get(max([k for k in ext_opts if k <= n], default=0))
         # Rezervace ze skupinového bloku: Apaleo při změně cenu VŽDY přepočítá podle bloku (swagger amend:
         # „prices … will be re-quoted … reservation is part of a block"), cena z karty tedy není zaručená
         # → jen požadavek recepci, žádný přímý zápis.
         ext_mode = "request" if (_pre and _pre.get("block")) else base_mode
-        if not best and n > 1:
-            # Chtěných N nocí není ve stejném typu pokoje volných → nabídnout nejdelší kratší prodloužení
-            # (nález 11. 10. 2026: chtěl 5, volné 3 → žádná karta). Půlením, nejvýš 3 dotazy do Apalea.
-            _lo, _hi = 1, n - 1
-            while _lo <= _hi:
-                _mid = (_lo + _hi) // 2
-                _o = await _ext_valid(_mid)
-                if _o:
-                    best, _lo = _o, _mid + 1
-                else:
-                    _hi = _mid - 1
         if not best and not actions:
             return [], (f"PRODLOUŽENÍ V CHATU: host chce prodloužit o {wanted} noc/nocí, ale ve STEJNÉM typu pokoje teď není volná "
                         "ani jedna další noc → žádné tlačítko se nezobrazí. Řekni to hostovi na rovinu a odkaž ho na recepci "
@@ -7385,6 +7387,33 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
             # podpis až teď — detail už nese taxu i poplatky (jde i do požadavku a mailu recepci)
             act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})
             actions.append(act)
+            # Přepínač počtu nocí na kartě: každá varianta má vlastní cenu, odjezd, detail a VLASTNÍ podepsaný
+            # token — klient při potvrzení pošle token zvolené varianty, server nic nedopočítává.
+            if len(ext_opts) > 1:
+                opts = []
+                for _k in sorted(ext_opts):
+                    _o = ext_opts[_k]
+                    if _o is best:
+                        opts.append({"nights": _k, "id": act["id"], "departure": act["departure"], "price": act["price"], "detail": act["detail"]})
+                        continue
+                    _d = (f"{_o['rate_plan']} · {_o['unit_group']}"
+                          + (f" · + {_o.get('city_tax_name') or 'City tax'} {_o['new_city_tax']:g} {_o['currency']}" if _o.get("new_city_tax") else ""))
+                    if _o.get("fees"):
+                        try:
+                            _of = await pms_layer.apaleo_extension_fee_delta(_ph, stay, _o)
+                        except Exception:
+                            _of = None
+                        if _of:
+                            _d += " · + " + ", ".join(f"{f['name']} {f['amount']:g} {f['currency']}" for f in _of)
+                    _v = {**act, "title": f"+{_k} night(s) → {_o['departure'][:10]}", "nights": _k, "new_nights": _k,
+                          "departure": _o["departure"], "price": round(_o["new_total"], 2), "detail": _d,
+                          "rate_plan_id": _o.get("rate_plan_id", ""), "unit_group_id": _o.get("unit_group_id", "")}
+                    _v.pop("id", None)
+                    opts.append({"nights": _k, "departure": _v["departure"], "price": _v["price"], "detail": _d,
+                                 "id": _sign_proposal({**_v, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})})
+                act["options"] = opts
+                lines.append(f"  Host si může počet nocí na kartě ZMĚNIT ({', '.join(str(o['nights']) for o in opts)}), cena se na kartě "
+                             "přepočítá — zmiň to jednou krátkou větou. Ceny jiných variant sám neuváděj ani nepočítej.")
             # Typ pokoje volný, ale KONKRÉTNÍ pokoj hosta na přidané noci obsazený → Apaleo by přiřadilo jiný
             # (stěhování). Host to má vědět PŘED potvrzením, ne až po něm.
             try:
