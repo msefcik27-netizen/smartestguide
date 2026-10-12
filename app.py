@@ -7356,8 +7356,10 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
             # Time slices do tokenu nejdou: při potvrzení se nabídka načte z Apalea znovu (čerstvá cena a dostupnost)
             # a zapíše se jen tehdy, když sedí odjezd, typ pokoje a cena nepřesáhne to, co host viděl.
             _cur_dep = (getattr(stay, "departure", "") or "")[:10]
-            lines.append(f"- Prodloužení o {best['new_nights']} noc/nocí: PŘIDANÉ noci od {_cur_dep} do {best['departure'][:10]} "
-                         f"(nový odjezd {best['departure'][:10]}; mluv jen o přidaných nocích, ne o celém pobytu) ve stejném typu pokoje "
+            lines.append(f"- Prodloužení o {best['new_nights']} noc/nocí: DNEŠNÍ odjezd je {pms_layer.date_wd(_cur_dep)}, PŘIDANÉ noci "
+                         f"od {pms_layer.date_wd(_cur_dep)} do {pms_layer.date_wd(best['departure'])} (nový odjezd "
+                         f"{pms_layer.date_wd(best['departure'])}; uváděj PŘESNĚ tato data a dny v týdnu — data z dřívějších zpráv "
+                         "konverzace jsou zastaralá; mluv jen o přidaných nocích, ne o celém pobytu) ve stejném typu pokoje "
                          f"({best['unit_group']}, sazba {best['rate_plan']}): {round(best['new_total'], 2):g} {best['currency']} "
                          "(PLATNÁ CENA, říkej ji přesně takto, bez desetinné nuly)"
                          + (" (potvrzením se prodloužení hned zapíše do rezervace a připíše na účet pokoje)" if ext_mode == "auto"

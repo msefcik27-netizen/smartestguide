@@ -61,6 +61,15 @@ class Stay:
     status: str = ""                # InHouse / Confirmed / ...
     source: str = ""                # 'apaleo' | 'mews' | ...
 
+def date_wd(d: str) -> str:
+    """„2026-10-18" → „2026-10-18 (Sunday)". Den v týdnu dodává server — model ho jinak hádá
+    (snímek 12. 10. 2026: „Wednesday, 15 October", přitom šlo o čtvrtek)."""
+    try:
+        from datetime import date
+        return f"{d[:10]} ({date.fromisoformat((d or '')[:10]).strftime('%A')})"
+    except Exception:
+        return (d or "")[:10]
+
 def format_stay_block(stay: "Stay") -> str:
     """Blok do Alexova system promptu. Alex odpovídá jazykem hosta, blok je česky
     (stejně jako zbytek interních dat v promptu).
@@ -72,8 +81,13 @@ def format_stay_block(stay: "Stay") -> str:
         f"- Pokoj: {stay.room}",
     ]
     if _PII_TO_PROMPT and stay.guest_name: lines.append(f"- Host: {stay.guest_name}")
-    if stay.arrival:    lines.append(f"- Příjezd: {stay.arrival}" + (f" od {stay.arrival_time}" if stay.arrival_time else ""))
-    if stay.departure:  lines.append(f"- Odjezd (check-out): {stay.departure}" + (f" v {stay.departure_time}" if stay.departure_time else ""))
+    if stay.arrival:    lines.append(f"- Příjezd: {date_wd(stay.arrival)}" + (f" od {stay.arrival_time}" if stay.arrival_time else ""))
+    if stay.departure:  lines.append(f"- Odjezd (check-out): {date_wd(stay.departure)}" + (f" v {stay.departure_time}" if stay.departure_time else ""))
+    # Pobyt se mohl během konverzace prodloužit — starší zprávy pak nesou starý odjezd a Alex od něj počítal
+    # (snímek 12. 10. 2026: odjezd 18. 10., Alex řekl 15. 10. podle zprávy z dřívějška).
+    lines.append("DATA POBYTU VÝŠE JSOU AKTUÁLNÍ STAV Z HOTELOVÉHO SYSTÉMU. Pokud dřívější zprávy v této konverzaci uvádějí jiný "
+                 "odjezd nebo jiná data, jsou ZASTARALÉ (pobyt byl mezitím změněn) — nikdy z nich nevycházej a nepočítej od nich. "
+                 "Den v týdnu ber jen z těchto údajů, sám ho neodvozuj.")
     lines.append("DŮLEŽITÉ: Časy z této rezervace mají PŘEDNOST před obecnými časy hotelu (check-in/check-out v profilu). Hostovi vždy říkej čas z jeho rezervace.")
     lines.append("PLATÍ TO I PRO OBECNÉ DOTAZY: když se host zeptá obecně (např. Jaké jsou časy check-in/check-out? / Kdy je check-out?) nebo klikne na rychlou volbu s časy, odpověz PŘEDEVŠÍM konkrétním časem z JEHO rezervace (např. Váš check-out je 8. 7. v 10:00); obecné časy hotelu můžeš doplnit nanejvýš jako vedlejší poznámku. Nikdy neodpovídej jen obecnými časy, když má host propojený pobyt.")
     if stay.nights:     lines.append(f"- Počet nocí: {stay.nights}")
@@ -100,7 +114,7 @@ def format_extension_block(ext: dict) -> str:
     cur = ext.get("currency") or ""
     lines = [
         "PRODLOUŽENÍ POBYTU (živá data z hotelového systému — smíš je hostovi sdělit):",
-        f"- Termín: {ext.get('from','')} → {ext.get('to','')} ({ext.get('nights',1)} noc/noci)",
+        f"- Termín: {date_wd(ext.get('from',''))} → {date_wd(ext.get('to',''))} ({ext.get('nights',1)} noc/noci)",
         f"- Cena: {price} {cur} (uváděj PŘESNĚ tuto částku, nic nedopočítávej ani nezaokrouhluj)",
     ]
     if ext.get("unit_group"):
