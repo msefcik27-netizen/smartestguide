@@ -66,7 +66,9 @@ def date_wd(d: str) -> str:
     (snímek 12. 10. 2026: „Wednesday, 15 October", přitom šlo o čtvrtek)."""
     try:
         from datetime import date
-        return f"{d[:10]} ({date.fromisoformat((d or '')[:10]).strftime('%A')})"
+        _d = date.fromisoformat((d or "")[:10])
+        # Den a měsíc slovy: u „2026-10-20 (Tuesday) v 09:00" model četl „9 October" (test 13. 10. 2026)
+        return f"{_d.strftime('%A')} {_d.day} {_d.strftime('%B %Y')} [{_d.isoformat()}]"
     except Exception:
         return (d or "")[:10]
 
@@ -81,8 +83,8 @@ def format_stay_block(stay: "Stay") -> str:
         f"- Pokoj: {stay.room}",
     ]
     if _PII_TO_PROMPT and stay.guest_name: lines.append(f"- Host: {stay.guest_name}")
-    if stay.arrival:    lines.append(f"- Příjezd: {date_wd(stay.arrival)}" + (f" od {stay.arrival_time}" if stay.arrival_time else ""))
-    if stay.departure:  lines.append(f"- Odjezd (check-out): {date_wd(stay.departure)}" + (f" v {stay.departure_time}" if stay.departure_time else ""))
+    if stay.arrival:    lines.append(f"- Příjezd: {date_wd(stay.arrival)}" + (f", čas příjezdu {stay.arrival_time} hod." if stay.arrival_time else ""))
+    if stay.departure:  lines.append(f"- Odjezd (check-out): {date_wd(stay.departure)}" + (f", čas odjezdu {stay.departure_time} hod." if stay.departure_time else ""))
     # Pobyt se mohl během konverzace prodloužit — starší zprávy pak nesou starý odjezd a Alex od něj počítal
     # (snímek 12. 10. 2026: odjezd 18. 10., Alex řekl 15. 10. podle zprávy z dřívějška).
     lines.append("DATA POBYTU VÝŠE JSOU AKTUÁLNÍ STAV Z HOTELOVÉHO SYSTÉMU. Pokud dřívější zprávy v této konverzaci uvádějí jiný "
