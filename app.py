@@ -7180,7 +7180,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
             act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": "", "room": room})
             actions.append(act)
             lines.append(f"- {it['name']}: PLATNÁ CENA {price_txt} (tuto cenu řekni hostovi; pokud profil hotelu uvádí u této "
-                         f"položky jinou částku, je zastaralá a NESMÍŠ ji použít), den {day} — potvrzením odejde požadavek recepci, "
+                         f"položky jinou částku, je zastaralá a NESMÍŠ ji použít), den {pms_layer.date_wd(day)} — potvrzením odejde požadavek recepci, "
                          f"která ho vyřídí; odpověď recepce host dostane do chatu; zrušit v chatu jde do {int(wr.get('pms_write_cancel_hour') or 20)}:00 dne před službou")
         if ext:
             n = _nights_from_message(message)
@@ -7221,7 +7221,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
                        "detail": ", ".join(dts)}
                 act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})
                 actions.append(act)
-                lines.append(f"- ZRUŠIT {bsvc['name']}: objednáno NA DEN {', '.join(dts)} (to je datum služby, ne příjezd), "
+                lines.append(f"- ZRUŠIT {bsvc['name']}: objednáno NA DEN {', '.join(pms_layer.date_wd(x) for x in dts)} (to je datum služby, ne příjezd), "
                              f"{total:g} {bsvc.get('currency') or ''} — potvrzením se služba odebere z rezervace i z účtu pokoje"
                              + (f"; zrušení v chatu je možné do {dl}" if dl else ""))
             else:
@@ -7231,7 +7231,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
                        "time_hint": False, "detail": "cancel", "late": True}
                 act["id"] = _sign_proposal({**act, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})
                 actions.append(act)
-                lines.append(f"- {bsvc['name']} ({', '.join(dts)}): lhůta pro zrušení v chatu (do {dl}) už UPLYNULA — "
+                lines.append(f"- {bsvc['name']} ({', '.join(pms_layer.date_wd(x) for x in dts)}): lhůta pro zrušení v chatu (do {dl}) už UPLYNULA — "
                              "tlačítkem odejde jen žádost recepci, která rozhodne; neslibuj vrácení peněz")
         if actions:
             block = ("ZRUŠENÍ OBJEDNÁVKY — pod tvou odpovědí se hostovi zobrazí TLAČÍTKO 'Zrušit' pro:\n" + "\n".join(lines) +
@@ -7299,7 +7299,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
             _meal = any(w in (o.get("name") or "").lower() for w in _MEAL_WORDS)
             _unit_lbl = ("per person per day" if (per_person and _meal) else "per person per night" if per_person else
                          "per room per day" if _meal else "per room per night")
-            lines.append(f"- {o['name']}: {count}× {', '.join(dates)} = {total:g} {cur} (PLATNÁ CENA {float(unit):g} {cur} {_unit_lbl}; "
+            lines.append(f"- {o['name']}: {count}× {', '.join(pms_layer.date_wd(x) for x in dates)} (den v týdnu říkej přesně takto) = {total:g} {cur} (PLATNÁ CENA {float(unit):g} {cur} {_unit_lbl}; "
                          "říkej ji přesně takto, bez desetinné nuly)"
                          + (" (potvrzením se připíše na účet pokoje)" if mode == "auto" else " (potvrzením odejde požadavek recepci, která ho vyřídí)"))
             if len(actions) >= 2:
