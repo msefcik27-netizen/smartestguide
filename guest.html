@@ -1382,14 +1382,18 @@ function showOrderCards(actions){
         ${price?`<div id="oprice-${a.id}" style="font-size:16px;font-weight:800;margin:8px 0 10px">${escapeHtmlOrder(price)}</div>`:''}
         <div style="font-size:11.5px;color:var(--muted);line-height:1.45;margin-bottom:12px">${note}</div>
         <div style="display:flex;gap:8px">
-          <button onclick="confirmOrder('${a.id}')" style="flex:1;background:${isCancel?'#ff4f6a':'var(--accent)'};color:${isCancel?'#fff':'#0a0b0f'};border:none;border-radius:10px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font-body,inherit)">${mainBtn}</button>
+          <button data-main="1" onclick="confirmOrder('${a.id}')" style="flex:1;background:${isCancel?'#ff4f6a':'var(--accent)'};color:${isCancel?'#fff':'#0a0b0f'};border:none;border-radius:10px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font-body,inherit)">${mainBtn}</button>
           <button onclick="dismissOrderCard('${a.id}')" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:10px;padding:11px 14px;font-size:13px;cursor:pointer;font-family:var(--font-body,inherit)">${uiT('order_cancel')}</button>
         </div>
         <div class="order-err" style="display:none;margin-top:10px;font-size:12px;line-height:1.5;color:#ff4f6a"></div>
       </div></div>`;
     msgs.appendChild(d);
   });
-  msgs.scrollTop=msgs.scrollHeight;
+  // Na konec HNED, bez plynulého posunu: při něm karta ujížděla pod prstem a tlačítka byla chvíli
+  // schovaná pod spodní lištou → první klepnutí šlo mimo (nález uživatele 13. 10. 2026). Po doběhnutí
+  // layoutu (písma, lišta rychlých voleb) se poloha ještě dvakrát dorovná.
+  const jump=()=>{ const sb=msgs.style.scrollBehavior; msgs.style.scrollBehavior='auto'; msgs.scrollTop=msgs.scrollHeight; msgs.style.scrollBehavior=sb; };
+  jump(); setTimeout(jump,250); setTimeout(()=>{ if(msgs.scrollHeight-msgs.scrollTop-msgs.clientHeight<400) jump(); },900);
 }
 function escapeHtmlOrder(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 // „Zrušit tuto objednávku": otevře kartu zrušení a tlačítko schová; „Teď ne" kartu zavře a tlačítko vrátí
@@ -1413,11 +1417,14 @@ function forgetCancelAction(actId){
 }
 async function confirmOrder(id, attempt){
   const card=document.getElementById('order-'+id); if(!card) return;
-  const btns=card.querySelectorAll('button'); btns.forEach(b=>b.disabled=true);
+  const btns=card.querySelectorAll('button'); btns.forEach(b=>{b.disabled=true;b.style.opacity='.55';b.style.cursor='default';});
   const err=card.querySelector('.order-err');
+  // Zápis do hotelového systému trvá několik vteřin — bez odezvy to vypadalo, že klepnutí nezabralo
+  const main=card.querySelector('button[data-main]'); if(main){ if(!main.dataset.lbl) main.dataset.lbl=main.textContent; main.textContent='⏳ '+main.dataset.lbl+'…'; }
+  const unlock=()=>{ btns.forEach(b=>{b.disabled=false;b.style.opacity='';b.style.cursor='pointer';}); if(main&&main.dataset.lbl) main.textContent=main.dataset.lbl; };
   // Po restartu serveru (nasazení) vrací Railway chvíli 502 — jeden tichý pokus navíc po 2,5 s,
   // ať host neklikne do výpadku (11. 10. 2026: dvakrát „Nepovedlo se" při testu).
-  const fail=(why)=>{ err.textContent=uiT('order_fail')+(why?` (${why})`:''); err.style.display='block'; btns.forEach(b=>b.disabled=false); console.warn('guest/order', why); };
+  const fail=(why)=>{ err.textContent=uiT('order_fail')+(why?` (${why})`:''); err.style.display='block'; unlock(); console.warn('guest/order', why); };
   try{
     const r=await fetch(`${API}/api/guest/order`,{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({hotel_id:hotelId,action_id:(ORDER_STATE[id]&&ORDER_STATE[id].extId)||id,device_id:deviceId,language:guestLang,
