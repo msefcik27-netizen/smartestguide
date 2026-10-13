@@ -6996,6 +6996,11 @@ _EXT_ISO_RE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
 # „Can I stay until the 18th?" / „můžu zůstat do 18.?" — prodloužení řečené datem, bez slova „prodloužit"
 _EXT_STAY_UNTIL_RE = re.compile(r"\bstay(?:ing)?\s+(?:here\s+)?(?:until|till|til|through)\b|\bz[ůu]sta(?:t|nu|neme)\s+(?:a[žz]\s+)?do\b|"
                                 r"\bbleiben\s+bis\b|\brester\s+jusqu|\bquedar(?:me|nos)?\s+hasta\b|\brestare\s+fino\b", re.IGNORECASE)
+# Překlepy a volnější formulace: „can i sty longer?" (snímek uživatele 13. 10. 2026) kartu nenabídlo
+_EXT_LOOSE_RE = re.compile(r"\bst(?:a|ay|ya|y|ey|aay)\s+(?:a\s+(?:bit|little)\s+)?(?:longer|loner|longr|another|an extra|one more|more)\b|"
+                           r"\blonger\s+stay\b|\b(?:one|another|extra|more|few)\s+(?:more\s+)?ni(?:ght|te|gth)s?\b|\bext[ea]?nd\b|"
+                           r"\bz[ůu]sta(?:t|nu|neme)\s+(?:tu\s+|tady\s+)?(?:d[ée]le|d[ýy]l|je[šs]t[ěe])|\bprodlou[zž]|\bnoc\s+nav[íi]c\b|"
+                           r"\bl[äa]nger\s+bleiben\b|\bbleiben\s+l[äa]nger\b", re.IGNORECASE)
 _EXT_NIGHT_WORD_RE = re.compile(r"night|noc|nacht|nächt|nuit|nott[ei]|noche|ноч|ніч", re.IGNORECASE)
 
 # Alexova starší odpověď, která nese údaje o pobytu (odjezd, příjezd, noci, prodloužení) — viz historie v chatu
@@ -7006,7 +7011,7 @@ def _ext_intent(msg: str) -> bool:
     """Chce host PRODLOUŽIT POBYT? Věta s časem dne a bez zmínky o noci („stay longer until 6 pm",
     „zůstat déle do 18 hodin") je pozdní odjezd, ne prodloužení — karta na další noc k ní nepatří."""
     m = msg or ""
-    if not (_EXTENSION_INTENT_RE.search(m) or _EXT_STAY_UNTIL_RE.search(m)):
+    if not (_EXTENSION_INTENT_RE.search(m) or _EXT_STAY_UNTIL_RE.search(m) or _EXT_LOOSE_RE.search(m)):
         return False
     return not (_EXT_TIME_RE.search(m) and not _EXT_NIGHT_WORD_RE.search(m))
 
