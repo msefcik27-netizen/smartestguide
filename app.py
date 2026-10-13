@@ -7007,6 +7007,10 @@ _EXT_NIGHT_WORD_RE = re.compile(r"night|noc|nacht|nächt|nuit|nott[ei]|noche|н�
 _STAY_FACT_RE = re.compile(r"check.?out|check.?in|odjezd|odhl[áa][šs]|p[řr][íi]jezd|abreise|anreise|d[ée]part|arriv|salida|llegada|partenza|"
                            r"night|noc[ií]?\b|nacht|nächt|nuit|nott[ei]|noche|prodlou|predĺ|extend|extension|verläng|prolong", re.IGNORECASE)
 
+# Alexova odpověď, která hned v úvodu mluví o prodloužení pobytu (záloha ke značce [[EXT]])
+_REPLY_EXT_RE = re.compile(r"extend(?:ing)?\s+(?:your|the)\s+stay|stay\s+(?:a\s+\w+\s+)?longer|longer\s+stay|prodlou[žz]|z[ůu]stat\s+d[ée]le|"
+                           r"verl[äa]nger|l[äa]nger\s+bleiben|prolong|quedar\w*\s+m[áa]s|rester\s+plus", re.IGNORECASE)
+
 def _ext_intent(msg: str) -> bool:
     """Chce host PRODLOUŽIT POBYT? Věta s časem dne a bez zmínky o noci („stay longer until 6 pm",
     „zůstat déle do 18 hodin") je pozdní odjezd, ne prodloužení — karta na další noc k ní nepatří."""
@@ -8341,7 +8345,8 @@ Guest name: {req.guest_name or 'Guest'}"""
                          and not (_EXT_TIME_RE.search(req.message or "") and not _EXT_NIGHT_WORD_RE.search(req.message or "")))
     _ext_marker_block = ("INTERNÍ ZNAČKA: pokud se host v POSLEDNÍ zprávě ptá, jestli může zůstat déle / prodloužit pobyt / přidat "
                          "noc (i s překlepy, v jakémkoli jazyce), začni odpověď přesně znaky [[EXT]] a pak pokračuj normálně. "
-                         "Značku nepoužívej u dotazu na pozdní odjezd (pozdější hodina v den odjezdu) ani u jiných témat.")
+                         "Značku nepoužívej u dotazu na pozdní odjezd (pozdější hodina v den odjezdu) ani u jiných témat. "
+                         "Je to POVINNÉ: bez značky se hostovi nezobrazí tlačítko pro prodloužení.")
 
     async def _alex(extra_blocks: list, msgs: list):
         async with httpx.AsyncClient() as client:
@@ -8366,7 +8371,9 @@ Guest name: {req.guest_name or 'Guest'}"""
         return _jj["content"][0]["text"], (_jj.get("usage", {}) or {})
 
     _raw, _usage = await _alex(pms_extra_blocks + ([_ext_marker_block] if _ext_possible else []), messages)
-    if _ext_possible and "[[EXT]]" in _raw:
+    # Značku model občas vynechá (test 13. 10. 2026: jednou ze dvou u téže věty) → záloha: odpověď hned
+    # v úvodu sama mluví o prodloužení pobytu.
+    if _ext_possible and ("[[EXT]]" in _raw or _REPLY_EXT_RE.search(_raw[:220])):
         try:
             _acts2, _blk2 = await _build_order_proposals(h, _hid, _stay_obj, req.message or "", settings, db,
                                                          room=(req.room or "").strip(), context="", force_ext=True)
