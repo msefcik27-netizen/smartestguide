@@ -7111,7 +7111,8 @@ def _pick_service_dates(message: str, svc: dict, stay) -> list:
     fut = [d for d in avail if d >= today]
     return fut[:1] or avail[:1]
 
-async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings: dict, db: dict, room: str = "", context: str = ""):
+async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings: dict, db: dict, room: str = "", context: str = "",
+                                 force_ext: bool = False):
     """Vrátí (akce pro klienta, blok do promptu). Akce = konkrétní, naceněné návrhy; nic se
     nezapisuje. Každá dostane token do _ORDER_PROPOSALS.
     Dvě cesty: (1) ověřený pobyt z Apalea → služby z allowlistu + prodloužení (zápis nebo
@@ -7135,7 +7136,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         # Nejdřív jen aktuální zpráva; kontext poslední výměny až když zpráva sama žádnou
         # položku nejmenuje („mohu si JI objednat?"). Jinak se po odmítnuté snídani vracela
         # snídaně i k dotazu na masáž (nález uživatele 11. 10.).
-        ext = wr["pms_write_extension"] and _ext_intent(message)
+        ext = wr["pms_write_extension"] and (force_ext or _ext_intent(message))
         # Kontext jen u odkazující věty s chutí objednat („mohu si JI objednat?"); u dotazu na
         # prodloužení se snídaně z předchozí výměny nevrací (nález uživatele 11. 10., snímek).
         hit = [it for it in items if _service_matches(message or "", it)] or \
@@ -7275,7 +7276,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         # neobjedná, dokud neklepne; tlačítko je nabídka, ne nátlak.
         # Nejdřív jen aktuální zpráva; kontext (poslední výměna) až když zpráva sama službu nejmenuje.
         _wants = bool(_ORDER_WORDS_RE.search(message or ""))
-        _is_ext = bool(_ext_intent(message))
+        _is_ext = bool(force_ext or _ext_intent(message))
         matched = [o for o in allowed if _service_matches(message or "", o)] or \
                   ([o for o in allowed if _service_matches((message or "") + "\n" + (context or ""), o)] if (_wants and not _is_ext) else [])
         for o in matched:
@@ -7312,7 +7313,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
     # b) prodloužení pobytu — po potvrzení hostem se zapíše rovnou do rezervace (amend), stejně jako služby
     #    (uživatel 11. 10. 2026: „zrušme tedy ten limit a kód emailem"). Jen ve stejném typu pokoje
     #    (_norm_stay_offers dává jiný typ do validation → nenabídne se).
-    if wr["pms_write_extension"] and _ext_intent(message):
+    if wr["pms_write_extension"] and (force_ext or _ext_intent(message)):
         wanted = _ext_nights_wanted(message, getattr(stay, "departure", "") or "")
         n = min(wanted, 7)
         # Smí se u téhle rezervace vůbec měnit odjezd? (Apaleo akce AmendDeparture — zakázaná např. při
@@ -8331,27 +8332,52 @@ Guest name: {req.guest_name or 'Guest'}"""
             _q_open = m["role"] == "user"
     messages.append({"role": "user", "content": req.message})
 
-    async with httpx.AsyncClient() as client:
-        r = await client.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-            json={
-                "model": "claude-haiku-4-5-20251001", "max_tokens": 500,
-                # Prompt caching: statický profil hotelu (system) se kešuje → další zprávy v téže
-                # konverzaci čtou tenhle vstup levněji. Kešování naskočí, když prefix dosáhne minima
-                # (~1–2k tokenů); u bohatšího profilu ušetří nejvíc. Bez benefitu to neškodí.
-                "system": ([{"type": "text", "text": hotel_info, "cache_control": {"type": "ephemeral"}}]
-                           + ([{"type": "text", "text": stay_block}] if stay_block else [])
-                           + [{"type": "text", "text": b} for b in pms_extra_blocks if b]),
-                "messages": messages,
-            },
-            timeout=30.0,
-        )
-    if r.status_code != 200:
-        raise HTTPException(500, f"AI chyba: {r.text[:200]}")
-    _j = r.json()
-    reply = _alex_feminine_fix(_j["content"][0]["text"])
-    _usage = _j.get("usage", {}) or {}
+    # Záměr prodloužit pobyt pozná server podle slov ve větě — překlep („can i staya lomger?", snímek
+    # uživatele 13. 10. 2026) tím propadl a host dostal jen odkaz na recepci. Model větě rozumí i s
+    # překlepy, proto ji v takovém případě označí značkou; server pak nabídku načte a odpověď vygeneruje
+    # znovu s kartou. Značka se hostovi nikdy neukáže.
+    _ext_possible = bool(_stay_obj and getattr(_stay_obj, "reservation_id", "") and h.get("pms_write_extension")
+                         and not any(a.get("kind") == "extension" for a in order_actions)
+                         and not (_EXT_TIME_RE.search(req.message or "") and not _EXT_NIGHT_WORD_RE.search(req.message or "")))
+    _ext_marker_block = ("INTERNÍ ZNAČKA: pokud se host v POSLEDNÍ zprávě ptá, jestli může zůstat déle / prodloužit pobyt / přidat "
+                         "noc (i s překlepy, v jakémkoli jazyce), začni odpověď přesně znaky [[EXT]] a pak pokračuj normálně. "
+                         "Značku nepoužívej u dotazu na pozdní odjezd (pozdější hodina v den odjezdu) ani u jiných témat.")
+
+    async def _alex(extra_blocks: list, msgs: list):
+        async with httpx.AsyncClient() as client:
+            _r = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                json={
+                    "model": "claude-haiku-4-5-20251001", "max_tokens": 500,
+                    # Prompt caching: statický profil hotelu (system) se kešuje → další zprávy v téže
+                    # konverzaci čtou tenhle vstup levněji. Kešování naskočí, když prefix dosáhne minima
+                    # (~1–2k tokenů); u bohatšího profilu ušetří nejvíc. Bez benefitu to neškodí.
+                    "system": ([{"type": "text", "text": hotel_info, "cache_control": {"type": "ephemeral"}}]
+                               + ([{"type": "text", "text": stay_block}] if stay_block else [])
+                               + [{"type": "text", "text": b} for b in extra_blocks if b]),
+                    "messages": msgs,
+                },
+                timeout=30.0,
+            )
+        if _r.status_code != 200:
+            raise HTTPException(500, f"AI chyba: {_r.text[:200]}")
+        _jj = _r.json()
+        return _jj["content"][0]["text"], (_jj.get("usage", {}) or {})
+
+    _raw, _usage = await _alex(pms_extra_blocks + ([_ext_marker_block] if _ext_possible else []), messages)
+    if _ext_possible and "[[EXT]]" in _raw:
+        try:
+            _acts2, _blk2 = await _build_order_proposals(h, _hid, _stay_obj, req.message or "", settings, db,
+                                                         room=(req.room or "").strip(), context="", force_ext=True)
+            if _blk2:
+                # i bez karty (žádná volná noc, změna odjezdu nepovolena) nese blok pokyn, co hostovi říct
+                _raw2, _usage2 = await _alex(pms_extra_blocks + [_blk2], [{"role": "user", "content": req.message}])
+                _raw, order_actions = _raw2, (_acts2 or order_actions)
+                _usage = {k: int(_usage.get(k) or 0) + int(_usage2.get(k) or 0) for k in ("input_tokens", "output_tokens")}
+        except Exception as e:
+            logging.warning("Druhý průchod pro prodloužení selhal: %s", e)
+    reply = _alex_feminine_fix(re.sub(r"\s*\[\[EXT\]\]\s*", " ", _raw).strip())
     # Zaloguj reálný dotaz hosta (analytika + detekce mezer v informacích)
     try:
         _log_guest_question(_hid, req.message, reply_lang, reply, device_id=req.device_id or "", in_tokens=int(_usage.get("input_tokens") or 0), out_tokens=int(_usage.get("output_tokens") or 0))
