@@ -7011,6 +7011,26 @@ _STAY_FACT_RE = re.compile(r"check.?out|check.?in|odjezd|odhl[áa][šs]|p[řr][�
 _REPLY_EXT_RE = re.compile(r"extend(?:ing)?\s+(?:your|the)\s+stay|stay\s+(?:a\s+\w+\s+)?longer|longer\s+stay|prodlou[žz]|z[ůu]stat\s+d[ée]le|"
                            r"verl[äa]nger|l[äa]nger\s+bleiben|prolong|quedar\w*\s+m[áa]s|rester\s+plus", re.IGNORECASE)
 
+_RECEPTION_RE = re.compile(r"recep|front desk|rezeption|réception|recepción|ресепшен|рецепц", re.IGNORECASE)
+
+def _drop_ext_reception(reply: str, actions: list) -> str:
+    """Karta prodloužení s přepínačem nocí (zápis přímo do Apalea): věty, které hosta kvůli delšímu
+    pobytu posílají na recepci, se z odpovědi vyřadí — počet nocí si host nastaví na kartě. Pokyn v promptu
+    to nezaručil (snímek uživatele 14. 10. 2026). Recepce zůstává tam, kde je opravdu potřeba: stěhování,
+    požadavek místo zápisu, host chtěl víc nocí, než karta nabízí."""
+    ext = next((a for a in actions or [] if a.get("kind") == "extension"), None)
+    if not ext or ext.get("mode") != "auto" or ext.get("room_move") or len(ext.get("options") or []) < 2 or ext.get("_wanted_more"):
+        return reply
+    out = []
+    for para in reply.split("\n"):
+        sents = re.split(r"(?<=[.!?])\s+", para)
+        kept = [s for s in sents if not _RECEPTION_RE.search(s)]
+        if sents and not kept and para.strip():
+            continue   # celý odstavec byl jen o recepci
+        out.append(" ".join(kept) if len(kept) != len(sents) else para)
+    res = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
+    return res or reply
+
 def _ext_intent(msg: str) -> bool:
     """Chce host PRODLOUŽIT POBYT? Věta s časem dne a bez zmínky o noci („stay longer until 6 pm",
     „zůstat déle do 18 hodin") je pozdní odjezd, ne prodloužení — karta na další noc k ní nepatří."""
@@ -7427,6 +7447,8 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
                     opts.append({"nights": _k, "departure": _v["departure"], "price": _v["price"], "detail": _d,
                                  "id": _sign_proposal({**_v, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})})
                 act["options"] = opts
+                if wanted > opts[-1]["nights"]:
+                    act["_wanted_more"] = True   # chce víc, než karta nabízí → zmínka o recepci v odpovědi zůstává
                 lines[_ext_line_idx] += (f" — POZOR: na kartě si host sám zvolí 1 až {opts[-1]['nights']} nocí, NIKDY neříkej, že kvůli "
                                          "více nocím má kontaktovat recepci")
                 lines.append(f"  Host si může počet nocí na kartě ZMĚNIT ({', '.join(str(o['nights']) for o in opts)}), cena se na kartě "
@@ -8388,6 +8410,7 @@ Guest name: {req.guest_name or 'Guest'}"""
         except Exception as e:
             logging.warning("Druhý průchod pro prodloužení selhal: %s", e)
     reply = _alex_feminine_fix(re.sub(r"\s*\[\[EXT\]\]\s*", " ", _raw).strip())
+    reply = _drop_ext_reception(reply, order_actions)
     # Zaloguj reálný dotaz hosta (analytika + detekce mezer v informacích)
     try:
         _log_guest_question(_hid, req.message, reply_lang, reply, device_id=req.device_id or "", in_tokens=int(_usage.get("input_tokens") or 0), out_tokens=int(_usage.get("output_tokens") or 0))

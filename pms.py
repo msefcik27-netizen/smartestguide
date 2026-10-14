@@ -91,6 +91,11 @@ def format_stay_block(stay: "Stay") -> str:
                  "odjezd nebo jiná data, jsou ZASTARALÉ (pobyt byl mezitím změněn) — nikdy z nich nevycházej a nepočítej od nich. "
                  "Den v týdnu ber jen z těchto údajů, sám ho neodvozuj.")
     lines.append("DŮLEŽITÉ: Časy z této rezervace mají PŘEDNOST před obecnými časy hotelu (check-in/check-out v profilu). Hostovi vždy říkej čas z jeho rezervace.")
+    # Pobyt se čte jen u ubytovaných hostů (InHouse) → příjezd už proběhl. Alex dřív míchal obecný čas
+    # check-inu hotelu se skutečným příjezdem („welcome from 10:00 … arrival noted at 21:49", 14. 10. 2026).
+    if stay.arrival:
+        lines.append("Host je UŽ UBYTOVANÝ (příjezd proběhl). U dotazu na check-in řekni jen, kdy přijel (datum a čas výše); "
+                     "obecný čas check-inu hotelu ani „od kolika je možné se ubytovat“ NEZMIŇUJ.")
     lines.append("PLATÍ TO I PRO OBECNÉ DOTAZY: když se host zeptá obecně (např. Jaké jsou časy check-in/check-out? / Kdy je check-out?) nebo klikne na rychlou volbu s časy, odpověz PŘEDEVŠÍM konkrétním časem z JEHO rezervace (např. Váš check-out je 8. 7. v 10:00); obecné časy hotelu můžeš doplnit nanejvýš jako vedlejší poznámku. Nikdy neodpovídej jen obecnými časy, když má host propojený pobyt.")
     if stay.nights:     lines.append(f"- Počet nocí: {stay.nights}")
     if stay.adults or stay.children:
