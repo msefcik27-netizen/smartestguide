@@ -7452,7 +7452,8 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
                 lines[_ext_line_idx] += (f" — POZOR: na kartě si host sám zvolí 1 až {opts[-1]['nights']} nocí, NIKDY neříkej, že kvůli "
                                          "více nocím má kontaktovat recepci")
                 lines.append(f"  Host si může počet nocí na kartě ZMĚNIT ({', '.join(str(o['nights']) for o in opts)}), cena se na kartě "
-                             "přepočítá — zmiň to jednou krátkou větou. Ceny jiných variant sám neuváděj ani nepočítej. Kvůli více nocím "
+                             "přepočítá — zmiň to jednou krátkou větou. Ceny jiných variant sám neuváděj ani nepočítej; cenu výše NIKDY "
+                             "nepodávej jako cenu „za noc“ / „za každou další noc“ (ceny nocí se liší, víc nocí nestojí násobek). Kvůli více nocím "
                              "v tomto rozsahu NEODKAZUJ na recepci — tu zmiň jen pro prodloužení delší, než karta nabízí.")
             # Typ pokoje volný, ale KONKRÉTNÍ pokoj hosta na přidané noci obsazený → Apaleo by přiřadilo jiný
             # (stěhování). Host to má vědět PŘED potvrzením, ne až po něm.
