@@ -7342,11 +7342,34 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
         n = min(wanted, 7)
         # Smí se u téhle rezervace vůbec měnit odjezd? (Apaleo akce AmendDeparture — zakázaná např. při
         # zavřeném účtu.) Když ne, karta se nenabízí a host jde na recepci; amend by skončil 422.
+        # Rychlost (uživatel 14. 10. 2026: „odezva je několik sekund"): kontrola AmendDeparture, nabídky pro
+        # 1–7 nocí a kontrola volného pokoje běží SOUBĚŽNĚ, ne za sebou. Pokoj se ověřuje pro odjezd po chtěném
+        # počtu nocí; vyjde-li nakonec jiná varianta, ověří se znovu. Nejvýš 5 dotazů naráz (dev účet Apalea
+        # má limit 5 dotazů za vteřinu, na 429 se čeká podle Retry-After).
+        _sem = asyncio.Semaphore(5)
+        async def _guard(coro, what):
+            async with _sem:
+                try:
+                    return await coro
+                except Exception as e:
+                    logging.warning("Prodloužení — %s selhalo: %s", what, e)
+                    return None
+        async def _ext_valid(k: int):
+            _offs = await pms_layer.apaleo_reservation_extension_offers(_ph, stay, k) or []
+            return next((o for o in _offs if not o.get("validation")), None)
+        _dep_iso = getattr(stay, "departure_iso", "") or ""
+        _guess_to = ""
         try:
-            _pre = await pms_layer.apaleo_extension_precheck(_ph, stay)
-        except Exception as e:
-            _pre = None
-            logging.warning("Kontrola AmendDeparture selhala: %s", e)
+            from datetime import date as _date, timedelta as _td
+            if _dep_iso[:10]:
+                _guess_to = (_date.fromisoformat(_dep_iso[:10]) + _td(days=n)).isoformat() + _dep_iso[10:]
+        except ValueError:
+            _guess_to = ""
+        _res = await asyncio.gather(
+            _guard(pms_layer.apaleo_extension_precheck(_ph, stay), "kontrola AmendDeparture"),
+            _guard(pms_layer.apaleo_room_free_for_extension(_ph, stay, _guess_to), "kontrola pokoje") if _guess_to else asyncio.sleep(0),
+            *[_guard(_ext_valid(k), f"nabídka {k} nocí") for k in range(1, 8)])
+        _pre, _room_free_guess, _offer_list = _res[0], _res[1], _res[2:]
         if _pre and _pre.get("allowed") is False:
             logging.warning("Guest extension hotel=%s res=%s: AmendDeparture není povoleno (%s)", hid, rid, ", ".join(_pre.get("reasons") or []))
             if actions:
@@ -7356,21 +7379,9 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
             return [], ("PRODLOUŽENÍ V CHATU: u této rezervace teď hotelový systém změnu odjezdu nedovoluje → žádné tlačítko "
                         "se nezobrazí. Řekni hostovi, že prodloužení v chatu zařídit nejde, a odkaž ho na recepci. "
                         "Neuváděj cenu ani dostupnost jako jistou.")
-        async def _ext_valid(k: int):
-            _offs = await pms_layer.apaleo_reservation_extension_offers(_ph, stay, k) or []
-            return next((o for o in _offs if not o.get("validation")), None)
-        # Nabídky pro 1–7 nocí najednou: host si na kartě přepíná počet nocí a u každého vidí skutečnou cenu
+        # Nabídky pro 1–7 nocí: host si na kartě přepíná počet nocí a u každého vidí skutečnou cenu
         # z Apalea (uživatel 12. 10. 2026: „co když chci jen jednu noc? nemělo by tam být počet nocí?").
-        # Nejvýš 3 dotazy souběžně (dev účet Apalea má limit 5 dotazů za vteřinu).
-        _sem = asyncio.Semaphore(3)
-        async def _ext_k(k: int):
-            async with _sem:
-                try:
-                    return await _ext_valid(k)
-                except Exception as e:
-                    logging.warning("Nabídka prodloužení o %d nocí selhala: %s", k, e)
-                    return None
-        ext_opts = {o["new_nights"]: o for o in await asyncio.gather(*[_ext_k(k) for k in range(1, 8)]) if o}
+        ext_opts = {o["new_nights"]: o for o in _offer_list if o}
         # Výchozí = chtěný počet; není-li volný, nejdelší kratší (nález 11. 10. 2026: chtěl 5, volné 3 → žádná karta)
         best = ext_opts.get(max([k for k in ext_opts if k <= n], default=0))
         # Rezervace ze skupinového bloku: Apaleo při změně cenu VŽDY přepočítá podle bloku (swagger amend:
@@ -7457,11 +7468,13 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
                              "v tomto rozsahu NEODKAZUJ na recepci — tu zmiň jen pro prodloužení delší, než karta nabízí.")
             # Typ pokoje volný, ale KONKRÉTNÍ pokoj hosta na přidané noci obsazený → Apaleo by přiřadilo jiný
             # (stěhování). Host to má vědět PŘED potvrzením, ne až po něm.
-            try:
-                _room_free = await pms_layer.apaleo_room_free_for_extension(_ph, stay, best["departure"])
-            except Exception as e:
-                _room_free = None
-                logging.warning("Kontrola volného pokoje pro prodloužení selhala: %s", e)
+            _room_free = _room_free_guess if (_guess_to and _guess_to[:10] == best["departure"][:10]) else None
+            if _room_free is None:
+                try:
+                    _room_free = await pms_layer.apaleo_room_free_for_extension(_ph, stay, best["departure"])
+                except Exception as e:
+                    _room_free = None
+                    logging.warning("Kontrola volného pokoje pro prodloužení selhala: %s", e)
             if _room_free is False:
                 act["room_move"] = True
                 lines.append("  STĚHOVÁNÍ: hostův současný pokoj je na přidané noci OBSAZENÝ — na ty noci dostane jiný pokoj "
@@ -8305,7 +8318,8 @@ Guest name: {req.guest_name or 'Guest'}"""
             if _svcs:
                 pms_extra_blocks.append(pms_layer.format_services_block(
                     _svcs, getattr(_stay_obj, "nights", 0) or 0))
-            if _ext_intent(req.message):
+            if _ext_intent(req.message) and not h.get("pms_write_extension"):
+                # (Se zápisem prodloužení ji nahrazuje karta z _build_order_proposals — o jeden dotaz do Apalea méně.)
                 # Počet nocí: datum („až do 18."), číslo kdekoli ve zprávě (i „2 MORE nights"), slovní číslovky
                 _n = _nights_from_message(req.message or "", getattr(_stay_obj, "departure", "") or "")
                 _ext = await pms_layer.apaleo_extension_offer(_ph_x, _stay_obj, _n)
