@@ -10,6 +10,7 @@
 #   - Minimalizace dat: tahá se jen aktuální pobyt pro daný pokoj, nic se neukládá do DB.
 #   - Credentials per hotel (pms_client_id/secret v hotelu, jen pro admin — nikdy ke guestům).
 
+import asyncio
 import base64
 import logging
 import re
@@ -60,6 +61,17 @@ class Stay:
     status: str = ""                # InHouse / Confirmed / ...
     source: str = ""                # 'apaleo' | 'mews' | ...
 
+def date_wd(d: str) -> str:
+    """„2026-10-18" → „2026-10-18 (Sunday)". Den v týdnu dodává server — model ho jinak hádá
+    (snímek 12. 10. 2026: „Wednesday, 15 October", přitom šlo o čtvrtek)."""
+    try:
+        from datetime import date
+        _d = date.fromisoformat((d or "")[:10])
+        # Den a měsíc slovy: u „2026-10-20 (Tuesday) v 09:00" model četl „9 October" (test 13. 10. 2026)
+        return f"{_d.strftime('%A')} {_d.day} {_d.strftime('%B %Y')} [{_d.isoformat()}]"
+    except Exception:
+        return (d or "")[:10]
+
 def format_stay_block(stay: "Stay") -> str:
     """Blok do Alexova system promptu. Alex odpovídá jazykem hosta, blok je česky
     (stejně jako zbytek interních dat v promptu).
@@ -71,9 +83,19 @@ def format_stay_block(stay: "Stay") -> str:
         f"- Pokoj: {stay.room}",
     ]
     if _PII_TO_PROMPT and stay.guest_name: lines.append(f"- Host: {stay.guest_name}")
-    if stay.arrival:    lines.append(f"- Příjezd: {stay.arrival}" + (f" od {stay.arrival_time}" if stay.arrival_time else ""))
-    if stay.departure:  lines.append(f"- Odjezd (check-out): {stay.departure}" + (f" v {stay.departure_time}" if stay.departure_time else ""))
+    if stay.arrival:    lines.append(f"- Příjezd: {date_wd(stay.arrival)}" + (f", čas příjezdu {stay.arrival_time} hod." if stay.arrival_time else ""))
+    if stay.departure:  lines.append(f"- Odjezd (check-out): {date_wd(stay.departure)}" + (f", čas odjezdu {stay.departure_time} hod." if stay.departure_time else ""))
+    # Pobyt se mohl během konverzace prodloužit — starší zprávy pak nesou starý odjezd a Alex od něj počítal
+    # (snímek 12. 10. 2026: odjezd 18. 10., Alex řekl 15. 10. podle zprávy z dřívějška).
+    lines.append("DATA POBYTU VÝŠE JSOU AKTUÁLNÍ STAV Z HOTELOVÉHO SYSTÉMU. Pokud dřívější zprávy v této konverzaci uvádějí jiný "
+                 "odjezd nebo jiná data, jsou ZASTARALÉ (pobyt byl mezitím změněn) — nikdy z nich nevycházej a nepočítej od nich. "
+                 "Den v týdnu ber jen z těchto údajů, sám ho neodvozuj.")
     lines.append("DŮLEŽITÉ: Časy z této rezervace mají PŘEDNOST před obecnými časy hotelu (check-in/check-out v profilu). Hostovi vždy říkej čas z jeho rezervace.")
+    # Pobyt se čte jen u ubytovaných hostů (InHouse) → příjezd už proběhl. Alex dřív míchal obecný čas
+    # check-inu hotelu se skutečným příjezdem („welcome from 10:00 … arrival noted at 21:49", 14. 10. 2026).
+    if stay.arrival:
+        lines.append("Host je UŽ UBYTOVANÝ (příjezd proběhl). U dotazu na check-in řekni jen, kdy přijel (datum a čas výše); "
+                     "obecný čas check-inu hotelu ani „od kolika je možné se ubytovat“ NEZMIŇUJ.")
     lines.append("PLATÍ TO I PRO OBECNÉ DOTAZY: když se host zeptá obecně (např. Jaké jsou časy check-in/check-out? / Kdy je check-out?) nebo klikne na rychlou volbu s časy, odpověz PŘEDEVŠÍM konkrétním časem z JEHO rezervace (např. Váš check-out je 8. 7. v 10:00); obecné časy hotelu můžeš doplnit nanejvýš jako vedlejší poznámku. Nikdy neodpovídej jen obecnými časy, když má host propojený pobyt.")
     if stay.nights:     lines.append(f"- Počet nocí: {stay.nights}")
     if stay.adults or stay.children:
@@ -94,10 +116,12 @@ def format_extension_block(ext: dict) -> str:
                 "Hostovi to řekni a doporuč obrátit se na recepci — někdy umí najít řešení "
                 "(jiný typ pokoje, čekací listina).")
     price = ext.get("price")
+    if isinstance(price, (int, float)):
+        price = f"{price:g}"   # 97, ne 97.0 (Alex jinak říká „97.0 GBP")
     cur = ext.get("currency") or ""
     lines = [
         "PRODLOUŽENÍ POBYTU (živá data z hotelového systému — smíš je hostovi sdělit):",
-        f"- Termín: {ext.get('from','')} → {ext.get('to','')} ({ext.get('nights',1)} noc/noci)",
+        f"- Termín: {date_wd(ext.get('from',''))} → {date_wd(ext.get('to',''))} ({ext.get('nights',1)} noc/noci)",
         f"- Cena: {price} {cur} (uváděj PŘESNĚ tuto částku, nic nedopočítávej ani nezaokrouhluj)",
     ]
     if ext.get("unit_group"):
@@ -105,8 +129,12 @@ def format_extension_block(ext: dict) -> str:
                      + ("" if ext.get("same_room_type") else " (POZOR: jiný typ než hostův současný pokoj — zmiň to)"))
     if ext.get("rate_plan"):
         lines.append(f"- Sazba: {ext['rate_plan']}")
-    lines.append("DŮLEŽITÉ: Toto je informativní nabídka. Rezervaci prodloužení potvrzuje VÝHRADNĚ recepce — "
-                 "hosta vždy vyzvi, ať se pro potvrzení zastaví na recepci nebo zavolá. Ty sám NIC nerezervuješ.")
+    # Hotel může mít zapnutý zápis prodloužení (karta s tlačítkem, blok OBJEDNÁNÍ V CHATU) — pak se
+    # prodlužuje tlačítkem. Dřív tu stálo „potvrzuje VÝHRADNĚ recepce" a Alex posílal hosta na recepci
+    # i tam, kde šlo prodloužit v chatu (nález 11. 10. 2026).
+    lines.append("DŮLEŽITÉ: Toto je informativní cena. Pokud máš v promptu blok OBJEDNÁNÍ V CHATU s prodloužením, "
+                 "host ho potvrdí tlačítkem pod tvou odpovědí — řiď se tím blokem. Pokud ho nemáš, prodloužení "
+                 "v chatu potvrdit nejde: vyzvi hosta, ať se obrátí na recepci. Ty sám NIC nerezervuješ.")
     return "\n".join(lines)
 
 def format_services_block(services: list, nights: int = 0) -> str:
@@ -324,6 +352,13 @@ def _drop_connect_token(hotel: dict):
     """Zahodí cachovaný Connect access token (po 401/403 — token zneplatněn)."""
     _connect_token_cache.pop((hotel.get("id") or "") + ":" + (hotel.get("pms_property_id") or ""), None)
 
+def _retry_after(r) -> float:
+    """Kolik vteřin počkat po 429 (hlavička Retry-After), nejvýš 3 — host čeká na odpověď v chatu."""
+    try:
+        return max(0.2, min(float(r.headers.get("Retry-After") or 1), 3.0))
+    except (TypeError, ValueError):
+        return 1.0
+
 async def _apaleo_get(hotel: dict, path: str, params: dict, quiet: bool = False):
     """GET na Apaleo API s tokenem hotelu. Vrací JSON dict nebo None.
     quiet=True: 403 (chybějící scope u starého souhlasu) NEoznačuje _pms_fail —
@@ -336,6 +371,11 @@ async def _apaleo_get(hotel: dict, path: str, params: dict, quiet: bool = False)
     async with httpx.AsyncClient(timeout=8.0) as client:
         r = await client.get(f"{_APALEO_API}{path}",
                              headers={"Authorization": f"Bearer {token}"}, params=params)
+        if r.status_code == 429:
+            # Rate limit (apaleo.dev/guides/api/rate-limiting): počkat podle Retry-After a zkusit jednou znovu
+            await asyncio.sleep(_retry_after(r))
+            r = await client.get(f"{_APALEO_API}{path}",
+                                 headers={"Authorization": f"Bearer {token}"}, params=params)
     if r.status_code == 200:
         try:
             return r.json()
@@ -771,10 +811,21 @@ async def _apaleo_send(hotel: dict, method: str, path: str, params: dict = None,
     token = await _apaleo_access_token(hotel)
     if not token:
         return 0, "token"
-    async with httpx.AsyncClient(timeout=12.0) as client:
-        r = await client.request(method, f"{_APALEO_API}{path}",
-                                 headers={"Authorization": f"Bearer {token}"},
-                                 params=params or None, json=body)
+    try:
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            r = await client.request(method, f"{_APALEO_API}{path}",
+                                     headers={"Authorization": f"Bearer {token}"},
+                                     params=params or None, json=body)
+            if r.status_code == 429:
+                # 429 = požadavek se nezpracoval → po Retry-After ho lze bezpečně poslat znovu
+                await asyncio.sleep(_retry_after(r))
+                r = await client.request(method, f"{_APALEO_API}{path}",
+                                         headers={"Authorization": f"Bearer {token}"},
+                                         params=params or None, json=body)
+    except httpx.TimeoutException:
+        # Zápis nemá idempotency key: po timeoutu se NEVÍ, jestli proběhl → -1, volající stav ověří čtením
+        logging.warning("Apaleo %s %s: timeout (výsledek neznámý)", method, path)
+        return -1, "timeout"
     if r.status_code == 204:
         return 204, {}
     if r.status_code == 200:
@@ -871,6 +922,20 @@ def _norm_stay_offers(d: dict, stay: "Stay") -> list:
                (not stay_ug_id and stay_ug and ts["unit_group"] != stay_ug) for ts in new_slices):
             validation.append("UnitGroupChange")
         lead = new_slices[0]
+        # Městská taxa a poplatky nejsou v ceně nocí — Apaleo je připisuje NAVÍC (swagger: fees „will be
+        # added on top of the TotalGrossAmount"). Taxa má rozpad po dnech → jen přidané noci; poplatky
+        # rozpad nemají (platí za celý pobyt), proto jen jménem, bez částky.
+        tax_sum, tax_names = 0.0, []
+        for ct in o.get("cityTaxes") or []:
+            for it in ct.get("dates") or []:
+                if cur_dep and str(it.get("serviceDate") or "")[:10] >= cur_dep and (it.get("amount") or {}).get("grossAmount") is not None:
+                    tax_sum += float(it["amount"]["grossAmount"])
+                    if ct.get("name") and ct["name"] not in tax_names:
+                        tax_names.append(str(ct["name"]))
+        fee_names = [str(f.get("name") or f.get("code") or "") for f in o.get("fees") or [] if f.get("name") or f.get("code")]
+        fees = [{"id": str(f.get("id") or f.get("code") or ""), "name": str(f.get("name") or f.get("code") or ""),
+                 "gross": (f.get("totalAmount") or {}).get("grossAmount"),
+                 "currency": (f.get("totalAmount") or {}).get("currency") or ""} for f in o.get("fees") or []]
         offers.append({"arrival": str(o.get("arrival") or ""), "departure": str(o.get("departure") or ""),
                        "total": tg.get("amount"), "currency": tg.get("currency") or "",
                        "available_units": o.get("availableUnits"),
@@ -879,6 +944,7 @@ def _norm_stay_offers(d: dict, stay: "Stay") -> list:
                        "new_nights": len(new_slices),
                        "new_total": sum(float(ts["gross"]) for ts in new_slices if ts.get("gross") is not None),
                        "time_slices": slices,
+                       "new_city_tax": round(tax_sum, 2), "city_tax_name": ", ".join(tax_names), "fee_names": fee_names, "fees": fees,
                        "cancellation_fee": {"name": str(cf.get("name") or ""), "due": str(cf.get("dueDateTime") or ""),
                                             "amount": (cf.get("fee") or {}).get("amount"),
                                             "currency": (cf.get("fee") or {}).get("currency") or ""},
@@ -1001,6 +1067,92 @@ async def apaleo_reservation_extension_offers(hotel: dict, stay: "Stay", nights:
     if d == {}:
         return []   # 204 = žádná kapacita
     return _norm_stay_offers(d, stay)
+
+async def apaleo_extension_fee_delta(hotel: dict, stay: "Stay", offer: dict) -> Optional[list]:
+    """Poplatky (fees) připadající na PŘIDANÉ noci. Nabídka je uvádí jen za celý pobyt, proto se
+    načte i nabídka pro pobyt BEZE ZMĚNY (stejné volání bez nového odjezdu) a vrátí se rozdíl po
+    jednotlivých poplatcích: [{name, amount, currency}] (jen kladné). None = nejde spočítat."""
+    rid = _rid(stay)
+    if not (rid and offer and offer.get("fees")):
+        return [] if offer and not offer.get("fees") else None
+    params = {"adults": max(1, int(stay.adults or 1)), "requote": "false"}
+    if stay.children_ages:
+        params["childrenAges"] = list(stay.children_ages)
+    d = await _apaleo_get(hotel, f"/booking/v1/reservations/{rid}/offers", params, quiet=True)
+    if not d:
+        return None
+    base_offers = [b for b in _norm_stay_offers(d, stay) if (b.get("departure") or "")[:10] == (stay.departure or "")[:10]]
+    n_old = len(offer["time_slices"]) - int(offer.get("new_nights") or 0)
+    want = [ts["rate_plan_id"] for ts in offer["time_slices"][:n_old]]
+    base = next((b for b in base_offers if [ts["rate_plan_id"] for ts in b["time_slices"]] == want), None)
+    if not base:
+        return None
+    have = {f["id"]: float(f["gross"]) for f in base.get("fees") or [] if f.get("gross") is not None}
+    out = []
+    for f in offer["fees"]:
+        if f.get("gross") is None:
+            return None
+        diff = round(float(f["gross"]) - have.get(f["id"], 0.0), 2)
+        if diff > 0:
+            out.append({"name": f["name"], "amount": diff, "currency": f["currency"]})
+    return out
+
+async def apaleo_room_free_for_extension(hotel: dict, stay: "Stay", new_departure: str) -> Optional[bool]:
+    """Je hostův KONKRÉTNÍ pokoj volný i na přidané noci? GET /availability/v1/reservations/{id}/units
+    (scope availability.read — máme) za období původní odjezd → nový odjezd. True = host zůstane
+    ve svém pokoji, False = pokoj je obsazený (Apaleo by při prodloužení přiřadilo jiný = stěhování),
+    None = nejde zjistit (chyba, neznámý pokoj) → nic netvrdit."""
+    rid = _rid(stay)
+    cur = (stay.room or "").strip().lower()
+    d_from = stay.departure_iso or stay.departure
+    if not (rid and cur and d_from and new_departure):
+        return None
+    params = {"from": d_from, "to": new_departure, "pageSize": 500}
+    if getattr(stay, "unit_group_id", ""):
+        params["unitGroupId"] = stay.unit_group_id
+    d = await _apaleo_get(hotel, f"/availability/v1/reservations/{rid}/units", params, quiet=True)
+    if d is None:
+        return None
+    return any(((u.get("name") or "").strip().lower() == cur) for u in d.get("units") or [])
+
+async def apaleo_extension_precheck(hotel: dict, stay: "Stay") -> Optional[dict]:
+    """Smí se u rezervace měnit odjezd? GET /booking/v1/reservations/{id}?expand=actions → akce
+    AmendDeparture (Apaleo ji zakáže např. u zavřeného/zavíraného hlavního účtu nebo ve stavu mimo
+    Confirmed/InHouse). Vrací {allowed, reasons} nebo None (nejde zjistit → rozhodne až amend)."""
+    rid = _rid(stay)
+    if not rid:
+        return None
+    d = await _apaleo_get(hotel, f"/booking/v1/reservations/{rid}", {"expand": "actions"}, quiet=True)
+    if not d:
+        return None
+    act = next((a for a in d.get("actions") or [] if a.get("action") == "AmendDeparture"), None)
+    if act is None:
+        return None
+    return {"allowed": bool(act.get("isAllowed")), "block": bool(d.get("blockId")),
+            "reasons": [str(x.get("code") or "") for x in act.get("reasons") or [] if x.get("code")]}
+
+async def apaleo_extension_check(hotel: dict, stay: "Stay") -> Optional[dict]:
+    """Stav rezervace PO prodloužení: GET /booking/v1/reservations/{id}?expand=timeSlices
+    (scope reservations.read). Apaleo při prodloužení s obsazeným pokojem zápis neodmítne —
+    přiřadí na přidané noci JINÝ pokoj a označí stěhování (Apaleo Training Kit: Reservation
+    Management). Vrací {departure, moved, units}: units = pokoje přidaných nocí (od původního
+    odjezdu), moved = některá přidaná noc není v hostově pokoji (jiný pokoj / nepřiřazeno)."""
+    rid = _rid(stay)
+    if not rid:
+        return None
+    d = await _apaleo_get(hotel, f"/booking/v1/reservations/{rid}", {"expand": "timeSlices"}, quiet=True)
+    if not d:
+        return None
+    old_dep = (stay.departure or "")[:10]
+    added = [ts for ts in d.get("timeSlices") or [] if old_dep and str(ts.get("from") or "")[:10] >= old_dep]
+    units = [((ts.get("unit") or {}).get("name") or "").strip() for ts in added]
+    cur = (stay.room or "").strip().lower()
+    # Apaleo stěhování samo hlásí validační zprávou AutoUnitAssignment/UnitMoved. Ta ale může být
+    # i z dřívějška, proto rozhodují pokoje přidaných nocí; zpráva jen když noci pokoj nenesou.
+    flagged = any(m.get("code") == "UnitMoved" or m.get("category") == "AutoUnitAssignment"
+                  for m in d.get("validationMessages") or [])
+    moved = bool(cur) and any(u.lower() != cur for u in units) if any(units) else flagged
+    return {"departure": str(d.get("departure") or "")[:10], "units": units, "moved": moved, "flagged": flagged}
 
 async def apaleo_amend_stay(hotel: dict, stay: "Stay", offer: dict) -> dict:
     """PUT /booking/v1/reservation-actions/{id}/amend (scope reservations.manage).

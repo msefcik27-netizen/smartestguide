@@ -1329,6 +1329,16 @@ function orderRecalc(id){
 }
 function orderCount(id,delta){ const s=ORDER_STATE[id]; if(!s||!s.can) return; s.count=Math.min(s.max||10,Math.max(1,(s.count||1)+delta)); orderRecalc(id); }
 function orderNights(id,delta){ const s=ORDER_STATE[id]; if(!s||!s.canN) return; s.nights=Math.min(14,Math.max(1,(s.nights||1)+delta)); orderRecalc(id); }
+// Prodloužení z Apalea: přepínač počtu nocí přepíná mezi hotovými nabídkami ze serveru (cena, odjezd, token)
+function orderExtNights(id,delta){
+  const s=ORDER_STATE[id]; if(!s||!s.opts) return;
+  s.optIdx=Math.min(s.opts.length-1,Math.max(0,s.optIdx+delta));
+  const o=s.opts[s.optIdx]; s.extId=o.id;
+  const n=document.getElementById('onts-'+id); if(n) n.textContent=o.nights;
+  const t=document.getElementById('otitle-'+id); if(t) t.textContent=`🛏 ${uiT('ext_title')} ${uiT('ext_to')} ${fmtOrderDate(String(o.departure).slice(0,10))}`;
+  const d=document.getElementById('osub-'+id); if(d) d.textContent=o.detail||'';
+  const p=document.getElementById('oprice-'+id); if(p) p.textContent=`${o.price} ${s.cur}`.trim();
+}
 function orderStart(id,val){ const s=ORDER_STATE[id]; if(s) s.start=val||s.start; }
 function orderNote(id,val){ const s=ORDER_STATE[id]; if(s) s.note=(val||'').slice(0,200); }
 function stepperHtml(id,label,valId,val,fn){
@@ -1347,6 +1357,8 @@ function showOrderCards(actions){
     const isItem=a.kind==='item'&&!isExt&&!isCancel;
     ORDER_STATE[a.id]={count:a.count||1,nights:a.nights||1,start:a.start||((a.dates||[])[0]||''),unit_price:a.unit_price,days:a.days||1,
       cur:a.currency||'',can:!!a.can_count,canN:!!a.can_nights,kind:a.kind,unit:a.unit||'',note:'',max:a.max_count||10};
+    const extOpts=(a.kind==='extension'&&Array.isArray(a.options)&&a.options.length>1)?a.options:null;
+    if(extOpts){ ORDER_STATE[a.id].opts=extOpts; ORDER_STATE[a.id].optIdx=Math.max(0,extOpts.findIndex(o=>o.id===a.id)); }
     const dates=(a.dates||[]).map(fmtOrderDate).join(', ');
     // Co host na kartě nastaví: datum od (položky hotelu), osoby (za osobu), dny/noci podle druhu
     // (snídaně = dny, parkování = noci, prodloužení = noci), čas (masáž, pozdní odjezd) nebo poznámka.
@@ -1358,26 +1370,30 @@ function showOrderCards(actions){
     const dateRow=isItem?`<div style="display:flex;align-items:center;gap:10px;margin:6px 0"><span style="font-size:12.5px;color:var(--muted);min-width:92px">${uiT('order_from')}</span><input type="date" value="${escapeHtmlOrder(a.start||'')}" onchange="orderStart('${a.id}',this.value)" style="${inp};width:auto;flex:1"></div>`:'';
     const persons=a.can_count?stepperHtml(a.id,uiT('order_persons'),'ocnt',a.count||1,'orderCount'):'';
     const qtyLbl=a.qty_label==='days'?uiT('order_days'):uiT('order_nights');
-    const nights=a.can_nights?stepperHtml(a.id,qtyLbl,'onts',a.nights||1,'orderNights'):'';
+    const nights=extOpts?stepperHtml(a.id,uiT('order_nights'),'onts',a.nights||1,'orderExtNights'):a.can_nights?stepperHtml(a.id,qtyLbl,'onts',a.nights||1,'orderNights'):'';
     const noteRow=(isItem||(isExt&&a.kind==='item'))?`<input type="text" maxlength="200" placeholder="${a.time_hint?uiT('order_time_ph'):uiT('order_note_ph')}" oninput="orderNote('${a.id}',this.value)" style="${inp};margin:6px 0 4px">`:'';
     const d=document.createElement('div');
     d.className='msg bot'; d.id='order-'+a.id;
     d.innerHTML=`<div class="msg-av" style="background:linear-gradient(90deg,#00d4aa 0%,#00d4aa 60%,#FF6B00 100%);color:#fff;font-weight:800">✦</div>
       <div class="msg-body"><div class="msg-bubble" style="min-width:250px;max-width:340px">
-        <div style="font-weight:700;font-size:14px;margin-bottom:6px">${isCancel?'🗑':isExt?'🛏':'🛎'} ${escapeHtmlOrder(title)}</div>
-        ${isItem?'':`<div style="font-size:12.5px;color:var(--muted);margin-bottom:4px">${subtitle}</div>`}
+        <div id="otitle-${a.id}" style="font-weight:700;font-size:14px;margin-bottom:6px">${isCancel?'🗑':isExt?'🛏':'🛎'} ${escapeHtmlOrder(title)}</div>
+        ${isItem?'':`<div id="osub-${a.id}" style="font-size:12.5px;color:var(--muted);margin-bottom:4px">${subtitle}</div>`}
         ${dateRow}${persons}${nights}${noteRow}
         ${price?`<div id="oprice-${a.id}" style="font-size:16px;font-weight:800;margin:8px 0 10px">${escapeHtmlOrder(price)}</div>`:''}
         <div style="font-size:11.5px;color:var(--muted);line-height:1.45;margin-bottom:12px">${note}</div>
         <div style="display:flex;gap:8px">
-          <button onclick="confirmOrder('${a.id}')" style="flex:1;background:${isCancel?'#ff4f6a':'var(--accent)'};color:${isCancel?'#fff':'#0a0b0f'};border:none;border-radius:10px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font-body,inherit)">${mainBtn}</button>
+          <button data-main="1" onclick="confirmOrder('${a.id}')" style="flex:1;background:${isCancel?'#ff4f6a':'var(--accent)'};color:${isCancel?'#fff':'#0a0b0f'};border:none;border-radius:10px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font-body,inherit)">${mainBtn}</button>
           <button onclick="dismissOrderCard('${a.id}')" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:10px;padding:11px 14px;font-size:13px;cursor:pointer;font-family:var(--font-body,inherit)">${uiT('order_cancel')}</button>
         </div>
         <div class="order-err" style="display:none;margin-top:10px;font-size:12px;line-height:1.5;color:#ff4f6a"></div>
       </div></div>`;
     msgs.appendChild(d);
   });
-  msgs.scrollTop=msgs.scrollHeight;
+  // Na konec HNED, bez plynulého posunu: při něm karta ujížděla pod prstem a tlačítka byla chvíli
+  // schovaná pod spodní lištou → první klepnutí šlo mimo (nález uživatele 13. 10. 2026). Po doběhnutí
+  // layoutu (písma, lišta rychlých voleb) se poloha ještě dvakrát dorovná.
+  const jump=()=>{ const sb=msgs.style.scrollBehavior; msgs.style.scrollBehavior='auto'; msgs.scrollTop=msgs.scrollHeight; msgs.style.scrollBehavior=sb; };
+  jump(); setTimeout(jump,250); setTimeout(()=>{ if(msgs.scrollHeight-msgs.scrollTop-msgs.clientHeight<400) jump(); },900);
 }
 function escapeHtmlOrder(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 // „Zrušit tuto objednávku": otevře kartu zrušení a tlačítko schová; „Teď ne" kartu zavře a tlačítko vrátí
@@ -1401,14 +1417,17 @@ function forgetCancelAction(actId){
 }
 async function confirmOrder(id, attempt){
   const card=document.getElementById('order-'+id); if(!card) return;
-  const btns=card.querySelectorAll('button'); btns.forEach(b=>b.disabled=true);
+  const btns=card.querySelectorAll('button'); btns.forEach(b=>{b.disabled=true;b.style.opacity='.55';b.style.cursor='default';});
   const err=card.querySelector('.order-err');
+  // Zápis do hotelového systému trvá několik vteřin — bez odezvy to vypadalo, že klepnutí nezabralo
+  const main=card.querySelector('button[data-main]'); if(main){ if(!main.dataset.lbl) main.dataset.lbl=main.textContent; main.textContent='⏳ '+main.dataset.lbl+'…'; }
+  const unlock=()=>{ btns.forEach(b=>{b.disabled=false;b.style.opacity='';b.style.cursor='pointer';}); if(main&&main.dataset.lbl) main.textContent=main.dataset.lbl; };
   // Po restartu serveru (nasazení) vrací Railway chvíli 502 — jeden tichý pokus navíc po 2,5 s,
   // ať host neklikne do výpadku (11. 10. 2026: dvakrát „Nepovedlo se" při testu).
-  const fail=(why)=>{ err.textContent=uiT('order_fail')+(why?` (${why})`:''); err.style.display='block'; btns.forEach(b=>b.disabled=false); console.warn('guest/order', why); };
+  const fail=(why)=>{ err.textContent=uiT('order_fail')+(why?` (${why})`:''); err.style.display='block'; unlock(); console.warn('guest/order', why); };
   try{
     const r=await fetch(`${API}/api/guest/order`,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({hotel_id:hotelId,action_id:id,device_id:deviceId,language:guestLang,
+      body:JSON.stringify({hotel_id:hotelId,action_id:(ORDER_STATE[id]&&ORDER_STATE[id].extId)||id,device_id:deviceId,language:guestLang,
         count:(ORDER_STATE[id]&&ORDER_STATE[id].can)?ORDER_STATE[id].count:null,
         nights:(ORDER_STATE[id]&&ORDER_STATE[id].canN)?ORDER_STATE[id].nights:null,
         start:(ORDER_STATE[id]&&ORDER_STATE[id].start)||null,
