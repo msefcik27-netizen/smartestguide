@@ -1339,6 +1339,18 @@ function orderExtNights(id,delta){
   const d=document.getElementById('osub-'+id); if(d) d.textContent=o.detail||'';
   const p=document.getElementById('oprice-'+id); if(p) p.textContent=`${o.price} ${s.cur}`.trim();
 }
+async function loadExtOptions(id,tok){
+  try{
+    const r=await fetch(`${API}/api/guest/extension-options`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({hotel_id:hotelId,token:tok,device_id:deviceId})});
+    const d=await r.json(); const s=ORDER_STATE[id];
+    if(!s||!s.opts||!d||!Array.isArray(d.options)||!d.options.length) return;
+    const curN=(s.opts[s.optIdx]||{}).nights, keepId=s.extId;
+    const idx=d.options.findIndex(o=>o.nights===curN);
+    s.opts=d.options; s.optIdx=idx>=0?idx:0;
+    if(idx<0) orderExtNights(id,0); else s.extId=keepId;   // zobrazená varianta zůstává (její token je platný)
+  }catch(e){ console.warn('extension-options', e); }
+}
 function orderStart(id,val){ const s=ORDER_STATE[id]; if(s) s.start=val||s.start; }
 function orderNote(id,val){ const s=ORDER_STATE[id]; if(s) s.note=(val||'').slice(0,200); }
 function stepperHtml(id,label,valId,val,fn){
@@ -1357,8 +1369,12 @@ function showOrderCards(actions){
     const isItem=a.kind==='item'&&!isExt&&!isCancel;
     ORDER_STATE[a.id]={count:a.count||1,nights:a.nights||1,start:a.start||((a.dates||[])[0]||''),unit_price:a.unit_price,days:a.days||1,
       cur:a.currency||'',can:!!a.can_count,canN:!!a.can_nights,kind:a.kind,unit:a.unit||'',note:'',max:a.max_count||10};
-    const extOpts=(a.kind==='extension'&&Array.isArray(a.options)&&a.options.length>1)?a.options:null;
+    // Přepínač nocí u prodloužení: varianty pošle server buď rovnou (options), nebo si je karta dočte hned po
+    // zobrazení (options_token) — Alex tak nečeká na 7 nabídek z Apalea. Do té doby jde potvrdit výchozí varianta.
+    const extOpts=(a.kind==='extension')?((Array.isArray(a.options)&&a.options.length>1)?a.options:
+      (a.options_token?[{nights:a.nights,id:a.id,departure:a.departure,price:a.price,detail:a.detail}]:null)):null;
     if(extOpts){ ORDER_STATE[a.id].opts=extOpts; ORDER_STATE[a.id].optIdx=Math.max(0,extOpts.findIndex(o=>o.id===a.id)); }
+    if(extOpts&&a.options_token&&extOpts.length<2) setTimeout(()=>loadExtOptions(a.id,a.options_token),0);
     const dates=(a.dates||[]).map(fmtOrderDate).join(', ');
     // Co host na kartě nastaví: datum od (položky hotelu), osoby (za osobu), dny/noci podle druhu
     // (snídaně = dny, parkování = noci, prodloužení = noci), čas (masáž, pozdní odjezd) nebo poznámka.
