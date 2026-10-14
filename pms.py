@@ -838,6 +838,16 @@ async def _apaleo_send(hotel: dict, method: str, path: str, params: dict = None,
     logging.warning("Apaleo %s %s selhal: %s %s", method, path, r.status_code, r.text[:300])
     return r.status_code, r.text[:300]
 
+def _last_night_unit(d: dict, stay: "Stay") -> str:
+    """Pokoj POSLEDNÍ noci před dnešním odjezdem (time slice končící v den odjezdu). Při prodloužení se
+    s ním porovnává — host už mohl být přestěhovaný (nález 14. 10. 2026: po stěhování na noc 8.–9. 11.
+    hlásilo další prodloužení stěhování znovu, protože se porovnávalo s pokojem z prvního dne)."""
+    dep = (stay.departure or "")[:10]
+    for ts in reversed(d.get("timeSlices") or []):
+        if dep and str(ts.get("to") or "")[:10] == dep:
+            return ((ts.get("unit") or {}).get("name") or "").strip()
+    return ""
+
 def _rid(stay: "Stay") -> str:
     return (getattr(stay, "reservation_id", "") or "").strip()
 
@@ -1097,13 +1107,13 @@ async def apaleo_extension_fee_delta(hotel: dict, stay: "Stay", offer: dict) -> 
             out.append({"name": f["name"], "amount": diff, "currency": f["currency"]})
     return out
 
-async def apaleo_room_free_for_extension(hotel: dict, stay: "Stay", new_departure: str) -> Optional[bool]:
+async def apaleo_room_free_for_extension(hotel: dict, stay: "Stay", new_departure: str, unit: str = "") -> Optional[bool]:
     """Je hostův KONKRÉTNÍ pokoj volný i na přidané noci? GET /availability/v1/reservations/{id}/units
     (scope availability.read — máme) za období původní odjezd → nový odjezd. True = host zůstane
     ve svém pokoji, False = pokoj je obsazený (Apaleo by při prodloužení přiřadilo jiný = stěhování),
     None = nejde zjistit (chyba, neznámý pokoj) → nic netvrdit."""
     rid = _rid(stay)
-    cur = (stay.room or "").strip().lower()
+    cur = (unit or stay.room or "").strip().lower()
     d_from = stay.departure_iso or stay.departure
     if not (rid and cur and d_from and new_departure):
         return None
@@ -1115,6 +1125,21 @@ async def apaleo_room_free_for_extension(hotel: dict, stay: "Stay", new_departur
         return None
     return any(((u.get("name") or "").strip().lower() == cur) for u in d.get("units") or [])
 
+async def apaleo_free_units_for_extension(hotel: dict, stay: "Stay", new_departure: str) -> Optional[set]:
+    """Jména pokojů volných na přidané noci (stejný dotaz jako apaleo_room_free_for_extension), aby šlo
+    rozhodnout až podle pokoje poslední noci z kontroly AmendDeparture — oba dotazy běží souběžně."""
+    rid = _rid(stay)
+    d_from = stay.departure_iso or stay.departure
+    if not (rid and d_from and new_departure):
+        return None
+    params = {"from": d_from, "to": new_departure, "pageSize": 500}
+    if getattr(stay, "unit_group_id", ""):
+        params["unitGroupId"] = stay.unit_group_id
+    d = await _apaleo_get(hotel, f"/availability/v1/reservations/{rid}/units", params, quiet=True)
+    if d is None:
+        return None
+    return {(u.get("name") or "").strip().lower() for u in d.get("units") or [] if u.get("name")}
+
 async def apaleo_extension_precheck(hotel: dict, stay: "Stay") -> Optional[dict]:
     """Smí se u rezervace měnit odjezd? GET /booking/v1/reservations/{id}?expand=actions → akce
     AmendDeparture (Apaleo ji zakáže např. u zavřeného/zavíraného hlavního účtu nebo ve stavu mimo
@@ -1122,13 +1147,13 @@ async def apaleo_extension_precheck(hotel: dict, stay: "Stay") -> Optional[dict]
     rid = _rid(stay)
     if not rid:
         return None
-    d = await _apaleo_get(hotel, f"/booking/v1/reservations/{rid}", {"expand": "actions"}, quiet=True)
+    d = await _apaleo_get(hotel, f"/booking/v1/reservations/{rid}", {"expand": "actions,timeSlices"}, quiet=True)
     if not d:
         return None
     act = next((a for a in d.get("actions") or [] if a.get("action") == "AmendDeparture"), None)
     if act is None:
         return None
-    return {"allowed": bool(act.get("isAllowed")), "block": bool(d.get("blockId")),
+    return {"allowed": bool(act.get("isAllowed")), "block": bool(d.get("blockId")), "last_unit": _last_night_unit(d, stay),
             "reasons": [str(x.get("code") or "") for x in act.get("reasons") or [] if x.get("code")]}
 
 async def apaleo_extension_check(hotel: dict, stay: "Stay") -> Optional[dict]:
@@ -1146,7 +1171,7 @@ async def apaleo_extension_check(hotel: dict, stay: "Stay") -> Optional[dict]:
     old_dep = (stay.departure or "")[:10]
     added = [ts for ts in d.get("timeSlices") or [] if old_dep and str(ts.get("from") or "")[:10] >= old_dep]
     units = [((ts.get("unit") or {}).get("name") or "").strip() for ts in added]
-    cur = (stay.room or "").strip().lower()
+    cur = (_last_night_unit(d, stay) or stay.room or "").strip().lower()
     # Apaleo stěhování samo hlásí validační zprávou AutoUnitAssignment/UnitMoved. Ta ale může být
     # i z dřívějška, proto rozhodují pokoje přidaných nocí; zpráva jen když noci pokoj nenesou.
     flagged = any(m.get("code") == "UnitMoved" or m.get("category") == "AutoUnitAssignment"

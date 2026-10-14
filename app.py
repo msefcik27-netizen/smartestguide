@@ -7413,9 +7413,12 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
             _guess_to = ""
         _res = await asyncio.gather(
             _guard(pms_layer.apaleo_extension_precheck(_ph, stay), "kontrola AmendDeparture"),
-            _guard(pms_layer.apaleo_room_free_for_extension(_ph, stay, _guess_to), "kontrola pokoje") if _guess_to else asyncio.sleep(0),
+            _guard(pms_layer.apaleo_free_units_for_extension(_ph, stay, _guess_to), "kontrola pokoje") if _guess_to else asyncio.sleep(0),
             _guard(_ext_offer_k(_ph, hid, stay, n), f"nabídka {n} nocí"))
-        _pre, _room_free_guess, best = _res
+        _pre, _free_guess, best = _res
+        # Porovnává se s pokojem POSLEDNÍ noci (host už mohl být přestěhovaný), ne s pokojem, kde začínal
+        _last_unit = ((_pre or {}).get("last_unit") or getattr(stay, "room", "") or "").strip()
+        _room_free_guess = (_last_unit.lower() in _free_guess) if (_free_guess is not None and _last_unit) else None
         if _pre and _pre.get("allowed") is False:
             logging.warning("Guest extension hotel=%s res=%s: AmendDeparture není povoleno (%s)", hid, rid, ", ".join(_pre.get("reasons") or []))
             if actions:
@@ -7490,7 +7493,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
             _room_free = _room_free_guess if (_guess_to and _guess_to[:10] == best["departure"][:10]) else None
             if _room_free is None:
                 try:
-                    _room_free = await pms_layer.apaleo_room_free_for_extension(_ph, stay, best["departure"])
+                    _room_free = await pms_layer.apaleo_room_free_for_extension(_ph, stay, best["departure"], unit=_last_unit)
                 except Exception as e:
                     _room_free = None
                     logging.warning("Kontrola volného pokoje pro prodloužení selhala: %s", e)
