@@ -7372,6 +7372,7 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
             # Time slices do tokenu nejdou: při potvrzení se nabídka načte z Apalea znovu (čerstvá cena a dostupnost)
             # a zapíše se jen tehdy, když sedí odjezd, typ pokoje a cena nepřesáhne to, co host viděl.
             _cur_dep = (getattr(stay, "departure", "") or "")[:10]
+            _ext_line_idx = len(lines)
             lines.append(f"- Prodloužení o {best['new_nights']} noc/nocí: DNEŠNÍ odjezd je {pms_layer.date_wd(_cur_dep)}, PŘIDANÉ noci "
                          f"od {pms_layer.date_wd(_cur_dep)} do {pms_layer.date_wd(best['departure'])} (nový odjezd "
                          f"{pms_layer.date_wd(best['departure'])}; uváděj PŘESNĚ tato data a dny v týdnu — data z dřívějších zpráv "
@@ -7426,6 +7427,8 @@ async def _build_order_proposals(h: dict, hid: str, stay, message: str, settings
                     opts.append({"nights": _k, "departure": _v["departure"], "price": _v["price"], "detail": _d,
                                  "id": _sign_proposal({**_v, "hid": hid, "reservation_id": rid, "room": getattr(stay, "room", "")})})
                 act["options"] = opts
+                lines[_ext_line_idx] += (f" — POZOR: na kartě si host sám zvolí 1 až {opts[-1]['nights']} nocí, NIKDY neříkej, že kvůli "
+                                         "více nocím má kontaktovat recepci")
                 lines.append(f"  Host si může počet nocí na kartě ZMĚNIT ({', '.join(str(o['nights']) for o in opts)}), cena se na kartě "
                              "přepočítá — zmiň to jednou krátkou větou. Ceny jiných variant sám neuváděj ani nepočítej. Kvůli více nocím "
                              "v tomto rozsahu NEODKAZUJ na recepci — tu zmiň jen pro prodloužení delší, než karta nabízí.")
