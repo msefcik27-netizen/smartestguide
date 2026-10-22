@@ -251,11 +251,14 @@
     /* Input */
     .input-area{
       background:var(--surface);border-top:1px solid var(--border);
-      padding:10px 14px;display:flex;flex-direction:column;gap:8px;flex-shrink:0;
+      padding:10px 14px;display:flex;flex-direction:row;align-items:flex-end;gap:8px;flex-shrink:0;
       padding-bottom:max(10px,env(safe-area-inset-bottom));
     }
-    .input-row-top{display:flex;align-items:flex-end;gap:8px}
-    .input-row-btns{display:flex;gap:8px;align-items:center}
+    .input-row-top{display:flex;align-items:flex-end;gap:8px;flex:1;min-width:0;order:0}
+    .input-row-btns{display:contents}
+    #photo-btn{order:-1;background:var(--card);border:1px solid var(--border);color:var(--muted)}
+    #voice-btn{order:1}
+    .ipt-btn svg{width:20px;height:20px;display:block}
     #msg-input{
       flex:1;background:var(--card);border:1px solid var(--border);border-radius:22px;
       color:var(--text);font-family:var(--font-body);font-size:15px;
@@ -271,7 +274,7 @@
     #voice-btn{background:var(--card);border:1px solid var(--border);color:var(--muted)}
     #voice-btn.listening{background:var(--danger);border-color:var(--danger);color:#fff;animation:voicePulse 1s infinite}
     @keyframes voicePulse{0%,100%{box-shadow:0 0 0 0 rgba(255,79,106,.4)}70%{box-shadow:0 0 0 8px rgba(255,79,106,0)}}
-    #send-btn{background:var(--accent);color:#ffffff;flex:1;border-radius:22px;width:auto}
+    #send-btn{background:var(--accent);color:#ffffff;order:2}
     #send-btn:active{background:#d4a843}
     #send-btn:disabled{opacity:.35}
 
@@ -382,10 +385,10 @@
       <textarea id="msg-input" rows="1" placeholder="Napište zprávu…" onkeydown="onKey(event)" oninput="autoResize(this)"></textarea>
     </div>
     <div class="input-row-btns">
-      <button class="ipt-btn" id="photo-btn" onclick="triggerPhoto()" title="Přeložit menu">📷</button>
+      <button class="ipt-btn" id="photo-btn" onclick="triggerPhoto()" title="Přeložit menu" aria-label="Photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></button>
       <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" onchange="translateMenu(event)"/>
-      <button class="ipt-btn" id="voice-btn" onclick="toggleVoice()">🎤</button>
-      <button class="ipt-btn" id="send-btn" onclick="sendMsg()">➤</button>
+      <button class="ipt-btn" id="voice-btn" onclick="toggleVoice()" aria-label="Voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg></button>
+      <button class="ipt-btn" id="send-btn" onclick="sendMsg()" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></button>
     </div>
   </div>
 </div>
@@ -1975,6 +1978,7 @@ function toggleVoice(){
   browserVoice();
 }
 
+const SVG_MIC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>', SVG_STOP='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor"/></svg>';
 let _rec=null,_recChunks=[],_recTimer=null;
 async function whisperVoice(){
   const b=document.getElementById('voice-btn');
@@ -1988,12 +1992,12 @@ async function whisperVoice(){
   try{ _rec = mime ? new MediaRecorder(stream,{mimeType:mime}) : new MediaRecorder(stream); }
   catch(e){ stream.getTracks().forEach(t=>t.stop()); browserVoice(); return; }
   _recChunks=[]; isListening=true;
-  b.classList.add('listening'); b.textContent='⏹';
+  b.classList.add('listening'); b.innerHTML=SVG_STOP;
   _rec.ondataavailable=e=>{ if(e.data && e.data.size) _recChunks.push(e.data); };
   _rec.onstop=async ()=>{
     clearTimeout(_recTimer);
     stream.getTracks().forEach(t=>t.stop());
-    isListening=false; b.classList.remove('listening'); b.textContent='🎤';
+    isListening=false; b.classList.remove('listening'); b.innerHTML=SVG_MIC;
     const blob=new Blob(_recChunks,{type:mime||'audio/webm'});
     _rec=null; _recChunks=[];
     if(blob.size<1000) return;                       // moc krátké — nic se neřeklo
@@ -2015,7 +2019,7 @@ async function whisperVoice(){
     }catch(e){
       console.warn('whisper stt failed → browser fallback', e&&(e.message||e));
       browserVoice();                                 // server nedostupný → aspoň prohlížeč
-    }finally{ b.textContent='🎤'; b.disabled=false; }
+    }finally{ b.innerHTML=SVG_MIC; b.disabled=false; }
   };
   _rec.start();
   _recTimer=setTimeout(()=>{ try{_rec&&_rec.stop();}catch(e){} }, 20000);  // tvrdý strop 20 s
@@ -2066,7 +2070,7 @@ function browserVoice(){
   recognition.lang=LANG_SR[guestLang]||'cs-CZ';
   recognition.interimResults=false;
   recognition.maxAlternatives=1;
-  recognition.onstart=()=>{isListening=true;const b=document.getElementById('voice-btn');b.classList.add('listening');b.textContent='⏹';};
+  recognition.onstart=()=>{isListening=true;const b=document.getElementById('voice-btn');b.classList.add('listening');b.innerHTML=SVG_STOP;};
   recognition.onresult=e=>{
     const transcript=e.results[0][0].transcript;
     document.getElementById('msg-input').value=transcript;
@@ -2074,8 +2078,8 @@ function browserVoice(){
     // POZOR: z přepisu se jazyk NIKDY nemění — fallback poslouchá jen v nastaveném
     // jazyce, takže přepis cizí řeči je paskvil a dřív otrávil uložený jazyk.
   };
-  recognition.onend=()=>{isListening=false;const b=document.getElementById('voice-btn');b.classList.remove('listening');b.textContent='🎤';if(document.getElementById('msg-input').value.trim()){_lastInputVoice=true;sendMsg();}};
-  recognition.onerror=()=>{isListening=false;document.getElementById('voice-btn').classList.remove('listening');document.getElementById('voice-btn').textContent='🎤';};
+  recognition.onend=()=>{isListening=false;const b=document.getElementById('voice-btn');b.classList.remove('listening');b.innerHTML=SVG_MIC;if(document.getElementById('msg-input').value.trim()){_lastInputVoice=true;sendMsg();}};
+  recognition.onerror=()=>{isListening=false;document.getElementById('voice-btn').classList.remove('listening');document.getElementById('voice-btn').innerHTML=SVG_MIC;};
   recognition.start();
 }
 
