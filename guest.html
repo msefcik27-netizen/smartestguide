@@ -43,7 +43,7 @@
       width:100%;padding:48px 24px 32px;
       background:linear-gradient(160deg, #faf9f5 0%, #15120b 58%, #0a1320 100%);
       display:flex;flex-direction:column;align-items:center;text-align:center;
-      position:relative;overflow:hidden;
+      position:relative;overflow:hidden;flex-shrink:0;
     }
     .ob-hero::before{
       content:'';position:absolute;inset:0;
@@ -84,7 +84,7 @@
     .ob-features{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:20px;z-index:1;position:relative}
     .ob-feat{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:5px 12px;font-size:12px;color:var(--muted)}
 
-    .ob-form-wrap{width:100%;max-width:380px;padding:28px 24px 40px;display:flex;flex-direction:column;gap:14px}
+    .ob-form-wrap{width:100%;max-width:380px;padding:28px 24px 40px;display:flex;flex-direction:column;gap:14px;flex-shrink:0}
     .ob-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:600;margin-bottom:-6px}
     .ob-input{background:var(--card);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:var(--font-body);font-size:15px;padding:14px 16px;outline:none;width:100%;transition:border-color .2s}
     .ob-input:focus{border-color:var(--accent)}
