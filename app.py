@@ -2053,6 +2053,10 @@ async def rescrape_hotel(hotel_id: str):
             filled.append(k)
     hotel["updated_at"] = datetime.utcnow().isoformat()
     hotel["last_rescrape_at"] = datetime.utcnow().isoformat()
+    if not _scrape_result_is_empty(scraped):
+        hotel["scraping_done"] = True
+        for k in ("scraping_failed_at", "scraping_error", "scraping_fail_notified"):
+            hotel.pop(k, None)
     db["hotels"][hotel_id] = hotel
     db_save(db)
     return {"status": "ok", "filled_fields": filled, "filled_count": len(filled)}
@@ -4342,6 +4346,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
             "help_text": "Potřebujete pomoc?",
             "qr_label": "QR plakát pro hosty", "qr_desc": "Otevřete odkaz níže, vytiskněte plakát nebo uložte jako PDF.", "qr_btn_text": "Otevřít QR plakát k tisku", "qr_attach_note": "QR kód je také přiložen jako PNG.",
             "it_title": "Jak přidat chat tlačítko na web hotelu", "it_intro": "Předejte instrukce vašemu IT oddělení:", "it_step1": "Otevřete zdrojový kód stránky.", "it_step2": "Vložte kód těsně před </body>:", "it_step3": "Po nasazení se zobrazí plovoucí chat tlačítko.", "it_note": "Funguje na všech zařízeních.",
+            "print_more": "Další tiskové materiály", "print_a4_en": "A4 leták (EN)", "print_a4_local": "A4 leták (v místním jazyce)", "print_a5": "A5 leták", "print_rollup": "Roll-up banner", "print_portal": "QR kartičky na pokoje a další — ve vašem portálu",
         },
         "de": {
             "subject": f"Willkommen bei SMARTEST GUIDE - {hotel_name} ist bereit!",
@@ -4354,6 +4359,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
             "help_text": "Brauchen Sie Hilfe?",
             "qr_label": "QR-Poster für Gäste", "qr_desc": "Öffnen Sie den Link, drucken Sie das Poster oder speichern Sie es als PDF.", "qr_btn_text": "QR-Poster zum Drucken öffnen", "qr_attach_note": "Der QR-Code ist auch als PNG beigefügt.",
             "it_title": "Chat-Button auf Ihrer Website hinzufügen", "it_intro": "Leiten Sie diese Anweisungen an Ihre IT-Abteilung weiter:", "it_step1": "Öffnen Sie den Quellcode Ihrer Website.", "it_step2": "Fügen Sie den Code vor dem </body>-Tag ein:", "it_step3": "Nach der Bereitstellung erscheint ein Chat-Button.", "it_note": "Funktioniert auf allen Geräten.",
+            "print_more": "Weitere Druckmaterialien", "print_a4_en": "A4-Flyer (EN)", "print_a4_local": "A4-Flyer (in der Landessprache)", "print_a5": "A5-Flyer", "print_rollup": "Roll-up-Banner", "print_portal": "QR-Zimmerkarten &amp; mehr — in Ihrem Portal",
         },
         "fr": {
             "subject": f"Bienvenue sur SMARTEST GUIDE - {hotel_name} est prêt!",
@@ -4366,6 +4372,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
             "help_text": "Besoin d'aide?",
             "qr_label": "Affiche QR pour les clients", "qr_desc": "Ouvrez le lien, imprimez l'affiche ou enregistrez en PDF.", "qr_btn_text": "Ouvrir l'affiche QR", "qr_attach_note": "Le QR code est également joint en PNG.",
             "it_title": "Ajouter le bouton de chat à votre site", "it_intro": "Transmettez ces instructions à votre équipe IT:", "it_step1": "Ouvrez le code source de votre site.", "it_step2": "Insérez le code avant la balise </body>:", "it_step3": "Après déploiement, un bouton de chat apparaîtra.", "it_note": "Fonctionne sur tous les appareils.",
+            "print_more": "Autres supports imprimés", "print_a4_en": "Flyer A4 (EN)", "print_a4_local": "Flyer A4 (en langue locale)", "print_a5": "Flyer A5", "print_rollup": "Roll-up", "print_portal": "Cartes QR pour les chambres &amp; plus — dans votre portail",
         },
         "it": {
             "subject": f"Benvenuto su SMARTEST GUIDE - {hotel_name} è pronto!",
@@ -4378,6 +4385,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
             "help_text": "Hai bisogno di aiuto?",
             "qr_label": "Poster QR per gli ospiti", "qr_desc": "Apri il link, stampa il poster o salvalo come PDF.", "qr_btn_text": "Apri poster QR", "qr_attach_note": "Il QR code è allegato anche come PNG.",
             "it_title": "Aggiungere il pulsante chat al sito web", "it_intro": "Inoltrate queste istruzioni al vostro team IT:", "it_step1": "Aprite il codice sorgente del vostro sito.", "it_step2": "Inserite il codice prima del tag </body>:", "it_step3": "Dopo il deploy apparirà un pulsante chat.", "it_note": "Funziona su tutti i dispositivi.",
+            "print_more": "Altri materiali stampati", "print_a4_en": "Volantino A4 (EN)", "print_a4_local": "Volantino A4 (in lingua locale)", "print_a5": "Volantino A5", "print_rollup": "Roll-up", "print_portal": "Card QR per le camere &amp; altro — nel vostro portale",
         },
         "es": {
             "subject": f"Bienvenido a SMARTEST GUIDE - {hotel_name} está listo!",
@@ -4390,6 +4398,7 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
             "help_text": "¿Necesita ayuda?",
             "qr_label": "Cartel QR para huéspedes", "qr_desc": "Abra el enlace, imprima el cartel o guárdelo como PDF.", "qr_btn_text": "Abrir cartel QR", "qr_attach_note": "El código QR también se adjunta como PNG.",
             "it_title": "Añadir botón de chat al sitio web", "it_intro": "Reenvíe estas instrucciones a su equipo de IT:", "it_step1": "Abra el código fuente de su sitio web.", "it_step2": "Inserte el código antes de la etiqueta </body>:", "it_step3": "Tras el despliegue aparecerá un botón de chat.", "it_note": "Funciona en todos los dispositivos.",
+            "print_more": "Más materiales impresos", "print_a4_en": "Folleto A4 (EN)", "print_a4_local": "Folleto A4 (en idioma local)", "print_a5": "Folleto A5", "print_rollup": "Roll-up", "print_portal": "Tarjetas QR para habitaciones y más — en su portal",
         },
     }
 
@@ -4416,6 +4425,12 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
         it_step2 = t["it_step2"]
         it_step3 = t["it_step3"]
         it_note = t["it_note"]
+        print_more = t["print_more"]
+        print_a4_en = t["print_a4_en"]
+        print_a4_local = t["print_a4_local"]
+        print_a5 = t["print_a5"]
+        print_rollup = t["print_rollup"]
+        print_portal = t["print_portal"]
     else:
         # EN fallback (všechny ostatní jazyky)
         subject = f"Welcome to SMARTEST GUIDE - {hotel_name} is ready!"
@@ -4441,6 +4456,12 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
         qr_desc = "Open the link below, print the poster or save as PDF and place it at reception, in rooms or on restaurant tables."
         qr_btn_text = "Open QR poster for printing"
         qr_attach_note = "The QR code is also attached as PNG for direct use."
+        print_more = "More print materials"
+        print_a4_en = "A4 flyer (EN)"
+        print_a4_local = "A4 flyer (local language)"
+        print_a5 = "A5 flyer"
+        print_rollup = "Roll-up banner"
+        print_portal = "Room QR cards &amp; more — in your portal"
 
     steps_html = "".join(f"<li style='margin-bottom:8px'>{s}</li>" for s in steps)
 
@@ -4465,13 +4486,13 @@ async def send_onboarding_email(hotel_id: str, portal_url: str, hotel_name: str,
           <p style="color:#9ba0c0;font-size:13px;line-height:1.6;margin-bottom:16px">{qr_desc}</p>
           <a href="{poster_url}" style="display:inline-block;background:#2c5fae;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:14px">🖨️ {qr_btn_text}</a>
           <p style="color:#555;font-size:11px;margin-top:12px">{qr_attach_note}</p>
-          <p style="margin:16px 0 4px;color:#9ba0c0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px">More print materials</p>
+          <p style="margin:16px 0 4px;color:#9ba0c0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px">{print_more}</p>
           <p style="font-size:13px;line-height:2.1;margin:0">
-            <a href="{base_url}/api/hotels/{hotel_id}/flyer-en" style="color:#2fd0d8">A4 flyer (EN)</a> &nbsp;·&nbsp;
-            <a href="{base_url}/api/hotels/{hotel_id}/flyer-local" style="color:#2fd0d8">A4 flyer (local language)</a> &nbsp;·&nbsp;
-            <a href="{base_url}/api/hotels/{hotel_id}/flyer-a5-en" style="color:#2fd0d8">A5 flyer</a> &nbsp;·&nbsp;
-            <a href="{base_url}/api/hotels/{hotel_id}/rollup" style="color:#2fd0d8">Roll-up banner</a> &nbsp;·&nbsp;
-            <a href="{portal_url}" style="color:#2fd0d8">Room QR cards &amp; more — in your portal</a>
+            <a href="{base_url}/api/hotels/{hotel_id}/flyer-en" style="color:#2fd0d8">{print_a4_en}</a> &nbsp;·&nbsp;
+            <a href="{base_url}/api/hotels/{hotel_id}/flyer-local" style="color:#2fd0d8">{print_a4_local}</a> &nbsp;·&nbsp;
+            <a href="{base_url}/api/hotels/{hotel_id}/flyer-a5-en" style="color:#2fd0d8">{print_a5}</a> &nbsp;·&nbsp;
+            <a href="{base_url}/api/hotels/{hotel_id}/rollup" style="color:#2fd0d8">{print_rollup}</a> &nbsp;·&nbsp;
+            <a href="{portal_url}" style="color:#2fd0d8">{print_portal}</a>
           </p>
         </div>
 
@@ -4764,38 +4785,222 @@ async def _send_monthly_reports_if_due():
         except Exception as e:
             logging.error("Auto-report hotel %s chyba: %s", hotel_id, e)
 
-async def auto_scrape_after_payment(hotel_id: str, hotel_url: str):
-    """Po úspěšné platbě automaticky naskenuje web hotelu a doplní data do DB."""
+def _scrape_result_is_empty(scraped) -> bool:
+    """Import z webu se počítá jako neúspěch, když nepřinesl ani popis, ani adresu hotelu —
+    bez těchto dvou polí nemá Alex o hotelu prakticky co říct (source_url/scraped_pages nestačí)."""
+    if not isinstance(scraped, dict):
+        return True
+    return not (str(scraped.get("description") or "").strip() or str(scraped.get("address") or "").strip())
+
+
+async def _brevo_send(payload: dict, what: str) -> bool:
+    """Odešle e-mail přes Brevo (stejně jako onboarding e-mail). Vrací True při úspěchu, nikdy nevyhazuje."""
+    brevo_key = os.getenv("BREVO_API_KEY", "")
+    if not brevo_key:
+        logging.warning("BREVO_API_KEY neni nastaven — %s neodeslan", what)
+        return False
     try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post("https://api.brevo.com/v3/smtp/email", json=payload,
+                                  headers={"api-key": brevo_key, "Content-Type": "application/json"}, timeout=30)
+        if r.status_code in (200, 201):
+            logging.warning("%s OK -> %s", what, ", ".join(x.get("email", "") for x in payload.get("to", [])))
+            return True
+        logging.error("Brevo API CHYBA %s (%s): %s", r.status_code, what, r.text[:300])
+    except Exception as e:
+        logging.error("Chyba pri odesilani e-mailu (%s): %s", what, e)
+    return False
+
+
+# Texty e-mailu hotelu, když se po platbě nepodařilo načíst web (stejné jazyky jako onboarding e-mail; EN fallback).
+_SCRAPE_FAILED_TEXTS = {
+    "cs": {
+        "subject": "{hotel_name}: informace z webu se nepodařilo načíst — doplňte prosím profil hotelu",
+        "greeting": "Dobrý den,",
+        "intro": "z vašeho webu <a href=\"{url}\" style=\"color:#2fd0d8\">{url}</a> se nám bohužel nepodařilo automaticky načíst informace o hotelu {hotel_name}. Nic se neděje — Alex funguje dál, jen zatím o hotelu málo ví.",
+        "action": "Vyplňte prosím profil hotelu v portálu (adresa, popis, služby, orientace v hotelu, tipy v okolí). Čím více vyplníte, tím lépe Alex hostům odpovídá.",
+        "btn": "Vyplnit profil hotelu",
+        "help": "Potřebujete pomoc?",
+    },
+    "de": {
+        "subject": "{hotel_name}: Website-Informationen konnten nicht geladen werden — bitte Hotelprofil ausfüllen",
+        "greeting": "Guten Tag,",
+        "intro": "leider konnten wir die Informationen über {hotel_name} nicht automatisch von Ihrer Website <a href=\"{url}\" style=\"color:#2fd0d8\">{url}</a> laden. Kein Problem — Alex funktioniert weiterhin, weiß aber bisher nur wenig über Ihr Hotel.",
+        "action": "Bitte füllen Sie das Hotelprofil im Portal aus (Adresse, Beschreibung, Services, Orientierung im Hotel, Tipps in der Umgebung). Je mehr Sie ausfüllen, desto besser antwortet Alex Ihren Gästen.",
+        "btn": "Hotelprofil ausfüllen",
+        "help": "Brauchen Sie Hilfe?",
+    },
+    "fr": {
+        "subject": "{hotel_name} : impossible de charger les informations du site — merci de compléter le profil de l'hôtel",
+        "greeting": "Bonjour,",
+        "intro": "nous n'avons malheureusement pas pu charger automatiquement les informations sur {hotel_name} depuis votre site <a href=\"{url}\" style=\"color:#2fd0d8\">{url}</a>. Pas d'inquiétude — Alex fonctionne, mais il en sait encore peu sur votre hôtel.",
+        "action": "Merci de compléter le profil de l'hôtel dans le portail (adresse, description, services, orientation dans l'hôtel, conseils aux alentours). Plus vous en renseignez, mieux Alex répond à vos clients.",
+        "btn": "Compléter le profil de l'hôtel",
+        "help": "Besoin d'aide ?",
+    },
+    "it": {
+        "subject": "{hotel_name}: impossibile caricare le informazioni dal sito — completate il profilo dell'hotel",
+        "greeting": "Buongiorno,",
+        "intro": "purtroppo non siamo riusciti a caricare automaticamente le informazioni su {hotel_name} dal vostro sito <a href=\"{url}\" style=\"color:#2fd0d8\">{url}</a>. Nessun problema — Alex funziona, ma per ora sa poco del vostro hotel.",
+        "action": "Vi preghiamo di completare il profilo dell'hotel nel portale (indirizzo, descrizione, servizi, orientamento nell'hotel, consigli nei dintorni). Più informazioni inserite, meglio Alex risponde agli ospiti.",
+        "btn": "Completare il profilo dell'hotel",
+        "help": "Avete bisogno di aiuto?",
+    },
+    "es": {
+        "subject": "{hotel_name}: no se pudo cargar la información del sitio web — complete el perfil del hotel",
+        "greeting": "Buenos días,",
+        "intro": "lamentablemente no pudimos cargar automáticamente la información sobre {hotel_name} desde su sitio web <a href=\"{url}\" style=\"color:#2fd0d8\">{url}</a>. No pasa nada — Alex sigue funcionando, pero por ahora sabe poco de su hotel.",
+        "action": "Complete el perfil del hotel en el portal (dirección, descripción, servicios, orientación en el hotel, consejos de la zona). Cuanto más complete, mejor responderá Alex a sus huéspedes.",
+        "btn": "Completar el perfil del hotel",
+        "help": "¿Necesita ayuda?",
+    },
+    "en": {
+        "subject": "{hotel_name}: we could not load information from your website — please fill in the hotel profile",
+        "greeting": "Hello,",
+        "intro": "unfortunately we could not automatically load information about {hotel_name} from your website <a href=\"{url}\" style=\"color:#2fd0d8\">{url}</a>. No worries — Alex keeps working, it just knows little about your hotel so far.",
+        "action": "Please fill in the hotel profile in the portal (address, description, services, getting around the hotel, local tips). The more you fill in, the better Alex answers your guests.",
+        "btn": "Fill in the hotel profile",
+        "help": "Need help?",
+    },
+}
+
+
+async def _notify_scrape_failed(hotel_id: str, hotel: dict, hotel_url: str, reason: str) -> bool:
+    """Neúspěšný import webu: jeden e-mail hotelu (jazyk podle země jako onboarding e-mail) + jedna zpráva adminovi.
+    Vrací True, když hotel už nemá smysl znovu upozorňovat (e-mail odešel, nebo hotel nemá adresu)."""
+    hotel_name = hotel.get("name") or "Hotel"
+    hotel_email = (hotel.get("registration_email") or hotel.get("email") or "").strip()
+    country = (hotel.get("country") or "").upper()
+    lang = COUNTRY_LANG_MAP.get(country, "en")
+    t = _SCRAPE_FAILED_TEXTS.get(lang) or _SCRAPE_FAILED_TEXTS["en"]
+    base_url = os.getenv("BASE_URL", "https://smartestguide-production.up.railway.app").rstrip("/")
+    token = hotel.get("hotel_token", "")
+    portal_url = f"{base_url}/portal?token={token}" if token else base_url
+    _esc = lambda x: str(x).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+    url_safe = _esc(hotel_url)
+
+    # 1) Admin — interní zpráva (česky, jako ostatní interní notifikace)
+    admin_to = _admin_notify_bcc()  # admin dostane zprávu vždy
+    if admin_to:
+        admin_html = (f"<div style=\"font-family:Arial,sans-serif;color:#1a1a2e\">"
+                      f"<h2 style=\"color:#c0392b\">Import webu po platbě SELHAL</h2>"
+                      f"<p><strong>Hotel:</strong> {_esc(hotel_name)}<br>"
+                      f"<strong>ID:</strong> {_esc(hotel_id)}<br>"
+                      f"<strong>Web:</strong> <a href=\"{url_safe}\">{url_safe}</a><br>"
+                      f"<strong>Důvod:</strong> {_esc(reason)}</p>"
+                      f"<p>Hotel dostal e-mail s prosbou o ruční vyplnění profilu. Po opravě URL lze import zopakovat "
+                      f"v adminu tlačítkem <strong>Rescrape</strong> (POST /api/hotels/{_esc(hotel_id)}/rescrape).</p></div>")
+        await _brevo_send({
+            "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
+            "to": admin_to,
+            "subject": f"[SG] Import webu selhal: {hotel_name}",
+            "htmlContent": admin_html,
+            "textContent": (f"Import webu po platbe SELHAL\nHotel: {hotel_name}\nID: {hotel_id}\nWeb: {hotel_url}\n"
+                            f"Duvod: {reason}\nRetry: POST /api/hotels/{hotel_id}/rescrape (admin Rescrape)."),
+        }, f"Admin notifikace import-selhal hotel {hotel_id}")
+
+    # 2) Hotel — stejná adresa a jazyk jako onboarding e-mail
+    if not hotel_email:
+        logging.warning("Hotel %s nema e-mail — upozorneni na neuspesny import webu nelze poslat", hotel_id)
+        return True
+    subject = t["subject"].format(hotel_name=hotel_name)
+    intro = t["intro"].format(hotel_name=_esc(hotel_name), url=url_safe)
+    html_body = f"""<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a2e">
+      <div style="background:#1a1a1a;padding:32px;text-align:center;border-radius:12px 12px 0 0;border-bottom:3px solid #2fd0d8">
+        <h1 style="color:#fff;margin:0;font-size:28px;letter-spacing:.5px">SMARTEST GUIDE</h1>
+      </div>
+      <div style="background:#f8f9ff;padding:32px;border-radius:0 0 12px 12px">
+        <h2 style="color:#1a1a2e;margin-bottom:12px">{t["greeting"]}</h2>
+        <p style="color:#555;line-height:1.7;margin-bottom:16px">{intro}</p>
+        <p style="color:#555;line-height:1.7;margin-bottom:24px">{t["action"]}</p>
+        <div style="background:#fff;border:2px solid #2fd0d8;border-radius:10px;padding:20px;margin-bottom:24px;text-align:center">
+          <a href="{portal_url}" style="display:inline-block;background:#2c5fae;color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:700;font-size:16px">{t["btn"]} →</a>
+        </div>
+        <hr style="border:none;border-top:1px solid #e0e0f0;margin:20px 0"/>
+        <p style="color:#888;font-size:12px;text-align:center">
+          {t["help"]} <a href="mailto:admin@smartestguide.com" style="color:#2fd0d8">admin@smartestguide.com</a>
+        </p>
+      </div>
+    </div>"""
+    text_body = (f"{t['greeting']}\n\n{re.sub(r'<[^>]+>', '', intro)}\n\n{t['action']}\n\n"
+                 f"{t['btn']}: {portal_url}\n\n{t['help']} admin@smartestguide.com")
+    payload = {
+        "sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"},
+        "to": [{"email": hotel_email, "name": hotel_name}],
+        "subject": subject,
+        "htmlContent": html_body,
+        "textContent": text_body,
+    }
+    _bcc = _admin_notify_bcc(exclude=hotel_email)
+    if _bcc:
+        payload["bcc"] = _bcc
+    return await _brevo_send(payload, f"E-mail import-selhal hotel {hotel_id} lang={lang}")
+
+
+async def auto_scrape_after_payment(hotel_id: str, hotel_url: str):
+    """Po úspěšné platbě automaticky naskenuje web hotelu a doplní data do DB.
+    Neúspěch (chyba stahování, chybějící Anthropic klíč, prázdný výsledek) se zaloguje, uloží na hotel
+    (scraping_done=False, scraping_failed_at, scraping_error) a JEDNOU se ohlásí hotelu i adminovi."""
+    try:
+        reason, scraped = "", None
         s = db_get_settings()
         api_key = s.get("anthropic_api_key", "")
-        if not api_key:
-            return
         # Počkej 3 sekundy aby se DB stihla uložit
         await asyncio.sleep(3)
-        scraped = await scrape_hotel_data(hotel_url, api_key)
+        if not api_key:
+            reason = "Anthropic API klíč není nastaven"
+        else:
+            try:
+                scraped = await scrape_hotel_data(hotel_url, api_key)
+            except Exception as e:
+                reason = str(e) or type(e).__name__
+            if not reason and _scrape_result_is_empty(scraped):
+                reason = "web nevrátil ani popis, ani adresu hotelu (prázdný výsledek)"
         db = db_load()
         if hotel_id not in db["hotels"]:
+            logging.warning("Auto-scrape: hotel %s v DB neexistuje, výsledek zahozen", hotel_id)
             return
-        # Doplň pouze pole která jsou prázdná (nepřepisuj existující data)
-        for key, value in scraped.items():
-            if key not in ("id", "created_at", "hotel_token", "subscription_active",
-                          "stripe_customer_id", "stripe_subscription_id", "subscription_start"):
-                if key == "bed_count" and value:
-                    # Uložit scraped hodnotu zvlášť — nepřepisovat registrovanou hodnotu
-                    db["hotels"][hotel_id]["scraped_bed_count"] = value
-                    # Přepsat bed_count jen pokud hotel neuvedl žádnou hodnotu při registraci
-                    if not db["hotels"][hotel_id].get("registered_bed_count"):
-                        db["hotels"][hotel_id]["registered_bed_count"] = db["hotels"][hotel_id].get("bed_count") or 0
-                    if not db["hotels"][hotel_id].get("bed_count"):
-                        db["hotels"][hotel_id]["bed_count"] = value
-                elif not db["hotels"][hotel_id].get(key) and value:
-                    db["hotels"][hotel_id][key] = value
-        db["hotels"][hotel_id]["scraping_done"] = True
-        db["hotels"][hotel_id]["updated_at"] = datetime.utcnow().isoformat()
+        if not reason:
+            # Doplň pouze pole která jsou prázdná (nepřepisuj existující data)
+            for key, value in scraped.items():
+                if key not in ("id", "created_at", "hotel_token", "subscription_active",
+                              "stripe_customer_id", "stripe_subscription_id", "subscription_start"):
+                    if key == "bed_count" and value:
+                        # Uložit scraped hodnotu zvlášť — nepřepisovat registrovanou hodnotu
+                        db["hotels"][hotel_id]["scraped_bed_count"] = value
+                        # Přepsat bed_count jen pokud hotel neuvedl žádnou hodnotu při registraci
+                        if not db["hotels"][hotel_id].get("registered_bed_count"):
+                            db["hotels"][hotel_id]["registered_bed_count"] = db["hotels"][hotel_id].get("bed_count") or 0
+                        if not db["hotels"][hotel_id].get("bed_count"):
+                            db["hotels"][hotel_id]["bed_count"] = value
+                    elif not db["hotels"][hotel_id].get(key) and value:
+                        db["hotels"][hotel_id][key] = value
+            db["hotels"][hotel_id]["scraping_done"] = True
+            for k in ("scraping_failed_at", "scraping_error", "scraping_fail_notified"):
+                db["hotels"][hotel_id].pop(k, None)
+            db["hotels"][hotel_id]["updated_at"] = datetime.utcnow().isoformat()
+            db_save(db)
+            logging.info("Auto-scrape hotel %s OK (%s)", hotel_id, hotel_url)
+            return
+        # Neúspěch — zapsat na hotel a ohlásit (jen jednou)
+        reason = reason.strip()[:200]
+        logging.warning("Auto-scrape hotel %s SELHAL (%s): %s", hotel_id, hotel_url, reason)
+        hotel = db["hotels"][hotel_id]
+        hotel["scraping_done"] = False
+        hotel["scraping_failed_at"] = datetime.utcnow().isoformat()
+        hotel["scraping_error"] = reason
+        hotel["updated_at"] = datetime.utcnow().isoformat()
         db_save(db)
-    except Exception:
-        pass  # Scraping selhal – nevadí, hotel existuje bez dat
+        if hotel.get("scraping_fail_notified"):
+            logging.info("Auto-scrape hotel %s: upozornění už odesláno dříve, znovu neposílám", hotel_id)
+            return
+        if await _notify_scrape_failed(hotel_id, hotel, hotel_url, reason):
+            db = db_load()
+            if hotel_id in db["hotels"]:
+                db["hotels"][hotel_id]["scraping_fail_notified"] = True
+                db_save(db)
+    except Exception as e:
+        logging.error("Auto-scrape hotel %s: neočekávaná chyba: %s", hotel_id, e, exc_info=True)
 
 # ─────────────────────────────────────────────
 # Stripe – platby a webhook
