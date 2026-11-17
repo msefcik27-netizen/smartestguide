@@ -78,6 +78,7 @@ tr:last-child td{border-bottom:0}
   .hero .kpi .v{color:#c45200}.hero .kpi .l,.hero .desc,.hero .note{color:#444}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
+.embed .top{position:static;background:transparent;border:0}.embed .logo,.embed #hname,.embed #b-back{display:none}.embed .top-in{justify-content:flex-end}.embed body{background:transparent}.embed .wrap{padding-left:0;padding-right:0}
 </style>
 </head>
 <body>
@@ -92,6 +93,8 @@ tr:last-child td{border-bottom:0}
 <script>
 const token = new URLSearchParams(location.search).get('token') || '';
 const TQ = encodeURIComponent(token);
+const EMBED = new URLSearchParams(location.search).get('embed') === '1';   // vloženo v portálu (záložka Analytika)
+if(EMBED) document.documentElement.classList.add('embed');
 let OV = null, PER = 'this', LANG = '';
 try{ PER = localStorage.getItem('sg_ov_period') || 'this'; }catch(e){}
 
@@ -249,7 +252,7 @@ function render(){
     const rows = g.items.slice(0,gapShown).map(u => `<tr><td class="d">${esc(u.at?new Date(u.at+'Z').toLocaleDateString(loc()):'')}</td><td class="d tp">${esc(u.topic||'')}</td><td>${esc(u.q)}</td></tr>`).join('');
     gap += `<table><thead><tr><th>${L('g_date')}</th><th class="tp">${L('g_topic')}</th><th>${L('g_q')}</th></tr></thead><tbody>${rows}</tbody></table>`;
     gap += `<div class="legend noprint">`+(g.items.length>gapShown?`<a class="btn" onclick="gapShown+=30;render()">${esc(L('more')(Math.min(30,g.items.length-gapShown)))}</a>`:'')+
-      `<a class="btn" href="/api/hotel-portal/overview-export?token=${TQ}&kind=gaps&lang=${LANG}">${L('gap_csv')}</a><a class="btn" href="/portal?token=${TQ}">${L('gap_fill')}</a></div>`;
+      `<a class="btn" href="/api/hotel-portal/overview-export?token=${TQ}&kind=gaps&lang=${LANG}">${L('gap_csv')}</a><a class="btn" href="/portal?token=${TQ}" target="_top">${L('gap_fill')}</a></div>`;
   } else gap += `<div class="empty">${L('gap_none')}</div>`;
   html += card('', L('gap_t'), L('gap_d')(g.keep_days), gap);
 

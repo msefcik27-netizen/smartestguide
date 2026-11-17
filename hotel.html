@@ -443,7 +443,7 @@ const EN_MAP = {
   "— aby Alex mohl hostům rovnou objednat služby a prodloužit pobyt, musí hotel udělit souhlas znovu (jedno kliknutí, nastavení zůstane).":"— so that Alex can book services and extend stays for your guests directly, the hotel has to grant consent again (one click, your settings stay).",
   "Udělit oprávnění →":"Grant permission →",
   "Objednávky v chatu":"Orders in chat",
-  "📊 Přehled":"📊 Overview","📈 Analytika ↗":"📈 Analytics ↗","Podrobný přehled — otevře se v nové záložce":"Detailed overview — opens in a new tab","🏨 Profil hotelu":"🏨 Hotel profile","✦ Alex & objednávky":"✦ Alex & orders","🧾 Nasazení & účet":"🧾 Setup & account",
+  "📊 Přehled":"📊 Overview","📈 Analytika":"📈 Analytics","🏨 Profil hotelu":"🏨 Hotel profile","✦ Alex & objednávky":"✦ Alex & orders","🧾 Nasazení & účet":"🧾 Setup & account",
   "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem.":"Alex can book a service to the guest's room account or send a request to reception. Nothing is ordered until the guest confirms with a button.",
   "Alex přijme objednávku v chatu a pošle ji recepci e-mailem jako požadavek — host nemusí nikam volat. Recepce v e-mailu klikne Potvrdit nebo Nelze vyřídit (může připsat vzkaz) a host odpověď uvidí v chatu. Nic se nikam nezapisuje.":"Alex takes the order in chat and e-mails it to reception as a request — the guest doesn't have to call anyone. Reception clicks Confirm or Cannot arrange in the e-mail (optionally with a note) and the guest sees the answer in chat. Nothing is written anywhere.",
   "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem. U požadavku recepce v e-mailu klikne Potvrdit / Nelze vyřídit a host odpověď uvidí v chatu.":"Alex can book a service straight to the room account or send reception a request. Nothing is booked without the guest confirming with a button. For a request, reception clicks Confirm / Cannot arrange in the e-mail and the guest sees the answer in chat.",
@@ -988,6 +988,7 @@ function renderPortal() {
 
   <div id="invoices-section" style="margin-top:0"></div>
   <div id="monthly-report-section"></div>
+  <div id="analytics-frame-section"></div>
   `;
 
   translateDom(document.getElementById('main-container'));
@@ -1016,7 +1017,7 @@ let _sectionFields = {}; // uložíme fields pro každou sekci, scoring spočít
 // Jedna dlouhá stránka → 4 záložky: Přehled (statistiky, stav), Profil hotelu (sekce k vyplnění),
 // Alex & objednávky (Apaleo, objednávky, aktivní nabídka, vyzkoušet), Nasazení & účet (QR/tisk,
 // widget, předplatné, faktury, skupina). Obsah se nemění, jen se přepíná; Uložit změny zůstává.
-const PORTAL_TABS = [['prehled','📊 Přehled'],['profil','🏨 Profil hotelu'],['alex','✦ Alex & objednávky'],['ucet','🧾 Nasazení & účet']];
+const PORTAL_TABS = [['prehled','📊 Přehled'],['analytika','📈 Analytika'],['profil','🏨 Profil hotelu'],['alex','✦ Alex & objednávky'],['ucet','🧾 Nasazení & účet']];
 const PORTAL_TAB_OF = {            // sekce z renderSection podle (českého) titulu; ostatní = profil
   'Vyzkoušet Alexe':'alex', 'Aktivní nabídka pro hosty':'alex',
   'Embed widget — vložit na web':'ucet', 'Tiskové materiály':'prehled'   // tisk = první na Přehledu (uživatel 11. 10.)
@@ -1025,7 +1026,7 @@ const PORTAL_SOLO = {};            // tab -> id bloku otevřeného z dlaždice (
 const PORTAL_FIXED = {             // pevné bloky podle id / třídy
   'completeness-banner':'profil', 'group-section':'ucet', 'add-hotel-section':'ucet', 'pms-section':'alex',
   'orders-section':'alex', 'requests-section':'alex', 'onboarding-wizard':'prehled', 'payment-section':'ucet', 'invoices-section':'ucet',
-  'monthly-report-section':'prehled'
+  'monthly-report-section':'prehled', 'analytics-frame-section':'analytika'
 };
 // Štítky dlaždic pevných bloků (sekce z renderSection si berou ikonu a titulek z DOM)
 const PORTAL_FIXED_TILE = {
@@ -1059,6 +1060,29 @@ function applyPortalTab(tab){
   document.querySelectorAll('.ptab-btn').forEach(b=>b.setAttribute('aria-current', String(b.dataset.tab===tab)));
   document.querySelectorAll('.ptile').forEach(t=>t.setAttribute('aria-current', String(!!solo && t.dataset.sec===solo)));
   const prof=document.getElementById('sidebar-profile'); if(prof) prof.hidden=(tab!=='profil');
+  if(tab==='analytika') ensureAnalyticsFrame();
+}
+// Záložka Analytika: stránka /prehled vložená do portálu (oddělená od údajů hotelu, uživatel 17. 11. 2026).
+// Stejný původ → výšku rámce řídíme podle obsahu, ať nemá vlastní posuvník.
+function ensureAnalyticsFrame(){
+  const box = document.getElementById('analytics-frame-section');
+  if(!box) return;
+  let f = box.querySelector('iframe');
+  if(f && f.dataset.lang === (portalLang||'')) return;
+  box.innerHTML = '';
+  f = document.createElement('iframe');
+  f.dataset.lang = portalLang||'';
+  f.title = tr('📈 Analytika');
+  f.style.cssText = 'display:block;width:100%;border:0;min-height:70vh;border-radius:12px;background:transparent';
+  f.src = '/prehled?embed=1&token=' + encodeURIComponent(token);
+  f.onload = () => {
+    try{
+      const d = f.contentDocument, fit = () => { f.style.height = Math.max(400, d.documentElement.scrollHeight) + 'px'; };
+      fit();
+      if(window.ResizeObserver) new ResizeObserver(fit).observe(d.body);
+    }catch(e){ f.style.height = '2400px'; }
+  };
+  box.appendChild(f);
 }
 // Dlaždice na KAŽDÉ záložce (uživatel 11. 10.: „sekce profilu dej jako dlaždice" → „dlaždice…" i na Přehledu,
 // Alexovi a Nasazení): mřížka nad bloky záložky; klepnutí ukáže jen ten blok, druhé klepnutí (nebo
@@ -1258,12 +1282,6 @@ function buildSidebarNav() {
     b.onclick = () => showPortalTab(k);
     tabsBox.appendChild(b);
   });
-  // Podrobná analytika je samostatná stránka (/prehled) — z menu se otevírá v nové záložce
-  const ovBtn = document.createElement('button');
-  ovBtn.type = 'button'; ovBtn.className = 'ptab-btn'; ovBtn.textContent = tr('📈 Analytika ↗');
-  ovBtn.title = tr('Podrobný přehled — otevře se v nové záložce');
-  ovBtn.onclick = () => window.open('/prehled?token=' + encodeURIComponent(token), '_blank', 'noopener');
-  tabsBox.appendChild(ovBtn);
   nav.appendChild(tabsBox);
   const prof = document.createElement('div');
   prof.id = 'sidebar-profile';
@@ -2461,11 +2479,11 @@ async function loadMonthlyReport(){
     const L = cs ? {
       title:'Přehled & statistiky', desc:'Jak Alex sloužil vašim hostům',
       q:n=>n===1?'dotaz hosta':(n>=2&&n<=4?'dotazy hostů':'dotazů hostů'), saved:'ušetřeno recepci', flagged:n=>n===1?'dotaz bez odpovědi':(n>=2&&n<=4?'dotazy bez odpovědi':'dotazů bez odpovědi'),
-      link:'Otevřít podrobný přehled →', hint:'Úspora, vývoj, jazyky, témata, mezery ve znalostech a objednávky. Otevře se v nové záložce.'
+      link:'Otevřít podrobný přehled →', hint:'Úspora, vývoj, jazyky, témata, mezery ve znalostech a objednávky.'
     } : {
       title:'Overview & stats', desc:'How Alex served your guests',
       q:n=>n===1?'guest question':'guest questions', saved:'reception time saved', flagged:n=>n===1?'unanswered question':'unanswered questions',
-      link:'Open the detailed overview →', hint:'Savings, trends, languages, topics, knowledge gaps and orders. Opens in a new tab.'
+      link:'Open the detailed overview →', hint:'Savings, trends, languages, topics, knowledge gaps and orders.'
     };
     const box = (v,l,c) => `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:30px;font-weight:700;color:${c};line-height:1.15">${v}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">${l}</div></div>`;
     const cnt = cur.count || 0;
@@ -2483,7 +2501,7 @@ async function loadMonthlyReport(){
             ${box(cur.flagged||0, L.flagged(cur.flagged||0), (cur.flagged>0)?'#ff4f6a':'var(--text)')}
           </div>
           <div style="margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-            <a href="/prehled?token=${encodeURIComponent(token)}" target="_blank" rel="noopener" style="background:var(--accent);color:#fff;text-decoration:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;white-space:nowrap">${L.link}</a>
+            <a href="#analytika" onclick="showPortalTab('analytika');return false" style="background:var(--accent);color:#fff;text-decoration:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;white-space:nowrap">${L.link}</a>
             <span style="font-size:12px;color:var(--muted)">${L.hint}</span>
           </div>
         </div>
