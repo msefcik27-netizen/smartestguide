@@ -18,6 +18,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from dotenv import load_dotenv
 import pms as pms_layer  # PMS napojení (Apaleo…) — viz pms.py, PLAN_PMS_NAPOJENI.md
+import analytics_view  # výpočty pro stránku Přehled (/prehled) — čisté funkce, testy v test_analytics_view.py
 
 load_dotenv()
 
@@ -2462,6 +2463,10 @@ def hotel_portal_update(token: str, data: dict = Body(default={})):
     _wr = _normalize_write_settings(update_data)
     if _wr is not None:
         update_data.update(_wr)
+    # Nastavení přehledu úspor (minuty na dotaz, hodinový náklad, provoz recepce) — neplatné = výchozí
+    _st = analytics_view.normalize_settings(update_data)
+    if _st is not None:
+        update_data.update(_st)
     # Při prvním nastavení lůžek u aktivního předplatného ulož jako zaplacená lůžka
     new_beds = update_data.get("bed_count")
     paid_beds = current.get("subscription_paid_beds", 0)
@@ -2587,6 +2592,40 @@ def hotel_portal_orders(token: str):
             "stats": {"this_month": this_month, "prev_month": _sum([prev_key]), "all_time": _sum(list(monthly.keys())),
                       "month_label": _month_label(now_key, "cs" if cs else "en"), "prev_label": _month_label(prev_key, "cs" if cs else "en")}}
 
+def _portal_overview(token: str, lang: str = "") -> dict:
+    """Podrobný přehled hotelu pro stránku /prehled (jen čtení). Výpočty v analytics_view.py.
+    lang = jazyk, který má hoteliér přepnutý v portálu; bez něj podle země hotelu."""
+    h = find_hotel_by_token(token)
+    if not h:
+        raise HTTPException(403, "Neplatny token")
+    if lang not in ("cs", "en"):
+        lang = "cs" if (h.get("country") or "").strip().upper() in ("CZ", "SK") else "en"
+    db = db_load()
+    hid = h["id"]
+    orders = [rec for rec in (db.get("orders") or {}).values() if rec.get("hid") == hid]
+    ov = analytics_view.build_overview(
+        (db.get("analytics", {}) or {}).get(hid, {}) or {}, orders, h,
+        lang=lang, utc_now=datetime.utcnow(), lang_names=_LANG_NAMES.get(lang, _LANG_NAMES["en"]))
+    ov["hotel_name"] = h.get("name") or ""
+    ov["orders_enabled"] = bool(h.get("pms_write_services") or h.get("pms_write_extension") or orders)
+    return ov
+
+@app.get("/api/hotel-portal/overview")
+def hotel_portal_overview(token: str, lang: str = ""):
+    return {"status": "ok", "overview": _portal_overview(token, lang)}
+
+@app.get("/api/hotel-portal/overview-export")
+def hotel_portal_overview_export(token: str, kind: str = "months", lang: str = ""):
+    """CSV pro Excel: kind=months (12 měsíců po řádcích) | gaps (dotazy bez odpovědi za 90 dní)."""
+    from fastapi.responses import Response
+    ov = _portal_overview(token, lang)
+    if kind == "gaps":
+        body, name = analytics_view.gaps_csv(ov), "alex-dotazy-bez-odpovedi.csv"
+    else:
+        body, name = analytics_view.months_csv(ov), "alex-prehled-mesice.csv"
+    return Response(content=body.encode("utf-8"), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
+
 @app.get("/api/hotel-portal/monthly-report")
 def hotel_portal_monthly_report(token: str, month: str = ""):
     """Měsíční přehled pro hotelový portál (default: minulý měsíc + aktuální měsíc doposud)."""
@@ -2608,7 +2647,8 @@ def hotel_portal_monthly_report(token: str, month: str = ""):
         pct = round((count - prev_count) / prev_count * 100) if prev_count > 0 else None
         langs = cur.get("langs", {}) or {}
         top = sorted(langs.items(), key=lambda kv: kv[1], reverse=True)[:3]
-        saved_min = count * 2
+        # stejné minuty na dotaz jako stránka Přehled (hotel si je může přepsat; výchozí 2)
+        saved_min = round(count * analytics_view.settings(h, lang)["minutes_per_question"])
         return {
             "month_key": mk,
             "month_label": _month_label(mk, lang),
@@ -5669,6 +5709,14 @@ def _log_guest_question(hotel_id: str, message: str, language: str, reply: str, 
         dv = m.setdefault("devices", {})
         if dh in dv or len(dv) < 2000:
             dv[dh] = dv.get(dh, 0) + 1
+    # Podklady pro stránku Přehled: hodina a den v týdnu (místní čas hotelu), téma, dotazy bez odpovědi.
+    # Chyba tady nesmí shodit záznam dotazu.
+    try:
+        analytics_view.record_question(
+            a, m, local_now=_hotel_now(db.get("hotels", {}).get(hotel_id) or {}), utc_now=now,
+            message=message, language=language, flagged=flagged, topic=_classify_topic(message))
+    except Exception as e:
+        logging.warning("analytics_view.record_question (%s): %s", hotel_id, e)
     # Nech jen posledních 18 měsíců, ať data.json nebobtná
     if len(monthly) > 18:
         for k in sorted(monthly.keys())[:-18]:
@@ -6361,6 +6409,14 @@ def serve_group_portal():
 @app.get("/hotel", response_class=HTMLResponse)
 def serve_hotel_portal():
     html_path = os.path.join(os.path.dirname(__file__), "hotel.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        return _staging_banner(f.read())
+
+@app.get("/prehled", response_class=HTMLResponse)
+@app.get("/overview", response_class=HTMLResponse)
+def serve_overview():
+    """Přehled & statistiky hotelu — samostatná stránka jen pro čtení (odkaz z portálu, stejný token)."""
+    html_path = os.path.join(os.path.dirname(__file__), "prehled.html")
     with open(html_path, "r", encoding="utf-8") as f:
         return _staging_banner(f.read())
 
@@ -8660,6 +8716,15 @@ Guest name: {req.guest_name or 'Guest'}"""
                          "Značku nepoužívej u dotazu na pozdní odjezd (pozdější hodina v den odjezdu) ani u jiných témat. "
                          "Je to POVINNÉ: bez značky se hostovi nezobrazí tlačítko pro prodloužení.")
 
+    # Aktuální datum a čas v pásmu hotelu (Durek 2. 11. 2026: Alex nevěděl, kolik je hodin).
+    # Samostatný blok ZA kešovaným profilem — mění se každou minutu, keš profilu tím nerozbije.
+    _now_h = _hotel_now(h)
+    _now_block = (f"CURRENT LOCAL DATE AND TIME AT THE HOTEL: {_now_h.strftime('%A')}, {_now_h.strftime('%Y-%m-%d')}, "
+                  f"{_now_h.strftime('%H:%M')} (24-hour clock, hotel time zone {_now_h.tzinfo}). "
+                  "Use it when the guest asks what time or day it is, and to judge whether something is open right now, "
+                  "how long until breakfast/check-out and similar. Say the time in the guest's language and usual format. "
+                  "The guest's own device may be in another time zone — always speak in hotel local time.")
+
     async def _alex(extra_blocks: list, msgs: list):
         async with httpx.AsyncClient() as client:
             _r = await client.post(
@@ -8671,6 +8736,7 @@ Guest name: {req.guest_name or 'Guest'}"""
                     # konverzaci čtou tenhle vstup levněji. Kešování naskočí, když prefix dosáhne minima
                     # (~1–2k tokenů); u bohatšího profilu ušetří nejvíc. Bez benefitu to neškodí.
                     "system": ([{"type": "text", "text": hotel_info, "cache_control": {"type": "ephemeral"}}]
+                               + [{"type": "text", "text": _now_block}]
                                + ([{"type": "text", "text": stay_block}] if stay_block else [])
                                + [{"type": "text", "text": b} for b in extra_blocks if b]),
                     "messages": msgs,

@@ -2444,119 +2444,44 @@ function dismissOnboarding(){
 }
 
 async function loadMonthlyReport(){
+  // V portálu jen tři čísla za rozjetý měsíc; podrobná analytika je na samostatné stránce /prehled.
   try{
-    const [rr, ra] = await Promise.all([
-      fetch(`${API}/api/hotel-portal/monthly-report?token=${token}`).catch(()=>null),
-      fetch(`${API}/api/hotel-portal/analytics?token=${token}`).catch(()=>null)
-    ]);
     const el = document.getElementById('monthly-report-section');
     if(!el) return;
+    const rr = await fetch(`${API}/api/hotel-portal/monthly-report?token=${token}`).catch(()=>null);
     const d = (rr && rr.ok) ? await rr.json() : {};
-    const ad = (ra && ra.ok) ? await ra.json() : {};
-    const a = (ad && ad.analytics) || {total:0, topics:{}, last_chat:null, flagged_count:0};
     const cs = (portalLang !== 'en') && (d.lang !== 'en');
-    const rep = d.report || {}, cur = d.current || {};
+    const cur = d.current || {};
     const L = cs ? {
       title:'Přehled & statistiky', desc:'Jak Alex sloužil vašim hostům',
-      conv:'konverzací s hosty', trendPrefix:'oproti minulému měsíci',
-      langs:'Nejčastější jazyky', saved:'Ušetřeno recepci', thisMonth:'Tento měsíc zatím',
-      total:'Celkem dotazů', last:'Poslední chat', topics:'Nejčastější témata',
-      flagged:'× Alex neměl dost informací — doplňte profil výše, ať hosté dostanou odpověď vždy.',
-      profile:'% vyplněný profil — doplnění zvýší kvalitu odpovědí.',
-      empty:'Zatím žádná aktivita tento měsíc. Souhrn se objeví po prvních dotazech hostů.',
-      visitors:'hostů si otevřelo průvodce', totalVisits:'Otevření průvodce celkem'
+      q:'dotazů hostů', saved:'ušetřeno recepci', flagged:'dotazů bez odpovědi',
+      link:'Otevřít podrobný přehled →', hint:'Úspora, vývoj, jazyky, témata, mezery ve znalostech a objednávky. Otevře se v nové záložce.'
     } : {
       title:'Overview & stats', desc:'How Alex served your guests',
-      conv:'guest conversations', trendPrefix:'vs. last month',
-      langs:'Top languages', saved:'Reception time saved', thisMonth:'This month so far',
-      total:'Total questions', last:'Last chat', topics:'Top topics',
-      flagged:'× Alex lacked enough info — complete your profile above so guests always get an answer.',
-      profile:'% profile complete — filling the gaps improves answers.',
-      empty:'No activity yet this month. The summary appears after your first guest questions.',
-      visitors:'guests opened the guide', totalVisits:'Total guide opens'
+      q:'guest questions', saved:'reception time saved', flagged:'unanswered questions',
+      link:'Open the detailed overview →', hint:'Savings, trends, languages, topics, knowledge gaps and orders. Opens in a new tab.'
     };
-    const TOPIC_LABELS = { checkin:'Check-in/out', checkout:'Check-in/out', breakfast:'Snídaně', parking:'Parkování', wellness:'Wellness/Spa', restaurant:'Restaurace', weather:'Počasí', nearby:'Okolí', contact:'Kontakt' };
-    const topics = Object.entries(a.topics||{}).sort((x,y)=>y[1]-x[1]).slice(0,6);
-    const topicHtml = topics.map(([k,v])=>{
-      const pct = a.total ? Math.round((v/a.total)*100) : 0;
-      return `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span>${TOPIC_LABELS[k]||k}</span><span style="color:var(--accent2);font-weight:600">${v}x</span></div><div style="background:var(--border);border-radius:4px;height:6px"><div style="background:var(--accent);border-radius:4px;height:6px;width:${pct}%"></div></div></div>`;
-    }).join('');
-    const lastChat = a.last_chat ? new Date(a.last_chat).toLocaleDateString(cs?'cs-CZ':'en-GB') : '–';
-    const totalVisits = d.total_visits||0;
-    // Požadavky hostů z chatu (objednávky) — stejná data jako sekce Požadavky hostů v záložce Alex
-    let reqHtml = '';
-    try{
-      const rq = (hotelData && hotelData.pms_write_available) ? (_requestsCache || await fetchRequests()) : null;
-      const tm = rq && rq.stats && rq.stats.this_month;
-      if(tm && (tm.total || (rq.stats.all_time||{}).total)){
-        const n = tm.total||0;
-        const lblReq = cs ? (n===1?'požadavek tento měsíc':(n>=2&&n<=4)?'požadavky tento měsíc':'požadavků tento měsíc') : (n===1?'request this month':'requests this month');
-        const lblWait = cs ? 'z toho čeká na odpověď' : 'waiting for a reply';
-        reqHtml = `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;cursor:pointer" onclick="showPortalTab('alex')" title="${cs?'Požadavky hostů v chatu':'Guest requests in chat'}"><div style="font-size:32px;font-weight:700;color:#ffaa33">${tm.total||0}</div><div style="font-size:12px;color:var(--muted)">🛎 ${lblReq}${tm.pending?`<br><span style="color:#ffaa33;font-weight:700">${tm.pending}</span> ${lblWait}`:''}</div></div>`;
-      }
-    }catch(e){}
-    const allTimeHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:14px 0">
-      ${totalVisits?`<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:32px;font-weight:700;color:var(--accent2)">${totalVisits}</div><div style="font-size:12px;color:var(--muted)">${L.totalVisits}</div></div>`:''}
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:32px;font-weight:700;color:var(--accent)">${a.total||0}</div><div style="font-size:12px;color:var(--muted)">${L.total}</div></div>
-      ${reqHtml}
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:18px;font-weight:700;color:var(--accent2)">${lastChat}</div><div style="font-size:12px;color:var(--muted)">${L.last}</div></div>
-    </div>${topics.length?`<div style="font-size:12px;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">${L.topics}</div>${topicHtml}`:''}`;
-    const hasMonthly = (rep.count || 0) > 0;
-    const curCount = cur.count || 0;
-    const trendHtml = (rep.trend_pct !== null && rep.trend_pct !== undefined && rep.prev_count > 0)
-      ? `<div style="font-size:13px;font-weight:600;margin-top:4px;color:${rep.trend_pct>=0?'var(--success)':'var(--warn)'}">${rep.trend_pct>=0?'+':''}${rep.trend_pct}% ${L.trendPrefix}</div>` : '';
-    const langsHtml = (rep.top_langs && rep.top_langs.length)
-      ? rep.top_langs.map(x=>`${x.name} (${x.count})`).join(', ') : '–';
-    const flaggedHtml = (rep.flagged>0)
-      ? `<div style="margin-top:12px;padding:10px 12px;border:1px solid rgba(255,79,106,.3);background:rgba(255,79,106,.06);border-radius:8px;font-size:13px;color:var(--text)"><strong style="color:#ff4f6a">${rep.flagged}${L.flagged}</strong></div>` : '';
-    const profileHtml = (d.profile_score < 100)
-      ? `<div style="margin-top:8px;padding:10px 12px;border:1px solid var(--border);background:var(--card);border-radius:8px;font-size:13px;color:var(--muted)"><strong style="color:var(--text)">${d.profile_score}</strong>${L.profile}</div>` : '';
-
+    const box = (v,l,c) => `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:30px;font-weight:700;color:${c};line-height:1.15">${v}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">${l}</div></div>`;
+    const cnt = cur.count || 0;
     el.innerHTML = `
       <div class="section">
         <div class="section-head">
           <div class="section-icon">📈</div>
-          <div><div class="section-title">${L.title}${hasMonthly?` · ${rep.month_label||''}`:''}</div>
+          <div><div class="section-title">${L.title}${cur.month_label?` · ${cur.month_label}`:''}</div>
           <div class="section-desc">${L.desc}</div></div>
         </div>
-        ${hasMonthly ? `
-        <div style="background:linear-gradient(135deg,#1a1a1a,#2a2a2a);color:#fff;border-radius:12px;padding:22px;text-align:center;margin-bottom:14px">
-          <div style="font-size:44px;font-weight:800;color:#ff8a3d;line-height:1">${rep.count}</div>
-          <div style="font-size:13px;opacity:.85;margin-top:2px">${L.conv}${rep.month_label?` · ${rep.month_label}`:''}</div>
-          ${trendHtml}
-          ${(rep.visitors>0)?`<div style="font-size:13px;opacity:.85;margin-top:6px">👀 <strong>${rep.visitors}</strong> ${L.visitors}</div>`:''}
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px">
-            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${L.langs}</div>
-            <div style="font-size:14px;font-weight:600;color:var(--text)">${langsHtml}</div>
+        <div style="padding:16px 18px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px">
+            ${box(cnt, L.q, 'var(--accent)')}
+            ${box(cnt ? (cur.saved_label||'–') : '–', L.saved, 'var(--accent2)')}
+            ${box(cur.flagged||0, L.flagged, (cur.flagged>0)?'#ff4f6a':'var(--text)')}
           </div>
-          <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px">
-            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${L.saved}</div>
-            <div style="font-size:14px;font-weight:600;color:var(--text)">${rep.saved_label||'–'}</div>
+          <div style="margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <a href="/prehled?token=${encodeURIComponent(token)}" target="_blank" rel="noopener" style="background:var(--accent);color:#fff;text-decoration:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;white-space:nowrap">${L.link}</a>
+            <span style="font-size:12px;color:var(--muted)">${L.hint}</span>
           </div>
         </div>
-        ${flaggedHtml}
-        ${profileHtml}
-        ${curCount>0?`<div style="margin-top:12px;font-size:12px;color:var(--muted);text-align:center">${L.thisMonth}: <strong style="color:var(--text)">${curCount}</strong> ${L.conv}</div>`:''}
-        ` : (curCount>0 ? `
-        <div style="background:linear-gradient(135deg,#1a1a1a,#2a2a2a);color:#fff;border-radius:12px;padding:22px;text-align:center;margin-bottom:14px">
-          <div style="font-size:44px;font-weight:800;color:#ff8a3d;line-height:1">${curCount}</div>
-          <div style="font-size:13px;opacity:.85;margin-top:2px">${L.conv} · ${(L.thisMonth||'').toLowerCase()}</div>
-        </div>
-        ${flaggedHtml}
-        ${profileHtml}
-        ` : ((cur.visitors||0)>0 ? `
-        <div style="background:linear-gradient(135deg,#1a1a1a,#2a2a2a);color:#fff;border-radius:12px;padding:22px;text-align:center;margin-bottom:14px">
-          <div style="font-size:44px;font-weight:800;color:#ff8a3d;line-height:1">${cur.visitors}</div>
-          <div style="font-size:13px;opacity:.85;margin-top:2px">${L.visitors} · ${(L.thisMonth||'').toLowerCase()}</div>
-        </div>
-        ${profileHtml}
-        ` : `
-        <div style="text-align:center;padding:20px 10px;color:var(--muted);font-size:13px">📈 ${L.empty}</div>`))}
-        ${allTimeHtml}
       </div>`;
-    translateDom(el);
   }catch(e){}
 }
 
