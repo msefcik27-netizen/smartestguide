@@ -443,7 +443,7 @@ const EN_MAP = {
   "— aby Alex mohl hostům rovnou objednat služby a prodloužit pobyt, musí hotel udělit souhlas znovu (jedno kliknutí, nastavení zůstane).":"— so that Alex can book services and extend stays for your guests directly, the hotel has to grant consent again (one click, your settings stay).",
   "Udělit oprávnění →":"Grant permission →",
   "Objednávky v chatu":"Orders in chat",
-  "📊 Přehled":"📊 Overview","🏨 Profil hotelu":"🏨 Hotel profile","✦ Alex & objednávky":"✦ Alex & orders","🧾 Nasazení & účet":"🧾 Setup & account",
+  "📊 Přehled":"📊 Overview","📈 Analytika ↗":"📈 Analytics ↗","Podrobný přehled — otevře se v nové záložce":"Detailed overview — opens in a new tab","🏨 Profil hotelu":"🏨 Hotel profile","✦ Alex & objednávky":"✦ Alex & orders","🧾 Nasazení & účet":"🧾 Setup & account",
   "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem.":"Alex can book a service to the guest's room account or send a request to reception. Nothing is ordered until the guest confirms with a button.",
   "Alex přijme objednávku v chatu a pošle ji recepci e-mailem jako požadavek — host nemusí nikam volat. Recepce v e-mailu klikne Potvrdit nebo Nelze vyřídit (může připsat vzkaz) a host odpověď uvidí v chatu. Nic se nikam nezapisuje.":"Alex takes the order in chat and e-mails it to reception as a request — the guest doesn't have to call anyone. Reception clicks Confirm or Cannot arrange in the e-mail (optionally with a note) and the guest sees the answer in chat. Nothing is written anywhere.",
   "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem. U požadavku recepce v e-mailu klikne Potvrdit / Nelze vyřídit a host odpověď uvidí v chatu.":"Alex can book a service straight to the room account or send reception a request. Nothing is booked without the guest confirming with a button. For a request, reception clicks Confirm / Cannot arrange in the e-mail and the guest sees the answer in chat.",
@@ -1258,6 +1258,12 @@ function buildSidebarNav() {
     b.onclick = () => showPortalTab(k);
     tabsBox.appendChild(b);
   });
+  // Podrobná analytika je samostatná stránka (/prehled) — z menu se otevírá v nové záložce
+  const ovBtn = document.createElement('button');
+  ovBtn.type = 'button'; ovBtn.className = 'ptab-btn'; ovBtn.textContent = tr('📈 Analytika ↗');
+  ovBtn.title = tr('Podrobný přehled — otevře se v nové záložce');
+  ovBtn.onclick = () => window.open('/prehled?token=' + encodeURIComponent(token), '_blank', 'noopener');
+  tabsBox.appendChild(ovBtn);
   nav.appendChild(tabsBox);
   const prof = document.createElement('div');
   prof.id = 'sidebar-profile';
@@ -2454,11 +2460,11 @@ async function loadMonthlyReport(){
     const cur = d.current || {};
     const L = cs ? {
       title:'Přehled & statistiky', desc:'Jak Alex sloužil vašim hostům',
-      q:'dotazů hostů', saved:'ušetřeno recepci', flagged:'dotazů bez odpovědi',
+      q:n=>n===1?'dotaz hosta':(n>=2&&n<=4?'dotazy hostů':'dotazů hostů'), saved:'ušetřeno recepci', flagged:n=>n===1?'dotaz bez odpovědi':(n>=2&&n<=4?'dotazy bez odpovědi':'dotazů bez odpovědi'),
       link:'Otevřít podrobný přehled →', hint:'Úspora, vývoj, jazyky, témata, mezery ve znalostech a objednávky. Otevře se v nové záložce.'
     } : {
       title:'Overview & stats', desc:'How Alex served your guests',
-      q:'guest questions', saved:'reception time saved', flagged:'unanswered questions',
+      q:n=>n===1?'guest question':'guest questions', saved:'reception time saved', flagged:n=>n===1?'unanswered question':'unanswered questions',
       link:'Open the detailed overview →', hint:'Savings, trends, languages, topics, knowledge gaps and orders. Opens in a new tab.'
     };
     const box = (v,l,c) => `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:30px;font-weight:700;color:${c};line-height:1.15">${v}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">${l}</div></div>`;
@@ -2472,9 +2478,9 @@ async function loadMonthlyReport(){
         </div>
         <div style="padding:16px 18px">
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px">
-            ${box(cnt, L.q, 'var(--accent)')}
+            ${box(cnt, L.q(cnt), 'var(--accent)')}
             ${box(cnt ? (cur.saved_label||'–') : '–', L.saved, 'var(--accent2)')}
-            ${box(cur.flagged||0, L.flagged, (cur.flagged>0)?'#ff4f6a':'var(--text)')}
+            ${box(cur.flagged||0, L.flagged(cur.flagged||0), (cur.flagged>0)?'#ff4f6a':'var(--text)')}
           </div>
           <div style="margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
             <a href="/prehled?token=${encodeURIComponent(token)}" target="_blank" rel="noopener" style="background:var(--accent);color:#fff;text-decoration:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;white-space:nowrap">${L.link}</a>

@@ -99,14 +99,14 @@ const T = {
 cs:{title:'Přehled & statistiky',sub:'Jak Alex slouží vašim hostům',back:'← Zpět do portálu',print:'🖨 Tisk / PDF',csv:'⬇ Export CSV',
   p_this:'Tento měsíc',p_prev:'Minulý měsíc',p_3m:'3 měsíce',p_12m:'12 měsíců',
   save_t:'Úspora pro recepci',save_d:'Každý dotaz, který Alex vyřídil, nemusela řešit recepce.',
-  k_hours:'ušetřených hodin',k_money:'úspora nákladů',k_q:'dotazů hostů',vs:'oproti předchozímu období',
+  k_hours:'ušetřených hodin',k_money:'úspora nákladů',k_q:n=>pl(n,'dotaz hosta','dotazy hostů','dotazů hostů'),vs:'oproti předchozímu období',
   assume:(m,w,c)=>`Počítáme ${m} min práce recepce na jeden dotaz a ${w} ${c} za hodinu.`,def:' Jde o výchozí odhad — ',edit:'upravit podle vašeho hotelu',
-  alltime:(q,h,m)=>`Od začátku: ${q} dotazů, ${h} h, ${m}.`,
+  alltime:(q,h,m,n)=>`Od začátku: ${q} ${pl(n,'dotaz','dotazy','dotazů')}, ${h} h, ${m}.`,
   s_min:'Minut na jeden dotaz',s_wage:'Náklad na hodinu recepce',s_cur:'Měna',s_from:'Recepce otevřena od (hod.)',s_to:'Recepce otevřena do (hod.)',
   s_save:'Uložit',s_cancel:'Zavřít',s_ok:'Uloženo.',s_err:'Uložení se nepovedlo.',s_hint:'Nonstop recepce: 0 až 24.',
   dev_t:'Vývoj za 12 měsíců',dev_d:'Počet dotazů po měsících.',l_ans:'zodpovězeno',l_un:'bez odpovědi',
   eng_t:'Zapojení hostů',eng_d:'Kolik hostů si průvodce otevřelo a kolik se zeptalo.',
-  e_vis:'hostů otevřelo průvodce',e_ask:'hostů se zeptalo',e_conv:'z návštěvníků položilo dotaz',e_ret:'hostů se vrátilo další den',e_qpa:'dotazů na jednoho hosta',e_opens:'otevření celkem',
+  e_vis:n=>pl(n,'host otevřel průvodce','hosté otevřeli průvodce','hostů otevřelo průvodce'),e_ask:n=>pl(n,'host se zeptal','hosté se zeptali','hostů se zeptalo'),e_conv:'z návštěvníků položilo dotaz',e_ret:n=>pl(n,'host se vrátil další den','hosté se vrátili další den','hostů se vrátilo další den'),e_qpa:'dotazů na jednoho hosta',e_opens:'otevření celkem',
   when_t:'Kdy se hosté ptají',when_d:'Hodiny jsou v místním čase hotelu.',
   off:(p,n,f,t)=>`${p} % dotazů (${n}) přišlo mimo provoz recepce (${f}:00–${t}:00).`,off24:'Recepce je nastavená jako nonstop.',
   l_in:'v provozu recepce',l_off:'mimo provoz recepce',wd:['Po','Út','St','Čt','Pá','So','Ne'],wd_t:'Dny v týdnu',
@@ -114,7 +114,7 @@ cs:{title:'Přehled & statistiky',sub:'Jak Alex slouží vašim hostům',back:'�
   lang_t:'Jazyky hostů',lang_d:'V jakém jazyce hosté s Alexem mluví.',
   top_t:'Na co se ptají',top_d:'Témata dotazů.',un_tag:n=>`${n}× bez odpovědi`,
   gap_t:'Mezery ve znalostech',gap_d:d=>`Dotazy, na které Alex neměl dost informací (posledních ${d} dní). Doplněním do profilu hotelu je příště zodpoví.`,
-  rate:'dotazů Alex zodpověděl',gap_n:'dotazů bez odpovědi',gap_none:'Žádné dotazy bez odpovědi. 👍',gap_csv:'⬇ Seznam do CSV',gap_fill:'Doplnit v portálu →',
+  rate:'dotazů Alex zodpověděl',gap_n:n=>pl(n,'dotaz bez odpovědi','dotazy bez odpovědi','dotazů bez odpovědi'),gap_none:'Žádné dotazy bez odpovědi. 👍',gap_csv:'⬇ Seznam do CSV',gap_fill:'Doplnit v portálu →',
   g_date:'Datum',g_topic:'Téma',g_q:'Dotaz hosta',more:n=>`Zobrazit dalších ${n}`,
   ord_t:'Objednávky a požadavky',ord_d:'Co si hosté přes Alexe objednali.',o_req:'požadavků na recepci',o_conf:'potvrzeno',o_decl:'nelze vyřídit',o_book:'zapsáno přímo do PMS',
   o_30:'Posledních 30 dní',o_med:m=>`Recepce odpovídá obvykle do ${m}.`,o_wait:n=>`Čeká na odpověď: ${n}`,o_top:'Nejžádanější',
@@ -123,14 +123,14 @@ cs:{title:'Přehled & statistiky',sub:'Jak Alex slouží vašim hostům',back:'�
 en:{title:'Overview & statistics',sub:'How Alex serves your guests',back:'← Back to portal',print:'🖨 Print / PDF',csv:'⬇ Export CSV',
   p_this:'This month',p_prev:'Last month',p_3m:'3 months',p_12m:'12 months',
   save_t:'Savings for reception',save_d:'Every question Alex handled is one the front desk did not have to.',
-  k_hours:'hours saved',k_money:'cost savings',k_q:'guest questions',vs:'vs. previous period',
+  k_hours:'hours saved',k_money:'cost savings',k_q:n=>n===1?'guest question':'guest questions',vs:'vs. previous period',
   assume:(m,w,c)=>`Based on ${m} min of reception work per question and ${w} ${c} per hour.`,def:' This is a default estimate — ',edit:'adjust for your hotel',
-  alltime:(q,h,m)=>`All time: ${q} questions, ${h} h, ${m}.`,
+  alltime:(q,h,m,n)=>`All time: ${q} ${n===1?'question':'questions'}, ${h} h, ${m}.`,
   s_min:'Minutes per question',s_wage:'Reception cost per hour',s_cur:'Currency',s_from:'Reception open from (hour)',s_to:'Reception open until (hour)',
   s_save:'Save',s_cancel:'Close',s_ok:'Saved.',s_err:'Saving failed.',s_hint:'24/7 reception: 0 to 24.',
   dev_t:'Last 12 months',dev_d:'Questions per month.',l_ans:'answered',l_un:'unanswered',
   eng_t:'Guest engagement',eng_d:'How many guests opened the guide and how many asked.',
-  e_vis:'guests opened the guide',e_ask:'guests asked a question',e_conv:'of visitors asked a question',e_ret:'guests came back another day',e_qpa:'questions per guest',e_opens:'opens in total',
+  e_vis:n=>n===1?'guest opened the guide':'guests opened the guide',e_ask:n=>n===1?'guest asked a question':'guests asked a question',e_conv:'of visitors asked a question',e_ret:n=>n===1?'guest came back another day':'guests came back another day',e_qpa:'questions per guest',e_opens:'opens in total',
   when_t:'When guests ask',when_d:'Hours are in hotel local time.',
   off:(p,n,f,t)=>`${p}% of questions (${n}) came outside reception hours (${f}:00–${t}:00).`,off24:'Reception is set as 24/7.',
   l_in:'reception open',l_off:'reception closed',wd:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],wd_t:'Days of the week',
@@ -138,7 +138,7 @@ en:{title:'Overview & statistics',sub:'How Alex serves your guests',back:'← Ba
   lang_t:'Guest languages',lang_d:'Languages guests use with Alex.',
   top_t:'What they ask about',top_d:'Question topics.',un_tag:n=>`${n}× unanswered`,
   gap_t:'Knowledge gaps',gap_d:d=>`Questions Alex lacked information for (last ${d} days). Add the answers to your hotel profile and he will handle them next time.`,
-  rate:'of questions answered',gap_n:'unanswered questions',gap_none:'No unanswered questions. 👍',gap_csv:'⬇ List as CSV',gap_fill:'Fill in the portal →',
+  rate:'of questions answered',gap_n:n=>n===1?'unanswered question':'unanswered questions',gap_none:'No unanswered questions. 👍',gap_csv:'⬇ List as CSV',gap_fill:'Fill in the portal →',
   g_date:'Date',g_topic:'Topic',g_q:'Guest question',more:n=>`Show ${n} more`,
   ord_t:'Orders and requests',ord_d:'What guests ordered through Alex.',o_req:'requests to reception',o_conf:'confirmed',o_decl:'could not arrange',o_book:'booked directly in PMS',
   o_30:'Last 30 days',o_med:m=>`Reception usually replies within ${m}.`,o_wait:n=>`Waiting for a reply: ${n}`,o_top:'Most requested',
@@ -146,6 +146,7 @@ en:{title:'Overview & statistics',sub:'How Alex serves your guests',back:'← Ba
   none:'Nothing in this period yet.',min:'min',h:'h',err:'The overview could not be loaded. Please open it from the link in your hotel portal.'}
 };
 const L = k => T[LANG][k];
+const pl = (n,one,few,many) => { n = Math.abs(Number(n)||0); return n===1 ? one : (n>=2 && n<=4 ? few : many); };
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const loc = () => LANG==='cs' ? 'cs-CZ' : 'en-GB';
 const nf = (n,d) => Number(n||0).toLocaleString(loc(), {maximumFractionDigits:d||0, minimumFractionDigits:d||0});
@@ -194,9 +195,9 @@ function render(){
   // 1) Úspora
   let html = `<div class="bar-row"><div><h1>${L('title')}</h1><div class="sub">${L('sub')} · ${esc(periodLabel(p))}</div></div><div class="seg">${seg}</div></div><div class="grid">`;
   html += `<div class="card hero"><h2>${L('save_t')}</h2><div class="desc">${L('save_d')}</div><div class="kpis">
-    ${kpi(nf(p.saved_hours,1), L('k_hours'))}${kpi(money(p.saved_money), L('k_money'))}${kpi(nf(p.count), L('k_q'), trend)}</div>
+    ${kpi(nf(p.saved_hours,1), L('k_hours'))}${kpi(money(p.saved_money), L('k_money'))}${kpi(nf(p.count), L('k_q')(p.count), trend)}</div>
     <div class="note">${esc(L('assume')(nf(st.minutes_per_question,st.minutes_per_question%1?1:0), nf(st.hourly_wage), st.currency))}${isDef?L('def'):' '}<a class="noprint" onclick="toggleSet()">${L('edit')}</a>
-    ${at.questions?'<br>'+esc(L('alltime')(nf(at.questions), nf(at.saved_hours,1), money(at.saved_money))):''}</div>
+    ${at.questions?'<br>'+esc(L('alltime')(nf(at.questions), nf(at.saved_hours,1), money(at.saved_money), at.questions)):''}</div>
     <div class="set" id="set"><div class="f">
       <div><label>${L('s_min')}</label><input id="s-min" inputmode="decimal" value="${esc(st.minutes_per_question)}"></div>
       <div><label>${L('s_wage')}</label><input id="s-wage" inputmode="decimal" value="${esc(st.hourly_wage)}"></div>
@@ -214,10 +215,10 @@ function render(){
 
   // 3) Zapojení
   const eng = [];
-  if(p.visitors) eng.push(kpi(nf(p.visitors), L('e_vis')));
-  if(p.askers) eng.push(kpi(nf(p.askers), L('e_ask')));
+  if(p.visitors) eng.push(kpi(nf(p.visitors), L('e_vis')(p.visitors)));
+  if(p.askers) eng.push(kpi(nf(p.askers), L('e_ask')(p.askers)));
   if(p.conversion_pct!==null && p.askers) eng.push(kpi(p.conversion_pct+' %', L('e_conv')));
-  if(p.returning) eng.push(kpi(nf(p.returning), L('e_ret')));
+  if(p.returning) eng.push(kpi(nf(p.returning), L('e_ret')(p.returning)));
   if(p.questions_per_asker) eng.push(kpi(nf(p.questions_per_asker,1), L('e_qpa')));
   if(p.visits) eng.push(kpi(nf(p.visits), L('e_opens')));
   html += card('c4', L('eng_t'), L('eng_d'), eng.length ? `<div class="kpis" style="grid-template-columns:1fr 1fr">${eng.join('')}</div>` : `<div class="empty">${L('none')}</div>`);
@@ -243,7 +244,7 @@ function render(){
 
   // 7) Mezery ve znalostech
   const g = o.gaps;
-  let gap = `<div class="kpis" style="margin-bottom:14px">${p.answer_rate_pct!==null?kpi(p.answer_rate_pct+' %', L('rate')+' · '+periodLabel(p)):''}${kpi(nf(g.count), L('gap_n'))}</div>`;
+  let gap = `<div class="kpis" style="margin-bottom:14px">${p.answer_rate_pct!==null?kpi(p.answer_rate_pct+' %', L('rate')+' · '+periodLabel(p)):''}${kpi(nf(g.count), L('gap_n')(g.count))}</div>`;
   if(g.items.length){
     const rows = g.items.slice(0,gapShown).map(u => `<tr><td class="d">${esc(u.at?new Date(u.at+'Z').toLocaleDateString(loc()):'')}</td><td class="d tp">${esc(u.topic||'')}</td><td>${esc(u.q)}</td></tr>`).join('');
     gap += `<table><thead><tr><th>${L('g_date')}</th><th class="tp">${L('g_topic')}</th><th>${L('g_q')}</th></tr></thead><tbody>${rows}</tbody></table>`;
@@ -276,12 +277,13 @@ function render(){
 function setPer(k){ PER = k; try{ localStorage.setItem('sg_ov_period', k); }catch(e){} render(); }
 function toggleSet(){ const s = document.getElementById('set'); if(s) s.classList.toggle('show'); }
 async function saveSet(){
-  const v = id => document.getElementById(id).value.trim();
+  const v = id => { const e = document.getElementById(id), x = e.value.trim(); return x === e.defaultValue.trim() ? undefined : x; };
   const msg = document.getElementById('msg');
   try{
-    const r = await fetch(`/api/hotel-portal/update?token=${TQ}`, {method:'PATCH', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({stats_minutes_per_question:v('s-min'), stats_hourly_wage:v('s-wage'), stats_currency:v('s-cur'),
-                            stats_reception_from:v('s-from'), stats_reception_to:v('s-to')})});
+    const body = JSON.stringify({stats_minutes_per_question:v('s-min'), stats_hourly_wage:v('s-wage'), stats_currency:v('s-cur'),
+                                 stats_reception_from:v('s-from'), stats_reception_to:v('s-to')});
+    if(body === '{}'){ toggleSet(); return; }
+    const r = await fetch(`/api/hotel-portal/update?token=${TQ}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body});
     if(!r.ok) throw new Error(r.status);
     await load();
   }catch(e){ if(msg) msg.textContent = L('s_err'); }
