@@ -443,7 +443,7 @@ const EN_MAP = {
   "— aby Alex mohl hostům rovnou objednat služby a prodloužit pobyt, musí hotel udělit souhlas znovu (jedno kliknutí, nastavení zůstane).":"— so that Alex can book services and extend stays for your guests directly, the hotel has to grant consent again (one click, your settings stay).",
   "Udělit oprávnění →":"Grant permission →",
   "Objednávky v chatu":"Orders in chat",
-  "📊 Přehled":"📊 Overview","📈 Analytika":"📈 Analytics","🏨 Profil hotelu":"🏨 Hotel profile","✦ Alex & objednávky":"✦ Alex & orders","🧾 Nasazení & účet":"🧾 Setup & account",
+  "📊 Přehled":"📊 Overview","📈 Analytika":"📈 Analytics","🎓 Alex se učí":"🎓 Alex learns","Dotazy, na které Alex neznal odpověď — doplňte ji":"Questions Alex could not answer — add the answer","🏨 Profil hotelu":"🏨 Hotel profile","✦ Alex & objednávky":"✦ Alex & orders","🧾 Nasazení & účet":"🧾 Setup & account",
   "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem.":"Alex can book a service to the guest's room account or send a request to reception. Nothing is ordered until the guest confirms with a button.",
   "Alex přijme objednávku v chatu a pošle ji recepci e-mailem jako požadavek — host nemusí nikam volat. Recepce v e-mailu klikne Potvrdit nebo Nelze vyřídit (může připsat vzkaz) a host odpověď uvidí v chatu. Nic se nikam nezapisuje.":"Alex takes the order in chat and e-mails it to reception as a request — the guest doesn't have to call anyone. Reception clicks Confirm or Cannot arrange in the e-mail (optionally with a note) and the guest sees the answer in chat. Nothing is written anywhere.",
   "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem. U požadavku recepce v e-mailu klikne Potvrdit / Nelze vyřídit a host odpověď uvidí v chatu.":"Alex can book a service straight to the room account or send reception a request. Nothing is booked without the guest confirming with a button. For a request, reception clicks Confirm / Cannot arrange in the e-mail and the guest sees the answer in chat.",
@@ -613,7 +613,7 @@ function setPortalLang(lang){
   refreshStaticTexts();
   if(hotelData){
     renderPortal(); renderOnboarding(); loadCompleteness(); loadPaymentSection();
-    loadPmsSection(); loadOrdersSection(); loadRequestsSection(); loadGroupSection(); loadAddHotelSection(); loadInvoicesSection(); loadMonthlyReport();
+    loadPmsSection(); loadOrdersSection(); loadRequestsSection(); loadLearnSection(); loadGroupSection(); loadAddHotelSection(); loadInvoicesSection(); loadMonthlyReport();
     setTimeout(initEmbedCode, 100);
   }
 }
@@ -648,7 +648,7 @@ async function loadHotel() {
     renderOnboarding();
     loadCompleteness();
     loadPaymentSection();
-    loadPmsSection(); loadOrdersSection(); loadRequestsSection();
+    loadPmsSection(); loadOrdersSection(); loadRequestsSection(); loadLearnSection();
     loadGroupSection();
     loadAddHotelSection();
     loadInvoicesSection();
@@ -773,6 +773,7 @@ function renderPortal() {
     <div id="pms-section"></div>
     <div id="orders-section"></div>
     <div id="requests-section"></div>
+    <div id="learn-section"></div>
 
     <div id="onboarding-wizard"></div>
 
@@ -1025,18 +1026,18 @@ const PORTAL_TAB_OF = {            // sekce z renderSection podle (českého) ti
 const PORTAL_SOLO = {};            // tab -> id bloku otevřeného z dlaždice (ostatní bloky tabu skryté); undefined = všechny
 const PORTAL_FIXED = {             // pevné bloky podle id / třídy
   'completeness-banner':'profil', 'group-section':'ucet', 'add-hotel-section':'ucet', 'pms-section':'alex',
-  'orders-section':'alex', 'requests-section':'alex', 'onboarding-wizard':'prehled', 'payment-section':'ucet', 'invoices-section':'ucet',
+  'orders-section':'alex', 'requests-section':'alex', 'learn-section':'alex', 'onboarding-wizard':'prehled', 'payment-section':'ucet', 'invoices-section':'ucet',
   'monthly-report-section':'prehled', 'analytics-frame-section':'analytika'
 };
 // Štítky dlaždic pevných bloků (sekce z renderSection si berou ikonu a titulek z DOM)
 const PORTAL_FIXED_TILE = {
-  'pms-section':'🔌 Hotelový systém', 'orders-section':'🛎 Objednávky v chatu', 'requests-section':'📬 Požadavky hostů',
+  'pms-section':'🔌 Hotelový systém', 'orders-section':'🛎 Objednávky v chatu', 'requests-section':'📬 Požadavky hostů', 'learn-section':'🎓 Alex se učí',
   'group-section':'🏨 Vaše hotely', 'add-hotel-section':'➕ Přidat další hotel', 'payment-section':'💳 Předplatné', 'invoices-section':'🧾 Faktury',
   'onboarding-wizard':'🧭 Průvodce nastavením', 'monthly-report-section':'📈 Přehled & statistiky'
 };
 const PORTAL_FIXED_DESC = {
   'pms-section':'Propojení s Apaleem — pobyty hostů a zápis objednávek', 'orders-section':'Co smí Alex nabízet a objednat, ceny',
-  'requests-section':'Objednávky a žádosti hostů, odpovědi recepce', 'group-section':'Všechny hotely pod vaším účtem',
+  'requests-section':'Objednávky a žádosti hostů, odpovědi recepce', 'learn-section':'Dotazy, na které Alex neznal odpověď — doplňte ji', 'group-section':'Všechny hotely pod vaším účtem',
   'add-hotel-section':'Další hotel na stejné předplatné', 'payment-section':'Stav předplatného a platby', 'invoices-section':'Vystavené faktury ke stažení',
   'onboarding-wizard':'Co ještě doplnit, aby Alex odpovídal nejlépe', 'monthly-report-section':'Kolik hostů Alex obsloužil a na co se ptali'
 };
@@ -2125,6 +2126,113 @@ async function loadRequestsSection(){
   </div>`;
   translateDom(el);
   try{ buildPortalTiles(); }catch(e){}
+}
+// ── Alex se učí: recepce doplní odpověď na dotaz, který Alex neznal (17. 11. 2026) ─────────
+const LEARN_T = {
+  cs:{title:'Alex se učí', desc:'dotazy, na které Alex neznal odpověď — doplňte ji a příště odpoví sám',
+      pend:'Čeká na vaši odpověď', none:'Žádný dotaz bez odpovědi. 👍', ph:'Napište odpověď tak, jak byste ji řekli hostovi…',
+      save:'Uložit odpověď', skip:'Přeskočit', skipTip:'Dotaz zmizí ze seznamu a Alex se z něj nic nenaučí (test, nesmysl).',
+      times:n=>n+'× za 90 dní', learned:'Co už Alex umí od vás', learnedNone:'Zatím jste Alexovi žádnou odpověď nedoplnili.',
+      edit:'Upravit', del:'Smazat', delSure:'Opravdu smazat?', own:'Přidat vlastní otázku a odpověď',
+      ownQ:'Otázka hosta (např. Půjčujete kola?)', ownA:'Odpověď hotelu', add:'Přidat',
+      saved:'Uloženo — Alex už odpověď zná', removed:'Smazáno', skipped:'Dotaz odebrán ze seznamu', full:'Seznam je plný (max. {n} odpovědí). Smažte některou starší.',
+      empty:'Vyplňte otázku i odpověď.', err:'Uložení se nepovedlo, zkuste to znovu.',
+      note:'Odpověď uvidí hosté. Alex ji řekne vlastními slovy a v jazyce hosta — stačí ji napsat česky.'},
+  en:{title:'Alex learns', desc:'questions Alex could not answer — add the answer and next time he will know',
+      pend:'Waiting for your answer', none:'No unanswered questions. 👍', ph:'Write the answer the way you would tell a guest…',
+      save:'Save answer', skip:'Skip', skipTip:'Removes the question from the list; Alex learns nothing from it (test, nonsense).',
+      times:n=>n+'× in 90 days', learned:'What Alex already knows from you', learnedNone:'You have not added any answers yet.',
+      edit:'Edit', del:'Delete', delSure:'Really delete?', own:'Add your own question and answer',
+      ownQ:'Guest question (e.g. Do you rent bikes?)', ownA:'Hotel answer', add:'Add',
+      saved:'Saved — Alex now knows the answer', removed:'Deleted', skipped:'Question removed from the list', full:'The list is full (max. {n} answers). Delete an older one.',
+      empty:'Fill in both the question and the answer.', err:'Saving failed, please try again.',
+      note:'Guests will see the answer. Alex says it in his own words and in the guest\'s language — any language works.'}
+};
+let _learnData=null, _learnDrafts={}, _learnDeepLinkDone=false;
+function openLearnBlock(){ PORTAL_SOLO.alex=null; openPortalBlock('alex','learn-section'); }
+async function learnPost(path, body, okMsg){
+  const L=LEARN_T[portalLang==='en'?'en':'cs'];
+  try{
+    const r=await fetch(`${API}/api/hotel-portal/${path}?token=${token}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok){ const e=await r.json().catch(()=>({})); toast(e.detail==='full'?L.full.replace('{n}',(_learnData&&_learnData.max)||150):(e.detail==='empty'?L.empty:L.err),'err'); return false; }
+    const d=await r.json(); toast(okMsg); await loadLearnSection(d); return true;
+  }catch(e){ toast(L.err,'err'); return false; }
+}
+function learnKeepDrafts(){
+  document.querySelectorAll('#learn-section textarea[data-q]').forEach(t=>{ if(t.value.trim()) _learnDrafts[t.dataset.q]=t.value; else delete _learnDrafts[t.dataset.q]; });
+}
+async function learnSave(i){
+  const p=_learnData.pending[i], t=document.getElementById('learn-a-'+i), L=LEARN_T[portalLang==='en'?'en':'cs'];
+  if(!t.value.trim()){ t.focus(); toast(L.empty,'err'); return; }
+  learnKeepDrafts(); delete _learnDrafts[p.q];
+  await learnPost('learn',{q:p.q,a:t.value,lang:p.lang||''},L.saved);
+}
+async function learnSkip(i){ learnKeepDrafts(); const q=_learnData.pending[i].q; delete _learnDrafts[q]; await learnPost('learn-dismiss',{q},LEARN_T[portalLang==='en'?'en':'cs'].skipped); }
+async function learnDelete(i,btn){
+  const L=LEARN_T[portalLang==='en'?'en':'cs'];
+  if(!btn.dataset.sure){ btn.dataset.sure='1'; btn.textContent=L.delSure; btn.style.color='#ff4f6a'; btn.style.borderColor='#ff4f6a'; setTimeout(()=>{ if(btn.isConnected){ delete btn.dataset.sure; btn.textContent=L.del; btn.style.color=''; btn.style.borderColor=''; } },4000); return; }
+  learnKeepDrafts(); await learnPost('learn-delete',{id:_learnData.learned[i].id},L.removed);
+}
+function learnEdit(i){
+  const x=_learnData.learned[i], q=document.getElementById('learn-own-q'), a=document.getElementById('learn-own-a');
+  q.value=x.q; a.value=x.a; a.focus(); a.scrollIntoView({behavior:'smooth',block:'center'});
+}
+async function learnAddOwn(){
+  const q=document.getElementById('learn-own-q'), a=document.getElementById('learn-own-a'), L=LEARN_T[portalLang==='en'?'en':'cs'];
+  if(!q.value.trim()||!a.value.trim()){ toast(L.empty,'err'); (q.value.trim()?a:q).focus(); return; }
+  learnKeepDrafts(); await learnPost('learn',{q:q.value,a:a.value},L.saved);
+}
+async function loadLearnSection(data){
+  const el=document.getElementById('learn-section');
+  if(!el||!hotelData) return;
+  let d=data;
+  if(!d){ try{ const r=await fetch(`${API}/api/hotel-portal/learn?token=${token}`); if(!r.ok) throw 0; d=await r.json(); }catch(e){ if(!_learnData) el.innerHTML=''; return; } }
+  _learnData=d;
+  const L=LEARN_T[portalLang==='en'?'en':'cs'];
+  const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const inp='width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;font-family:inherit';
+  const btnP='background:var(--accent);color:#0a0b0f;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer';
+  const btnS='background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);padding:7px 12px;font-size:12.5px;cursor:pointer';
+  const card='background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px';
+  const pend=(d.pending||[]).map((p,i)=>`<div style="${card}">
+      <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px"><div style="font-weight:700;font-size:14px;flex:1;min-width:0;overflow-wrap:anywhere">${esc(p.q)}</div>
+        <span style="font-size:11.5px;color:var(--muted);white-space:nowrap">${p.lang?esc(String(p.lang).toUpperCase())+' · ':''}${p.count>1?L.times(p.count)+' · ':''}${fmtReqTime(p.at)}</span></div>
+      <textarea id="learn-a-${i}" data-q="${esc(p.q)}" rows="2" maxlength="800" placeholder="${esc(L.ph)}" style="${inp};resize:vertical">${esc(_learnDrafts[p.q]||'')}</textarea>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button onclick="learnSave(${i})" style="${btnP}">${L.save}</button><button onclick="learnSkip(${i})" title="${esc(L.skipTip)}" style="${btnS}">${L.skip}</button></div>
+    </div>`).join('');
+  const known=(d.learned||[]).map((x,i)=>`<div style="${card}">
+      <div style="font-weight:700;font-size:13.5px;overflow-wrap:anywhere">${esc(x.q)}</div>
+      <div style="font-size:13px;color:var(--muted);margin:4px 0 8px;overflow-wrap:anywhere">${esc(x.a)}</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button onclick="learnEdit(${i})" style="${btnS}">${L.edit}</button><button onclick="learnDelete(${i},this)" style="${btnS}">${L.del}</button><span style="font-size:11.5px;color:var(--muted)">${fmtReqTime(x.at)}</span></div>
+    </div>`).join('');
+  const h4='font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin:0 0 10px';
+  const prevBody=el.querySelector('#sec-learn .section-body'); const openNow=prevBody?prevBody.classList.contains('open'):true; const oc=openNow?'open':'';
+  const ownQ=(document.getElementById('learn-own-q')||{}).value||'', ownA=(document.getElementById('learn-own-a')||{}).value||'';
+  const keepOwn=data?false:true;   // po uložení formulář vyprázdnit, při pouhém obnovení ponechat rozepsané
+  el.innerHTML=`<div class="section ${openNow?'section-open':''}" id="sec-learn" style="margin-bottom:24px">
+    <div class="section-head ${oc}" onclick="toggleSection('sec-learn')">
+      <div class="section-icon">🎓</div>
+      <div style="flex:1;min-width:0"><div class="section-title">${L.title}${(d.pending||[]).length?` <span style="color:#ffaa33">(${d.pending.length})</span>`:''}</div>
+      <div class="section-desc">${L.desc}</div></div>
+      <span class="section-toggle-lbl">${tr(openNow?'Sbalit':'Rozbalit')}</span><div class="section-chevron ${oc}">▼</div>
+    </div>
+    <div class="section-body ${oc}">
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">${L.note}</div>
+      <div style="${h4}">${L.pend}</div>
+      ${pend||`<div style="font-size:13px;color:var(--muted);margin-bottom:10px">${L.none}</div>`}
+      <div style="${h4};margin-top:20px">${L.learned}${(d.learned||[]).length?` (${d.learned.length}/${d.max||150})`:''}</div>
+      ${known||`<div style="font-size:13px;color:var(--muted);margin-bottom:10px">${L.learnedNone}</div>`}
+      <div style="${h4};margin-top:20px">${L.own}</div>
+      <div style="${card}">
+        <input type="text" id="learn-own-q" maxlength="300" placeholder="${esc(L.ownQ)}" value="${keepOwn?esc(ownQ):''}" style="${inp};margin-bottom:8px">
+        <textarea id="learn-own-a" rows="2" maxlength="800" placeholder="${esc(L.ownA)}" style="${inp};resize:vertical">${keepOwn?esc(ownA):''}</textarea>
+        <div style="margin-top:8px"><button onclick="learnAddOwn()" style="${btnP}">${L.add}</button></div>
+      </div>
+    </div>
+  </div>`;
+  try{ buildPortalTiles(); }catch(e){}
+  // odkaz „Doplnit v portálu" z analytiky: /portal?token=…&blok=learn#alex
+  if(!_learnDeepLinkDone && new URLSearchParams(location.search).get('blok')==='learn'){ _learnDeepLinkDone=true; openLearnBlock(); }
 }
 // obnova seznamu při návratu na záložku a každou minutu, dokud je záložka otevřená
 setInterval(()=>{ if(currentPortalTab()==='alex' && document.visibilityState==='visible') loadRequestsSection(); }, 60000);

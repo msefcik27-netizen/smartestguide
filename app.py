@@ -19,6 +19,7 @@ from urllib.parse import urljoin, urlparse
 from dotenv import load_dotenv
 import pms as pms_layer  # PMS napojení (Apaleo…) — viz pms.py, PLAN_PMS_NAPOJENI.md
 import analytics_view  # výpočty pro stránku Přehled (/prehled) — čisté funkce, testy v test_analytics_view.py
+import alex_learn      # „Alex se učí": odpovědi recepce na dotazy bez odpovědi — testy v test_alex_learn.py
 
 load_dotenv()
 
@@ -2438,6 +2439,7 @@ _PORTAL_PROTECTED = {
     "subscription_paid_beds", "stripe_customer_id", "stripe_subscription_id",
     "acquired_by", "referral_code", "acquired_at", "trial_used", "trial_start",
     "is_free",
+    "learned_answers",   # mění se jen přes /api/hotel-portal/learn* (čištění textu, strop počtu)
 }
 
 @app.patch("/api/hotel-portal/update")
@@ -2625,6 +2627,54 @@ def hotel_portal_overview_export(token: str, kind: str = "months", lang: str = "
         body, name = analytics_view.months_csv(ov), "alex-prehled-mesice.csv"
     return Response(content=body.encode("utf-8"), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
+
+# ── Alex se učí: recepce odpoví na dotaz bez odpovědi, Alex odpověď příště použije ─────────
+def _learn_ctx(token: str):
+    h = find_hotel_by_token(token)
+    if not h:
+        raise HTTPException(403, "Neplatny token")
+    db = db_load()
+    hotel = db["hotels"][h["id"]]
+    a = db.setdefault("analytics", {}).setdefault(h["id"], {"total": 0, "topics": {}})
+    return db, hotel, a
+
+def _learn_state(hotel: dict, a: dict) -> dict:
+    return {"status": "ok", "pending": alex_learn.pending(a, datetime.utcnow()),
+            "learned": alex_learn.learned(hotel), "max": alex_learn.MAX_ANSWERS}
+
+@app.get("/api/hotel-portal/learn")
+def hotel_portal_learn(token: str):
+    _, hotel, a = _learn_ctx(token)
+    return _learn_state(hotel, a)
+
+@app.post("/api/hotel-portal/learn")
+def hotel_portal_learn_save(token: str, data: dict = Body(default={})):
+    """Uloží odpověď recepce {q, a, lang?}. Dotaz zmizí ze seznamu bez odpovědi."""
+    db, hotel, a = _learn_ctx(token)
+    try:
+        alex_learn.add_answer(hotel, a, (data or {}).get("q"), (data or {}).get("a"),
+                              datetime.utcnow(), (data or {}).get("lang") or "")
+    except ValueError as e:
+        raise HTTPException(400, "full" if str(e) == "full" else "empty")
+    hotel["portal_last_edit"] = datetime.utcnow().isoformat()
+    db_save(db)
+    return _learn_state(hotel, a)
+
+@app.post("/api/hotel-portal/learn-dismiss")
+def hotel_portal_learn_dismiss(token: str, data: dict = Body(default={})):
+    """Dotaz, na který hotel odpovídat nechce (nesmysl, test) — jen zmizí ze seznamu."""
+    db, hotel, a = _learn_ctx(token)
+    alex_learn.resolve(a, (data or {}).get("q") or "", datetime.utcnow())
+    db_save(db)
+    return _learn_state(hotel, a)
+
+@app.post("/api/hotel-portal/learn-delete")
+def hotel_portal_learn_delete(token: str, data: dict = Body(default={})):
+    db, hotel, a = _learn_ctx(token)
+    if alex_learn.delete_answer(hotel, str((data or {}).get("id") or "")):
+        hotel["portal_last_edit"] = datetime.utcnow().isoformat()
+        db_save(db)
+    return _learn_state(hotel, a)
 
 @app.get("/api/hotel-portal/monthly-report")
 def hotel_portal_monthly_report(token: str, month: str = ""):
@@ -8593,6 +8643,7 @@ INSTRUKCE K MÍSTŮM: Pokud host žádá tipy na okolí, doporučuj turistická 
 - Extra info: {h.get('extra_info', 'N/A')}
 {restaurants_block}
 {chr(10).join([f"- {cf.get('label','Info')}: {cf.get('value','')}" for cf in h.get('custom_fields', []) if cf.get('value')]) if h.get('custom_fields') else ''}
+{alex_learn.prompt_block(h)}
 {"\n⭐ AKTIVNÍ NABÍDKA HOTELU: " + h.get('active_offer') + "\nTuto nabídku VŽDY zmíň pokud se host ptá na téma které s ní souvisí (wellness, restaurace, bar, aktivity, služby apod.). Zmiň ji přirozeně jako součást odpovědi — ne jako reklamu, ale jako přátelský tip." if h.get('active_offer') else ''}
 
 Guest name: {req.guest_name or 'Guest'}"""

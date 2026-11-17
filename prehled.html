@@ -78,7 +78,7 @@ tr:last-child td{border-bottom:0}
   .hero .kpi .v{color:#c45200}.hero .kpi .l,.hero .desc,.hero .note{color:#444}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
-.embed .top{position:static;background:transparent;border:0}.embed .logo,.embed #hname,.embed #b-back{display:none}.embed .top-in{justify-content:flex-end}.embed body{background:transparent}.embed .wrap{padding-left:0;padding-right:0}
+.embed .top{position:static;background:transparent;border:0}.embed .logo,.embed #hname,.embed #b-back{display:none}.embed .top-in{justify-content:flex-end}.embed body{background:transparent;padding-top:0!important}.embed body > div[style*="2147483647"]{display:none}.embed .wrap{padding-left:0;padding-right:0}
 </style>
 </head>
 <body>
@@ -116,8 +116,8 @@ cs:{title:'Přehled & statistiky',sub:'Jak Alex slouží vašim hostům',back:'�
   since:(a,b)=>`Tento údaj sbíráme nově — zachycuje ${a} z ${b} dotazů v období.`,nodata_new:'Tento údaj sbíráme nově. Zobrazí se po prvních dotazech hostů.',
   lang_t:'Jazyky hostů',lang_d:'V jakém jazyce hosté s Alexem mluví.',
   top_t:'Na co se ptají',top_d:'Témata dotazů.',un_tag:n=>`${n}× bez odpovědi`,
-  gap_t:'Mezery ve znalostech',gap_d:d=>`Dotazy, na které Alex neměl dost informací (posledních ${d} dní). Doplněním do profilu hotelu je příště zodpoví.`,
-  rate:'dotazů Alex zodpověděl',gap_n:n=>pl(n,'dotaz bez odpovědi','dotazy bez odpovědi','dotazů bez odpovědi'),gap_none:'Žádné dotazy bez odpovědi. 👍',gap_csv:'⬇ Seznam do CSV',gap_fill:'Doplnit v portálu →',
+  gap_t:'Mezery ve znalostech',gap_d:d=>`Dotazy, na které Alex neměl dost informací (posledních ${d} dní). Stačí k nim v portálu dopsat odpověď a Alex je příště zodpoví sám.`,
+  rate:'dotazů Alex zodpověděl',gap_n:n=>pl(n,'dotaz bez odpovědi','dotazy bez odpovědi','dotazů bez odpovědi'),gap_none:'Žádné dotazy bez odpovědi. 👍',gap_csv:'⬇ Seznam do CSV',gap_fill:'Odpovědět na dotazy →',
   g_date:'Datum',g_topic:'Téma',g_q:'Dotaz hosta',more:n=>`Zobrazit dalších ${n}`,
   ord_t:'Objednávky a požadavky',ord_d:'Co si hosté přes Alexe objednali.',o_req:'požadavků na recepci',o_conf:'potvrzeno',o_decl:'nelze vyřídit',o_book:'zapsáno přímo do PMS',
   o_30:'Posledních 30 dní',o_med:m=>`Recepce odpovídá obvykle do ${m}.`,o_wait:n=>`Čeká na odpověď: ${n}`,o_top:'Nejžádanější',
@@ -140,8 +140,8 @@ en:{title:'Overview & statistics',sub:'How Alex serves your guests',back:'← Ba
   since:(a,b)=>`This is newly collected — it covers ${a} of ${b} questions in the period.`,nodata_new:'This is newly collected. It appears after the first guest questions.',
   lang_t:'Guest languages',lang_d:'Languages guests use with Alex.',
   top_t:'What they ask about',top_d:'Question topics.',un_tag:n=>`${n}× unanswered`,
-  gap_t:'Knowledge gaps',gap_d:d=>`Questions Alex lacked information for (last ${d} days). Add the answers to your hotel profile and he will handle them next time.`,
-  rate:'of questions answered',gap_n:n=>n===1?'unanswered question':'unanswered questions',gap_none:'No unanswered questions. 👍',gap_csv:'⬇ List as CSV',gap_fill:'Fill in the portal →',
+  gap_t:'Knowledge gaps',gap_d:d=>`Questions Alex lacked information for (last ${d} days). Just add the answer in the portal and Alex will handle them next time.`,
+  rate:'of questions answered',gap_n:n=>n===1?'unanswered question':'unanswered questions',gap_none:'No unanswered questions. 👍',gap_csv:'⬇ List as CSV',gap_fill:'Answer the questions →',
   g_date:'Date',g_topic:'Topic',g_q:'Guest question',more:n=>`Show ${n} more`,
   ord_t:'Orders and requests',ord_d:'What guests ordered through Alex.',o_req:'requests to reception',o_conf:'confirmed',o_decl:'could not arrange',o_book:'booked directly in PMS',
   o_30:'Last 30 days',o_med:m=>`Reception usually replies within ${m}.`,o_wait:n=>`Waiting for a reply: ${n}`,o_top:'Most requested',
@@ -252,7 +252,7 @@ function render(){
     const rows = g.items.slice(0,gapShown).map(u => `<tr><td class="d">${esc(u.at?new Date(u.at+'Z').toLocaleDateString(loc()):'')}</td><td class="d tp">${esc(u.topic||'')}</td><td>${esc(u.q)}</td></tr>`).join('');
     gap += `<table><thead><tr><th>${L('g_date')}</th><th class="tp">${L('g_topic')}</th><th>${L('g_q')}</th></tr></thead><tbody>${rows}</tbody></table>`;
     gap += `<div class="legend noprint">`+(g.items.length>gapShown?`<a class="btn" onclick="gapShown+=30;render()">${esc(L('more')(Math.min(30,g.items.length-gapShown)))}</a>`:'')+
-      `<a class="btn" href="/api/hotel-portal/overview-export?token=${TQ}&kind=gaps&lang=${LANG}">${L('gap_csv')}</a><a class="btn" href="/portal?token=${TQ}" target="_top">${L('gap_fill')}</a></div>`;
+      `<a class="btn" href="/api/hotel-portal/overview-export?token=${TQ}&kind=gaps&lang=${LANG}">${L('gap_csv')}</a><a class="btn" href="/portal?token=${TQ}&blok=learn#alex" target="_top" onclick="try{if(EMBED&&parent.openLearnBlock){parent.openLearnBlock();return false}}catch(e){}">${L('gap_fill')}</a></div>`;
   } else gap += `<div class="empty">${L('gap_none')}</div>`;
   html += card('', L('gap_t'), L('gap_d')(g.keep_days), gap);
 
