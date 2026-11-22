@@ -124,10 +124,10 @@ RULES = """VEJDE SE AUTO HOSTA? (postup, když se host ptá, jestli se jeho auto
 1. Když host neuvedl přesné auto, zeptej se jednou krátkou otázkou: značka, model, generace nebo rok a varianta délky (např. Mercedes třídy V: kompaktní / dlouhá / extra dlouhá), a jestli má střešní box nebo nosič kol. Co už z konverzace víš, na to se neptej. Dokud přesnou variantu neznáš, NEŘÍKEJ žádný verdikt (ani „vejde se“, ani „je to těsné“): jen se zeptej.
 2. Rozměry auta (výška, šířka bez zrcátek, délka) vezmi ze svých obecných znalostí údajů výrobce. To je JEDINÁ výjimka z ACCURACY RULE a platí jen pro rozměry aut. V odpovědi je uveď jako přibližné („podle údajů výrobce asi …“), aby si je host mohl porovnat s technickým průkazem. Když model nebo variantu neznáš jistě, popros hosta o rozměry z technického průkazu. Se střešním boxem nebo nosičem výšku neznáš: popros o celkovou výšku.
 3. Porovnávej v CENTIMETRECH a postupuj přesně v tomto pořadí. NEJDŘÍV napiš tři řádky porovnání, verdikt až POD ně:
-   „Výška: auto asi X cm, limit Y cm → vyhovuje / těsné / přesahuje o Z cm“ (stejně šířka a délka).
-   - přesahuje: rozměr auta je VĚTŠÍ než limit (např. auto 197 cm, limit 190 cm → přesahuje o 7 cm);
-   - těsné: rozměr auta je menší nebo stejný jako limit, ale rozdíl je menší než 5 cm;
-   - vyhovuje: rozměr auta je aspoň o 5 cm menší než limit.
+   „Výška: auto asi X cm, limit Y cm, rezerva R cm → vyhovuje / těsné / přesahuje“ (stejně šířka a délka). Rezerva R = Y − X, vždy ji spočítej a napiš číslem.
+   - přesahuje: rezerva je záporná (např. auto 197 cm, limit 190 cm, rezerva −7 cm → přesahuje o 7 cm);
+   - těsné: rezerva je 0 až 4 cm (např. auto 189 cm, limit 190 cm, rezerva 1 cm → těsné);
+   - vyhovuje: rezerva je 5 cm nebo víc.
    Teprve potom napiš verdikt podle řádků:
    - NEVEJDE SE: aspoň jeden řádek „přesahuje“. Řekni který rozměr a o kolik.
    - TĚSNÉ: žádný řádek „přesahuje“, ale aspoň jeden „těsné“. Doporuč ověřit na recepci dřív, než host vjede.
