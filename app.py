@@ -2958,8 +2958,12 @@ def generate_qr_poster(hotel_id: str, request: Request):
     is_cs = country in ("CZ", "SK")
     primary_lang = "cz" if is_cs else "en"
     btn_print = "🖨️ Otevřít a tisknout" if is_cs else "🖨️ Open and print"
+    btn_press = "✂️ Data pro tiskárnu" if is_cs else "✂️ Print-shop file"
+    press_tip = "PDF pro profesionální tisk: spadávka 3 mm a ořezové značky" if is_cs else "PDF for professional printing: 3 mm bleed and crop marks"
+    press_note = ("Tisknete sami? Stačí „Otevřít a tisknout“. Zadáváte tisk tiskárně? Pošlete jí „Data pro tiskárnu“ – PDF se spadávkou 3 mm a ořezovými značkami, roll-up ve skutečné velikosti." if is_cs else
+                  "Printing yourself? Use “Open and print”. Ordering from a print shop? Send them the “Print-shop file” – a PDF with 3 mm bleed and crop marks, roll-up at full size.")
     hub_title = "Tiskové materiály" if is_cs else "Print materials"
-    qr_poster_label = "QR Plakát · 800×800px" if is_cs else "QR Poster · 800×800px"
+    qr_poster_label = "QR Plakát · 210×210&nbsp;mm" if is_cs else "QR Poster · 210×210&nbsp;mm"
     qr_poster_desc = "Čtvercový plakát s QR kódem. Ideální pro recepci, výtah nebo restaurační stoly." if is_cs else "Square poster with QR code. Perfect for reception, elevator or restaurant tables."
     local_lang = get_hotel_local_lang(hotel)
     local_lang_name = get_flyer_lang_name(local_lang)
@@ -3065,6 +3069,8 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
 .fmt-desc{{font-size:13px;color:#51617e;line-height:1.55;margin-bottom:14px;min-height:40px}}
 .fmt-btn{{display:block;width:100%;background:linear-gradient(90deg,#2c5fae,#3a72c4);color:#fff;border:none;border-radius:99px;padding:11px;font-family:'Manrope',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-align:center;text-decoration:none;transition:opacity .15s}}
 .fmt-btn:hover{{opacity:.9}}
+.fmt-btn2{{margin-top:8px;background:#fff;color:#2c5fae;border:1.5px solid #2c5fae;padding:9.5px}}
+.press-note{{max-width:560px;margin:10px auto 0;font-size:12.5px;line-height:1.5;color:#51617e}}
 /* Mini-náhledy = zmenšeniny skutečných tiskovin (tmavé téma) */
 .mini{{background:#0c1b33;border-radius:9px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:5px;box-shadow:0 10px 24px rgba(12,27,51,.28)}}
 .mini-h{{font-family:'Sora',sans-serif;font-weight:800;color:#fff;line-height:1.25;text-align:center}}
@@ -3093,6 +3099,7 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
       <button id="theme-light" class="theme-btn" onclick="setFlyerTheme('light')">📄 Print-friendly</button>
     </div>
     <div class="theme-note">{'Tmavá = ideální pro PDF a obrazovky · Print-friendly (světlá) šetří inkoust při tisku' if is_cs else 'Dark = best for PDF and screens · Print-friendly (light) saves ink when printing'}</div>
+    <div class="press-note">{press_note}</div>
   </div>
 
   <div class="formats" id="formats">
@@ -3111,6 +3118,7 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
         <div class="fmt-name">Roll-up Banner · 850×2000&nbsp;mm</div>
         <div class="fmt-desc">{rollup_desc}</div>
         <button class="fmt-btn" onclick="openFormat('rollup')">{btn_print}</button>
+        <button class="fmt-btn fmt-btn2" title="{press_tip}" onclick="openFormat('rollup',1)">{btn_press}</button>
       </div>
     </div>
 
@@ -3128,6 +3136,7 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
         <div class="fmt-name">{flyer_primary_name}</div>
         <div class="fmt-desc">{flyer_primary_desc}</div>
         <button class="fmt-btn" onclick="openFormat('{flyer_primary_url}')">{btn_print}</button>
+        <button class="fmt-btn fmt-btn2" title="{press_tip}" onclick="openFormat('{flyer_primary_url}',1)">{btn_press}</button>
       </div>
     </div>
 
@@ -3145,6 +3154,7 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
         <div class="fmt-name">{flyer_secondary_name}</div>
         <div class="fmt-desc">{flyer_secondary_desc}</div>
         <button class="fmt-btn" onclick="openFormat('{flyer_secondary_url}')">{btn_print}</button>
+        <button class="fmt-btn fmt-btn2" title="{press_tip}" onclick="openFormat('{flyer_secondary_url}',1)">{btn_press}</button>
       </div>
     </div>
 
@@ -3162,6 +3172,7 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
         <div class="fmt-name">{qr_poster_label}</div>
         <div class="fmt-desc">{qr_poster_desc}</div>
         <button class="fmt-btn" onclick="openFormat('qr-poster')">{btn_print}</button>
+        <button class="fmt-btn fmt-btn2" title="{press_tip}" onclick="openFormat('qr-poster',1)">{btn_press}</button>
       </div>
     </div>
 
@@ -3180,6 +3191,7 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
         <div class="fmt-name">A5 Flyer · English</div>
         <div class="fmt-desc">{'Kompaktní A5 — na pokoje a stolky.' if is_cs else 'Compact A5 — perfect for rooms and tables.'}</div>
         <button class="fmt-btn" onclick="openFormat('flyer-a5-en')">{btn_print}</button>
+        <button class="fmt-btn fmt-btn2" title="{press_tip}" onclick="openFormat('flyer-a5-en',1)">{btn_press}</button>
       </div>
     </div>
 
@@ -3198,6 +3210,7 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
         <div class="fmt-name">A5 Leták · {local_lang_name}</div>
         <div class="fmt-desc">{'Kompaktní A5 v lokálním jazyce hotelu.' if is_cs else 'Compact A5 in the hotel local language.'}</div>
         <button class="fmt-btn" onclick="openFormat('flyer-a5-local')">{btn_print}</button>
+        <button class="fmt-btn fmt-btn2" title="{press_tip}" onclick="openFormat('flyer-a5-local',1)">{btn_press}</button>
       </div>
     </div>
   </div>
@@ -3217,7 +3230,7 @@ window.addEventListener('load', function(){{
   }}, 300);
 }});
 
-function openFormat(fmt){{
+function openFormat(fmt, press){{
   var urls = {{
     'qr-poster': '/api/hotels/{hotel_id}/qr-poster-print',
     'flyer-en':  '/api/hotels/{hotel_id}/flyer-en',
@@ -3234,6 +3247,7 @@ function openFormat(fmt){{
   if(window._flyerTheme==='light'){{
     u += (u.indexOf('?')>=0?'&':'?') + 'theme=light';
   }}
+  if(press){{ u += (u.indexOf('?')>=0?'&':'?') + 'press=1'; }}
   window.open(u, '_blank');
 }}
 window._flyerTheme='dark';
@@ -3327,9 +3341,59 @@ h.innerHTML='<svg width="100%" height="100%" viewBox="0 0 '+S+' '+S+'" shape-ren
 </script></body></html>"""
     return HTMLResponse(content=html)
 
+_PRINT_KIT_JS = r"""<script>
+(function(){var W=__W__,H=__H__,B=__B__,M=__M__,P=__P__,MM=96/25.4,st=null;
+function build(){var sheet=document.getElementById('sg-sheet'),art=document.getElementById('sg-art');if(!sheet||!art)return;
+if(st){st.remove();st=null;}
+var inn=art.querySelector('.sg-in'),a=H/W,s0=art.style.cssText,i0=inn?inn.style.cssText:'';
+art.style.minHeight='0';art.style.height='auto';art.style.border='none';
+if(inn){inn.style.minHeight='0';inn.style.height='auto';}
+var w=art.offsetWidth,h=art.offsetHeight;
+for(var i=0;i<4&&h>w*a+0.5;i++){w=Math.ceil(h/a);art.style.width=w+'px';h=art.offsetHeight;}
+art.style.cssText=s0;if(inn)inn.style.cssText=i0;
+var k=W*MM/w,b=B*MM/k,hh=w*a;
+var css='#sg-sheet{position:relative!important;overflow:hidden!important;background:#fff!important;flex:none!important;margin:0!important;width:'+(W+2*M)+'mm!important;height:calc('+(H+2*M)+'mm - 1px)!important}'
++'#sg-art{position:absolute!important;left:'+(M-B)+'mm!important;top:'+(M-B)+'mm!important;margin:0!important;width:'+(w+2*b)+'px!important;height:'+(hh+2*b)+'px!important;min-height:0!important;padding:'+b+'px!important;border:none!important;border-radius:0!important;box-shadow:none!important;transform-origin:0 0!important;transform:scale('+k+')!important}'
++'#sg-art .sg-in{min-height:'+hh+'px!important;height:'+hh+'px!important}'
++'#sg-art .sg-edge{height:'+(4+b)+'px!important}';
+if(P){var z=Math.min(1,(window.innerWidth-48)/((W+2*M)*MM));css+='@media screen{#sg-sheet{zoom:'+z+'}}';}
+else{css='@media print{'+css+'}';}
+st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
+if(P&&!sheet.querySelector('.sg-mark')){var t=0.15;
+function mk(l,tp,wd,ht){var d=document.createElement('div');d.className='sg-mark';d.style.cssText='left:'+l+'mm;top:'+tp+'mm;width:'+wd+'mm;height:'+ht+'mm';sheet.appendChild(d);}
+[M,M+W].forEach(function(x,ix){[M,M+H].forEach(function(y,iy){mk(ix?x+4:x-9,y-t/2,5,t);mk(x-t/2,iy?y+4:y-9,t,5);});});
+var cs=/^(cs|sk)/i.test(navigator.language||''),n=document.createElement('div');n.className='sg-hint';
+n.textContent=(cs?'Data pro tiskárnu: čistý formát '+W+' × '+H+' mm, spadávka 3 mm, ořezové značky. Uložte jako PDF (okraje: žádné, grafika na pozadí: zapnuto) a pošlete tiskárně.__NCS__'
+:'Print-shop file: trim size '+W+' × '+H+' mm, 3 mm bleed, crop marks. Save as PDF (margins: none, background graphics: on) and send it to your print shop.__NEN__');
+document.body.appendChild(n);document.title+=cs?' – data pro tiskárnu':' – print-shop file';}}
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(build);
+window.addEventListener('load',function(){setTimeout(build,350);});
+if(P)window.addEventListener('resize',build);
+})();
+</script>"""
+
+def _print_kit(w_mm: float, h_mm: float, press: bool = False, note_cs: str = "", note_en: str = "") -> tuple:
+    """Společná tisková vrstva tiskovin: (CSS do <head>, <script> před </body>).
+    Tiskovina = #sg-sheet > #sg-art (vnitřek .sg-in, horní pruh .sg-edge).
+    Běžný tisk: tiskovina se přesně vejde na jednu stránku čistého formátu w×h mm.
+    press=True: data pro tiskárnu – arch o 10 mm větší na každé straně, spadávka 3 mm, ořezové značky."""
+    b, m = (3, 10) if press else (0, 0)
+    css = ("@page{size:%gmm %gmm;margin:0}" % (w_mm + 2 * m, h_mm + 2 * m)
+           + "@media print{html,body{margin:0!important;padding:0!important;display:block!important;background:#fff!important}"
+             ".btn,.sg-hint{display:none!important}#sg-sheet{box-shadow:none!important}}"
+           + ".sg-mark{position:absolute;background:#000;z-index:5}"
+           + ".sg-hint{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);width:max-content;max-width:92vw;background:#0c1b33;color:#fff;"
+             "border-radius:10px;padding:10px 16px;font-size:13px;line-height:1.45;text-align:center;box-shadow:0 8px 24px rgba(12,27,51,.25);z-index:20}")
+    if press:
+        css += "body{padding:64px 24px 96px!important}#sg-sheet{box-shadow:0 6px 30px rgba(12,27,51,.18)}"
+    js = (_PRINT_KIT_JS.replace("__W__", "%g" % w_mm).replace("__H__", "%g" % h_mm)
+          .replace("__B__", str(b)).replace("__M__", str(m)).replace("__P__", "1" if press else "0")
+          .replace("__NCS__", (" " + note_cs) if note_cs else "").replace("__NEN__", (" " + note_en) if note_en else ""))
+    return css, js
+
 # QR Plakát — print view
 @app.get("/api/hotels/{hotel_id}/qr-poster-print")
-def qr_poster_print(hotel_id: str, request: Request, theme: str = "dark"):
+def qr_poster_print(hotel_id: str, request: Request, theme: str = "dark", press: int = 0):
     db = db_load()
     hotel = db["hotels"].get(hotel_id)
     if not hotel:
@@ -3337,10 +3401,12 @@ def qr_poster_print(hotel_id: str, request: Request, theme: str = "dark"):
     base = get_base_url(request)
     guest_url = _guest_url(base, hotel_id, hotel)
     hotel_name = hotel.get("name", "Hotel")
-    return HTMLResponse(content=_render_qr_poster(hotel_name, guest_url, theme=theme))
+    return HTMLResponse(content=_render_qr_poster(hotel_name, guest_url, theme=theme, press=bool(press)))
 
-def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark") -> str:
+def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark", press: bool = False) -> str:
     light = (theme == "light")
+    _pk_css, _pk_js = _print_kit(210, 210, press)
+    _pq = "&press=1" if press else ""
     c_page   = "#f6f8fc"   # okolí stránky: vždy světlé, téma mění jen tiskovinu
     c_bg     = "#ffffff" if light else "#0c1b33"
     c_ink    = "#0c1b33" if light else "#ffffff"
@@ -3359,13 +3425,13 @@ def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark") -> s
 .btn{{position:fixed;top:16px;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer}}
 .btn-print{{right:16px;background:#2c5fae;color:#fff}}
 .btn-theme{{left:16px;background:#fff;color:#0c1b33;border:1px solid #e3e9f4!important;box-shadow:0 4px 12px rgba(12,27,51,.08)}}
-@media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{margin:0}}}}</style></head>
+{_pk_css}</style></head>
 <body><button class="btn btn-print" onclick="window.print()">🖨️ Tisknout / PDF</button>
-<button class="btn btn-theme" onclick="location.href='?theme={_tt}'">{_tl}</button>
-<div style="position:relative;width:800px;height:800px;background:{c_bg};border:1px solid rgba(44,95,174,.35);border-radius:24px;overflow:hidden;box-shadow:0 24px 60px rgba(12,27,51,.22)">
-  <div style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
+<button class="btn btn-theme" onclick="location.href='?theme={_tt}{_pq}'">{_tl}</button>
+<div id="sg-sheet"><div id="sg-art" style="position:relative;width:800px;height:800px;background:{c_bg};border:1px solid rgba(44,95,174,.35);border-radius:24px;overflow:hidden;box-shadow:0 24px 60px rgba(12,27,51,.22)">
+  <div class="sg-edge" style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
   <div style="position:absolute;top:300px;left:50%;width:620px;height:620px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.14),transparent 70%);pointer-events:none"></div>
-  <div style="height:100%;display:flex;flex-direction:column;align-items:center;padding:58px 48px 48px;position:relative">
+  <div class="sg-in" style="height:100%;display:flex;flex-direction:column;align-items:center;padding:58px 48px 48px;position:relative">
     <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:36px;line-height:1.15;color:{c_ink};text-align:center;max-width:640px">{hotel_name}</div>
     <div style="margin-top:12px;font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:{c_teal}">Your personal AI concierge</div>
     <div style="position:relative;margin-top:22px;padding:22px;background:{c_qrcard};border:1px solid rgba(44,95,174,.4);border-radius:20px;box-shadow:0 0 40px rgba(44,95,174,.12)">
@@ -3378,13 +3444,13 @@ def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark") -> s
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(47,208,216,.55),transparent)"></div>
     <div translate="no" style="margin-top:16px;display:flex;align-items:center;gap:8px;font-size:13px;color:{c_dim}"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:16px;height:16px;display:block;opacity:.85"/><span style="font-family:'Sora',sans-serif;font-weight:700;color:{c_dim}">SmartestGuide</span><span style="opacity:.7">· smartestguide.com</span></div>
   </div>
-</div>
+</div></div>
 <script>
 (function(){{function draw(){{var h=document.getElementById('qr');if(!h)return;if(!window.qrcode){{setTimeout(draw,120);return;}}
 var qr=window.qrcode(0,'H');qr.addData('{guest_url}');qr.make();var n=qr.getModuleCount(),S=420,cell=S/n,r='';
 for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="{c_qrfill}"/>';
 h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
-</script></body></html>"""
+</script>{_pk_js}</body></html>"""
 
 # Mapování country → lokální jazyk letáku
 COUNTRY_LANG_MAP = {
@@ -3454,8 +3520,10 @@ def _flags_row(w: int = 30, h: int = 21, shadow: bool = True, light: bool = Fals
     return "".join(out)
 
 
-def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str = "a4", theme: str = "dark") -> str:
+def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str = "a4", theme: str = "dark", press: bool = False) -> str:
     is_a5 = size == "a5"
+    _pk_css, _pk_js = _print_kit(148 if is_a5 else 210, 210 if is_a5 else 297, press)
+    _pq = "&press=1" if press else ""
     page_size = "A5" if is_a5 else "A4"
     page_w = "148mm" if is_a5 else "210mm"
     page_h = "210mm" if is_a5 else "297mm"
@@ -3570,13 +3638,13 @@ body{{margin:0;background:#f6f8fc;display:flex;justify-content:center;padding:32
 .btn{{position:fixed;top:16px;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer}}
 .btn-print{{right:16px;background:#2c5fae;color:#fff}}
 .btn-theme{{left:16px;background:#fff;color:#0c1b33;border:1px solid #e3e9f4!important;box-shadow:0 4px 12px rgba(12,27,51,.08)}}
-@media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:{page_size};margin:0}}}}</style></head>
+{_pk_css}</style></head>
 <body><button class="btn btn-print" onclick="window.print()">🖨️ Tisknout / PDF</button>
-<button class="btn btn-theme" onclick="location.href='?theme={"dark" if light else "light"}'">{"🌙 Tmavá verze" if light else "☀️ Světlá (šetří inkoust)"}</button>
-<div style="width:{page_w};min-height:{page_h};background:{c_bg};position:relative;overflow:hidden;padding:0">
-  <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
+<button class="btn btn-theme" onclick="location.href='?theme={"dark" if light else "light"}{_pq}'">{"🌙 Tmavá verze" if light else "☀️ Světlá (šetří inkoust)"}</button>
+<div id="sg-sheet"><div id="sg-art" style="width:{page_w};min-height:{page_h};background:{c_bg};position:relative;overflow:hidden;padding:0">
+  <div class="sg-edge" style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
   <div style="position:absolute;top:80px;left:50%;width:500px;height:500px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.10),transparent 70%);pointer-events:none"></div>
-  <div style="padding:{pad};display:flex;flex-direction:column;align-items:center;text-align:center;min-height:{page_h}">
+  <div class="sg-in" style="padding:{pad};display:flex;flex-direction:column;align-items:center;text-align:center;min-height:{page_h}">
     <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:28px;line-height:1.2;color:{c_ink};text-align:center;max-width:560px">{hotel_name}</div>
     <div style="margin-top:8px;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">Your personal AI concierge</div>
     <h1 style="font-family:'Sora',sans-serif;font-weight:800;font-size:{h1_size};line-height:1.05;letter-spacing:-.02em;margin:36px 0 0;color:{c_orange}">{headline}</h1>
@@ -3593,7 +3661,8 @@ body{{margin:0;background:#f6f8fc;display:flex;justify-content:center;padding:32
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,{c_teal},transparent);margin-top:32px;opacity:.5"></div>
     <div translate="no" style="margin-top:12px;display:flex;align-items:center;gap:7px;font-size:12px;color:{c_dim}"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:14px;height:14px;display:block;opacity:.85"/><span style="font-family:'Sora',sans-serif;font-weight:700;color:{c_dim}">SmartestGuide</span><span style="opacity:.7">· smartestguide.com</span></div>
   </div>
-</div>
+</div></div>
+{_pk_js}
 <script>
 (function(){{function draw(){{var h=document.getElementById('qr-flyer');if(!h)return;if(!window.qrcode){{setTimeout(draw,120);return;}}
 var qr=window.qrcode(0,'H');qr.addData('{guest_url.replace("'", "%27")}');qr.make();var n=qr.getModuleCount(),S=200,cell=S/n,r='';
@@ -3601,8 +3670,14 @@ for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell
 h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
 </script></body></html>"""
 
-def _render_rollup(hotel_name: str, guest_url: str, theme: str = "dark") -> str:
+def _render_rollup(hotel_name: str, guest_url: str, theme: str = "dark", press: bool = False) -> str:
     light = (theme == "light")
+    # běžný tisk = zmenšenina 85×200 mm na kontrolu, data pro tiskárnu = skutečná velikost 850×2000 mm
+    _pk_css, _pk_js = _print_kit(850 if press else 85, 2000 if press else 200, press,
+        note_cs="Spodních asi 100 mm zůstává v kazetě stojanu, proto je tam jen pozadí – přesný rozměr si ověřte u dodavatele roll-upu.",
+        note_en="The bottom 100 mm or so stays inside the stand cassette, so it only carries background – check the exact size with your roll-up supplier.")
+    _pq = "&press=1" if press else ""
+    _pad = "36px 28px 76px" if press else "36px 28px"
     c_orange = "#2c5fae" if light else "#2fd0d8"  # brand akcent (název proměnné historický)
     c_page   = "#f6f8fc"   # okolí stránky: vždy světlé, téma mění jen tiskovinu
     c_bg     = "#ffffff" if light else "#0c1b33"
@@ -3626,13 +3701,13 @@ body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:3
 .btn{{position:fixed;top:16px;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer}}
 .btn-print{{right:16px;background:#2c5fae;color:#fff}}
 .btn-theme{{left:16px;background:#fff;color:#0c1b33;border:1px solid #e3e9f4!important;box-shadow:0 4px 12px rgba(12,27,51,.08)}}
-@media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:85mm 200mm;margin:0}}}}</style></head>
+{_pk_css}</style></head>
 <body><button class="btn btn-print" onclick="window.print()">🖨️ Tisknout / PDF</button>
-<button class="btn btn-theme" onclick="location.href='?theme={_tt}'">{_tl}</button>
-<div style="width:340px;background:{c_bg};position:relative;overflow:hidden;padding:0;border:1px solid rgba(44,95,174,.3);border-radius:12px;box-shadow:0 18px 48px rgba(12,27,51,.22)">
-  <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
+<button class="btn btn-theme" onclick="location.href='?theme={_tt}{_pq}'">{_tl}</button>
+<div id="sg-sheet"><div id="sg-art" style="width:340px;background:{c_bg};position:relative;overflow:hidden;padding:0;border:1px solid rgba(44,95,174,.3);border-radius:12px;box-shadow:0 18px 48px rgba(12,27,51,.22)">
+  <div class="sg-edge" style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
   <div style="position:absolute;top:120px;left:50%;width:400px;height:400px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.10),transparent 70%);pointer-events:none"></div>
-  <div style="padding:36px 28px;display:flex;flex-direction:column;align-items:center;text-align:center">
+  <div class="sg-in" style="padding:{_pad};display:flex;flex-direction:column;align-items:center;text-align:center">
     <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:24px;line-height:1.2;color:{c_ink};text-align:center;max-width:290px">{hotel_name}</div>
     <div style="margin-top:6px;font-size:9px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">YOUR PERSONAL AI CONCIERGE</div>
     <h1 style="font-family:'Sora',sans-serif;font-weight:800;font-size:36px;line-height:1.05;letter-spacing:-.02em;margin:28px 0 0;color:#2fd0d8">Your<br>personal<br>AI<br>concierge</h1>
@@ -3644,10 +3719,12 @@ body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:3
     </div>
     <div style="margin-top:18px;font-family:'Sora',sans-serif;font-weight:700;font-size:18px;color:{c_ink}">Scan me</div>
     <div style="margin-top:5px;font-size:13px;color:{c_dim}">100+ languages · No app needed · 24/7</div>
+    <div style="flex:1"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,170,.4),transparent);margin-top:32px"></div>
     <div translate="no" style="margin-top:10px;display:flex;align-items:center;gap:6px;font-size:11px;color:{c_dim}"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:13px;height:13px;display:block;opacity:.85"/><span style="font-family:'Sora',sans-serif;font-weight:700;color:{c_dim}">SmartestGuide</span><span style="opacity:.7">· smartestguide.com</span></div>
   </div>
-</div>
+</div></div>
+{_pk_js}
 <script>
 (function(){{function draw(){{var h=document.getElementById('qr-rollup');if(!h)return;if(!window.qrcode){{setTimeout(draw,120);return;}}
 var qr=window.qrcode(0,'H');qr.addData('{guest_url}');qr.make();var n=qr.getModuleCount(),S=180,cell=S/n,r='';
@@ -3659,19 +3736,19 @@ def _flyer_theme(theme: str) -> str:
     return "light" if (theme or "").lower() in ("light", "print", "svetla", "světlá") else "dark"
 
 @app.get("/api/hotels/{hotel_id}/flyer-en")
-def flyer_en(hotel_id: str, request: Request, theme: str = "dark"):
+def flyer_en(hotel_id: str, request: Request, theme: str = "dark", press: int = 0):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "en", theme=_flyer_theme(theme)))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "en", theme=_flyer_theme(theme), press=bool(press)))
 
 @app.get("/api/hotels/{hotel_id}/flyer-cz")
-def flyer_cz(hotel_id: str, request: Request, theme: str = "dark"):
+def flyer_cz(hotel_id: str, request: Request, theme: str = "dark", press: int = 0):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
     try:
-        html = _render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "cs", theme=_flyer_theme(theme))
+        html = _render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "cs", theme=_flyer_theme(theme), press=bool(press))
         if not html:
             return HTMLResponse(content="<h1>Render vrátil prázdný string</h1>", status_code=500)
         return HTMLResponse(content=html)
@@ -3682,43 +3759,43 @@ def flyer_cz(hotel_id: str, request: Request, theme: str = "dark"):
         return HTMLResponse(content=f"<pre>CHYBA:\n{err}</pre>", status_code=500)
 
 @app.get("/api/hotels/{hotel_id}/flyer-local")
-def flyer_local(hotel_id: str, request: Request, theme: str = "dark"):
+def flyer_local(hotel_id: str, request: Request, theme: str = "dark", press: int = 0):
     """Leták v lokálním jazyce hotelu."""
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
     lang = get_hotel_local_lang(hotel)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), lang, theme=_flyer_theme(theme)))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), lang, theme=_flyer_theme(theme), press=bool(press)))
 
 @app.get("/api/hotels/{hotel_id}/flyer-a5-en")
-def flyer_a5_en(hotel_id: str, request: Request, theme: str = "dark"):
+def flyer_a5_en(hotel_id: str, request: Request, theme: str = "dark", press: int = 0):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "en", size="a5", theme=_flyer_theme(theme)))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "en", size="a5", theme=_flyer_theme(theme), press=bool(press)))
 
 @app.get("/api/hotels/{hotel_id}/flyer-a5-cz")
-def flyer_a5_cz(hotel_id: str, request: Request, theme: str = "dark"):
+def flyer_a5_cz(hotel_id: str, request: Request, theme: str = "dark", press: int = 0):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "cs", size="a5", theme=_flyer_theme(theme)))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "cs", size="a5", theme=_flyer_theme(theme), press=bool(press)))
 
 @app.get("/api/hotels/{hotel_id}/flyer-a5-local")
-def flyer_a5_local(hotel_id: str, request: Request, theme: str = "dark"):
+def flyer_a5_local(hotel_id: str, request: Request, theme: str = "dark", press: int = 0):
     """A5 leták v lokálním jazyce hotelu."""
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
     lang = get_hotel_local_lang(hotel)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), lang, size="a5", theme=_flyer_theme(theme)))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), lang, size="a5", theme=_flyer_theme(theme), press=bool(press)))
 
 @app.get("/api/hotels/{hotel_id}/rollup")
-def rollup(hotel_id: str, request: Request, theme: str = "dark"):
+def rollup(hotel_id: str, request: Request, theme: str = "dark", press: int = 0):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_rollup(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), theme=_flyer_theme(theme)))
+    return HTMLResponse(content=_render_rollup(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), theme=_flyer_theme(theme), press=bool(press)))
 
     html = f"""<!DOCTYPE html>
 <html>
