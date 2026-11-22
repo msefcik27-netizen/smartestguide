@@ -8805,7 +8805,8 @@ Guest name: {req.guest_name or 'Guest'}"""
         _jj = _r.json()
         return _jj["content"][0]["text"], (_jj.get("usage", {}) or {})
 
-    _raw, _usage = await _alex(pms_extra_blocks + ([_ext_marker_block] if _ext_possible else []), messages)
+    _car_marker_block = parking.marker_block(h)
+    _raw, _usage = await _alex(pms_extra_blocks + ([_ext_marker_block] if _ext_possible else []) + [_car_marker_block], messages)
     # Značku model občas vynechá (test 13. 10. 2026: jednou ze dvou u téže věty) → záloha: odpověď hned
     # v úvodu sama mluví o prodloužení pobytu.
     if _ext_possible and ("[[EXT]]" in _raw or _REPLY_EXT_RE.search(_raw[:220])):
@@ -8823,6 +8824,16 @@ Guest name: {req.guest_name or 'Guest'}"""
     # s limity a verdikt spočítá server a odpověď se vygeneruje znovu s hotovým výsledkem. Model sám
     # u rezervy 1 cm uzavíral „VEJDE SE" (test na stagingu 22. 11. 2026). Značka se hostovi neukáže.
     _car = parking.parse_marker(_raw)
+    # Značku model často vynechá (test 22. 11. 2026). Když odpověď bez značky zmiňuje některý limit
+    # hotelu, server si rozměry auta vyžádá zvlášť krátkým dotazem.
+    if not _car and _car_marker_block and parking.mentions_limit(h, _raw):
+        try:
+            _rawx, _usagex = await _alex(pms_extra_blocks, messages + [{"role": "assistant", "content": parking.strip_marker(_raw)},
+                                                                       {"role": "user", "content": parking.EXTRACT_PROMPT}])
+            _car = parking.parse_marker(_rawx)
+            _usage = {k: int(_usage.get(k) or 0) + int(_usagex.get(k) or 0) for k in ("input_tokens", "output_tokens")}
+        except Exception as e:
+            logging.warning("Dotaz na rozměry auta selhal: %s", e)
     if _car:
         try:
             _blk_car = parking.verdict_block(h, _car)

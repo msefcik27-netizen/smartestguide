@@ -214,3 +214,43 @@ def verdict_block(hotel: dict, car) -> str:
                "vjezdem požádá recepci o ověření. Místo s verdiktem NEVEJDE SE jako možnost nenabízej. "
                "Značku [[CAR…]] už do odpovědi nepiš.")
     return "\n".join(out)
+
+
+# Značku model často vynechá (test na stagingu 22. 11. 2026: odpověď bez značky, verdikt zůstal špatně).
+# Proto (1) pokyn ke značce jde ještě jednou jako samostatný blok na konec systémového promptu a
+# (2) když odpověď bez značky zmiňuje některý limit hotelu, server si rozměry auta vyžádá zvlášť.
+def has_limits(hotel: dict) -> bool:
+    return any(p.get(k) for p in places(hotel) for _, k in _DIMS)
+
+
+def marker_block(hotel: dict) -> str:
+    if not has_limits(hotel):
+        return ""
+    return ("INTERNÍ ZNAČKA PARKOVÁNÍ (POVINNÁ): pokud v této odpovědi posuzuješ, jestli se konkrétní auto hosta vejde "
+            "do garáže nebo na parkoviště (uvádíš rozměry auta), MUSÍ odpověď začínat přesně značkou "
+            "[[CAR:výška,šířka,délka]] s rozměry auta v centimetrech, např. [[CAR:189,193,489]]; neznámý rozměr 0. "
+            "Bez značky hotelový systém rozměry neporovná a host může dostat chybný výsledek. Značku host neuvidí. "
+            "Když se teprve doptáváš na variantu auta nebo jde o jiné téma, značku nepiš.")
+
+
+def mentions_limit(hotel: dict, text) -> bool:
+    """Zmiňuje odpověď některý limit hotelu (190 cm / 1,90 m / 1.9 m)? Pak nejspíš posuzuje auto."""
+    t = str(text or "")
+    for p in places(hotel):
+        for _, k in _DIMS:
+            cm = p.get(k)
+            if not cm:
+                continue
+            m, d = divmod(int(cm), 100)
+            alts = [rf"{cm}\s*cm", rf"{m}[.,]{d:02d}(?!\d)"]
+            if d % 10 == 0:
+                alts.append(rf"{m}[.,]{d // 10}(?!\d)")
+            if re.search(r"(?<![\d.,])(?:" + "|".join(alts) + ")", t):
+                return True
+    return False
+
+
+EXTRACT_PROMPT = ("[Interní dotaz hotelového systému, ne hosta.] Posuzovala jsi ve své poslední odpovědi, jestli se "
+                  "konkrétní auto hosta vejde? Pokud ano, odpověz POUZE značkou [[CAR:výška,šířka,délka]] s rozměry "
+                  "toho auta v centimetrech (celá čísla, neznámý rozměr 0), např. [[CAR:189,193,489]]. "
+                  "Pokud ne (jen ses doptávala, nebo šlo o jiné téma), odpověz POUZE slovem NONE.")

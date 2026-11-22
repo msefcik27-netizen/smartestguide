@@ -113,6 +113,21 @@ def test_verdict_block():
     assert pk.verdict_block({}, (189, 193, 489)) == "" and pk.verdict_block(h, None) == ""
 
 
+def test_marker_block_and_mentions_limit():
+    h = {"parking_places": [
+        {"name": "Garáž", "max_height_cm": 190, "max_length_cm": 505},
+        {"name": "Náměstí"}]}
+    assert "[[CAR:výška,šířka,délka]]" in pk.marker_block(h)
+    assert pk.marker_block({"parking_places": [{"name": "Náměstí"}]}) == "" and pk.marker_block({}) == ""
+    assert pk.mentions_limit(h, "Výška: asi 1,89 m, limit garáže 1,90 m → těsné")
+    assert pk.mentions_limit(h, "limit 190 cm") and pk.mentions_limit(h, "max height 1.9 m")
+    assert pk.mentions_limit(h, "délka do 5,05 m")
+    assert not pk.mentions_limit(h, "Garáž stojí 450 Kč za noc, je 200 m od hotelu.")
+    assert not pk.mentions_limit(h, "Cena 1190 cm") and not pk.mentions_limit(h, "11,90 m")
+    assert not pk.mentions_limit(h, "5,0 m") and not pk.mentions_limit({}, "190 cm")
+    assert "NONE" in pk.EXTRACT_PROMPT
+
+
 if __name__ == "__main__":
     import sys
     fails = 0
