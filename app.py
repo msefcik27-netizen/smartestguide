@@ -3385,7 +3385,7 @@ def _print_kit(w_mm: float, h_mm: float, press: bool = False, note_cs: str = "",
            + ".sg-hint{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);width:max-content;max-width:92vw;background:#0c1b33;color:#fff;"
              "border-radius:10px;padding:10px 16px;font-size:13px;line-height:1.45;text-align:center;box-shadow:0 8px 24px rgba(12,27,51,.25);z-index:20}")
     if press:
-        css += "body{padding:64px 24px 96px!important}#sg-sheet{box-shadow:0 6px 30px rgba(12,27,51,.18)}"
+        css += "@media screen{body{padding:64px 24px 96px!important}#sg-sheet{box-shadow:0 6px 30px rgba(12,27,51,.18)}}"
     js = (_PRINT_KIT_JS.replace("__W__", "%g" % w_mm).replace("__H__", "%g" % h_mm)
           .replace("__B__", str(b)).replace("__M__", str(m)).replace("__P__", "1" if press else "0")
           .replace("__NCS__", (" " + note_cs) if note_cs else "").replace("__NEN__", (" " + note_en) if note_en else ""))
