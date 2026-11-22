@@ -20,6 +20,7 @@ from dotenv import load_dotenv
 import pms as pms_layer  # PMS napojení (Apaleo…) — viz pms.py, PLAN_PMS_NAPOJENI.md
 import analytics_view  # výpočty pro stránku Přehled (/prehled) — čisté funkce, testy v test_analytics_view.py
 import alex_learn      # „Alex se učí": odpovědi recepce na dotazy bez odpovědi — testy v test_alex_learn.py
+import parking         # místa k parkování a max. rozměry vozu („vejde se moje auto?") — testy v test_parking.py
 
 load_dotenv()
 
@@ -2469,6 +2470,10 @@ def hotel_portal_update(token: str, data: dict = Body(default={})):
     _st = analytics_view.normalize_settings(update_data)
     if _st is not None:
         update_data.update(_st)
+    # Místa k parkování: rozměry na centimetry, čisté texty, strop počtu (jdou do promptu Alex)
+    _pk = parking.normalize(update_data)
+    if _pk is not None:
+        update_data.update(_pk)
     # Při prvním nastavení lůžek u aktivního předplatného ulož jako zaplacená lůžka
     new_beds = update_data.get("bed_count")
     paid_beds = current.get("subscription_paid_beds", 0)
@@ -8644,6 +8649,7 @@ INSTRUKCE K MÍSTŮM: Pokud host žádá tipy na okolí, doporučuj turistická 
 {restaurants_block}
 {chr(10).join([f"- {cf.get('label','Info')}: {cf.get('value','')}" for cf in h.get('custom_fields', []) if cf.get('value')]) if h.get('custom_fields') else ''}
 {alex_learn.prompt_block(h)}
+{parking.prompt_block(h)}
 {"\n⭐ AKTIVNÍ NABÍDKA HOTELU: " + h.get('active_offer') + "\nTuto nabídku VŽDY zmíň pokud se host ptá na téma které s ní souvisí (wellness, restaurace, bar, aktivity, služby apod.). Zmiň ji přirozeně jako součást odpovědi — ne jako reklamu, ale jako přátelský tip." if h.get('active_offer') else ''}
 
 Guest name: {req.guest_name or 'Guest'}"""

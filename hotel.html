@@ -346,6 +346,24 @@ const EN_MAP = {
   "např. Konferenční sál Morava je v 1. patře, výtahem nebo schodištěm vpravo od recepce.":"e.g. The Morava conference hall is on the 1st floor, by lift or stairs right of reception.",
   "např. Obchod se suvenýry je v přízemí vlevo od recepce, otevřeno 9:00–20:00.":"e.g. The souvenir shop is on the ground floor left of reception, open 9:00–20:00.",
   "Přidejte libovolný počet vlastních míst — knihovna, dětský koutek, lyžárna, prodejna…":"Add any number of custom places — library, kids corner, ski room, shop…",
+  "Parkování a garáž":"Parking & garage","Vejde se auto hosta? Rozměry, ceny a další parkoviště v okolí":"Will the guest’s car fit? Dimensions, prices and other car parks nearby",
+  "💡 Alex hostovi řekne, jestli se jeho auto vejde":"💡 Alex tells the guest whether their car will fit",
+  "Zadejte každé místo, kde hosté mohou parkovat: garáž, parkoviště u hotelu i parkoviště v okolí. U garáže vyplňte":"Enter every place where guests can park: the garage, the hotel car park and car parks nearby. For the garage, fill in",
+  "největší auto, které se vejde":"the largest car that fits","(výška, šířka, délka).":"(height, width, length).",
+  "Když se host zeptá, Alex se doptá na přesný model auta, porovná rozměry a rovnou nabídne i ostatní místa s cenou a cestou. Těsné případy pošle na recepci.":"When a guest asks, Alex checks the exact car model, compares the dimensions and offers the other places with price and directions. Tight cases are referred to reception.",
+  "+ Přidat parkovací místo":"+ Add parking place","Zatím žádné místo. Přidejte garáž nebo parkoviště.":"No place yet. Add a garage or a car park.",
+  "Garáž":"Garage","Parkoviště":"Car park","Ulice / parkovací zóna":"Street / parking zone",
+  "Ostraha: nevyplněno":"Security: not filled in","Hlídané obsluhou":"Attended","Pod kamerami":"CCTV","Bez ostrahy":"No security",
+  "Největší auto, které se vejde (v metrech)":"Largest car that fits (in metres)",
+  "Max. výška vozu":"Max. vehicle height","Max. šířka vozu":"Max. vehicle width","Max. délka vozu":"Max. vehicle length",
+  "Cena":"Price","Vzdálenost od hotelu":"Distance from hotel","Provozní doba":"Opening hours","Adresa (pro navigaci)":"Address (for navigation)",
+  "Ostraha":"Security","Jak se tam dostat":"How to get there","Poznámka":"Note",
+  "Nutná rezervace předem":"Reservation required","Nabíječka pro elektromobily":"EV charger",
+  "Název (např. Garáž hotelu, Parkoviště na náměstí)":"Name (e.g. Hotel garage, Car park on the square)",
+  "např. 300 m, 4 minuty pěšky":"e.g. 300 m, 4 minutes on foot","např. 450 Kč/noc":"e.g. 450 CZK/night","např. nonstop":"e.g. 24/7",
+  "např. Vjezd do garáže je z ulice Kněžská, zazvoňte u vrat na recepci.":"e.g. The garage entrance is from Kněžská street, ring reception at the gate.",
+  "např. Jen 6 míst, velká auta na místa č. 1 a 2":"e.g. Only 6 spaces, large cars to spaces 1 and 2",
+  "Nejvýše 8 parkovacích míst.":"At most 8 parking places.",
   "+ Přidat místo":"+ Add place","Název místa (např. Knihovna)":"Place name (e.g. Library)",
   "Popis cesty krok za krokem…":"Step-by-step directions…",
   // ── Služby ──
@@ -855,6 +873,16 @@ function renderPortal() {
         </td></tr>
       </table>
     `, ['nav_pool','nav_wellness','nav_restaurant','nav_parking','nav_elevator'])}
+
+    ${renderSection('🅿️', 'Parkování a garáž', 'Vejde se auto hosta? Rozměry, ceny a další parkoviště v okolí', `
+      <div style="background:rgba(0,212,170,.06);border:1px solid rgba(0,212,170,.2);border-radius:10px;padding:16px;margin-bottom:16px;font-size:12px;color:var(--muted);line-height:1.7">
+        <div style="font-weight:700;color:#00d4aa;margin-bottom:8px;font-size:13px">💡 Alex hostovi řekne, jestli se jeho auto vejde</div>
+        <p style="margin-bottom:8px">Zadejte každé místo, kde hosté mohou parkovat: garáž, parkoviště u hotelu i parkoviště v okolí. U garáže vyplňte <strong style="color:var(--text)">největší auto, které se vejde</strong> (výška, šířka, délka).</p>
+        <p>Když se host zeptá, Alex se doptá na přesný model auta, porovná rozměry a rovnou nabídne i ostatní místa s cenou a cestou. Těsné případy pošle na recepci.</p>
+      </div>
+      <div id="pk-list">${renderParking(h.parking_places||[])}</div>
+      <button type="button" onclick="addParking()" class="btn btn-secondary" style="margin-top:4px;font-size:12px;padding:6px 14px">+ Přidat parkovací místo</button>
+    `)}
 
     ${renderSection('🏊', 'Služby hotelu & Wellness', 'Fitness, bazén, spa, doprava', `
       <table class="edit-table">
@@ -1489,6 +1517,86 @@ function getNavCustomItems() {
   return items;
 }
 
+// ── Parkování: místa a maximální rozměry vozu ──────────────────
+// Pole mají id „pk-…" (ne „f-…"), aby je obecný sběr v saveAll() neukládal jako samostatná pole hotelu.
+const PK_TYPES = [['garage','Garáž'],['lot','Parkoviště'],['street','Ulice / parkovací zóna'],['other','Jiné']];
+const PK_SEC = [['','Ostraha: nevyplněno'],['guarded','Hlídané obsluhou'],['camera','Pod kamerami'],['none','Bez ostrahy']];
+const PK_TEXT = ['name','price','distance','hours','address','directions','note'];
+const PK_DIMS = ['max_height_cm','max_width_cm','max_length_cm'];
+const PK_IN = 'padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;width:100%;box-sizing:border-box';
+
+// Uložený rozměr je v centimetrech (číslo) → zobraz v metrech; rozepsaný text nech, jak je.
+function pkDim(v) { return typeof v === 'number' ? (v/100).toFixed(2).replace('.', ',') : String(v||''); }
+
+function renderParking(items) {
+  if (!items || !items.length) return '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Zatím žádné místo. Přidejte garáž nebo parkoviště.</div>';
+  const inp = (i, k, ph, val) => `<input type="text" id="pk-${k}-${i}" placeholder="${esc(ph)}" value="${esc(val)}" oninput="markChanged()" style="${PK_IN}"/>`;
+  const lab = t => `<div style="font-size:11px;color:var(--muted);margin-bottom:3px">${t}</div>`;
+  const opts = (list, cur) => list.map(([v, t]) => `<option value="${v}"${v === (cur||'') ? ' selected' : ''}>${t}</option>`).join('');
+  return items.map((p, i) => `
+    <div id="pk-row-${i}" style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2)">
+      <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:8px;margin-bottom:10px;align-items:center">
+        ${inp(i, 'name', 'Název (např. Garáž hotelu, Parkoviště na náměstí)', p.name||'')}
+        <select id="pk-type-${i}" onchange="markChanged()" style="${PK_IN}">${opts(PK_TYPES, p.type||'garage')}</select>
+        <button type="button" onclick="removeParking(${i})" title="Odebrat" style="background:rgba(255,80,80,.15);border:1px solid rgba(255,80,80,.3);color:#ff5050;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px">✕</button>
+      </div>
+      <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Největší auto, které se vejde (v metrech)</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
+        <div>${lab('Max. výška vozu')}${inp(i, 'max_height_cm', 'např. 1,90', pkDim(p.max_height_cm))}</div>
+        <div>${lab('Max. šířka vozu')}${inp(i, 'max_width_cm', 'např. 2,10', pkDim(p.max_width_cm))}</div>
+        <div>${lab('Max. délka vozu')}${inp(i, 'max_length_cm', 'např. 5,00', pkDim(p.max_length_cm))}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px">
+        <div>${lab('Cena')}${inp(i, 'price', 'např. 450 Kč/noc', p.price||'')}</div>
+        <div>${lab('Vzdálenost od hotelu')}${inp(i, 'distance', 'např. 300 m, 4 minuty pěšky', p.distance||'')}</div>
+        <div>${lab('Provozní doba')}${inp(i, 'hours', 'např. nonstop', p.hours||'')}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:8px">
+        <div>${lab('Adresa (pro navigaci)')}${inp(i, 'address', 'např. Senovážné náměstí, České Budějovice', p.address||'')}</div>
+        <div>${lab('Ostraha')}<select id="pk-security-${i}" onchange="markChanged()" style="${PK_IN}">${opts(PK_SEC, p.security)}</select></div>
+      </div>
+      <div style="margin-bottom:8px">${lab('Jak se tam dostat')}<textarea id="pk-directions-${i}" placeholder="např. Vjezd do garáže je z ulice Kněžská, zazvoňte u vrat na recepci." oninput="markChanged()" style="${PK_IN};resize:vertical;min-height:52px">${esc(p.directions||'')}</textarea></div>
+      <div style="margin-bottom:8px">${lab('Poznámka')}${inp(i, 'note', 'např. Jen 6 míst, velká auta na místa č. 1 a 2', p.note||'')}</div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--text)">
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="pk-reservation-${i}" onchange="markChanged()"${p.reservation ? ' checked' : ''}/> <span>Nutná rezervace předem</span></label>
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="pk-ev-${i}" onchange="markChanged()"${p.ev ? ' checked' : ''}/> <span>Nabíječka pro elektromobily</span></label>
+      </div>
+    </div>`).join('');
+}
+
+function getParkingItems() {
+  const items = [];
+  for (let i = 0; document.getElementById('pk-name-'+i) !== null; i++) {
+    const p = { type: document.getElementById('pk-type-'+i).value, security: document.getElementById('pk-security-'+i).value,
+                reservation: document.getElementById('pk-reservation-'+i).checked, ev: document.getElementById('pk-ev-'+i).checked };
+    PK_TEXT.concat(PK_DIMS).forEach(k => { p[k] = document.getElementById('pk-'+k+'-'+i).value.trim(); });
+    items.push(p);
+  }
+  return items;
+}
+
+function pkRerender(items) {
+  const list = document.getElementById('pk-list');
+  list.innerHTML = renderParking(items);
+  translateDom(list);
+  markChanged();
+}
+
+function addParking() {
+  const cur = getParkingItems();
+  if (cur.length >= 8) { toast(tr('Nejvýše 8 parkovacích míst.'), 'warn'); return; }
+  cur.push({type: cur.length ? 'lot' : 'garage'});
+  pkRerender(cur);
+  const el = document.getElementById('pk-name-'+(cur.length-1));
+  if (el) el.focus();
+}
+
+function removeParking(idx) {
+  const cur = getParkingItems();
+  cur.splice(idx, 1);
+  pkRerender(cur);
+}
+
 function row(label, key, type, val, placeholder) {
   return `<tr>
     <td>${label}</td>
@@ -1765,6 +1873,9 @@ async function saveAll(auto) {
 
   // Vlastní navigační body
   data.nav_custom = getNavCustomItems().filter(i => i.name || i.desc);
+
+  // Parkování: místa a rozměry (server převede rozměry na centimetry a zahodí prázdná místa)
+  if (document.getElementById('pk-list')) data.parking_places = getParkingItems();
 
   // Vlastní pole
   const customFields = [];
