@@ -8819,7 +8819,21 @@ Guest name: {req.guest_name or 'Guest'}"""
                 _usage = {k: int(_usage.get(k) or 0) + int(_usage2.get(k) or 0) for k in ("input_tokens", "output_tokens")}
         except Exception as e:
             logging.warning("Druhý průchod pro prodloužení selhal: %s", e)
-    reply = _alex_feminine_fix(re.sub(r"\s*\[\[EXT\]\]\s*", " ", _raw).strip())
+    # Parkování „vejde se moje auto?": model značkou [[CAR:v,š,d]] jen nahlásí rozměry auta, porovnání
+    # s limity a verdikt spočítá server a odpověď se vygeneruje znovu s hotovým výsledkem. Model sám
+    # u rezervy 1 cm uzavíral „VEJDE SE" (test na stagingu 22. 11. 2026). Značka se hostovi neukáže.
+    _car = parking.parse_marker(_raw)
+    if _car:
+        try:
+            _blk_car = parking.verdict_block(h, _car)
+            if _blk_car:
+                _raw3, _usage3 = await _alex(pms_extra_blocks + [_blk_car], messages)
+                if parking.strip_marker(_raw3):
+                    _raw = _raw3
+                _usage = {k: int(_usage.get(k) or 0) + int(_usage3.get(k) or 0) for k in ("input_tokens", "output_tokens")}
+        except Exception as e:
+            logging.warning("Druhý průchod pro parkování selhal: %s", e)
+    reply = _alex_feminine_fix(parking.strip_marker(re.sub(r"\s*\[\[EXT\]\]\s*", " ", _raw)))
     reply = _drop_ext_reception(reply, order_actions)
     # Zaloguj reálný dotaz hosta (analytika + detekce mezer v informacích)
     try:
