@@ -22,6 +22,7 @@ import analytics_view  # výpočty pro stránku Přehled (/prehled) — čisté 
 import alex_learn      # „Alex se učí": odpovědi recepce na dotazy bez odpovědi — testy v test_alex_learn.py
 import print_i18n     # texty tiskovin v jazycích hostů
 import kb_routes       # znalostní báze hotelu (dokumenty, cloudové disky, asistent pro personál) — testy v test_kb.py
+import sg_api          # veřejné API /api/v1 a onboarding vývojářů — testy v test_sg_api.py
 import parking         # místa k parkování a max. rozměry vozu („vejde se moje auto?") — testy v test_parking.py
 
 load_dotenv()
@@ -11810,4 +11811,27 @@ kb_routes.setup(
     get_settings=db_get_settings,
     learn_block=alex_learn.prompt_block,
     database_url=DATABASE_URL,
+)
+
+# ─────────────────────────────────────────────
+# Veřejné API (/api/v1) a onboarding vývojářů (/developers) — cesty jsou v sg_api.py
+# ─────────────────────────────────────────────
+async def _api_guest_chat(hotel_id: str, message: str, language: str, history: list, device_id: str, request: Request) -> dict:
+    return await guest_chat(GuestChatRequest(hotel_id=hotel_id, message=message, language=language or "en", history=history,
+                                             auto_lang=True, device_id=device_id), request)
+
+async def _api_send_verification(email: str, name: str, link: str, cs: bool) -> bool:
+    return await _brevo_send(sg_api.verification_email(email, name, link, cs), "overeni vyvojare API")
+
+sg_api.setup(
+    app,
+    db_load=db_load,
+    resolve_hotel=_resolve_hotel,
+    rate_limit_ok=_rate_limit_ok,
+    client_ip=_client_ip,
+    get_base_url=get_base_url,
+    staging_banner=_staging_banner,
+    guest_chat=_api_guest_chat,
+    guest_url=_guest_url,
+    send_email=_api_send_verification,
 )
