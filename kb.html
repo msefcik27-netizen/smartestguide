@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8"/>
+<link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="robots" content="noindex,nofollow"/>
+<meta name="referrer" content="no-referrer"/>
+<title>SMARTEST GUIDE – Znalostní báze</title>
+<style>
+:root{--bg:#faf9f5;--card:#fff;--ink:#1a1a1a;--muted:#6b6b6b;--border:#e8e4dc;--accent:#FF6B00;--teal:#0aa88a;--bad:#d93d42;--soft:#f1efe9;
+  --head:'Syne','Segoe UI',system-ui,sans-serif;--body:'Inter','Segoe UI',system-ui,sans-serif}
+html{color-scheme:light}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.55}
+.top{background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
+.top-in{max-width:1080px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.logo{font-family:var(--head);font-weight:700;font-size:15px;white-space:nowrap}.logo span{color:var(--accent)}
+.hname{color:var(--muted);font-size:13px;margin-right:auto}.hname strong{color:var(--ink)}
+.btn{font:600 13px var(--body);border:1px solid var(--border);background:#fff;color:var(--ink);border-radius:8px;padding:8px 13px;cursor:pointer;text-decoration:none;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}.btn.pri:hover:not(:disabled){background:#e45f00;color:#fff}
+.btn.sm{padding:5px 9px;font-size:12px}.btn.danger:hover:not(:disabled){border-color:var(--bad);color:var(--bad)}
+.wrap{max-width:1080px;margin:0 auto;padding:20px;display:grid;gap:14px}
+h1{font-family:var(--head);font-size:24px;line-height:1.2}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;min-width:0}
+.card h2{font-family:var(--head);font-size:16px;margin-bottom:2px}
+.desc{color:var(--muted);font-size:13px;margin-bottom:14px;max-width:760px}
+.hero{background:linear-gradient(135deg,#1a1a1a,#2c2a27);color:#fff;border:0}
+.hero p{color:rgba(255,255,255,.78);max-width:760px;margin-top:6px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-top:16px}
+.kpi .v{font-family:var(--head);font-size:30px;font-weight:800;line-height:1.1;color:#ff8a3d}
+.kpi .l{font-size:12px;color:rgba(255,255,255,.75);margin-top:3px}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.step{background:var(--soft);border-radius:12px;padding:14px}.step b{display:block;margin-bottom:3px}
+.step .n{display:inline-flex;width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;font-weight:700;align-items:center;justify-content:center;margin-bottom:8px}
+.prov{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.prov button{display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:13px 14px;font-size:14px;border-radius:12px;width:100%;white-space:normal;text-align:left}
+.prov small{display:block;font-weight:400;color:var(--muted);font-size:11.5px}
+.ico{width:26px;height:26px;flex:none}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.src{border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:10px}
+.src .t{font-weight:600}.src .m{color:var(--muted);font-size:12.5px}
+.chip{display:inline-flex;align-items:center;gap:5px;background:var(--soft);border-radius:20px;padding:3px 10px;font-size:12px;margin:3px 4px 0 0}
+.pill{display:inline-block;font-size:11px;font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap}
+.pill.ok{background:rgba(10,168,138,.12);color:#07806a}.pill.err{background:rgba(217,61,66,.1);color:var(--bad)}
+.pill.run{background:rgba(255,107,0,.12);color:#c35200}.pill.g{background:rgba(10,168,138,.12);color:#07806a}.pill.s{background:#ece9e1;color:#555}
+select,input[type=text],textarea{font:inherit;border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:#fff;color:var(--ink);max-width:100%}
+textarea{width:100%;min-height:110px;resize:vertical}
+input[type=text]{width:100%}
+select:focus,input:focus,textarea:focus{outline:2px solid rgba(255,107,0,.35);border-color:var(--accent)}
+.drop{border:2px dashed var(--border);border-radius:12px;padding:22px;text-align:center;color:var(--muted);cursor:pointer;transition:.15s}
+.drop.over,.drop:hover{border-color:var(--accent);background:#fff8f2;color:var(--ink)}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:640px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--border)}
+td{padding:9px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
+td .p{color:var(--muted);font-size:11.5px}
+tr.off td{opacity:.5}
+.empty{color:var(--muted);font-size:13px;padding:14px 0;text-align:center}
+.hit{border-left:3px solid var(--teal);background:var(--soft);border-radius:0 10px 10px 0;padding:10px 12px;margin-top:10px}
+.hit .h{font-weight:600;font-size:13px}.hit .x{font-size:12.5px;white-space:pre-wrap;margin-top:4px;max-height:150px;overflow:auto}
+.save{margin-top:12px;padding:10px 12px;background:rgba(10,168,138,.1);border-radius:10px;font-size:13px}
+.msg{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:50;max-width:90vw;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+.msg.err{background:var(--bad)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal .box{background:#fff;border-radius:16px;max-width:640px;width:100%;max-height:88vh;display:flex;flex-direction:column}
+.modal .hd{padding:16px 18px;border-bottom:1px solid var(--border)}.modal .ft{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;align-items:center}
+.modal .bd{padding:8px 18px;overflow:auto;flex:1;min-height:180px}
+.crumb{font-size:12.5px;color:var(--muted);margin-top:4px}.crumb a{color:var(--accent);cursor:pointer}
+.it{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--soft)}
+.it .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.it .nm a{cursor:pointer;color:var(--ink);font-weight:600;text-decoration:none}.it .nm a:hover{color:var(--accent)}
+.it.dis{opacity:.45}
+.tabs{display:inline-flex;background:var(--soft);border-radius:10px;padding:3px;gap:2px}
+.tabs button{font:600 12.5px var(--body);border:0;background:transparent;color:var(--muted);padding:7px 13px;border-radius:8px;cursor:pointer}
+.tabs button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+code{background:var(--soft);border-radius:6px;padding:2px 6px;font-size:12.5px;word-break:break-all}
+.warn{background:#fff6e5;border:1px solid #f3d9a4;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px}
+body.embed .top{display:none}body.embed{background:transparent}body.embed .wrap{padding:0}
+body.embed .msg{position:absolute;bottom:auto}body.embed .modal{position:absolute;inset:auto 0;align-items:flex-start;background:transparent;padding:0 8px}body.embed .modal .box{box-shadow:0 10px 50px rgba(0,0,0,.35);border:1px solid var(--border);max-height:80vh}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="top"><div class="top-in">
+  <div class="logo">SMARTEST <span>GUIDE</span></div>
+  <div class="hname"><span data-t="title">Znalostní báze</span> · <strong id="hname"></strong></div>
+  <a class="btn" id="back" href="#" data-t="back">← Zpět do portálu</a>
+</div></div>
+
+<div class="wrap" id="app" hidden>
+  <div class="card hero">
+    <h1 data-t="h1">Znalostní báze hotelu</h1>
+    <p data-t="lead">Připojte dokumenty hotelu – provozní řády, ceníky, manuály, směrnice. Alex z nich bude odpovídat hostům i vašim zaměstnancům. Ke každé otázce si vyhledá jen pár přesných pasáží, takže odpovídá věcně a levně.</p>
+    <div class="kpis">
+      <div class="kpi"><div class="v" id="k-docs">0</div><div class="l" data-t="k_docs">dokumentů</div></div>
+      <div class="kpi"><div class="v" id="k-chunks">0</div><div class="l" data-t="k_chunks">prohledávaných pasáží</div></div>
+      <div class="kpi"><div class="v" id="k-guest">0</div><div class="l" data-t="k_guest">dokumentů i pro hosty</div></div>
+      <div class="kpi"><div class="v" id="k-mode">–</div><div class="l" data-t="k_mode">způsob vyhledávání</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 data-t="how">Jak to funguje</h2>
+    <div class="steps" style="margin-top:12px">
+      <div class="step"><span class="n">1</span><b data-t="s1">Připojíte zdroj</b><span data-t="s1d">Cloudový disk, nahraný soubor nebo krátká poznámka. Z disku jen čteme, nic na něm neměníme.</span></div>
+      <div class="step"><span class="n">2</span><b data-t="s2">Určíte, kdo to uvidí</b><span data-t="s2d">Každý dokument je buď jen pro personál, nebo i pro hosty. Nové dokumenty jsou jen pro personál, dokud to nezměníte.</span></div>
+      <div class="step"><span class="n">3</span><b data-t="s3">Alex odpovídá z dokumentů</b><span data-t="s3d">Dokument se rozdělí na pasáže a zaindexuje. K otázce se vyberou jen ty, které se jí týkají.</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 data-t="cl_h">Cloudové disky</h2>
+    <div class="desc" data-t="cl_d">Přihlásíte se účtem, který má k dokumentům přístup, a vyberete složky. Změny na disku si báze sama načte každých 6 hodin.</div>
+    <div class="row" style="margin-bottom:12px"><label for="conn-aud" data-t="cl_aud">Dokumenty z nového disku budou:</label>
+      <select id="conn-aud"><option value="staff" data-t="a_staff">jen pro personál</option><option value="guest" data-t="a_guest">i pro hosty</option></select></div>
+    <div class="prov" id="prov"></div>
+    <div id="sources"></div>
+  </div>
+
+  <div class="card">
+    <h2 data-t="up_h">Nahrát soubor nebo napsat poznámku</h2>
+    <div class="desc" id="up-desc"></div>
+    <div class="row" style="margin-bottom:12px">
+      <div class="tabs"><button id="tab-file" class="on" data-t="up_file">Soubor</button><button id="tab-note" data-t="up_note">Poznámka</button></div>
+      <label for="up-aud" data-t="up_aud">Viditelnost:</label>
+      <select id="up-aud"><option value="staff" data-t="a_staff">jen pro personál</option><option value="guest" data-t="a_guest">i pro hosty</option></select>
+    </div>
+    <div id="pane-file">
+      <div class="drop" id="drop" tabindex="0"><b data-t="drop1">Přetáhněte sem soubory</b><br><span data-t="drop2">nebo klikněte a vyberte je</span></div>
+      <input type="file" id="file" multiple hidden/>
+      <div id="up-log" style="margin-top:10px;font-size:13px"></div>
+    </div>
+    <div id="pane-note" hidden>
+      <input type="text" id="note-title" maxlength="200" data-ph="note_t" placeholder="Název"/>
+      <textarea id="note-text" style="margin-top:8px" data-ph="note_x" placeholder="Text"></textarea>
+      <div class="row" style="margin-top:8px"><button class="btn pri" id="note-save" data-t="note_save">Uložit poznámku</button></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 data-t="docs_h">Dokumenty v bázi</h2>
+    <div class="desc" data-t="docs_d">U každého dokumentu určíte, jestli z něj smí Alex odpovídat i hostům. Vypnutý dokument v bázi zůstane, ale nepoužívá se.</div>
+    <div class="tw"><table><thead><tr><th data-t="c_doc">Dokument</th><th data-t="c_vis">Kdo ho uvidí</th><th data-t="c_state">Stav</th><th data-t="c_on">Používat</th><th></th></tr></thead><tbody id="docs"></tbody></table></div>
+    <div class="empty" id="docs-empty" data-t="docs_empty">Zatím tu nic není. Připojte disk nebo nahrajte první soubor.</div>
+  </div>
+
+  <div class="card">
+    <h2 data-t="try_h">Vyzkoušet vyhledávání</h2>
+    <div class="desc" data-t="try_d">Zadejte otázku tak, jak by ji položil host nebo zaměstnanec. Uvidíte pasáže, které by Alex k odpovědi dostal.</div>
+    <div class="row">
+      <div class="tabs"><button id="as-guest" class="on" data-t="as_guest">Jako host</button><button id="as-staff" data-t="as_staff">Jako personál</button></div>
+      <input type="text" id="q" style="flex:1;min-width:220px" data-ph="q_ph" placeholder="Např. Do kdy je otevřená sauna?"/>
+      <button class="btn pri" id="q-go" data-t="q_go">Hledat</button>
+    </div>
+    <div id="hits"></div>
+  </div>
+
+  <div class="card">
+    <h2 data-t="st_h">Asistent pro personál</h2>
+    <div class="desc" data-t="st_d">Odkaz pro zaměstnance. Otevřou ho v telefonu nebo na počítači a ptají se na postupy a pravidla hotelu. Asistent odpovídá jen z dokumentů v bázi a uvádí, odkud čerpal. Kdo má odkaz, má přístup – při odchodu zaměstnance vytvořte nový.</div>
+    <div class="row"><code id="staff-url" style="flex:1;min-width:220px"></code>
+      <button class="btn" id="staff-copy" data-t="copy">Kopírovat</button>
+      <a class="btn" id="staff-open" target="_blank" rel="noopener" data-t="open">Otevřít</a>
+      <button class="btn danger" id="staff-new" data-t="st_new">Vytvořit nový odkaz</button></div>
+  </div>
+
+  <div class="card" id="api-card">
+    <h2 data-t="api_h">Napojení jiných systémů (API)</h2>
+    <div class="desc" data-t="api_d">Klíč umožní jinému systému – webu hotelu, rezervačnímu systému, kiosku – ptát se Alexe a hledat ve znalostní bázi. Klíč ukážeme jen jednou, hned po vytvoření.</div>
+    <div class="row">
+      <input type="text" id="key-name" style="flex:1;min-width:200px" maxlength="80" data-ph="key_ph" placeholder="K čemu klíč slouží, např. Web hotelu"/>
+      <select id="key-scope"><option value="chat,knowledge:read" data-t="sc_read">chat a čtení báze</option><option value="chat,knowledge:read,knowledge:write" data-t="sc_write">chat, čtení i zápis do báze</option></select>
+      <button class="btn pri" id="key-new" data-t="key_new">Vytvořit klíč</button>
+      <a class="btn" href="/developers" target="_blank" rel="noopener" data-t="api_docs">Dokumentace</a>
+    </div>
+    <div class="save" id="key-shown" hidden></div>
+    <div id="keys" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<div class="wrap" id="denied" hidden><div class="card"><h2 data-t="den_h">Odkaz není platný</h2><div class="desc" data-t="den_d">Otevřete znalostní bázi z portálu hotelu.</div></div></div>
+
+<div class="modal" id="modal" hidden><div class="box">
+  <div class="hd"><h2 id="m-title" style="font-family:var(--head);font-size:16px"></h2><div class="crumb" id="m-crumb"></div></div>
+  <div class="bd" id="m-list"></div>
+  <div class="ft">
+    <div id="m-link" class="row" style="flex:1;min-width:240px" hidden><input type="text" id="m-url" style="flex:1" data-ph="sp_ph" placeholder="Odkaz na složku v SharePointu"/><button class="btn sm" id="m-url-add" data-t="sp_add">Přidat</button></div>
+    <span id="m-count" style="color:var(--muted);font-size:12.5px;margin-right:auto"></span>
+    <button class="btn" id="m-cancel" data-t="cancel">Zrušit</button><button class="btn pri" id="m-save" data-t="m_save">Uložit a načíst</button>
+  </div>
+</div></div>
+
+<script>
+const P = new URLSearchParams(location.search);
+const AUTH = P.get('token') ? 'token=' + encodeURIComponent(P.get('token')) : 'hotel=' + encodeURIComponent(P.get('hotel') || '');
+const CS = (P.get('lang') || localStorage.getItem('sg_portal_lang') || navigator.language || 'cs').toLowerCase().startsWith('cs')
+        || (P.get('lang') || localStorage.getItem('sg_portal_lang') || navigator.language || '').toLowerCase().startsWith('sk');
+const EN = {
+ title:'Knowledge base', back:'← Back to portal', h1:'Hotel knowledge base',
+ lead:'Connect your hotel documents – house rules, price lists, manuals, procedures. Alex will answer guests and your staff from them. For each question it looks up only a few exact passages, so answers are accurate and cheap.',
+ k_docs:'documents', k_chunks:'searchable passages', k_guest:'documents also for guests', k_mode:'search method',
+ how:'How it works', s1:'Connect a source', s1d:'A cloud drive, an uploaded file or a short note. We only read from the drive, we never change anything on it.',
+ s2:'Decide who sees it', s2d:'Each document is either staff-only or also for guests. New documents are staff-only until you change it.',
+ s3:'Alex answers from documents', s3d:'Each document is split into passages and indexed. Only the passages that match the question are used.',
+ cl_h:'Cloud drives', cl_d:'Sign in with an account that can access the documents and pick folders. Changes on the drive are picked up automatically every 6 hours.',
+ cl_aud:'Documents from a new drive will be:', a_staff:'staff only', a_guest:'also for guests',
+ up_h:'Upload a file or write a note', up_file:'File', up_note:'Note', up_aud:'Visibility:', drop1:'Drop files here', drop2:'or click to choose them',
+ note_t:'Title, e.g. Late check-out', note_x:'Text – what staff or guests should know', note_save:'Save note',
+ docs_h:'Documents in the knowledge base', docs_d:'For each document you decide whether Alex may also use it for guests. A switched-off document stays stored but is not used.',
+ c_doc:'Document', c_vis:'Who sees it', c_state:'Status', c_on:'Use', docs_empty:'Nothing here yet. Connect a drive or upload your first file.',
+ try_h:'Try the search', try_d:'Type a question the way a guest or an employee would ask it. You will see the passages Alex would get.',
+ as_guest:'As a guest', as_staff:'As staff', q_ph:'E.g. Until what time is the sauna open?', q_go:'Search',
+ st_h:'Staff assistant', st_d:'A link for employees. They open it on a phone or computer and ask about hotel procedures and rules. The assistant answers only from documents in the knowledge base and shows its sources. Anyone with the link has access – create a new one when an employee leaves.',
+ copy:'Copy', open:'Open', st_new:'Create a new link',
+ api_h:'Connect other systems (API)', api_d:'A key lets another system – the hotel website, booking engine, kiosk – ask Alex and search the knowledge base. The key is shown only once, right after you create it.',
+ key_ph:'What the key is for, e.g. Hotel website', sc_read:'chat and read knowledge', sc_write:'chat, read and write knowledge', key_new:'Create key', api_docs:'Documentation',
+ den_h:'This link is not valid', den_d:'Open the knowledge base from the hotel portal.',
+ sp_ph:'Link to a SharePoint folder', sp_add:'Add', cancel:'Cancel', m_save:'Save and load'
+};
+const S = CS ? {
+ soon:'připravujeme', connect:'Připojit', vec:'význam + slova', lex:'slova',
+ st_ok:'aktuální', st_new:'vyberte složky', st_run:'načítá se…', st_err:'chyba', never:'zatím nenačteno', synced:'Načteno',
+ pick:'Vybrat složky', sync:'Načíst znovu', disconnect:'Odpojit', nofolders:'Zatím není vybraná žádná složka.',
+ confirm_disc:'Odpojit disk a odebrat z báze dokumenty, které z něj pocházejí?', confirm_del:'Odebrat dokument z báze?',
+ confirm_key:'Starý odkaz přestane fungovat všem zaměstnancům. Vytvořit nový?', confirm_rev:'Klíč přestane okamžitě fungovat. Zrušit ho?',
+ manual:'nahráno ručně', passages:'pasáží', ok:'v pořádku', del:'Odebrat', saved:'Uloženo', copied:'Zkopírováno',
+ uploading:'Nahrávám', done:'hotovo', failed:'nepodařilo se', nohits:'K této otázce v bázi nic není – Alex by odpověděl jen z profilu hotelu.',
+ sent:(a,b,p)=>`Alex dostane ${a} znaků z celkových ${b} v bázi – o ${p} % méně textu, než kdyby četl všechno.`,
+ match:'shoda', words:'slov', root:'Disk', choose:'Vyberte složky nebo soubory', selected:n=>`Vybráno: ${n}`, loading:'Načítám…', emptyf:'Složka je prázdná.',
+ unsupported:'tento typ neumíme číst', types:(t,m)=>`Podporované typy: ${t}. Nejvýše ${m} MB na soubor. Naskenované PDF bez textu přečíst neumíme.`,
+ e_denied:'Přihlášení jste nedokončili, disk se nepřipojil.', e_login:'Přihlášení ke službě se nepodařilo. Zkuste to znovu.', connected:'Disk je připojený. Teď vyberte složky.',
+ key_once:'Klíč si teď uložte, znovu ho neukážeme:', nokeys:'Zatím žádný klíč.', revoke:'Zrušit', revoked:'zrušen', last:'naposledy použit', neverused:'zatím nepoužit', perday:'dotazů denně', fill:'Vyplňte název a text.', keyname:'Napište, k čemu klíč slouží.'
+} : {
+ soon:'coming soon', connect:'Connect', vec:'meaning + words', lex:'words',
+ st_ok:'up to date', st_new:'pick folders', st_run:'loading…', st_err:'error', never:'not loaded yet', synced:'Loaded',
+ pick:'Pick folders', sync:'Reload', disconnect:'Disconnect', nofolders:'No folder selected yet.',
+ confirm_disc:'Disconnect the drive and remove its documents from the knowledge base?', confirm_del:'Remove the document from the knowledge base?',
+ confirm_key:'The old link will stop working for all employees. Create a new one?', confirm_rev:'The key will stop working immediately. Revoke it?',
+ manual:'uploaded manually', passages:'passages', ok:'ok', del:'Remove', saved:'Saved', copied:'Copied',
+ uploading:'Uploading', done:'done', failed:'failed', nohits:'Nothing in the knowledge base matches – Alex would answer from the hotel profile only.',
+ sent:(a,b,p)=>`Alex gets ${a} characters out of ${b} in the knowledge base – ${p}% less text than reading everything.`,
+ match:'match', words:'words', root:'Drive', choose:'Choose folders or files', selected:n=>`Selected: ${n}`, loading:'Loading…', emptyf:'This folder is empty.',
+ unsupported:'we cannot read this type', types:(t,m)=>`Supported types: ${t}. Up to ${m} MB per file. Scanned PDFs without text cannot be read.`,
+ e_denied:'You did not finish signing in, the drive was not connected.', e_login:'Signing in to the service failed. Please try again.', connected:'The drive is connected. Now pick folders.',
+ key_once:'Save the key now, we will not show it again:', nokeys:'No keys yet.', revoke:'Revoke', revoked:'revoked', last:'last used', neverused:'not used yet', perday:'requests per day', fill:'Fill in the title and the text.', keyname:'Say what the key is for.'
+};
+if (!CS) {
+  document.documentElement.lang = 'en'; document.title = 'SMARTEST GUIDE – Knowledge base';
+  document.querySelectorAll('[data-t]').forEach(e => { if (EN[e.dataset.t]) e.textContent = EN[e.dataset.t]; });
+}
+document.querySelectorAll('[data-ph]').forEach(e => { e.placeholder = CS ? ({note_t:'Název, např. Pozdní odjezd', note_x:'Text – co má personál nebo host vědět', q_ph:'Např. Do kdy je otevřená sauna?', key_ph:'K čemu klíč slouží, např. Web hotelu', sp_ph:'Odkaz na složku v SharePointu'})[e.dataset.ph] : EN[e.dataset.ph]; });
+
+const EMBED = P.get('embed') === '1' && window.parent !== window;
+if (EMBED) document.body.classList.add('embed');
+// Ve vloženém rámci je stránka vysoká jako celý obsah → „fixed" prvky by skončily mimo obrazovku.
+function viewport(){ try { const fr = window.frameElement.getBoundingClientRect(), ph = window.parent.innerHeight;
+    return {top: Math.max(0, -fr.top), bottom: Math.min(document.documentElement.scrollHeight, ph - fr.top)}; } catch(e){ return {top: 0, bottom: window.innerHeight}; } }
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let ST = null, msgT = null, pollT = null;
+function msg(t, err){ let m = document.querySelector('.msg'); if(!m){ m = document.createElement('div'); document.body.appendChild(m); }
+  m.className = 'msg' + (err ? ' err' : ''); m.textContent = t; if (EMBED) m.style.top = Math.max(10, viewport().bottom - 70) + 'px'; clearTimeout(msgT); msgT = setTimeout(() => m.remove(), err ? 6000 : 2600); }
+async function api(path, body, raw){
+  const u = '/api/hotel-portal/' + path + (path.includes('?') ? '&' : '?') + AUTH;
+  const o = body === undefined ? {} : raw ? {method:'POST', body, headers:{'Content-Type': body.type || 'application/octet-stream'}}
+        : {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)};
+  const r = await fetch(u, o); let j = {}; try { j = await r.json(); } catch(e){}
+  if(!r.ok) throw new Error(j.detail || ('HTTP ' + r.status)); return j;
+}
+const ICON = {
+ google:'<svg class="ico" viewBox="0 0 24 24"><path fill="#0f9d58" d="M8.2 3h7.6l6 10.4h-7.6z"/><path fill="#f4b400" d="M2.2 13.4 8.2 3l3.8 6.6-6 10.4z"/><path fill="#4285f4" d="M6 20h12l3.8-6.6H9.8z"/></svg>',
+ microsoft:'<svg class="ico" viewBox="0 0 24 24"><path fill="#0364b8" d="M9.5 8.2a5.4 5.4 0 0 1 9.6 1.6 4.3 4.3 0 0 1 .6 8.5H7.2a4.7 4.7 0 0 1-1-9.3 4.6 4.6 0 0 1 3.3-.8z"/></svg>',
+ dropbox:'<svg class="ico" viewBox="0 0 24 24"><path fill="#0061ff" d="m7 3 5 3.2L7 9.4 2 6.2zm10 0 5 3.2-5 3.2-5-3.2zM2 12.6l5-3.2 5 3.2-5 3.2zm15-3.2 5 3.2-5 3.2-5-3.2zM7 17l5-3.2 5 3.2-5 3.2z"/></svg>',
+ box:'<svg class="ico" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="4" fill="#0061d5"/><text x="12" y="15.5" text-anchor="middle" font-size="8" font-weight="700" fill="#fff" font-family="Arial">box</text></svg>'
+};
+const audLabel = a => a === 'guest' ? (CS ? 'i pro hosty' : 'also for guests') : (CS ? 'jen pro personál' : 'staff only');
+
+function render(){
+  const s = ST; $('hname').textContent = s.hotel.name;
+  $('k-docs').textContent = s.counts.docs; $('k-chunks').textContent = s.counts.chunks;
+  $('k-guest').textContent = s.docs.filter(d => d.audience === 'guest' && d.enabled).length;
+  $('k-mode').textContent = s.vector ? S.vec : S.lex; $('k-mode').style.fontSize = '19px';
+  $('up-desc').textContent = S.types(s.limits.types.join(', '), s.limits.file_mb);
+  $('prov').innerHTML = s.providers.map(p => `<button class="btn" data-p="${esc(p.id)}" ${p.configured ? '' : 'disabled'}>${ICON[p.id] || ''}<span><b>${esc(p.name)}</b><small>${p.configured ? S.connect : S.soon}</small></span></button>`).join('');
+  $('sources').innerHTML = s.sources.map(x => {
+    const st = x.status === 'syncing' ? ['run', S.st_run] : x.status === 'error' ? ['err', S.st_err] : !x.folders.length ? ['run', S.st_new] : ['ok', S.st_ok];
+    return `<div class="src"><div class="row"><span>${ICON[x.provider] || ''}</span><div style="flex:1;min-width:180px"><div class="t">${esc(x.provider_name)} <span class="pill ${st[0]}">${st[1]}</span></div>
+      <div class="m">${esc(x.account)}${x.account ? ' · ' : ''}${x.last_sync ? S.synced + ' ' + esc(new Date(x.last_sync + 'Z').toLocaleString()) : S.never}</div></div>
+      <select data-saud="${esc(x.id)}"><option value="staff"${x.audience === 'staff' ? ' selected' : ''}>${audLabel('staff')}</option><option value="guest"${x.audience === 'guest' ? ' selected' : ''}>${audLabel('guest')}</option></select>
+      <button class="btn sm" data-pick="${esc(x.id)}">${S.pick}</button><button class="btn sm" data-sync="${esc(x.id)}" ${x.folders.length && x.status !== 'syncing' ? '' : 'disabled'}>${S.sync}</button><button class="btn sm danger" data-disc="${esc(x.id)}">${S.disconnect}</button></div>
+      <div style="margin-top:6px">${x.folders.length ? x.folders.map(f => `<span class="chip">${f.is_folder ? '📁' : '📄'} ${esc(f.name)}</span>`).join('') : `<span class="m">${S.nofolders}</span>`}</div>
+      ${x.last_error ? `<div class="m" style="color:var(--bad);margin-top:6px">${esc(x.last_error)}</div>` : ''}</div>`; }).join('');
+  const srcName = id => { const x = s.sources.find(y => y.id === id); return x ? x.provider_name : S.manual; };
+  $('docs').innerHTML = s.docs.map(d => `<tr class="${d.enabled ? '' : 'off'}"><td><b>${d.url ? `<a href="${esc(d.url)}" target="_blank" rel="noopener" style="color:inherit">${esc(d.title)}</a>` : esc(d.title)}</b><div class="p">${esc(srcName(d.source_id))}${d.path ? ' · ' + esc(d.path) : ''}</div></td>
+    <td><select data-daud="${esc(d.id)}"><option value="staff"${d.audience === 'staff' ? ' selected' : ''}>${audLabel('staff')}</option><option value="guest"${d.audience === 'guest' ? ' selected' : ''}>${audLabel('guest')}</option></select></td>
+    <td>${d.status === 'ok' ? `<span class="pill ok">${d.chunks} ${S.passages}</span>` : `<span class="pill err">${S.st_err}</span>`}${d.error ? `<div class="p">${esc(d.error)}</div>` : ''}</td>
+    <td><input type="checkbox" data-don="${esc(d.id)}" ${d.enabled ? 'checked' : ''} aria-label="${S.ok}"/></td>
+    <td><button class="btn sm danger" data-ddel="${esc(d.id)}">${S.del}</button></td></tr>`).join('');
+  $('docs-empty').hidden = s.docs.length > 0;
+  $('staff-url').textContent = s.staff_url; $('staff-open').href = s.staff_url;
+  clearTimeout(pollT); if (s.sources.some(x => x.status === 'syncing')) pollT = setTimeout(load, 4000);
+}
+async function load(){
+  try { ST = await api('kb/status'); $('app').hidden = false; render(); }
+  catch(e){ if(!ST){ $('denied').hidden = false; } else msg(e.message, true); }
+}
+const act = async (fn, okText) => { try { await fn(); if (okText) msg(okText); await load(); } catch(e){ msg(e.message, true); } };
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return; const d = b.dataset;
+  if (d.p) act(async () => { const r = await api('kb/connect?provider=' + d.p + '&audience=' + $('conn-aud').value); (EMBED ? window.top : window).location.href = r.url; });
+  else if (d.pick) openPicker(d.pick);
+  else if (d.sync) act(() => api('kb/sync', {source: d.sync}));
+  else if (d.disc) { if (confirm(S.confirm_disc)) act(() => api('kb/source-delete', {source: d.disc}), S.saved); }
+  else if (d.ddel) { if (confirm(S.confirm_del)) act(() => api('kb/doc-delete', {doc: d.ddel}), S.saved); }
+  else if (d.rev) { if (confirm(S.confirm_rev)) act(async () => { await api('api-keys/revoke', {id: d.rev}); await loadKeys(); }, S.saved); }
+});
+document.addEventListener('change', e => {
+  const d = e.target.dataset;
+  if (d.daud) act(() => api('kb/doc-update', {doc: d.daud, audience: e.target.value}), S.saved);
+  else if (d.don) act(() => api('kb/doc-update', {doc: d.don, enabled: e.target.checked}), S.saved);
+  else if (d.saud) { const x = ST.sources.find(y => y.id === d.saud); act(() => api('kb/source-update', {source: d.saud, folders: x.folders, audience: e.target.value}), S.saved); }
+});
+
+// nahrávání
+$('tab-file').onclick = () => { $('tab-file').className = 'on'; $('tab-note').className = ''; $('pane-file').hidden = false; $('pane-note').hidden = true; };
+$('tab-note').onclick = () => { $('tab-note').className = 'on'; $('tab-file').className = ''; $('pane-file').hidden = true; $('pane-note').hidden = false; };
+const drop = $('drop');
+drop.onclick = () => $('file').click(); drop.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') $('file').click(); };
+['dragenter','dragover'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => upload(e.dataTransfer.files));
+$('file').onchange = e => { upload(e.target.files); e.target.value = ''; };
+async function upload(files){
+  const log = $('up-log');
+  for (const f of files) {
+    const row = document.createElement('div'); row.textContent = S.uploading + ' ' + f.name + ' …'; log.prepend(row);
+    try { const r = await api('kb/upload?name=' + encodeURIComponent(f.name) + '&audience=' + $('up-aud').value, f, true);
+      row.textContent = '✓ ' + f.name + ' – ' + (r.status === 'ok' ? r.chunks + ' ' + S.passages : r.error) + (r.status === 'ok' && r.error ? ' (' + r.error + ')' : ''); }
+    catch(e){ row.textContent = '✗ ' + f.name + ' – ' + e.message; row.style.color = 'var(--bad)'; }
+  }
+  load();
+}
+$('note-save').onclick = () => { const t = $('note-title').value.trim(), x = $('note-text').value.trim(); if (!t || x.length < 10) return msg(S.fill, true);
+  act(async () => { await api('kb/text', {title: t, text: x, audience: $('up-aud').value}); $('note-title').value = ''; $('note-text').value = ''; }, S.saved); };
+
+// zkouška vyhledávání
+let AS = 'guest';
+$('as-guest').onclick = () => { AS = 'guest'; $('as-guest').className = 'on'; $('as-staff').className = ''; };
+$('as-staff').onclick = () => { AS = 'staff'; $('as-staff').className = 'on'; $('as-guest').className = ''; };
+async function search(){ const q = $('q').value.trim(); if (!q) return;
+  try { const r = await api('kb/search', {q, as: AS});
+    if (!r.hits.length) { $('hits').innerHTML = `<div class="empty">${S.nohits}</div>`; return; }
+    const pct = r.total_chars ? Math.max(0, Math.round(100 - r.sent_chars * 100 / r.total_chars)) : 0;
+    $('hits').innerHTML = r.hits.map((h, i) => `<div class="hit"><div class="h">[${i + 1}] ${esc(h.title)}${h.section ? ' › ' + esc(h.section) : ''} <span class="pill ${h.audience === 'guest' ? 'g' : 's'}">${audLabel(h.audience)}</span>
+      <span class="p" style="font-weight:400;color:var(--muted);font-size:11.5px">${h.similarity ? S.match + ' ' + Math.round(h.similarity * 100) + ' % · ' : ''}${h.word_hits} ${S.words}</span></div><div class="x">${esc(h.text)}</div></div>`).join('')
+      + `<div class="save">${S.sent(r.sent_chars.toLocaleString(), r.total_chars.toLocaleString(), pct)}</div>`;
+  } catch(e){ msg(e.message, true); } }
+$('q-go').onclick = search; $('q').onkeydown = e => { if (e.key === 'Enter') search(); };
+
+// personál
+$('staff-copy').onclick = () => navigator.clipboard.writeText(ST.staff_url).then(() => msg(S.copied), () => msg(ST.staff_url));
+$('staff-new').onclick = () => { if (confirm(S.confirm_key)) act(() => api('kb/staff-key', {}), S.saved); };
+
+// výběr složek
+let PK = null;
+function openPicker(id){ const x = ST.sources.find(y => y.id === id); PK = {src: x, sel: x.folders.slice(), stack: [{id: '', name: S.root}]};
+  $('m-title').textContent = S.choose + ' – ' + x.provider_name; $('m-link').hidden = x.provider !== 'microsoft'; $('modal').hidden = false; if (EMBED) $('modal').style.top = (viewport().top + 40) + 'px'; browse(); }
+function pkCount(){ $('m-count').textContent = S.selected(PK.sel.length); }
+async function browse(){
+  $('m-crumb').innerHTML = PK.stack.map((s, i) => i < PK.stack.length - 1 ? `<a data-lvl="${i}">${esc(s.name)}</a>` : `<b>${esc(s.name)}</b>`).join(' › ');
+  $('m-list').innerHTML = `<div class="empty">${S.loading}</div>`; pkCount();
+  try { const r = await api('kb/browse?source=' + PK.src.id + '&folder=' + encodeURIComponent(PK.stack[PK.stack.length - 1].id));
+    PK.items = r.items;
+    $('m-list').innerHTML = r.items.length ? r.items.map((it, i) => `<div class="it ${it.supported ? '' : 'dis'}">
+      <input type="checkbox" data-i="${i}" ${PK.sel.some(s => s.id === it.id) ? 'checked' : ''} ${it.supported && it.id !== '__shared' ? '' : 'disabled'}/>
+      <span>${it.is_folder ? '📁' : '📄'}</span><span class="nm">${it.is_folder ? `<a data-open="${i}">${esc(it.name)}</a>` : esc(it.name)}</span>
+      ${it.supported ? '' : `<span class="p" style="font-size:11.5px">${S.unsupported}</span>`}</div>`).join('') : `<div class="empty">${S.emptyf}</div>`;
+  } catch(e){ $('m-list').innerHTML = `<div class="empty" style="color:var(--bad)">${esc(e.message)}</div>`; }
+}
+$('modal').addEventListener('click', e => {
+  if (e.target === $('modal')) return void ($('modal').hidden = true);
+  const o = e.target.dataset.open, l = e.target.dataset.lvl;
+  if (o !== undefined) { const it = PK.items[+o]; PK.stack.push({id: it.id, name: it.name}); browse(); }
+  else if (l !== undefined) { PK.stack = PK.stack.slice(0, +l + 1); browse(); }
+});
+$('m-list').addEventListener('change', e => { const i = e.target.dataset.i; if (i === undefined) return; const it = PK.items[+i];
+  if (e.target.checked) PK.sel.push({id: it.id, name: it.name, is_folder: it.is_folder}); else PK.sel = PK.sel.filter(s => s.id !== it.id); pkCount(); });
+$('m-cancel').onclick = () => { $('modal').hidden = true; };
+$('m-save').onclick = () => { $('modal').hidden = true; act(() => api('kb/source-update', {source: PK.src.id, folders: PK.sel, audience: PK.src.audience}), S.saved); };
+$('m-url-add').onclick = async () => { const u = $('m-url').value.trim(); if (!u) return;
+  try { const r = await api('kb/share-link', {source: PK.src.id, link: u}); const it = r.item;
+    if (!PK.sel.some(s => s.id === it.id)) PK.sel.push({id: it.id, name: it.name, is_folder: it.is_folder}); $('m-url').value = ''; pkCount(); msg('✓ ' + it.name); }
+  catch(e){ msg(e.message, true); } };
+
+// API klíče
+async function loadKeys(){
+  try { const r = await api('api-keys'); $('keys').innerHTML = r.keys.length ? r.keys.map(k => `<div class="it"><span class="nm"><b>${esc(k.name)}</b> <code>${esc(k.prefix)}…</code>
+      <span class="p" style="color:var(--muted);font-size:11.5px"> ${esc(k.scopes.join(', '))} · ${k.daily_limit} ${S.perday} · ${k.last_used ? S.last + ' ' + esc(new Date(k.last_used + 'Z').toLocaleDateString()) : S.neverused}</span></span>
+      ${k.revoked ? `<span class="pill err">${S.revoked}</span>` : `<button class="btn sm danger" data-rev="${esc(k.id)}">${S.revoke}</button>`}</div>`).join('') : `<div class="empty">${S.nokeys}</div>`; }
+  catch(e){ $('api-card').hidden = true; }
+}
+$('key-new').onclick = async () => { const n = $('key-name').value.trim(); if (!n) return msg(S.keyname, true);
+  try { const r = await api('api-keys', {name: n, scopes: $('key-scope').value.split(',')}); $('key-name').value = '';
+    $('key-shown').hidden = false; $('key-shown').innerHTML = `${S.key_once}<br><code>${esc(r.key)}</code> <button class="btn sm" id="key-copy">${CS ? 'Kopírovat' : 'Copy'}</button>`;
+    $('key-copy').onclick = () => navigator.clipboard.writeText(r.key).then(() => msg(S.copied)); loadKeys(); }
+  catch(e){ msg(e.message, true); } };
+
+$('back').href = P.get('token') ? '/portal?' + AUTH + '#znalosti' : '/admin';
+if (P.get('kb_error')) setTimeout(() => msg(P.get('kb_error') === 'denied' ? S.e_denied : S.e_login, true), 400);
+load().then(() => { loadKeys(); const c = P.get('connected'); if (c && ST && ST.sources.some(x => x.id === c)) { msg(S.connected); openPicker(c); history.replaceState(null, '', location.pathname + '?' + AUTH); } });
+</script>
+</body>
+</html>

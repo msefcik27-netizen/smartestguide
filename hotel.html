@@ -461,7 +461,7 @@ const EN_MAP = {
   "— aby Alex mohl hostům rovnou objednat služby a prodloužit pobyt, musí hotel udělit souhlas znovu (jedno kliknutí, nastavení zůstane).":"— so that Alex can book services and extend stays for your guests directly, the hotel has to grant consent again (one click, your settings stay).",
   "Udělit oprávnění →":"Grant permission →",
   "Objednávky v chatu":"Orders in chat",
-  "📊 Přehled":"📊 Overview","📈 Analytika":"📈 Analytics","🎓 Alex se učí":"🎓 Alex learns","Dotazy, na které Alex neznal odpověď — doplňte ji":"Questions Alex could not answer — add the answer","🏨 Profil hotelu":"🏨 Hotel profile","✦ Alex & objednávky":"✦ Alex & orders","🧾 Nasazení & účet":"🧾 Setup & account",
+  "📊 Přehled":"📊 Overview","📈 Analytika":"📈 Analytics","📚 Znalostní báze":"📚 Knowledge base","🎓 Alex se učí":"🎓 Alex learns","Dotazy, na které Alex neznal odpověď — doplňte ji":"Questions Alex could not answer — add the answer","🏨 Profil hotelu":"🏨 Hotel profile","✦ Alex & objednávky":"✦ Alex & orders","🧾 Nasazení & účet":"🧾 Setup & account",
   "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem.":"Alex can book a service to the guest's room account or send a request to reception. Nothing is ordered until the guest confirms with a button.",
   "Alex přijme objednávku v chatu a pošle ji recepci e-mailem jako požadavek — host nemusí nikam volat. Recepce v e-mailu klikne Potvrdit nebo Nelze vyřídit (může připsat vzkaz) a host odpověď uvidí v chatu. Nic se nikam nezapisuje.":"Alex takes the order in chat and e-mails it to reception as a request — the guest doesn't have to call anyone. Reception clicks Confirm or Cannot arrange in the e-mail (optionally with a note) and the guest sees the answer in chat. Nothing is written anywhere.",
   "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem. U požadavku recepce v e-mailu klikne Potvrdit / Nelze vyřídit a host odpověď uvidí v chatu.":"Alex can book a service straight to the room account or send reception a request. Nothing is booked without the guest confirming with a button. For a request, reception clicks Confirm / Cannot arrange in the e-mail and the guest sees the answer in chat.",
@@ -1018,6 +1018,7 @@ function renderPortal() {
   <div id="invoices-section" style="margin-top:0"></div>
   <div id="monthly-report-section"></div>
   <div id="analytics-frame-section"></div>
+  <div id="kb-frame-section"></div>
   `;
 
   translateDom(document.getElementById('main-container'));
@@ -1046,7 +1047,7 @@ let _sectionFields = {}; // uložíme fields pro každou sekci, scoring spočít
 // Jedna dlouhá stránka → 4 záložky: Přehled (statistiky, stav), Profil hotelu (sekce k vyplnění),
 // Alex & objednávky (Apaleo, objednávky, aktivní nabídka, vyzkoušet), Nasazení & účet (QR/tisk,
 // widget, předplatné, faktury, skupina). Obsah se nemění, jen se přepíná; Uložit změny zůstává.
-const PORTAL_TABS = [['prehled','📊 Přehled'],['analytika','📈 Analytika'],['profil','🏨 Profil hotelu'],['alex','✦ Alex & objednávky'],['ucet','🧾 Nasazení & účet']];
+const PORTAL_TABS = [['prehled','📊 Přehled'],['analytika','📈 Analytika'],['profil','🏨 Profil hotelu'],['alex','✦ Alex & objednávky'],['znalosti','📚 Znalostní báze'],['ucet','🧾 Nasazení & účet']];
 const PORTAL_TAB_OF = {            // sekce z renderSection podle (českého) titulu; ostatní = profil
   'Vyzkoušet Alexe':'alex', 'Aktivní nabídka pro hosty':'alex',
   'Embed widget — vložit na web':'ucet', 'Tiskové materiály':'prehled'   // tisk = první na Přehledu (uživatel 11. 10.)
@@ -1055,7 +1056,7 @@ const PORTAL_SOLO = {};            // tab -> id bloku otevřeného z dlaždice (
 const PORTAL_FIXED = {             // pevné bloky podle id / třídy
   'completeness-banner':'profil', 'group-section':'ucet', 'add-hotel-section':'ucet', 'pms-section':'alex',
   'orders-section':'alex', 'requests-section':'alex', 'learn-section':'alex', 'onboarding-wizard':'prehled', 'payment-section':'ucet', 'invoices-section':'ucet',
-  'monthly-report-section':'prehled', 'analytics-frame-section':'analytika'
+  'monthly-report-section':'prehled', 'analytics-frame-section':'analytika', 'kb-frame-section':'znalosti'
 };
 // Štítky dlaždic pevných bloků (sekce z renderSection si berou ikonu a titulek z DOM)
 const PORTAL_FIXED_TILE = {
@@ -1090,6 +1091,28 @@ function applyPortalTab(tab){
   document.querySelectorAll('.ptile').forEach(t=>t.setAttribute('aria-current', String(!!solo && t.dataset.sec===solo)));
   const prof=document.getElementById('sidebar-profile'); if(prof) prof.hidden=(tab!=='profil');
   if(tab==='analytika') ensureAnalyticsFrame();
+  if(tab==='znalosti') ensureKbFrame();
+}
+// Záložka Znalostní báze: stránka /kb vložená do portálu (dokumenty hotelu, cloudové disky, asistent pro personál).
+function ensureKbFrame(){
+  const box = document.getElementById('kb-frame-section');
+  if(!box) return;
+  let f = box.querySelector('iframe');
+  if(f && f.dataset.lang === (portalLang||'')) return;
+  box.innerHTML = '';
+  f = document.createElement('iframe');
+  f.dataset.lang = portalLang||'';
+  f.title = tr('📚 Znalostní báze');
+  f.style.cssText = 'display:block;width:100%;border:0;min-height:70vh;border-radius:12px;background:transparent';
+  f.src = '/kb?embed=1&lang=' + encodeURIComponent(portalLang||'cs') + '&token=' + encodeURIComponent(token);
+  f.onload = () => {
+    try{
+      const d = f.contentDocument, fit = () => { f.style.height = Math.max(400, d.documentElement.scrollHeight) + 'px'; };
+      fit();
+      if(window.ResizeObserver) new ResizeObserver(fit).observe(d.body);
+    }catch(e){ f.style.height = '2400px'; }
+  };
+  box.appendChild(f);
 }
 // Záložka Analytika: stránka /prehled vložená do portálu (oddělená od údajů hotelu, uživatel 17. 11. 2026).
 // Stejný původ → výšku rámce řídíme podle obsahu, ať nemá vlastní posuvník.

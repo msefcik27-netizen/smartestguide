@@ -20,6 +20,7 @@ from dotenv import load_dotenv
 import pms as pms_layer  # PMS napojení (Apaleo…) — viz pms.py, PLAN_PMS_NAPOJENI.md
 import analytics_view  # výpočty pro stránku Přehled (/prehled) — čisté funkce, testy v test_analytics_view.py
 import alex_learn      # „Alex se učí": odpovědi recepce na dotazy bez odpovědi — testy v test_alex_learn.py
+import kb_routes       # znalostní báze hotelu (dokumenty, cloudové disky, asistent pro personál) — testy v test_kb.py
 import parking         # místa k parkování a max. rozměry vozu („vejde se moje auto?") — testy v test_parking.py
 
 load_dotenv()
@@ -701,12 +702,15 @@ from contextlib import asynccontextmanager
 async def lifespan(app):
     # Firemní údaje dodavatele jsou na tvrdo v db_get_settings (přebijí data.json).
     task = asyncio.create_task(_reminder_background_loop())
+    # Znalostní báze: pravidelné načítání změn z připojených cloudových disků.
+    kb_task = asyncio.create_task(kb_routes.cloud.background_loop(kb_routes.KB, kb_routes.STORE, kb_routes._secret))
     yield
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    for t in (task, kb_task):
+        t.cancel()
+        try:
+            await t
+        except (asyncio.CancelledError, Exception):
+            pass
 
 app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), check_dir=False), name="static")  # self-host fotek, fontů a log (GDPR — nic z Google/Pexels CDN)
@@ -778,7 +782,11 @@ def _is_public_api(path: str) -> bool:
     for p in ("/api/guest/", "/api/hotel-portal/", "/api/app-icon/", "/api/docs/",
               "/api/ares/", "/api/stripe/", "/api/register", "/api/admin/",
               "/api/pms/apaleo/",   # OAuth connect/callback — hlídá se hotel tokenem + state
-              "/api/orders/"):      # odkaz z e-mailu recepci (Potvrdit / Nelze vyřídit) — hlídá HMAC podpis
+              "/api/orders/",       # odkaz z e-mailu recepci (Potvrdit / Nelze vyřídit) — hlídá HMAC podpis
+              "/api/kb/",           # návrat z přihlášení ke cloudovému disku — hlídá jednorázový state
+              "/api/staff/",        # asistent pro personál — hlídá klíč pro personál
+              "/api/v1/",           # veřejné API — hlídá API klíč (Bearer)
+              "/api/developers/"):  # registrace vývojáře (sandbox klíč) — hlídá limit a ověření e-mailu
         if path.startswith(p):
             return True
     if path.startswith("/api/hotels/"):
@@ -945,6 +953,34 @@ _KEYS_REGISTRY = [
      "Prázdné = produkce. Na stagingu nastav na 'staging'."),
     ("DATA_PATH", "Cesta k souborové databázi (jen bez Postgresu)", "volitelne",
      "Railway → Variables", "", "Nepoužívá se, když běží Postgres."),
+    ("KB_SECRET", "Znalostní báze — klíč, kterým se šifrují přístupy k diskům hotelů", "dulezite",
+     "Railway → Variables",
+     "Dlouhý náhodný řetězec. NEMĚNIT: po změně se všechny připojené disky odpojí a hotely je musí připojit znovu.",
+     "Nenastaveno → šifruje se klíčem odvozeným z ADMIN_PASSWORD (změna hesla = odpojení disků)."),
+    ("KB_GOOGLE_CLIENT_ID", "Znalostní báze — Google Drive, ID aplikace", "volitelne",
+     "https://console.cloud.google.com/apis/credentials",
+     "Páruje se s KB_GOOGLE_CLIENT_SECRET. Redirect URI: <BASE_URL>/api/kb/oauth/callback",
+     "Nenastaveno = tlačítko Google Drive je v portálu neaktivní."),
+    ("KB_GOOGLE_CLIENT_SECRET", "Znalostní báze — Google Drive, tajemství aplikace", "volitelne",
+     "https://console.cloud.google.com/apis/credentials", "", ""),
+    ("KB_MS_CLIENT_ID", "Znalostní báze — OneDrive a SharePoint, ID aplikace", "volitelne",
+     "https://entra.microsoft.com",
+     "Páruje se s KB_MS_CLIENT_SECRET. Redirect URI: <BASE_URL>/api/kb/oauth/callback",
+     "Nenastaveno = tlačítko OneDrive / SharePoint je neaktivní."),
+    ("KB_MS_CLIENT_SECRET", "Znalostní báze — OneDrive a SharePoint, tajemství aplikace", "volitelne",
+     "https://entra.microsoft.com", "Tajemství má platnost nejvýš 24 měsíců — hlídat datum obnovy.", ""),
+    ("KB_DROPBOX_CLIENT_ID", "Znalostní báze — Dropbox, App key", "volitelne",
+     "https://www.dropbox.com/developers/apps",
+     "Páruje se s KB_DROPBOX_CLIENT_SECRET. Redirect URI: <BASE_URL>/api/kb/oauth/callback",
+     "Nenastaveno = tlačítko Dropbox je neaktivní."),
+    ("KB_DROPBOX_CLIENT_SECRET", "Znalostní báze — Dropbox, App secret", "volitelne",
+     "https://www.dropbox.com/developers/apps", "", ""),
+    ("KB_BOX_CLIENT_ID", "Znalostní báze — Box, Client ID", "volitelne",
+     "https://app.box.com/developers/console",
+     "Páruje se s KB_BOX_CLIENT_SECRET. Redirect URI: <BASE_URL>/api/kb/oauth/callback",
+     "Nenastaveno = tlačítko Box je neaktivní."),
+    ("KB_BOX_CLIENT_SECRET", "Znalostní báze — Box, Client secret", "volitelne",
+     "https://app.box.com/developers/console", "", ""),
 ]
 
 @app.get("/api/keys-registry")
@@ -8882,6 +8918,12 @@ Guest name: {req.guest_name or 'Guest'}"""
         _jj = _r.json()
         return _jj["content"][0]["text"], (_jj.get("usage", {}) or {})
 
+    # Znalostní báze hotelu: k otázce jen pár nejbližších úryvků z dokumentů povolených pro hosty
+    # (ne celé dokumenty → přesná odpověď a málo tokenů). Bez shody nejde do promptu nic.
+    _kb_block = await kb_routes.guest_block(_hid, req.message or "", req.history or [])
+    if _kb_block:
+        pms_extra_blocks.append(_kb_block)
+
     _car_marker_block = parking.marker_block(h)
     _raw, _usage = await _alex(pms_extra_blocks + ([_ext_marker_block] if _ext_possible else []) + [_car_marker_block], messages)
     # Značku model občas vynechá (test 13. 10. 2026: jednou ze dvou u téže věty) → záloha: odpověď hned
@@ -11750,3 +11792,22 @@ def download_invoice_pdf(invoice_id: str, request: Request, token: str = ""):
     safe_num = (inv.get("invoice_number") or invoice_id).replace("/", "-")
     return StreamingResponse(BytesIO(pdf_bytes), media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="faktura-{safe_num}.pdf"'})
+
+
+# ─────────────────────────────────────────────
+# Znalostní báze hotelu — cesty jsou v kb_routes.py
+# ─────────────────────────────────────────────
+kb_routes.setup(
+    app,
+    db_load=db_load,
+    find_hotel_by_token=find_hotel_by_token,
+    resolve_hotel=_resolve_hotel,
+    admin_token=lambda: _ADMIN_TOKEN,
+    rate_limit_ok=_rate_limit_ok,
+    client_ip=_client_ip,
+    get_base_url=get_base_url,
+    staging_banner=_staging_banner,
+    get_settings=db_get_settings,
+    learn_block=alex_learn.prompt_block,
+    database_url=DATABASE_URL,
+)

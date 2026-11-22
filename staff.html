@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8"/>
+<link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="robots" content="noindex,nofollow"/>
+<meta name="referrer" content="no-referrer"/>
+<title>SMARTEST GUIDE – Asistent pro personál</title>
+<style>
+:root{--bg:#faf9f5;--card:#fff;--ink:#1a1a1a;--muted:#6b6b6b;--border:#e8e4dc;--accent:#FF6B00;--teal:#0aa88a;--bad:#d93d42;--soft:#f1efe9;
+  --head:'Syne','Segoe UI',system-ui,sans-serif;--body:'Inter','Segoe UI',system-ui,sans-serif}
+html{color-scheme:light;height:100%}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55;height:100%;display:flex;flex-direction:column}
+.top{background:#fff;border-bottom:1px solid var(--border);flex:none}
+.top-in{max-width:760px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px}
+.logo{font-family:var(--head);font-weight:700;font-size:15px;white-space:nowrap}.logo span{color:var(--accent)}
+.hname{color:var(--muted);font-size:13px;margin-right:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hname strong{color:var(--ink)}
+.btn{font:600 13px var(--body);border:1px solid var(--border);background:#fff;color:var(--ink);border-radius:8px;padding:7px 11px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.feed{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.feed-in{max-width:760px;margin:0 auto;padding:18px 16px;display:flex;flex-direction:column;gap:12px}
+.intro{background:linear-gradient(135deg,#1a1a1a,#2c2a27);color:#fff;border-radius:14px;padding:18px}
+.intro h1{font-family:var(--head);font-size:20px;line-height:1.25}
+.intro p{color:rgba(255,255,255,.78);font-size:13.5px;margin-top:6px}
+.sugg{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.sugg button{font:500 13px var(--body);background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.22);border-radius:20px;padding:6px 12px;cursor:pointer}
+.sugg button:hover{background:rgba(255,255,255,.2)}
+.m{max-width:88%;padding:11px 14px;border-radius:14px;white-space:pre-wrap;word-wrap:break-word}
+.m.u{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.m.a{align-self:flex-start;background:#fff;border:1px solid var(--border);border-bottom-left-radius:4px}
+.m.a.none{border-color:#f3d9a4;background:#fff9ec}
+.m.err{align-self:flex-start;background:#fdeeee;color:var(--bad);border:1px solid #f3c5c7}
+.src{margin-top:10px;padding-top:9px;border-top:1px solid var(--soft);font-size:12.5px;color:var(--muted)}
+.src div{margin-top:3px}.src a{color:var(--accent);text-decoration:none}.src a:hover{text-decoration:underline}
+.src b{color:var(--ink);font-weight:600}
+.dots span{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--muted);margin-right:4px;animation:b 1s infinite}
+.dots span:nth-child(2){animation-delay:.15s}.dots span:nth-child(3){animation-delay:.3s}
+@keyframes b{0%,60%,100%{opacity:.25}30%{opacity:1}}
+.bar{background:#fff;border-top:1px solid var(--border);flex:none;padding-bottom:env(safe-area-inset-bottom)}
+.bar-in{max-width:760px;margin:0 auto;padding:10px 16px;display:flex;gap:8px;align-items:flex-end}
+textarea{flex:1;font:inherit;border:1px solid var(--border);border-radius:12px;padding:10px 12px;resize:none;max-height:140px;min-height:44px;background:#fff;color:var(--ink)}
+textarea:focus{outline:2px solid rgba(255,107,0,.35);border-color:var(--accent)}
+.send{font:700 14px var(--body);background:var(--accent);color:#fff;border:0;border-radius:12px;padding:0 18px;height:44px;cursor:pointer}
+.send:disabled{opacity:.5;cursor:not-allowed}
+.note{max-width:760px;margin:0 auto;padding:0 16px 8px;font-size:11.5px;color:var(--muted);text-align:center}
+.denied{max-width:520px;margin:60px auto;padding:24px;background:#fff;border:1px solid var(--border);border-radius:14px;text-align:center}
+.denied h1{font-family:var(--head);font-size:19px;margin-bottom:6px}.denied p{color:var(--muted)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="top"><div class="top-in">
+  <div class="logo">SMARTEST <span>GUIDE</span></div>
+  <div class="hname"><span id="t-sub">Asistent pro personál</span> · <strong id="hname"></strong></div>
+  <button class="btn" id="clear" hidden>Nový dotaz</button>
+</div></div>
+
+<div class="feed" id="feed"><div class="feed-in" id="list">
+  <div class="intro" id="intro" hidden>
+    <h1 id="t-h1"></h1>
+    <p id="t-lead"></p>
+    <div class="sugg" id="sugg"></div>
+  </div>
+</div></div>
+
+<div class="denied" id="denied" hidden><h1 id="t-den"></h1><p id="t-den2"></p></div>
+
+<div class="bar" id="bar" hidden>
+  <div class="bar-in"><textarea id="q" rows="1" maxlength="2000"></textarea><button class="send" id="send"></button></div>
+  <div class="note" id="t-note"></div>
+</div>
+
+<script>
+const P = new URLSearchParams(location.search), HOTEL = P.get('h') || '', KEY = P.get('k') || '';
+const L2 = (navigator.language || 'cs').slice(0, 2).toLowerCase();
+const TX = {
+ cs:{sub:'Asistent pro personál', h1:'Na co se chcete zeptat?', lead:n=>`Odpovídám jen z dokumentů hotelu (${n} v bázi) a u každé odpovědi uvedu, odkud čerpám. Když v nich odpověď není, řeknu to.`,
+     empty:'Hotel zatím do báze nenahrál žádné dokumenty. Požádejte vedení, ať je doplní.', ph:'Napište otázku…', send:'Odeslat', clear:'Nový dotaz',
+     note:'Odpovědi vycházejí z dokumentů hotelu. V nejasných případech rozhoduje vedoucí.', src:'Zdroje', den:'Odkaz není platný', den2:'Požádejte vedení hotelu o nový odkaz pro personál.',
+     err:'Nepodařilo se spojit. Zkuste to znovu.', sugg:['Jak postupovat při požáru?','Do kdy se podává snídaně?','Co dělat při stížnosti hosta?']},
+ en:{sub:'Staff assistant', h1:'What would you like to know?', lead:n=>`I answer only from the hotel's documents (${n} in the knowledge base) and show where each answer comes from. If the answer is not there, I will say so.`,
+     empty:'The hotel has not added any documents yet. Ask the management to add them.', ph:'Type your question…', send:'Send', clear:'New question',
+     note:'Answers come from the hotel\'s documents. When in doubt, your manager decides.', src:'Sources', den:'This link is not valid', den2:'Ask the hotel management for a new staff link.',
+     err:'Connection failed. Please try again.', sugg:['What do I do in case of fire?','Until when is breakfast served?','How do I handle a guest complaint?']},
+ de:{sub:'Assistent für Mitarbeiter', h1:'Was möchten Sie wissen?', lead:n=>`Ich antworte nur aus den Dokumenten des Hotels (${n} in der Wissensdatenbank) und nenne die Quelle. Steht die Antwort nicht darin, sage ich das.`,
+     empty:'Das Hotel hat noch keine Dokumente hinterlegt. Bitten Sie die Leitung, sie zu ergänzen.', ph:'Frage eingeben…', send:'Senden', clear:'Neue Frage',
+     note:'Die Antworten stammen aus den Dokumenten des Hotels. Im Zweifel entscheidet die Leitung.', src:'Quellen', den:'Dieser Link ist ungültig', den2:'Bitten Sie die Hotelleitung um einen neuen Link.',
+     err:'Verbindung fehlgeschlagen. Bitte erneut versuchen.', sugg:['Was tun bei Feuer?','Bis wann gibt es Frühstück?','Wie gehe ich mit einer Beschwerde um?']},
+ sk:{sub:'Asistent pre personál', h1:'Na čo sa chcete opýtať?', lead:n=>`Odpovedám len z dokumentov hotela (${n} v báze) a pri každej odpovedi uvediem, odkiaľ čerpám. Keď v nich odpoveď nie je, poviem to.`,
+     empty:'Hotel zatiaľ do bázy nenahral žiadne dokumenty. Požiadajte vedenie, nech ich doplní.', ph:'Napíšte otázku…', send:'Odoslať', clear:'Nová otázka',
+     note:'Odpovede vychádzajú z dokumentov hotela. V nejasných prípadoch rozhoduje vedúci.', src:'Zdroje', den:'Odkaz nie je platný', den2:'Požiadajte vedenie hotela o nový odkaz pre personál.',
+     err:'Nepodarilo sa spojiť. Skúste to znova.', sugg:['Ako postupovať pri požiari?','Dokedy sa podávajú raňajky?','Čo robiť pri sťažnosti hosťa?']},
+ pl:{sub:'Asystent dla personelu', h1:'O co chcesz zapytać?', lead:n=>`Odpowiadam tylko na podstawie dokumentów hotelu (${n} w bazie) i podaję źródło. Jeśli odpowiedzi tam nie ma, powiem to.`,
+     empty:'Hotel nie dodał jeszcze żadnych dokumentów. Poproś kierownictwo o ich dodanie.', ph:'Wpisz pytanie…', send:'Wyślij', clear:'Nowe pytanie',
+     note:'Odpowiedzi pochodzą z dokumentów hotelu. W razie wątpliwości decyduje przełożony.', src:'Źródła', den:'Link jest nieprawidłowy', den2:'Poproś kierownictwo hotelu o nowy link.',
+     err:'Błąd połączenia. Spróbuj ponownie.', sugg:['Co robić w razie pożaru?','Do której podawane jest śniadanie?','Jak postąpić przy skardze gościa?']}
+};
+const T = TX[L2] || TX.en, LANG = TX[L2] ? L2 : 'en';
+const $ = id => document.getElementById(id);
+document.documentElement.lang = LANG; document.title = 'SMARTEST GUIDE – ' + T.sub;
+$('t-sub').textContent = T.sub; $('t-h1').textContent = T.h1; $('q').placeholder = T.ph; $('send').textContent = T.send;
+$('clear').textContent = T.clear; $('t-note').textContent = T.note; $('t-den').textContent = T.den; $('t-den2').textContent = T.den2;
+
+let HIST = [], busy = false;
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safeUrl = u => /^https:\/\//i.test(u || '') ? u : '';
+async function post(path, body){
+  const r = await fetch('/api/staff/' + path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(Object.assign({hotel: HOTEL, key: KEY}, body || {}))});
+  let j = {}; try { j = await r.json(); } catch(e){}
+  if (!r.ok) { const e = new Error(j.detail || T.err); e.status = r.status; throw e; } return j;
+}
+function add(cls, html){ const d = document.createElement('div'); d.className = 'm ' + cls; d.innerHTML = html; $('list').appendChild(d); $('feed').scrollTop = $('feed').scrollHeight; return d; }
+async function ask(text){
+  text = (text || $('q').value).trim(); if (!text || busy) return;
+  busy = true; $('send').disabled = true; $('q').value = ''; $('q').style.height = ''; $('clear').hidden = false;
+  add('u', esc(text)); const wait = add('a', '<span class="dots"><span></span><span></span><span></span></span>');
+  try {
+    const r = await post('chat', {message: text, history: HIST, language: LANG});
+    wait.className = 'm a' + (r.found ? '' : ' none');
+    wait.innerHTML = esc(r.reply) + (r.sources && r.sources.length ? `<div class="src">${esc(T.src)}:` + r.sources.map(s => { const u = safeUrl(s.url), t = `<b>${esc(s.title)}</b>${s.section ? ' › ' + esc(s.section) : ''}`;
+      return `<div>[${s.n}] ${u ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${t}</a>` : t}</div>`; }).join('') + '</div>' : '');
+    HIST.push({role:'user', content: text}, {role:'assistant', content: r.reply}); HIST = HIST.slice(-6);
+  } catch(e){ wait.className = 'm err'; wait.textContent = e.message || T.err; if (e.status === 401) { $('bar').hidden = true; } }
+  busy = false; $('send').disabled = false; $('feed').scrollTop = $('feed').scrollHeight; $('q').focus();
+}
+$('send').onclick = () => ask();
+$('q').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(); } });
+$('q').addEventListener('input', e => { e.target.style.height = ''; e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px'; });
+$('clear').onclick = () => { HIST = []; document.querySelectorAll('#list .m').forEach(x => x.remove()); $('clear').hidden = true; $('q').focus(); };
+
+(async () => {
+  try {
+    const r = await post('info'); $('hname').textContent = r.hotel; $('intro').hidden = false; $('bar').hidden = false;
+    $('t-lead').textContent = r.counts.docs ? T.lead(r.counts.docs) : T.empty;
+    if (r.counts.docs) $('sugg').innerHTML = T.sugg.map(s => `<button>${esc(s)}</button>`).join('');
+    $('sugg').onclick = e => { if (e.target.tagName === 'BUTTON') ask(e.target.textContent); };
+  } catch(e){ $('feed').hidden = true; $('denied').hidden = false; }
+})();
+</script>
+</body>
+</html>
