@@ -20,6 +20,7 @@ from dotenv import load_dotenv
 import pms as pms_layer  # PMS napojení (Apaleo…) — viz pms.py, PLAN_PMS_NAPOJENI.md
 import analytics_view  # výpočty pro stránku Přehled (/prehled) — čisté funkce, testy v test_analytics_view.py
 import alex_learn      # „Alex se učí": odpovědi recepce na dotazy bez odpovědi — testy v test_alex_learn.py
+import print_i18n     # texty tiskovin v jazycích hostů
 import kb_routes       # znalostní báze hotelu (dokumenty, cloudové disky, asistent pro personál) — testy v test_kb.py
 import parking         # místa k parkování a max. rozměry vozu („vejde se moje auto?") — testy v test_parking.py
 
@@ -3004,14 +3005,22 @@ def generate_qr_poster(hotel_id: str, request: Request):
     local_lang = get_hotel_local_lang(hotel)
     local_lang_name = get_flyer_lang_name(local_lang)
     has_local = local_lang != "en"
+    _pl_default = local_lang if has_local else ("cs" if is_cs else "en")
+    _pl_opts = "".join('<option value="' + c + '"' + (" selected" if c == _pl_default else "") + ">" + n + "</option>" for c, n in print_i18n.options())
+    _pl_map = json.dumps({c: {"n": print_i18n.get(c)["n"], "h": print_i18n.get(c)["h"]} for c, _n in print_i18n.options()}, ensure_ascii=False)
+    _pl_first = print_i18n.get(_pl_default)
+    _pl_label = "Jazyk tiskovin" if is_cs else "Language of the materials"
+    _pl_note = ("Zvolený jazyk platí pro roll-up, QR plakát a letáky ve zvoleném jazyce. Anglické letáky zůstávají anglicky." if is_cs else
+                "The selected language applies to the roll-up, the QR poster and the selected-language flyers. English flyers stay in English.")
+    _pl_span = '<span class="pl-name">' + _pl_first["n"] + "</span>"
 
     # EN je vždy primární, lokální jazyk je sekundární
     flyer_primary_name = f"A4 Flyer · English"
     flyer_primary_desc = "English A4 flyer, print-ready."
     flyer_primary_url = "flyer-en"
-    flyer_secondary_name = f"A4 Leták · {local_lang_name}" if has_local else "A4 Leták · Česky"
-    flyer_secondary_desc = f"Leták v jazyce {local_lang_name} pro místní hosty." if has_local else "Český leták pro české hosty."
-    flyer_secondary_url = "flyer-local" if has_local else "flyer-cz"
+    flyer_secondary_name = ("A4 Leták · " if is_cs else "A4 Flyer · ") + _pl_span
+    flyer_secondary_desc = "Leták ve zvoleném jazyce pro hosty, kteří jím mluví." if is_cs else "A4 flyer in the selected language."
+    flyer_secondary_url = "flyer-loc"
     rollup_desc = "Vysoký banner pro lobby, veletrh nebo konferenci." if is_cs else "Tall banner for lobby or trade show."
 
     # Vlajky jako inline SVG (stejné jako v designérových letácích)
@@ -3106,6 +3115,8 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
 .fmt-btn{{display:block;width:100%;background:linear-gradient(90deg,#2c5fae,#3a72c4);color:#fff;border:none;border-radius:99px;padding:11px;font-family:'Manrope',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-align:center;text-decoration:none;transition:opacity .15s}}
 .fmt-btn:hover{{opacity:.9}}
 .fmt-btn2{{margin-top:8px;background:#fff;color:#2c5fae;border:1.5px solid #2c5fae;padding:9.5px}}
+.pl-wrap{{margin-top:16px;display:inline-flex;align-items:center;gap:10px;background:#fff;border:1px solid #e3e9f4;border-radius:99px;padding:6px 8px 6px 18px;font-size:13px;font-weight:700;color:#0c1b33;box-shadow:0 4px 12px rgba(12,27,51,.05)}}
+.pl-wrap select{{border:1px solid #e3e9f4;border-radius:99px;padding:7px 12px;font-family:'Manrope',sans-serif;font-size:13px;font-weight:700;color:#2c5fae;background:#f6f8fc;cursor:pointer}}
 .press-note{{max-width:560px;margin:10px auto 0;font-size:12.5px;line-height:1.5;color:#51617e}}
 /* Mini-náhledy = zmenšeniny skutečných tiskovin (tmavé téma) */
 .mini{{background:#0c1b33;border-radius:9px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:5px;box-shadow:0 10px 24px rgba(12,27,51,.28)}}
@@ -3136,6 +3147,8 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
     </div>
     <div class="theme-note">{'Tmavá = ideální pro PDF a obrazovky · Print-friendly (světlá) šetří inkoust při tisku' if is_cs else 'Dark = best for PDF and screens · Print-friendly (light) saves ink when printing'}</div>
     <div class="press-note">{press_note}</div>
+    <label class="pl-wrap">🌍 {_pl_label}<select id="pl-lang" onchange="setPrintLang(this.value)">{_pl_opts}</select></label>
+    <div class="theme-note">{_pl_note}</div>
   </div>
 
   <div class="formats" id="formats">
@@ -3144,7 +3157,7 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('rollup')">
         <div class="mini" style="width:68px;height:164px;padding:8px 6px">
-          <div class="mini-h" style="font-size:7px">Your<br>personal<br>AI concierge</div>
+          <div class="mini-h pl-h" style="font-size:7px">{_pl_first["h"]}</div>
           <div class="mini-s" style="font-size:5.5px">100+ LANGUAGES</div>
           <div class="mini-qr"><div id="qr-rollup" style="width:42px;height:42px"></div></div>
           <div class="mini-u" style="font-size:5.5px">smartestguide.com</div>
@@ -3180,7 +3193,7 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('{flyer_secondary_url}')">
         <div class="mini" style="width:118px;height:164px">
-          <div class="mini-h" style="font-size:9px">{'Váš osobní<br>AI concierge' if is_cs else 'Your personal<br>AI concierge'}</div>
+          <div class="mini-h pl-h" style="font-size:9px">{_pl_first["h"]}</div>
           <div class="mini-s" style="font-size:6.5px">100+ LANGUAGES</div>
           <div class="mini-qr"><div id="qr-a4-secondary" style="width:64px;height:64px"></div></div>
           <div class="mini-u" style="font-size:6.5px">smartestguide.com</div>
@@ -3233,20 +3246,20 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
 
     <!-- A5 sekundární (lokální) -->
     <div class="fmt-card">
-      <div class="fmt-preview" onclick="openFormat('flyer-a5-local')">
+      <div class="fmt-preview" onclick="openFormat('flyer-a5-loc')">
         <div class="mini" style="width:132px;height:96px;flex-direction:row;gap:9px;padding:10px 12px">
           <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left">
-            <div class="mini-h" style="font-size:8.5px;text-align:left">{'Váš AI<br>concierge' if is_cs else 'AI<br>concierge'}</div>
+            <div class="mini-h pl-h" style="font-size:7px;text-align:start;max-width:62px">{_pl_first["h"]}</div>
             <div class="mini-s" style="font-size:6px">100+ LANG</div>
           </div>
           <div class="mini-qr"><div id="qr-a5-secondary" style="width:52px;height:52px"></div></div>
         </div>
       </div>
       <div class="fmt-info">
-        <div class="fmt-name">A5 Leták · {local_lang_name}</div>
-        <div class="fmt-desc">{'Kompaktní A5 v lokálním jazyce hotelu.' if is_cs else 'Compact A5 in the hotel local language.'}</div>
-        <button class="fmt-btn" onclick="openFormat('flyer-a5-local')">{btn_print}</button>
-        <button class="fmt-btn fmt-btn2" title="{press_tip}" onclick="openFormat('flyer-a5-local',1)">{btn_press}</button>
+        <div class="fmt-name">{'A5 Leták · ' if is_cs else 'A5 Flyer · '}{_pl_span}</div>
+        <div class="fmt-desc">{'Kompaktní A5 ve zvoleném jazyce.' if is_cs else 'Compact A5 in the selected language.'}</div>
+        <button class="fmt-btn" onclick="openFormat('flyer-a5-loc')">{btn_print}</button>
+        <button class="fmt-btn fmt-btn2" title="{press_tip}" onclick="openFormat('flyer-a5-loc',1)">{btn_press}</button>
       </div>
     </div>
   </div>
@@ -3275,6 +3288,8 @@ function openFormat(fmt, press){{
     'flyer-a5-en': '/api/hotels/{hotel_id}/flyer-a5-en',
     'flyer-a5-cz': '/api/hotels/{hotel_id}/flyer-a5-cz',
     'flyer-a5-local': '/api/hotels/{hotel_id}/flyer-a5-local',
+    'flyer-loc': '/api/hotels/{hotel_id}/flyer?size=a4',
+    'flyer-a5-loc': '/api/hotels/{hotel_id}/flyer?size=a5',
     'rollup':    '/api/hotels/{hotel_id}/rollup'
   }};
   var u = urls[fmt];
@@ -3284,9 +3299,19 @@ function openFormat(fmt, press){{
     u += (u.indexOf('?')>=0?'&':'?') + 'theme=light';
   }}
   if(press){{ u += (u.indexOf('?')>=0?'&':'?') + 'press=1'; }}
+  // jazyk: roll-up, QR plakát a letáky ve zvoleném jazyce; anglické letáky zůstávají anglicky
+  if(fmt==='rollup'||fmt==='qr-poster'||fmt==='flyer-loc'||fmt==='flyer-a5-loc'){{ u += (u.indexOf('?')>=0?'&':'?') + 'lang=' + encodeURIComponent(window._printLang); }}
   window.open(u, '_blank');
 }}
 window._flyerTheme='dark';
+var PL_MAP = {_pl_map};
+window._printLang = '{_pl_default}';
+function setPrintLang(c){{
+  if(!PL_MAP[c]) return;
+  window._printLang = c;
+  document.querySelectorAll('.pl-name').forEach(function(e){{ e.textContent = PL_MAP[c].n; }});
+  document.querySelectorAll('.pl-h').forEach(function(e){{ e.innerHTML = PL_MAP[c].h; }});
+}}
 function setFlyerTheme(t){{
   window._flyerTheme=t;
   document.getElementById('theme-dark').classList.toggle('active', t==='dark');
@@ -3429,7 +3454,7 @@ def _print_kit(w_mm: float, h_mm: float, press: bool = False, note_cs: str = "",
 
 # QR Plakát — print view
 @app.get("/api/hotels/{hotel_id}/qr-poster-print")
-def qr_poster_print(hotel_id: str, request: Request, theme: str = "dark", press: int = 0):
+def qr_poster_print(hotel_id: str, request: Request, theme: str = "dark", press: int = 0, lang: str = "en"):
     db = db_load()
     hotel = db["hotels"].get(hotel_id)
     if not hotel:
@@ -3437,12 +3462,16 @@ def qr_poster_print(hotel_id: str, request: Request, theme: str = "dark", press:
     base = get_base_url(request)
     guest_url = _guest_url(base, hotel_id, hotel)
     hotel_name = hotel.get("name", "Hotel")
-    return HTMLResponse(content=_render_qr_poster(hotel_name, guest_url, theme=theme, press=bool(press)))
+    return HTMLResponse(content=_render_qr_poster(hotel_name, guest_url, theme=theme, press=bool(press), lang=lang))
 
-def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark", press: bool = False) -> str:
+def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark", press: bool = False, lang: str = "en") -> str:
     light = (theme == "light")
     _pk_css, _pk_js = _print_kit(210, 210, press)
-    _pq = "&press=1" if press else ""
+    _t = print_i18n.get(lang)
+    _dir = ' dir="rtl"' if _t["rtl"] else ""
+    _ls = "0" if _t["rtl"] else ".22em"
+    _t_tag, _t_long, _t_noapp, _t_langs = _t["tag"], _t["long"], _t["noapp"], _t["langs"]
+    _pq = ("&press=1" if press else "") + "&lang=" + _t["code"]
     c_page   = "#f6f8fc"   # okolí stránky: vždy světlé, téma mění jen tiskovinu
     c_bg     = "#ffffff" if light else "#0c1b33"
     c_ink    = "#0c1b33" if light else "#ffffff"
@@ -3464,18 +3493,18 @@ def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark", pres
 {_pk_css}</style></head>
 <body><button class="btn btn-print" onclick="window.print()">🖨️ Tisknout / PDF</button>
 <button class="btn btn-theme" onclick="location.href='?theme={_tt}{_pq}'">{_tl}</button>
-<div id="sg-sheet"><div id="sg-art" style="position:relative;width:800px;height:800px;background:{c_bg};border:1px solid rgba(44,95,174,.35);border-radius:24px;overflow:hidden;box-shadow:0 24px 60px rgba(12,27,51,.22)">
+<div id="sg-sheet"><div id="sg-art"{_dir} style="position:relative;width:800px;height:800px;background:{c_bg};border:1px solid rgba(44,95,174,.35);border-radius:24px;overflow:hidden;box-shadow:0 24px 60px rgba(12,27,51,.22)">
   <div class="sg-edge" style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
   <div style="position:absolute;top:300px;left:50%;width:620px;height:620px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.14),transparent 70%);pointer-events:none"></div>
   <div class="sg-in" style="height:100%;display:flex;flex-direction:column;align-items:center;padding:58px 48px 48px;position:relative">
     <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:36px;line-height:1.15;color:{c_ink};text-align:center;max-width:640px">{hotel_name}</div>
-    <div style="margin-top:12px;font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:{c_teal}">Your personal AI concierge</div>
+    <div style="margin-top:12px;font-size:13px;font-weight:600;letter-spacing:{_ls};text-transform:uppercase;color:{c_teal}">{_t_tag}</div>
     <div style="position:relative;margin-top:22px;padding:22px;background:{c_qrcard};border:1px solid rgba(44,95,174,.4);border-radius:20px;box-shadow:0 0 40px rgba(44,95,174,.12)">
       <div id="qr" style="width:420px;height:420px;display:flex;align-items:center;justify-content:center"></div>
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:16px;overflow:hidden;box-shadow:0 0 0 4px #ffffff"><img src="/static/img/favicon.svg" alt="" style="width:100%;height:100%;display:block"/></div>
     </div>
-    <div style="margin-top:30px;font-family:'Sora',sans-serif;font-weight:700;font-size:24px;color:{c_ink};text-align:center">Scan for your personal AI concierge</div>
-    <div style="margin-top:10px;font-size:15px;color:{c_dim}">100+ languages · No app needed · 24/7</div>
+    <div style="margin-top:30px;font-family:'Sora',sans-serif;font-weight:700;font-size:24px;color:{c_ink};text-align:center">{_t_long}</div>
+    <div style="margin-top:10px;font-size:15px;color:{c_dim}">{_t_langs} · {_t_noapp} · 24/7</div>
     <div style="flex:1"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(47,208,216,.55),transparent)"></div>
     <div translate="no" style="margin-top:16px;display:flex;align-items:center;gap:8px;font-size:13px;color:{c_dim}"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:16px;height:16px;display:block;opacity:.85"/><span style="font-family:'Sora',sans-serif;font-weight:700;color:{c_dim}">SmartestGuide</span><span style="opacity:.7">· smartestguide.com</span></div>
@@ -3490,7 +3519,7 @@ h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-r
 
 # Mapování country → lokální jazyk letáku
 COUNTRY_LANG_MAP = {
-    "CZ": "cs", "SK": "cs",
+    "CZ": "cs", "SK": "sk",
     "DE": "de", "AT": "de", "CH": "de",
     "FR": "fr", "BE": "fr", "LU": "fr",
     "IT": "it",
@@ -3509,12 +3538,7 @@ def get_hotel_local_lang(hotel: dict) -> str:
 
 def get_flyer_lang_name(lang: str, in_lang: str = None) -> str:
     """Vrátí název jazyka pro zobrazení."""
-    names = {
-        "cs": "Česky", "de": "Deutsch", "fr": "Français",
-        "it": "Italiano", "es": "Español", "pl": "Polski",
-        "hu": "Magyar", "ru": "Русский", "uk": "Українська", "en": "English"
-    }
-    return names.get(lang, lang.upper())
+    return print_i18n.get(lang)["n"]
 
 
 # 16 reálných vlajek odpovídajících jazykům Alexe (každá právě jednou, žádné duplicity)
@@ -3559,7 +3583,12 @@ def _flags_row(w: int = 30, h: int = 21, shadow: bool = True, light: bool = Fals
 def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str = "a4", theme: str = "dark", press: bool = False) -> str:
     is_a5 = size == "a5"
     _pk_css, _pk_js = _print_kit(148 if is_a5 else 210, 210 if is_a5 else 297, press)
-    _pq = "&press=1" if press else ""
+    _t = print_i18n.get(lang)
+    _dir = ' dir="rtl"' if _t["rtl"] else ""
+    _ls = "0" if _t["rtl"] else ".2em"
+    _lsh = "0" if _t["rtl"] else "-.02em"
+    _t_tag, _t_langs = _t["tag"], _t["langs"]
+    _pq = ("&press=1" if press else "") + "&lang=" + _t["code"] + ("&size=a5" if is_a5 else "")
     page_size = "A5" if is_a5 else "A4"
     page_w = "148mm" if is_a5 else "210mm"
     page_h = "210mm" if is_a5 else "297mm"
@@ -3602,66 +3631,12 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
 
     check = f"""<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{c_teal}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>"""
 
-    if lang == "cs":
-        headline = "Váš osobní<br>AI concierge"
-        subline = f'Nechte <span style="color:{c_orange};font-weight:600">Alex</span> odpovědět na všechny vaše otázky — okamžitě, ve vašem jazyce, 24/7.'
-        features = ["Snídaně a restaurace", "Tipy na výlety a skrytá místa", "Počasí a doprava", "Služby hotelu a WiFi", "K dispozici 24/7"]
-        scan_text = "Naskenujte mě"
-        no_app = "Bez instalace aplikace"
-    elif lang == "de":
-        headline = "Ihr persönlicher<br>AI-Concierge"
-        subline = f'Lassen Sie <span style="color:{c_orange};font-weight:600">Alex</span> alle Ihre Fragen beantworten — sofort, in Ihrer Sprache, 24/7.'
-        features = ["Frühstück & Restaurant", "Ausflugstipps & versteckte Orte", "Wetter & Transport", "Hotelservices & WLAN", "Rund um die Uhr verfügbar"]
-        scan_text = "Scannen Sie mich"
-        no_app = "Keine App erforderlich"
-    elif lang == "fr":
-        headline = "Votre concierge<br>IA personnel"
-        subline = f'Laissez <span style="color:{c_orange};font-weight:600">Alex</span> répondre à toutes vos questions — instantanément, dans votre langue, 24/7.'
-        features = ["Petit-déjeuner & restaurant", "Conseils locaux & lieux cachés", "Météo & transport", "Services hôtel & WiFi", "Disponible 24h/24"]
-        scan_text = "Scannez-moi"
-        no_app = "Sans installation d'app"
-    elif lang == "it":
-        headline = "Il vostro concierge<br>IA personale"
-        subline = f'Lasciate che <span style="color:{c_orange};font-weight:600">Alex</span> risponda a tutte le vostre domande — immediatamente, nella vostra lingua, 24/7.'
-        features = ["Colazione & ristorante", "Consigli locali & luoghi nascosti", "Meteo & trasporti", "Servizi hotel & WiFi", "Disponibile 24/7"]
-        scan_text = "Scansionami"
-        no_app = "Nessuna app richiesta"
-    elif lang == "es":
-        headline = "Su concierge<br>IA personal"
-        subline = f'Deje que <span style="color:{c_orange};font-weight:600">Alex</span> responda todas sus preguntas — al instante, en su idioma, 24/7.'
-        features = ["Desayuno & restaurante", "Consejos locales & lugares ocultos", "Tiempo & transporte", "Servicios hotel & WiFi", "Disponible 24/7"]
-        scan_text = "Escanéame"
-        no_app = "Sin instalación de app"
-    elif lang == "pl":
-        headline = "Twój osobisty<br>concierge AI"
-        subline = f'Pozwól <span style="color:{c_orange};font-weight:600">Alexowi</span> odpowiedzieć na wszystkie Twoje pytania — natychmiast, w Twoim języku, 24/7.'
-        features = ["Śniadanie & restauracja", "Lokalne wskazówki & ukryte miejsca", "Pogoda & transport", "Usługi hotelowe & WiFi", "Dostępny 24/7"]
-        scan_text = "Zeskanuj mnie"
-        no_app = "Bez instalacji aplikacji"
-    elif lang == "hu":
-        headline = "Az Ön személyes<br>AI concierge-e"
-        subline = f'Hagyja, hogy <span style="color:{c_orange};font-weight:600">Alex</span> azonnal válaszoljon minden kérdésére — az Ön nyelvén, 24/7.'
-        features = ["Reggeli és étterem", "Helyi tippek és rejtett helyek", "Időjárás és közlekedés", "Szállodai szolgáltatások és WiFi", "Elérhető 24/7"]
-        scan_text = "Szkenneljen be"
-        no_app = "Nincs szükség alkalmazásra"
-    elif lang == "ru":
-        headline = "Ваш персональный<br>AI-консьерж"
-        subline = f'<span style="color:{c_orange};font-weight:600">Алекс</span> ответит на все ваши вопросы — мгновенно, на вашем языке, 24/7.'
-        features = ["Завтрак и ресторан", "Местные советы и скрытые места", "Погода и транспорт", "Услуги отеля и WiFi", "Доступен 24/7"]
-        scan_text = "Отсканируйте меня"
-        no_app = "Без установки приложения"
-    elif lang == "uk":
-        headline = "Ваш персональний<br>AI-консьєрж"
-        subline = f'<span style="color:{c_orange};font-weight:600">Алекс</span> відповість на всі ваші запитання — миттєво, вашою мовою, 24/7.'
-        features = ["Сніданок і ресторан", "Місцеві поради та приховані місця", "Погода і транспорт", "Послуги готелю та WiFi", "Доступний 24/7"]
-        scan_text = "Відскануйте мене"
-        no_app = "Без встановлення додатку"
-    else:
-        headline = "Your personal<br>AI concierge"
-        subline = f'Let <span style="color:{c_orange};font-weight:600">Alex</span> answer all your questions — instantly, in your language, 24/7.'
-        features = ["Breakfast times & restaurant info", "Local tips & hidden gems", "Weather & transport", "Hotel services & WiFi", "Available 24/7"]
-        scan_text = "Scan me"
-        no_app = "No app needed"
+    _alex = '<span style="color:' + c_orange + ';font-weight:600">' + _t["a"] + '</span>'
+    headline = _t["h"]
+    subline = _t["sub"].replace("{a}", _alex)
+    features = _t["f"]
+    scan_text = _t["scan"]
+    no_app = _t["noapp"]
 
     feats_html = "".join('<div style="display:flex;gap:12px;align-items:center;font-size:16px;color:' + c_feat + '">' + check + feat + '</div>' for feat in features)
 
@@ -3677,22 +3652,22 @@ body{{margin:0;background:#f6f8fc;display:flex;justify-content:center;padding:32
 {_pk_css}</style></head>
 <body><button class="btn btn-print" onclick="window.print()">🖨️ Tisknout / PDF</button>
 <button class="btn btn-theme" onclick="location.href='?theme={"dark" if light else "light"}{_pq}'">{"🌙 Tmavá verze" if light else "☀️ Světlá (šetří inkoust)"}</button>
-<div id="sg-sheet"><div id="sg-art" style="width:{page_w};min-height:{page_h};background:{c_bg};position:relative;overflow:hidden;padding:0">
+<div id="sg-sheet"><div id="sg-art"{_dir} style="width:{page_w};min-height:{page_h};background:{c_bg};position:relative;overflow:hidden;padding:0">
   <div class="sg-edge" style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
   <div style="position:absolute;top:80px;left:50%;width:500px;height:500px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.10),transparent 70%);pointer-events:none"></div>
   <div class="sg-in" style="padding:{pad};display:flex;flex-direction:column;align-items:center;text-align:center;min-height:{page_h}">
     <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:28px;line-height:1.2;color:{c_ink};text-align:center;max-width:560px">{hotel_name}</div>
-    <div style="margin-top:8px;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">Your personal AI concierge</div>
-    <h1 style="font-family:'Sora',sans-serif;font-weight:800;font-size:{h1_size};line-height:1.05;letter-spacing:-.02em;margin:36px 0 0;color:{c_orange}">{headline}</h1>
+    <div style="margin-top:8px;font-size:11px;font-weight:600;letter-spacing:{_ls};text-transform:uppercase;color:{c_teal}">{_t_tag}</div>
+    <h1 style="font-family:'Sora',sans-serif;font-weight:800;font-size:{h1_size};line-height:1.12;letter-spacing:{_lsh};margin:36px 0 0;color:{c_orange}">{headline}</h1>
     <p style="font-size:17px;line-height:1.6;color:{c_sub};max-width:480px;margin:18px 0 0">{subline}</p>
     <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:28px;max-width:500px">{flags_html}</div>
-    <div style="margin-top:32px;display:flex;flex-direction:column;gap:12px;align-items:flex-start;text-align:left;width:100%;max-width:420px">{feats_html}</div>
+    <div style="margin-top:32px;display:flex;flex-direction:column;gap:12px;align-items:flex-start;text-align:start;width:100%;max-width:420px">{feats_html}</div>
     <div style="margin-top:40px;position:relative;padding:18px;background:{c_qrcard_bg};border:1px solid {c_qrcard_bd};border-radius:16px;{qr_glow}">
       <div id="qr-flyer" style="width:{qr_size};height:{qr_size};display:flex;align-items:center;justify-content:center"></div>
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:10px;overflow:hidden;box-shadow:0 0 0 4px #ffffff"><img src="/static/img/favicon.svg" alt="" style="width:100%;height:100%;display:block"/></div>
     </div>
     <div style="margin-top:20px;font-family:'Sora',sans-serif;font-weight:700;font-size:20px;color:{c_ink}">{scan_text}</div>
-    <div style="margin-top:6px;font-size:14px;color:{c_dim}">{no_app} · 100+ languages · 24/7</div>
+    <div style="margin-top:6px;font-size:14px;color:{c_dim}">{no_app} · {_t_langs} · 24/7</div>
     <div style="flex:1;min-height:32px"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,{c_teal},transparent);margin-top:32px;opacity:.5"></div>
     <div translate="no" style="margin-top:12px;display:flex;align-items:center;gap:7px;font-size:12px;color:{c_dim}"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:14px;height:14px;display:block;opacity:.85"/><span style="font-family:'Sora',sans-serif;font-weight:700;color:{c_dim}">SmartestGuide</span><span style="opacity:.7">· smartestguide.com</span></div>
@@ -3706,15 +3681,31 @@ for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell
 h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
 </script></body></html>"""
 
-def _render_rollup(hotel_name: str, guest_url: str, theme: str = "dark", press: bool = False) -> str:
+def _render_rollup(hotel_name: str, guest_url: str, theme: str = "dark", press: bool = False, lang: str = "en") -> str:
     light = (theme == "light")
+    _t = print_i18n.get(lang)
+    _dir = ' dir="rtl"' if _t["rtl"] else ""
+    _ls = "0" if _t["rtl"] else ".2em"
+    _lsh = "0" if _t["rtl"] else "-.02em"
+    _t_tag, _t_scan, _t_noapp, _t_langs = _t["tag"], _t["scan"], _t["noapp"], _t["langs"]
     # běžný tisk = zmenšenina 85×200 mm na kontrolu, data pro tiskárnu = skutečná velikost 850×2000 mm
     _pk_css, _pk_js = _print_kit(850 if press else 85, 2000 if press else 200, press,
         note_cs="Spodních asi 100 mm zůstává v kazetě stojanu, proto je tam jen pozadí – přesný rozměr si ověřte u dodavatele roll-upu.",
         note_en="The bottom 100 mm or so stays inside the stand cassette, so it only carries background – check the exact size with your roll-up supplier.")
-    _pq = "&press=1" if press else ""
+    _pq = ("&press=1" if press else "") + "&lang=" + _t["code"]
     _pad = "36px 28px 76px" if press else "36px 28px"
     c_orange = "#2c5fae" if light else "#2fd0d8"  # brand akcent (název proměnné historický)
+    _alex = '<span style="color:' + c_orange + ';font-weight:600">' + _t["a"] + '</span>'
+    if _t["code"] == "en":
+        _h1, _h1_size = "Your<br>personal<br>AI<br>concierge", 36
+        _sub = "Let " + _alex + " answer every question — instantly, in your language, around the clock."
+    else:
+        # nadpis na dva řádky; velikost podle nejdelšího řádku, aby se vešel do šířky plachty
+        _h1 = _t["h"]
+        _wide = 1.9 if _t["code"] in ("ja", "zh", "ko") else 1.0
+        _longest = max(len(x) * _wide for x in _h1.split("<br>"))
+        _h1_size = max(20, min(34, int(430 / max(_longest, 1))))
+        _sub = _t["sub"].replace("{a}", _alex)
     c_page   = "#f6f8fc"   # okolí stránky: vždy světlé, téma mění jen tiskovinu
     c_bg     = "#ffffff" if light else "#0c1b33"
     c_ink    = "#0c1b33" if light else "#ffffff"
@@ -3740,21 +3731,21 @@ body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:3
 {_pk_css}</style></head>
 <body><button class="btn btn-print" onclick="window.print()">🖨️ Tisknout / PDF</button>
 <button class="btn btn-theme" onclick="location.href='?theme={_tt}{_pq}'">{_tl}</button>
-<div id="sg-sheet"><div id="sg-art" style="width:340px;background:{c_bg};position:relative;overflow:hidden;padding:0;border:1px solid rgba(44,95,174,.3);border-radius:12px;box-shadow:0 18px 48px rgba(12,27,51,.22)">
+<div id="sg-sheet"><div id="sg-art"{_dir} style="width:340px;background:{c_bg};position:relative;overflow:hidden;padding:0;border:1px solid rgba(44,95,174,.3);border-radius:12px;box-shadow:0 18px 48px rgba(12,27,51,.22)">
   <div class="sg-edge" style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
   <div style="position:absolute;top:120px;left:50%;width:400px;height:400px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.10),transparent 70%);pointer-events:none"></div>
   <div class="sg-in" style="padding:{_pad};display:flex;flex-direction:column;align-items:center;text-align:center">
     <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:24px;line-height:1.2;color:{c_ink};text-align:center;max-width:290px">{hotel_name}</div>
-    <div style="margin-top:6px;font-size:9px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">YOUR PERSONAL AI CONCIERGE</div>
-    <h1 style="font-family:'Sora',sans-serif;font-weight:800;font-size:36px;line-height:1.05;letter-spacing:-.02em;margin:28px 0 0;color:#2fd0d8">Your<br>personal<br>AI<br>concierge</h1>
-    <p style="font-size:14px;line-height:1.6;color:{c_sub};margin:16px 0 0">Let <span style="color:{c_orange};font-weight:600">Alex</span> answer every question — instantly, in your language, around the clock.</p>
+    <div style="margin-top:6px;font-size:9px;font-weight:600;letter-spacing:{_ls};text-transform:uppercase;color:{c_teal}">{_t_tag}</div>
+    <h1 style="font-family:'Sora',sans-serif;font-weight:800;font-size:{_h1_size}px;line-height:1.12;letter-spacing:{_lsh};margin:28px 0 0;color:{c_orange}">{_h1}</h1>
+    <p style="font-size:14px;line-height:1.6;color:{c_sub};margin:16px 0 0">{_sub}</p>
     <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:5px;margin-top:22px;max-width:300px">{flags_html}</div>
     <div style="margin-top:28px;position:relative;padding:14px;background:{c_qrcard};border:1px solid rgba(44,95,174,.4);border-radius:14px;box-shadow:0 0 24px rgba(44,95,174,.1)">
       <div id="qr-rollup" style="width:180px;height:180px;display:flex;align-items:center;justify-content:center"></div>
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:42px;height:42px;border-radius:9px;overflow:hidden;box-shadow:0 0 0 3px #ffffff"><img src="/static/img/favicon.svg" alt="" style="width:100%;height:100%;display:block"/></div>
     </div>
-    <div style="margin-top:18px;font-family:'Sora',sans-serif;font-weight:700;font-size:18px;color:{c_ink}">Scan me</div>
-    <div style="margin-top:5px;font-size:13px;color:{c_dim}">100+ languages · No app needed · 24/7</div>
+    <div style="margin-top:18px;font-family:'Sora',sans-serif;font-weight:700;font-size:18px;color:{c_ink}">{_t_scan}</div>
+    <div style="margin-top:5px;font-size:13px;color:{c_dim}">{_t_langs} · {_t_noapp} · 24/7</div>
     <div style="flex:1"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,170,.4),transparent);margin-top:32px"></div>
     <div translate="no" style="margin-top:10px;display:flex;align-items:center;gap:6px;font-size:11px;color:{c_dim}"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:13px;height:13px;display:block;opacity:.85"/><span style="font-family:'Sora',sans-serif;font-weight:700;color:{c_dim}">SmartestGuide</span><span style="opacity:.7">· smartestguide.com</span></div>
@@ -3803,6 +3794,15 @@ def flyer_local(hotel_id: str, request: Request, theme: str = "dark", press: int
     lang = get_hotel_local_lang(hotel)
     return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), lang, theme=_flyer_theme(theme), press=bool(press)))
 
+@app.get("/api/hotels/{hotel_id}/flyer")
+def flyer_any(hotel_id: str, request: Request, lang: str = "en", size: str = "a4", theme: str = "dark", press: int = 0):
+    """Leták v libovolném jazyce z print_i18n; size = a4 nebo a5."""
+    db = db_load(); hotel = db["hotels"].get(hotel_id)
+    if not hotel: raise HTTPException(404, "Hotel nenalezen")
+    base = get_base_url(request)
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), lang,
+                                              size=("a5" if (size or "").lower() == "a5" else "a4"), theme=_flyer_theme(theme), press=bool(press)))
+
 @app.get("/api/hotels/{hotel_id}/flyer-a5-en")
 def flyer_a5_en(hotel_id: str, request: Request, theme: str = "dark", press: int = 0):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
@@ -3827,11 +3827,11 @@ def flyer_a5_local(hotel_id: str, request: Request, theme: str = "dark", press: 
     return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), lang, size="a5", theme=_flyer_theme(theme), press=bool(press)))
 
 @app.get("/api/hotels/{hotel_id}/rollup")
-def rollup(hotel_id: str, request: Request, theme: str = "dark", press: int = 0):
+def rollup(hotel_id: str, request: Request, theme: str = "dark", press: int = 0, lang: str = "en"):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_rollup(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), theme=_flyer_theme(theme), press=bool(press)))
+    return HTMLResponse(content=_render_rollup(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), theme=_flyer_theme(theme), press=bool(press), lang=lang))
 
     html = f"""<!DOCTYPE html>
 <html>
