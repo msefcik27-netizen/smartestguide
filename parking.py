@@ -128,10 +128,11 @@ RULES = """VEJDE SE AUTO HOSTA? (postup, když se host ptá, jestli se jeho auto
    - přesahuje: rezerva je záporná (např. auto 197 cm, limit 190 cm, rezerva −7 cm → přesahuje o 7 cm);
    - těsné: rezerva je 0 až 4 cm (např. auto 189 cm, limit 190 cm, rezerva 1 cm → těsné);
    - vyhovuje: rezerva je 5 cm nebo víc.
-   Teprve potom napiš verdikt podle řádků:
-   - NEVEJDE SE: aspoň jeden řádek „přesahuje“. Řekni který rozměr a o kolik.
-   - TĚSNÉ: žádný řádek „přesahuje“, ale aspoň jeden „těsné“. Doporuč ověřit na recepci dřív, než host vjede.
-   - VEJDE SE: všechny tři řádky „vyhovuje“.
+   Teprve potom napiš verdikt. Projdi své tři řádky v tomto pořadí a skonči u první podmínky, která platí:
+   a) Je v některém řádku „přesahuje“? → verdikt „NEVEJDE SE“. Řekni který rozměr a o kolik.
+   b) Je v některém řádku „těsné“? → verdikt „TĚSNÉ“: auto se podle čísel vejde jen o pár centimetrů, proto ať host před vjezdem požádá recepci o ověření. V tomto případě NIKDY nepiš „VEJDE SE“.
+   c) Jsou všechny tři řádky „vyhovuje“? → verdikt „VEJDE SE“ (podle rozměrů by se mělo vejít).
+   Příklad: výška rezerva 1 cm → těsné, šířka rezerva 17 cm → vyhovuje, délka rezerva 11 cm → vyhovuje. Verdikt: TĚSNÉ (kvůli výšce), ne „VEJDE SE“.
    Verdikt nesmí odporovat řádkům nad ním. Limit, který hotel neuvedl, neposuzuj a řekni, že ho neznáš: netvrď, že místo je „bez omezení“, pokud to hotel výslovně nenapsal. U výšky nikdy neriskuj.
 4. Rovnou nabídni další možnosti ze seznamu výše: kde to je, za kolik, jak daleko, jak se tam dostat a jestli je místo hlídané nebo pod kamerami. Když se auto nevejde, začni místem, kam se vejde. Nevymýšlej parkoviště, která v seznamu nejsou. Místo, do kterého se auto podle rozměrů nevejde, znovu jako možnost nenabízej.
 5. Nic negarantuj: poslední slovo má recepce nebo obsluha garáže. Neříkej „určitě“ ani „bez problému“; řekni „podle rozměrů by se mělo vejít“. Ceny, vzdálenosti, cesty a ostrahu uváděj jen podle seznamu."""
