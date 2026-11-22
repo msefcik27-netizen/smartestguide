@@ -121,15 +121,16 @@ def place_line(p: dict) -> str:
 
 
 RULES = """VEJDE SE AUTO HOSTA? (postup, když se host ptá, jestli se jeho auto vejde do garáže nebo na parkoviště, nebo kde zaparkovat větší vůz)
-1. Když host neuvedl přesné auto, zeptej se jednou krátkou otázkou: značka, model, generace nebo rok a varianta délky (např. Mercedes třídy V: kompaktní / dlouhá / extra dlouhá), a jestli má střešní box nebo nosič kol. Co už z konverzace víš, na to se neptej.
+1. Když host neuvedl přesné auto, zeptej se jednou krátkou otázkou: značka, model, generace nebo rok a varianta délky (např. Mercedes třídy V: kompaktní / dlouhá / extra dlouhá), a jestli má střešní box nebo nosič kol. Co už z konverzace víš, na to se neptej. Dokud přesnou variantu neznáš, NEŘÍKEJ žádný verdikt (ani „vejde se“, ani „je to těsné“): jen se zeptej.
 2. Rozměry auta (výška, šířka bez zrcátek, délka) vezmi ze svých obecných znalostí údajů výrobce. To je JEDINÁ výjimka z ACCURACY RULE a platí jen pro rozměry aut. V odpovědi je uveď jako přibližné („podle údajů výrobce asi …“), aby si je host mohl porovnat s technickým průkazem. Když model nebo variantu neznáš jistě, popros hosta o rozměry z technického průkazu. Se střešním boxem nebo nosičem výšku neznáš: popros o celkovou výšku.
 3. Porovnej rozměry auta s limity místa a odpověz jasně jednou ze tří možností:
    - VEJDE SE: každý rozměr auta je aspoň o 5 cm pod limitem.
    - NEVEJDE SE: některý rozměr je nad limitem. Řekni který a o kolik.
    - TĚSNÉ: některý rozměr je do 5 cm od limitu. Řekni to otevřeně a doporuč ověřit na recepci dřív, než host vjede.
-   Limit, který hotel neuvedl, neposuzuj a řekni, že ho neznáš. U výšky nikdy neriskuj.
-4. Rovnou nabídni další možnosti ze seznamu výše: kde to je, za kolik, jak daleko, jak se tam dostat a jestli je místo hlídané nebo pod kamerami. Když se auto nevejde, začni místem, kam se vejde. Nevymýšlej parkoviště, která v seznamu nejsou.
-5. Nic negarantuj: poslední slovo má recepce nebo obsluha garáže. Ceny, vzdálenosti, cesty a ostrahu uváděj jen podle seznamu."""
+   Posuď KAŽDÝ rozměr zvlášť (výšku, šířku, délku) a u každého řekni výsledek; rozměr do 5 cm od limitu označ jako těsný, i když jiný rozměr nevyhovuje.
+   Limit, který hotel neuvedl, neposuzuj a řekni, že ho neznáš: netvrď, že místo je „bez omezení“, pokud to hotel výslovně nenapsal. U výšky nikdy neriskuj.
+4. Rovnou nabídni další možnosti ze seznamu výše: kde to je, za kolik, jak daleko, jak se tam dostat a jestli je místo hlídané nebo pod kamerami. Když se auto nevejde, začni místem, kam se vejde. Nevymýšlej parkoviště, která v seznamu nejsou. Místo, do kterého se auto podle rozměrů nevejde, znovu jako možnost nenabízej.
+5. Nic negarantuj: poslední slovo má recepce nebo obsluha garáže. Neříkej „určitě“ ani „bez problému“; řekni „podle rozměrů by se mělo vejít“. Ceny, vzdálenosti, cesty a ostrahu uváděj jen podle seznamu."""
 
 
 def prompt_block(hotel: dict) -> str:
