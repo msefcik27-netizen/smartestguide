@@ -84,7 +84,7 @@ def normalize(update_data: dict):
 
 
 def _m(cm) -> str:
-    return f"{cm / 100:.2f} m"
+    return f"{cm / 100:.2f} m ({cm} cm)"
 
 
 def places(hotel: dict) -> list:
@@ -123,12 +123,16 @@ def place_line(p: dict) -> str:
 RULES = """VEJDE SE AUTO HOSTA? (postup, když se host ptá, jestli se jeho auto vejde do garáže nebo na parkoviště, nebo kde zaparkovat větší vůz)
 1. Když host neuvedl přesné auto, zeptej se jednou krátkou otázkou: značka, model, generace nebo rok a varianta délky (např. Mercedes třídy V: kompaktní / dlouhá / extra dlouhá), a jestli má střešní box nebo nosič kol. Co už z konverzace víš, na to se neptej. Dokud přesnou variantu neznáš, NEŘÍKEJ žádný verdikt (ani „vejde se“, ani „je to těsné“): jen se zeptej.
 2. Rozměry auta (výška, šířka bez zrcátek, délka) vezmi ze svých obecných znalostí údajů výrobce. To je JEDINÁ výjimka z ACCURACY RULE a platí jen pro rozměry aut. V odpovědi je uveď jako přibližné („podle údajů výrobce asi …“), aby si je host mohl porovnat s technickým průkazem. Když model nebo variantu neznáš jistě, popros hosta o rozměry z technického průkazu. Se střešním boxem nebo nosičem výšku neznáš: popros o celkovou výšku.
-3. Porovnej rozměry auta s limity místa a odpověz jasně jednou ze tří možností:
-   - VEJDE SE: každý rozměr auta je aspoň o 5 cm pod limitem.
-   - NEVEJDE SE: některý rozměr je nad limitem. Řekni který a o kolik.
-   - TĚSNÉ: některý rozměr je do 5 cm od limitu. Řekni to otevřeně a doporuč ověřit na recepci dřív, než host vjede.
-   Posuď KAŽDÝ rozměr zvlášť (výšku, šířku, délku) a u každého řekni výsledek; rozměr do 5 cm od limitu označ jako těsný, i když jiný rozměr nevyhovuje.
-   Limit, který hotel neuvedl, neposuzuj a řekni, že ho neznáš: netvrď, že místo je „bez omezení“, pokud to hotel výslovně nenapsal. U výšky nikdy neriskuj.
+3. Porovnávej v CENTIMETRECH a postupuj přesně v tomto pořadí. NEJDŘÍV napiš tři řádky porovnání, verdikt až POD ně:
+   „Výška: auto asi X cm, limit Y cm → vyhovuje / těsné / přesahuje o Z cm“ (stejně šířka a délka).
+   - přesahuje: rozměr auta je VĚTŠÍ než limit (např. auto 197 cm, limit 190 cm → přesahuje o 7 cm);
+   - těsné: rozměr auta je menší nebo stejný jako limit, ale rozdíl je menší než 5 cm;
+   - vyhovuje: rozměr auta je aspoň o 5 cm menší než limit.
+   Teprve potom napiš verdikt podle řádků:
+   - NEVEJDE SE: aspoň jeden řádek „přesahuje“. Řekni který rozměr a o kolik.
+   - TĚSNÉ: žádný řádek „přesahuje“, ale aspoň jeden „těsné“. Doporuč ověřit na recepci dřív, než host vjede.
+   - VEJDE SE: všechny tři řádky „vyhovuje“.
+   Verdikt nesmí odporovat řádkům nad ním. Limit, který hotel neuvedl, neposuzuj a řekni, že ho neznáš: netvrď, že místo je „bez omezení“, pokud to hotel výslovně nenapsal. U výšky nikdy neriskuj.
 4. Rovnou nabídni další možnosti ze seznamu výše: kde to je, za kolik, jak daleko, jak se tam dostat a jestli je místo hlídané nebo pod kamerami. Když se auto nevejde, začni místem, kam se vejde. Nevymýšlej parkoviště, která v seznamu nejsou. Místo, do kterého se auto podle rozměrů nevejde, znovu jako možnost nenabízej.
 5. Nic negarantuj: poslední slovo má recepce nebo obsluha garáže. Neříkej „určitě“ ani „bez problému“; řekni „podle rozměrů by se mělo vejít“. Ceny, vzdálenosti, cesty a ostrahu uváděj jen podle seznamu."""
 
