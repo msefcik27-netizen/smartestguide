@@ -68,6 +68,7 @@ tr.off td{opacity:.5}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40;display:flex;align-items:center;justify-content:center;padding:16px}
 .modal .box{background:#fff;border-radius:16px;max-width:640px;width:100%;max-height:88vh;display:flex;flex-direction:column}
 .modal .hd{padding:16px 18px;border-bottom:1px solid var(--border)}.modal .ft{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;align-items:center}
+.gopt{justify-content:flex-start;text-align:left;padding:12px 14px;white-space:normal}.gopt span{display:block}.gopt small{display:block;font-weight:400;color:var(--muted);margin-top:3px;line-height:1.4}
 .modal .bd{padding:8px 18px;overflow:auto;flex:1;min-height:180px}
 .crumb{font-size:12.5px;color:var(--muted);margin-top:4px}.crumb a{color:var(--accent);cursor:pointer}
 .it{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--soft)}
@@ -201,6 +202,15 @@ body.embed .msg{position:absolute;bottom:auto}body.embed .modal{position:absolut
   </div>
 </div></div>
 
+<div class="modal" id="gmodal" hidden><div class="box" style="max-width:520px">
+  <div class="hd"><h2 style="font-family:var(--head);font-size:16px" data-t="g_t">Co má aplikace na vašem Google Disku vidět?</h2><div class="crumb" data-t="g_d">Obojí je jen pro čtení – na Disku nic neměníme.</div></div>
+  <div class="bd" style="min-height:0;padding:14px 18px;display:grid;gap:10px">
+    <button class="btn gopt" id="g-all"><span><b data-t="g_all">Celý Disk</b><small data-t="g_all_d">Přihlásíte se účtem Google a složky si vyberete z přehledu. Nejrychlejší cesta.</small></span></button>
+    <button class="btn gopt" id="g-sel"><span><b data-t="g_sel">Jen vybrané složky</b><small data-t="g_sel_d">Bez přihlášení. Nasdílíte jen složky, které chcete – k ničemu jinému se aplikace nedostane.</small></span></button>
+  </div>
+  <div class="ft"><button class="btn" id="g-cancel" data-t="cancel">Zrušit</button></div>
+</div></div>
+
 <div class="modal" id="tmodal" hidden><div class="box">
   <div class="hd"><h2 id="t-title" style="font-family:var(--head);font-size:16px"></h2><div class="crumb" data-t="doc_text_d">Takhle má dokument uložený znalostní báze. Místa označená [nečitelné] se nepodařilo spolehlivě přečíst – Alex je hostům neřekne.</div></div>
   <div class="bd"><div class="p warn" id="t-note" style="margin-bottom:10px" hidden></div><pre id="t-text" style="white-space:pre-wrap;word-break:break-word;font:inherit;font-size:13px;line-height:1.55;margin:0"></pre></div>
@@ -213,6 +223,7 @@ const AUTH = P.get('token') ? 'token=' + encodeURIComponent(P.get('token')) : 'h
 const CS = (P.get('lang') || localStorage.getItem('sg_portal_lang') || navigator.language || 'cs').toLowerCase().startsWith('cs')
         || (P.get('lang') || localStorage.getItem('sg_portal_lang') || navigator.language || '').toLowerCase().startsWith('sk');
 const EN = {
+ g_t:'What should the app see on your Google Drive?', g_d:'Both ways are read-only – we never change anything on your Drive.', g_all:'The whole Drive', g_all_d:'Sign in with your Google account and pick folders from a list. The quickest way.', g_sel:'Only chosen folders', g_sel_d:'No sign-in. You share just the folders you want – the app cannot reach anything else.',
  title:'Knowledge base', back:'← Back to portal', h1:'Hotel knowledge base',
  lead:'Connect your hotel documents – house rules, price lists, manuals, procedures. Alex will answer guests and your staff from them. For each question it looks up only a few exact passages, so answers are accurate and cheap.',
  k_docs:'documents', k_chunks:'searchable passages', k_guest:'documents also for guests', k_mode:'search method',
@@ -309,7 +320,9 @@ function render(){
   $('k-guest').textContent = s.docs.filter(d => d.audience === 'guest' && d.enabled).length;
   $('k-mode').textContent = s.vector ? S.vec : S.lex; $('k-mode').style.fontSize = '19px';
   $('up-desc').textContent = S.types(s.limits.types.join(', '), s.limits.file_mb);
-  $('prov').innerHTML = s.providers.map(p => `<button class="btn" data-p="${esc(p.id)}" ${p.configured ? '' : 'disabled'}>${ICON[p.id] || ''}<span><b>${esc(pn(p.id, p.name))}</b><small>${p.configured ? (p.id === 'gshare' ? S.share_btn : S.connect) : S.soon}</small></span></button>`).join('');
+  const gs = s.providers.find(p => p.id === 'gshare'); GOPT = {all: s.providers.some(p => p.id === 'google' && p.configured), sel: !!(gs && gs.configured)};
+  $('prov').innerHTML = s.providers.filter(p => p.id !== 'gshare').map(p => { const on = p.id === 'google' ? GOPT.all || GOPT.sel : p.configured;
+    return `<button class="btn" data-p="${esc(p.id)}" ${on ? '' : 'disabled'}>${ICON[p.id] || ''}<span><b>${esc(p.name)}</b><small>${on ? S.connect : S.soon}</small></span></button>`; }).join('');
   $('sources').innerHTML = s.sources.map(x => {
     const st = x.status === 'syncing' ? ['run', S.st_run] : x.status === 'error' ? ['err', S.st_err] : !x.folders.length ? ['run', S.st_new] : ['ok', S.st_ok];
     return `<div class="src"><div class="row"><span>${ICON[x.provider] || ''}</span><div style="flex:1;min-width:180px"><div class="t">${esc(pn(x.provider, x.provider_name))} <span class="pill ${st[0]}">${st[1]}</span></div>
@@ -332,12 +345,17 @@ async function load(){
   try { ST = await api('kb/status'); $('app').hidden = false; render(); }
   catch(e){ if(!ST){ $('denied').hidden = false; } else msg(e.message, true); }
 }
+let GOPT = {all: false, sel: false};
+const gConnect = () => act(async () => { const r = await api('kb/connect?provider=google&audience=' + $('conn-aud').value); (EMBED ? window.top : window).location.href = r.url; });
+const gShare = () => act(async () => { const r = await api('kb/share-connect', {audience: $('conn-aud').value}); await load(); openPicker(r.source); });
 const pn = (id, name) => id === 'gshare' ? S.gs_name : name;
 const act = async (fn, okText) => { try { await fn(); if (okText) msg(okText); await load(); } catch(e){ msg(e.message, true); } };
 
 document.addEventListener('click', e => {
   const b = e.target.closest('button'); if(!b) return; const d = b.dataset;
-  if (d.p === 'gshare') act(async () => { const r = await api('kb/share-connect', {audience: $('conn-aud').value}); await load(); openPicker(r.source); });
+  if (b.id === 'g-all' || b.id === 'g-sel' || b.id === 'g-cancel') { $('gmodal').hidden = true; if (b.id === 'g-all') gConnect(); else if (b.id === 'g-sel') gShare(); }
+  else if (d.p === 'google' && GOPT.all && GOPT.sel) { $('gmodal').hidden = false; if (EMBED) $('gmodal').style.top = (viewport().top + 40) + 'px'; }
+  else if (d.p === 'google' && GOPT.sel) gShare();
   else if (d.p) act(async () => { const r = await api('kb/connect?provider=' + d.p + '&audience=' + $('conn-aud').value); (EMBED ? window.top : window).location.href = r.url; });
   else if (d.pick) openPicker(d.pick);
   else if (d.sync) act(() => api('kb/sync', {source: d.sync}));
@@ -435,6 +453,7 @@ $('m-list').addEventListener('change', e => { const i = e.target.dataset.i; if (
   if (e.target.checked) PK.sel.push({id: it.id, name: it.name, is_folder: it.is_folder}); else PK.sel = PK.sel.filter(s => s.id !== it.id); pkCount(); });
 $('m-cancel').onclick = () => { $('modal').hidden = true; };
 $('t-close').onclick = () => { $('tmodal').hidden = true; };
+$('gmodal').addEventListener('click', e => { if (e.target === $('gmodal')) $('gmodal').hidden = true; });
 $('tmodal').addEventListener('click', e => { if (e.target === $('tmodal')) $('tmodal').hidden = true; });
 $('m-save').onclick = () => { $('modal').hidden = true; act(() => api('kb/source-update', {source: PK.src.id, folders: PK.sel, audience: PK.src.audience}), S.saved); };
 $('m-url-add').onclick = async () => { const u = $('m-url').value.trim(); if (!u) return;
