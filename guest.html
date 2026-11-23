@@ -271,7 +271,9 @@
       display:flex;align-items:center;justify-content:center;font-size:17px;
       flex-shrink:0;transition:all .2s;
     }
-    #voice-btn{background:var(--card);border:1px solid var(--border);color:var(--muted)}
+    #voice-btn{background:rgba(255,107,0,.16);border:1.5px solid var(--accent);color:var(--accent)}
+    .nav-chip{display:inline-flex;align-items:center;gap:4px;background:var(--teal);color:#04241d;border-radius:14px;padding:4px 10px;margin:2px 0;font-size:12px;line-height:1.2;text-decoration:none;font-weight:700;vertical-align:middle;white-space:nowrap;box-shadow:0 1px 4px rgba(0,212,170,.35)}
+    .nav-chip:active{transform:scale(.96)}
     #voice-btn.listening{background:var(--danger);border-color:var(--danger);color:#fff;animation:voicePulse 1s infinite}
     @keyframes voicePulse{0%,100%{box-shadow:0 0 0 0 rgba(255,79,106,.4)}70%{box-shadow:0 0 0 8px rgba(255,79,106,0)}}
     #send-btn{background:var(--accent);color:#ffffff;order:2}
@@ -1126,6 +1128,8 @@ Object.assign(UI_T.uk,{order_persons:'Осіб',order_nights:'Ночей',order_
   room_saved:'✅ Записано — номер {room}. Замовлення й запити тепер ідуть прямо на рецепцію з номером вашої кімнати.',
   room_forgotten:'🔓 Номер кімнати видалено. Назвіть його знову, коли захочете щось замовити.',cancel_title:'Скасування',cancel_btn:'Скасувати послугу',cancel_note:'Послугу буде вилучено з вашого бронювання та рахунку номера.',cancel_this:'Скасувати це замовлення'});
 function uiT(k){ const d=UI_T[guestLang]||UI_T.en; return (d[k]!==undefined)?d[k]:UI_T.en[k]; }
+const NAV_T={cs:'Navigovat',sk:'Navigovať',en:'Navigate',de:'Route',fr:'Itinéraire',it:'Indicazioni',es:'Cómo llegar',pl:'Nawiguj',ru:'Маршрут',uk:'Маршрут'};
+function navLabel(){ return NAV_T[guestLang]||NAV_T.en; }
 function applyGuestLangUI(){
   const set=(id,html)=>{const e=document.getElementById(id); if(e) e.innerHTML=html;};
   set('ob-title',uiT('ob_title'));
@@ -1567,7 +1571,7 @@ function formatBotText(text){
         const city = hotelData.address ? hotelData.address.split(',').slice(-1)[0].trim() : '';
         const q = encodeURIComponent(name + (city ? ', ' + city : ''));
         const navUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + q;
-        h = h.replace(regex, `$1 <a href="${navUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:3px;background:rgba(0,212,170,.12);color:var(--teal);border:1px solid rgba(0,212,170,.25);border-radius:12px;padding:1px 7px;font-size:11px;text-decoration:none;font-weight:600;vertical-align:middle">🧭</a>`);
+        h = h.replace(regex, `$1 <a class="nav-chip" href="${navUrl}" target="_blank" rel="noopener">🧭 ${navLabel()} ›</a>`);
       }
     });
   }
@@ -2120,7 +2124,7 @@ function showInfo(){
           +'<span style="font-size:13px;color:var(--text)">📍 '+esc(p)+'</span>'
           +'<div style="display:flex;gap:6px;flex-shrink:0">'
           +'<a href="'+searchUrl+'" target="_blank" style="background:rgba(255,107,0,.15);color:var(--accent);border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🔍 Mapa</a>'
-          +'<a href="'+navUrl+'" target="_blank" style="background:rgba(0,212,170,.15);color:var(--teal);border:1px solid rgba(0,212,170,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🧭 Navigovat</a>'
+          +'<a href="'+navUrl+'" target="_blank" style="background:rgba(0,212,170,.15);color:var(--teal);border:1px solid rgba(0,212,170,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🧭 '+navLabel()+'</a>'
           +'</div></div>';
       }).join('')}</div></div></div>`;
   }
