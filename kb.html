@@ -107,7 +107,7 @@ body.embed .msg{position:absolute;bottom:auto}body.embed .modal{position:absolut
     <h2 data-t="how">Jak to funguje</h2>
     <div class="steps" style="margin-top:12px">
       <div class="step"><span class="n">1</span><b data-t="s1">Připojíte zdroj</b><span data-t="s1d">Cloudový disk, nahraný soubor nebo krátká poznámka. Z disku jen čteme, nic na něm neměníme.</span></div>
-      <div class="step"><span class="n">2</span><b data-t="s2">Určíte, kdo to uvidí</b><span data-t="s2d">Každý dokument je buď jen pro personál, nebo i pro hosty. Nové dokumenty jsou jen pro personál, dokud to nezměníte.</span></div>
+      <div class="step"><span class="n">2</span><b data-t="s2">Určíte, kdo to uvidí</b><span data-t="s2d">Každý dokument je buď jen pro personál, nebo pro personál i hosty. Nové dokumenty jsou jen pro personál, dokud to nezměníte.</span></div>
       <div class="step"><span class="n">3</span><b data-t="s3">Alex odpovídá z dokumentů</b><span data-t="s3d">Dokument se rozdělí na pasáže a zaindexuje. K otázce se vyberou jen ty, které se jí týkají.</span></div>
     </div>
   </div>
@@ -116,7 +116,7 @@ body.embed .msg{position:absolute;bottom:auto}body.embed .modal{position:absolut
     <h2 data-t="cl_h">Cloudové disky</h2>
     <div class="desc" data-t="cl_d">Přihlásíte se účtem, který má k dokumentům přístup, a vyberete složky. Změny na disku si báze sama načte každých 6 hodin.</div>
     <div class="row" style="margin-bottom:12px"><label for="conn-aud" data-t="cl_aud">Dokumenty z nového disku budou:</label>
-      <select id="conn-aud"><option value="staff" data-t="a_staff">jen pro personál</option><option value="guest" data-t="a_guest">i pro hosty</option></select></div>
+      <select id="conn-aud"><option value="staff" data-t="a_staff">jen pro personál</option><option value="guest" data-t="a_guest">pro personál i hosty</option></select></div>
     <div class="prov" id="prov"></div>
     <div id="sources"></div>
   </div>
@@ -127,7 +127,7 @@ body.embed .msg{position:absolute;bottom:auto}body.embed .modal{position:absolut
     <div class="row" style="margin-bottom:12px">
       <div class="tabs"><button id="tab-file" class="on" data-t="up_file">Soubor</button><button id="tab-note" data-t="up_note">Poznámka</button></div>
       <label for="up-aud" data-t="up_aud">Viditelnost:</label>
-      <select id="up-aud"><option value="staff" data-t="a_staff">jen pro personál</option><option value="guest" data-t="a_guest">i pro hosty</option></select>
+      <select id="up-aud"><option value="staff" data-t="a_staff">jen pro personál</option><option value="guest" data-t="a_guest">pro personál i hosty</option></select>
     </div>
     <div id="pane-file">
       <div class="drop" id="drop" tabindex="0"><b data-t="drop1">Přetáhněte sem soubory</b><br><span data-t="drop2">nebo klikněte a vyberte je</span></div>
@@ -217,10 +217,10 @@ const EN = {
  lead:'Connect your hotel documents – house rules, price lists, manuals, procedures. Alex will answer guests and your staff from them. For each question it looks up only a few exact passages, so answers are accurate and cheap.',
  k_docs:'documents', k_chunks:'searchable passages', k_guest:'documents also for guests', k_mode:'search method',
  how:'How it works', s1:'Connect a source', s1d:'A cloud drive, an uploaded file or a short note. We only read from the drive, we never change anything on it.',
- s2:'Decide who sees it', s2d:'Each document is either staff-only or also for guests. New documents are staff-only until you change it.',
+ s2:'Decide who sees it', s2d:'Each document is either staff-only or for staff and guests. New documents are staff-only until you change it.',
  s3:'Alex answers from documents', s3d:'Each document is split into passages and indexed. Only the passages that match the question are used.',
  cl_h:'Cloud drives', cl_d:'Sign in with an account that can access the documents and pick folders. Changes on the drive are picked up automatically every 6 hours.',
- cl_aud:'Documents from a new drive will be:', a_staff:'staff only', a_guest:'also for guests',
+ cl_aud:'Documents from a new drive will be:', a_staff:'staff only', a_guest:'staff and guests',
  up_h:'Upload a file or write a note', up_file:'File', up_note:'Note', up_aud:'Visibility:', drop1:'Drop files here', drop2:'or click to choose them',
  note_t:'Title, e.g. Late check-out', note_x:'Text – what staff or guests should know', note_save:'Save note',
  docs_h:'Documents in the knowledge base', docs_d:'For each document you decide whether Alex may also use it for guests. A switched-off document stays stored but is not used.',
@@ -294,7 +294,7 @@ const ICON = {
  dropbox:'<svg class="ico" viewBox="0 0 24 24"><path fill="#0061ff" d="m7 3 5 3.2L7 9.4 2 6.2zm10 0 5 3.2-5 3.2-5-3.2zM2 12.6l5-3.2 5 3.2-5 3.2zm15-3.2 5 3.2-5 3.2-5-3.2zM7 17l5-3.2 5 3.2-5 3.2z"/></svg>',
  box:'<svg class="ico" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="4" fill="#0061d5"/><text x="12" y="15.5" text-anchor="middle" font-size="8" font-weight="700" fill="#fff" font-family="Arial">box</text></svg>'
 };
-const audLabel = a => a === 'guest' ? (CS ? 'i pro hosty' : 'also for guests') : (CS ? 'jen pro personál' : 'staff only');
+const audLabel = a => a === 'guest' ? (CS ? 'pro personál i hosty' : 'staff and guests') : (CS ? 'jen pro personál' : 'staff only');
 
 function render(){
   const s = ST; $('hname').textContent = s.hotel.name;
