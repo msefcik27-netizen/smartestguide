@@ -54,7 +54,8 @@ def _aud(v, default="staff") -> str:
 
 
 def _public_source(s: dict) -> dict:
-    return {k: s[k] for k in ("id", "provider", "label", "account", "audience", "folders", "status", "last_sync", "last_error")} | {
+    return {k: s[k] for k in ("id", "provider", "label", "account", "audience", "status", "last_sync", "last_error")} | {
+        "folders": [{"id": f.get("id"), "name": f.get("name", ""), "is_folder": f.get("is_folder", True)} for f in s["folders"]],
         "provider_name": cloud.PROVIDERS.get(s["provider"], {}).get("name", s["provider"])}
 
 
@@ -115,7 +116,8 @@ def setup(app, **deps):
         base = D["get_base_url"](request)
         return {
             "hotel": {"id": hid, "name": h.get("name", "")},
-            "providers": [{"id": p, "name": v["name"], "configured": cloud.configured(p)} for p, v in cloud.PROVIDERS.items()],
+            "providers": [{"id": p, "name": v["name"], "configured": cloud.configured(p)}
+                          | ({"share_email": cloud.share_email()} if p == "gshare" else {}) for p, v in cloud.PROVIDERS.items()],
             "sources": [_public_source(s) for s in srcs],
             "docs": docs,
             "counts": await asyncio.to_thread(KB.counts, hid),
@@ -129,7 +131,7 @@ def setup(app, **deps):
     @app.get("/api/hotel-portal/kb/connect")
     async def kb_connect(request: Request, provider: str = "", audience: str = "staff"):
         h = _hotel(request)
-        if not cloud.configured(provider):
+        if provider == "gshare" or not cloud.configured(provider):
             raise HTTPException(400, "Tahle služba zatím není zapnutá.")
         state = uuid.uuid4().hex + uuid.uuid4().hex
         via = "token" if request.query_params.get("token") else "admin"
@@ -170,9 +172,54 @@ def setup(app, **deps):
             raise HTTPException(404, "Připojený disk nenalezen.")
         return s
 
+    async def _gshare_item(hotel_id: str, link: str) -> dict:
+        """Sdílená složka Google Disku podle odkazu. Ověří, že ji aplikace vidí a že ji nemá připojenou jiný hotel."""
+        fid = cloud.drive_id_from_link(str(link or "")[:2000])
+        if not fid:
+            raise HTTPException(400, "V odkazu jsme složku nenašli. Zkopírujte odkaz přímo z Google Disku.")
+        taken = [f for o in await asyncio.to_thread(cloud.list_sources, STORE)
+                 if o["provider"] == "gshare" and o["hotel_id"] != hotel_id for f in o["folders"]]
+        busy = HTTPException(409, "Tahle složka je už připojená k jinému hotelu.")
+        if any(f.get("id") == fid or fid in (f.get("anc") or []) for f in taken):      # sama, nebo nadřazená cizí složce
+            raise busy
+        import httpx
+        async with httpx.AsyncClient() as client:
+            try:
+                tokens = await cloud.sa_tokens(client)
+            except cloud.CloudError as e:
+                raise HTTPException(502, str(e))
+            try:
+                it = await cloud.get_item(client, "gshare", tokens, fid)
+            except cloud.CloudError:
+                raise HTTPException(502, "Složku nevidíme. Nasdílejte ji na adresu %s (stačí oprávnění Čtenář) a zkuste to znovu."
+                                    % cloud.share_email())
+            it["anc"] = await cloud.g_ancestors(client, tokens, fid)
+        if any(f.get("id") in it["anc"] for f in taken):                              # leží uvnitř složky jiného hotelu
+            raise busy
+        return it
+
+    @app.post("/api/hotel-portal/kb/share-connect")
+    async def kb_share_connect(request: Request):
+        """Google Drive bez přihlašování: založí zdroj, do kterého hotel přidává složky nasdílené na adresu aplikace."""
+        h = _hotel(request)
+        if not cloud.configured("gshare"):
+            raise HTTPException(400, "Tahle služba zatím není zapnutá.")
+        b = await _body(request)
+        for s in await asyncio.to_thread(cloud.list_sources, STORE, h["id"]):
+            if s["provider"] == "gshare":
+                return {"source": s["id"]}
+        sid = uuid.uuid4().hex
+        STORE.x("INSERT INTO kb_sources (id, hotel_id, provider, label, account, audience, folders, tokens, status, last_sync, last_error, created_at) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (sid, h["id"], "gshare", cloud.PROVIDERS["gshare"]["name"], "", _aud(b.get("audience")), "[]",
+                 cloud.seal({}, _secret()), "new", "", "", kbmod._now()))
+        return {"source": sid}
+
     @app.get("/api/hotel-portal/kb/browse")
     async def kb_browse(request: Request, source: str = "", folder: str = ""):
         s = _src(request, source)
+        if s["provider"] == "gshare":       # složky se přidávají odkazem, společný účet se neprochází
+            return {"items": []}
         import httpx
         try:
             async with httpx.AsyncClient() as client:
@@ -188,6 +235,10 @@ def setup(app, **deps):
     async def kb_share_link(request: Request):
         b = await _body(request)
         s = _src(request, b.get("source"))
+        if s["provider"] == "gshare":
+            if not rl("kbshare:" + s["hotel_id"], 30, 600):
+                raise HTTPException(429, "Příliš mnoho pokusů. Zkuste to za pár minut.")
+            return {"item": await _gshare_item(s["hotel_id"], b.get("link"))}
         if s["provider"] != "microsoft":
             raise HTTPException(400, "Odkazem lze přidat jen složku ze SharePointu nebo OneDrivu.")
         import httpx
@@ -204,7 +255,13 @@ def setup(app, **deps):
         b = await _body(request)
         s = _src(request, b.get("source"))
         folders = []
+        known = {f.get("id"): f for f in s["folders"]}
         for f in (b.get("folders") or [])[:40]:
+            if s["provider"] == "gshare" and isinstance(f, dict) and f.get("id"):
+                # nově přidanou složku ověřit u Googlu, ne věřit prohlížeči; u známé nechat uložené údaje
+                f = known.get(str(f["id"])) or await _gshare_item(s["hotel_id"], str(f["id"]))
+                folders.append({"id": f["id"], "name": f["name"], "is_folder": f["is_folder"], "anc": list(f.get("anc") or [])[:30]})
+                continue
             if isinstance(f, dict) and f.get("id") and str(f["id"]) != "__shared":
                 folders.append({"id": str(f["id"])[:500], "name": str(f.get("name") or "")[:200], "is_folder": bool(f.get("is_folder", True))})
         aud = _aud(b.get("audience"), s["audience"])

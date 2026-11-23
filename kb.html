@@ -114,7 +114,7 @@ body.embed .msg{position:absolute;bottom:auto}body.embed .modal{position:absolut
 
   <div class="card">
     <h2 data-t="cl_h">Cloudové disky</h2>
-    <div class="desc" data-t="cl_d">Přihlásíte se účtem, který má k dokumentům přístup, a vyberete složky. Změny na disku si báze sama načte každých 6 hodin.</div>
+    <div class="desc" data-t="cl_d">Přihlásíte se účtem, který má k dokumentům přístup, a vyberete složky. U Google Disku můžete místo přihlášení nasdílet jen vybranou složku – k ničemu jinému se pak aplikace nedostane. Změny na disku si báze sama načte každých 6 hodin.</div>
     <div class="row" style="margin-bottom:12px"><label for="conn-aud" data-t="cl_aud">Dokumenty z nového disku budou:</label>
       <select id="conn-aud"><option value="staff" data-t="a_staff">jen pro personál</option><option value="guest" data-t="a_guest">pro personál i hosty</option></select></div>
     <div class="prov" id="prov"></div>
@@ -219,7 +219,7 @@ const EN = {
  how:'How it works', s1:'Connect a source', s1d:'A cloud drive, an uploaded file or a short note. We only read from the drive, we never change anything on it.',
  s2:'Decide who sees it', s2d:'Each document is either staff-only or for staff and guests. New documents are staff-only until you change it.',
  s3:'Alex answers from documents', s3d:'Each document is split into passages and indexed. Only the passages that match the question are used.',
- cl_h:'Cloud drives', cl_d:'Sign in with an account that can access the documents and pick folders. Changes on the drive are picked up automatically every 6 hours.',
+ cl_h:'Cloud drives', cl_d:'Sign in with an account that can access the documents and pick folders. With Google Drive you can instead share just one chosen folder – the app then cannot reach anything else. Changes on the drive are picked up automatically every 6 hours.',
  cl_aud:'Documents from a new drive will be:', a_staff:'staff only', a_guest:'staff and guests',
  up_h:'Upload a file or write a note', up_file:'File', up_note:'Note', up_aud:'Visibility:', drop1:'Drop files here', drop2:'or click to choose them',
  note_t:'Title, e.g. Late check-out', note_x:'Text – what staff or guests should know', note_save:'Save note',
@@ -239,7 +239,10 @@ const EN = {
  sp_ph:'Link to a SharePoint folder', sp_add:'Add', cancel:'Cancel', m_save:'Save and load'
 };
 const S = CS ? {
- soon:'připravujeme', connect:'Připojit', vec:'význam + slova', lex:'slova',
+ soon:'připravujeme', connect:'Připojit', share_btn:'nasdílet jen vybranou složku', gs_name:'Google Drive – sdílená složka', copy_b:'Kopírovat', gs_ph:'Odkaz na složku na Google Disku',
+ gs_lead:'Aplikace uvidí jen složky, které jí sami nasdílíte. K ostatním souborům na vašem Disku se nedostane.',
+ gs1:'Na Google Disku klikněte na složku pravým tlačítkem a zvolte Sdílet.', gs2:'Přidejte tuto adresu s oprávněním Čtenář:',
+ gs3:'Zkopírujte odkaz na složku (Sdílet → Kopírovat odkaz), vložte ho do pole dole a klikněte na Přidat. Nakonec uložte.', vec:'význam + slova', lex:'slova',
  st_ok:'aktuální', st_new:'vyberte složky', st_run:'načítá se…', st_err:'chyba', never:'zatím nenačteno', synced:'Načteno',
  pick:'Vybrat složky', sync:'Načíst znovu', disconnect:'Odpojit', nofolders:'Zatím není vybraná žádná složka.',
  confirm_disc:'Odpojit disk a odebrat z báze dokumenty, které z něj pocházejí?', confirm_del:'Odebrat dokument z báze?',
@@ -252,7 +255,10 @@ const S = CS ? {
  e_denied:'Přihlášení jste nedokončili, disk se nepřipojil.', e_login:'Přihlášení ke službě se nepodařilo. Zkuste to znovu.', connected:'Disk je připojený. Teď vyberte složky.',
  key_once:'Klíč si teď uložte, znovu ho neukážeme:', key_warn:'Klíč je heslo k datům vašeho hotelu. Neposílejte ho běžným e-mailem ani do skupinového chatu a nevkládejte ho do stránek, které vidí hosté.', key_how:'Co poslat dodavateli', key_how1:'Klíč – bezpečnou cestou: správcem hesel, odkazem na jedno zobrazení, nebo ho nadiktujte po telefonu.', key_how2:'Odkaz na dokumentaci:', key_how3:'Pro každého dodavatele vytvořte vlastní klíč. Až spolupráce skončí, zrušte jen ten jeho.', key_mail:'Zkopírovat text pro dodavatele', key_mail_t:u=>`Dobrý den,\nposíláme přístup k API našeho hotelu v SmartestGuide.\nDokumentace: ${u}\nKlíč vám předáme zvlášť bezpečnou cestou – do e-mailu ho nepíšeme. Uložte ho prosím jen na serveru, ne do kódu stránky.\nDěkujeme`, us_t:(u,l)=>`Chat přes API tento měsíc: ${u} z ${l} volání`, us_reset:d=>`Počítadlo se vynuluje ${d}. Hledání v bázi se nepočítá.`, us_warn:'Blíží se měsíční limit. Po jeho vyčerpání přestane chat u napojených systémů odpovídat; Alex v aplikaci pro hosty poběží dál. Potřebujete víc? Napište nám.', us_out:'Měsíční limit je vyčerpaný. Chat u napojených systémů teď neodpovídá; Alex v aplikaci pro hosty běží dál. Potřebujete víc? Napište nám.', doc_text:'Zobrazit text', doc_text_h:'Text, ze kterého Alex odpovídá', doc_text_d:'Takhle má dokument uložený znalostní báze. Místa označená [nečitelné] se nepodařilo spolehlivě přečíst – Alex je hostům neřekne.', close:'Zavřít', scan_wait:'u skenů čteme text ze stránek, může to trvat i pár minut', nokeys:'Zatím žádný klíč.', revoke:'Zrušit', revoked:'zrušen', last:'naposledy použit', neverused:'zatím nepoužit', perday:'dotazů denně', fill:'Vyplňte název a text.', keyname:'Napište, k čemu klíč slouží.'
 } : {
- soon:'coming soon', connect:'Connect', vec:'meaning + words', lex:'words',
+ soon:'coming soon', connect:'Connect', share_btn:'share just a chosen folder', gs_name:'Google Drive – shared folder', copy_b:'Copy', gs_ph:'Link to a Google Drive folder',
+ gs_lead:'The app sees only the folders you share with it. It cannot reach any other files on your Drive.',
+ gs1:'In Google Drive, right-click the folder and choose Share.', gs2:'Add this address with the Viewer role:',
+ gs3:'Copy the folder link (Share → Copy link), paste it into the field below and click Add. Then save.', vec:'meaning + words', lex:'words',
  st_ok:'up to date', st_new:'pick folders', st_run:'loading…', st_err:'error', never:'not loaded yet', synced:'Loaded',
  pick:'Pick folders', sync:'Reload', disconnect:'Disconnect', nofolders:'No folder selected yet.',
  confirm_disc:'Disconnect the drive and remove its documents from the knowledge base?', confirm_del:'Remove the document from the knowledge base?',
@@ -294,6 +300,7 @@ const ICON = {
  dropbox:'<svg class="ico" viewBox="0 0 24 24"><path fill="#0061ff" d="m7 3 5 3.2L7 9.4 2 6.2zm10 0 5 3.2-5 3.2-5-3.2zM2 12.6l5-3.2 5 3.2-5 3.2zm15-3.2 5 3.2-5 3.2-5-3.2zM7 17l5-3.2 5 3.2-5 3.2z"/></svg>',
  box:'<svg class="ico" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="4" fill="#0061d5"/><text x="12" y="15.5" text-anchor="middle" font-size="8" font-weight="700" fill="#fff" font-family="Arial">box</text></svg>'
 };
+ICON.gshare = ICON.google;
 const audLabel = a => a === 'guest' ? (CS ? 'pro personál i hosty' : 'staff and guests') : (CS ? 'jen pro personál' : 'staff only');
 
 function render(){
@@ -302,16 +309,16 @@ function render(){
   $('k-guest').textContent = s.docs.filter(d => d.audience === 'guest' && d.enabled).length;
   $('k-mode').textContent = s.vector ? S.vec : S.lex; $('k-mode').style.fontSize = '19px';
   $('up-desc').textContent = S.types(s.limits.types.join(', '), s.limits.file_mb);
-  $('prov').innerHTML = s.providers.map(p => `<button class="btn" data-p="${esc(p.id)}" ${p.configured ? '' : 'disabled'}>${ICON[p.id] || ''}<span><b>${esc(p.name)}</b><small>${p.configured ? S.connect : S.soon}</small></span></button>`).join('');
+  $('prov').innerHTML = s.providers.map(p => `<button class="btn" data-p="${esc(p.id)}" ${p.configured ? '' : 'disabled'}>${ICON[p.id] || ''}<span><b>${esc(pn(p.id, p.name))}</b><small>${p.configured ? (p.id === 'gshare' ? S.share_btn : S.connect) : S.soon}</small></span></button>`).join('');
   $('sources').innerHTML = s.sources.map(x => {
     const st = x.status === 'syncing' ? ['run', S.st_run] : x.status === 'error' ? ['err', S.st_err] : !x.folders.length ? ['run', S.st_new] : ['ok', S.st_ok];
-    return `<div class="src"><div class="row"><span>${ICON[x.provider] || ''}</span><div style="flex:1;min-width:180px"><div class="t">${esc(x.provider_name)} <span class="pill ${st[0]}">${st[1]}</span></div>
+    return `<div class="src"><div class="row"><span>${ICON[x.provider] || ''}</span><div style="flex:1;min-width:180px"><div class="t">${esc(pn(x.provider, x.provider_name))} <span class="pill ${st[0]}">${st[1]}</span></div>
       <div class="m">${esc(x.account)}${x.account ? ' · ' : ''}${x.last_sync ? S.synced + ' ' + esc(new Date(x.last_sync + 'Z').toLocaleString()) : S.never}</div></div>
       <select data-saud="${esc(x.id)}"><option value="staff"${x.audience === 'staff' ? ' selected' : ''}>${audLabel('staff')}</option><option value="guest"${x.audience === 'guest' ? ' selected' : ''}>${audLabel('guest')}</option></select>
       <button class="btn sm" data-pick="${esc(x.id)}">${S.pick}</button><button class="btn sm" data-sync="${esc(x.id)}" ${x.folders.length && x.status !== 'syncing' ? '' : 'disabled'}>${S.sync}</button><button class="btn sm danger" data-disc="${esc(x.id)}">${S.disconnect}</button></div>
       <div style="margin-top:6px">${x.folders.length ? x.folders.map(f => `<span class="chip">${f.is_folder ? '📁' : '📄'} ${esc(f.name)}</span>`).join('') : `<span class="m">${S.nofolders}</span>`}</div>
       ${x.last_error ? `<div class="m" style="color:var(--bad);margin-top:6px">${esc(x.last_error)}</div>` : ''}</div>`; }).join('');
-  const srcName = id => { const x = s.sources.find(y => y.id === id); return x ? x.provider_name : S.manual; };
+  const srcName = id => { const x = s.sources.find(y => y.id === id); return x ? pn(x.provider, x.provider_name) : S.manual; };
   $('docs').innerHTML = s.docs.map(d => `<tr class="${d.enabled ? '' : 'off'}"><td><b>${d.url ? `<a href="${esc(d.url)}" target="_blank" rel="noopener" style="color:inherit">${esc(d.title)}</a>` : esc(d.title)}</b><div class="p">${esc(srcName(d.source_id))}${d.path ? ' · ' + esc(d.path) : ''}</div></td>
     <td><select data-daud="${esc(d.id)}"><option value="staff"${d.audience === 'staff' ? ' selected' : ''}>${audLabel('staff')}</option><option value="guest"${d.audience === 'guest' ? ' selected' : ''}>${audLabel('guest')}</option></select></td>
     <td>${d.status === 'ok' ? `<span class="pill ok">${d.chunks} ${S.passages}</span>` : `<span class="pill err">${S.st_err}</span>`}${d.error ? `<div class="p${d.status === 'ok' ? ' warn' : ''}">${esc(d.error)}</div>` : ''}${d.status === 'ok' ? `<div class="p"><a data-dtxt="${esc(d.id)}" href="#">${S.doc_text}</a></div>` : ''}</td>
@@ -325,11 +332,13 @@ async function load(){
   try { ST = await api('kb/status'); $('app').hidden = false; render(); }
   catch(e){ if(!ST){ $('denied').hidden = false; } else msg(e.message, true); }
 }
+const pn = (id, name) => id === 'gshare' ? S.gs_name : name;
 const act = async (fn, okText) => { try { await fn(); if (okText) msg(okText); await load(); } catch(e){ msg(e.message, true); } };
 
 document.addEventListener('click', e => {
   const b = e.target.closest('button'); if(!b) return; const d = b.dataset;
-  if (d.p) act(async () => { const r = await api('kb/connect?provider=' + d.p + '&audience=' + $('conn-aud').value); (EMBED ? window.top : window).location.href = r.url; });
+  if (d.p === 'gshare') act(async () => { const r = await api('kb/share-connect', {audience: $('conn-aud').value}); await load(); openPicker(r.source); });
+  else if (d.p) act(async () => { const r = await api('kb/connect?provider=' + d.p + '&audience=' + $('conn-aud').value); (EMBED ? window.top : window).location.href = r.url; });
   else if (d.pick) openPicker(d.pick);
   else if (d.sync) act(() => api('kb/sync', {source: d.sync}));
   else if (d.disc) { if (confirm(S.confirm_disc)) act(() => api('kb/source-delete', {source: d.disc}), S.saved); }
@@ -393,7 +402,15 @@ $('staff-new').onclick = () => { if (confirm(S.confirm_key)) act(() => api('kb/s
 // výběr složek
 let PK = null;
 function openPicker(id){ const x = ST.sources.find(y => y.id === id); PK = {src: x, sel: x.folders.slice(), stack: [{id: '', name: S.root}]};
-  $('m-title').textContent = S.choose + ' – ' + x.provider_name; $('m-link').hidden = x.provider !== 'microsoft'; $('modal').hidden = false; if (EMBED) $('modal').style.top = (viewport().top + 40) + 'px'; browse(); }
+  $('m-title').textContent = S.choose + ' – ' + pn(x.provider, x.provider_name); $('m-link').hidden = x.provider !== 'microsoft' && x.provider !== 'gshare';
+  $('m-url').value = ''; $('m-url').placeholder = x.provider === 'gshare' ? S.gs_ph : (CS ? 'Odkaz na složku v SharePointu' : EN.sp_ph);
+  $('modal').hidden = false; if (EMBED) $('modal').style.top = (viewport().top + 40) + 'px'; x.provider === 'gshare' ? shareView() : browse(); }
+// Google Drive přes sdílenou složku: nic se neprochází, hotel složku nasdílí na adresu aplikace a vloží odkaz
+function shareView(){ const em = (ST.providers.find(p => p.id === 'gshare') || {}).share_email || '';
+  $('m-crumb').textContent = S.gs_lead;
+  $('m-list').innerHTML = `<ol style="margin:4px 0 12px 20px;line-height:1.7"><li>${S.gs1}</li><li>${S.gs2}<br><code style="word-break:break-all">${esc(em)}</code> <button class="btn sm" data-copy="${esc(em)}">${S.copy_b}</button></li><li>${S.gs3}</li></ol>`
+    + (PK.sel.length ? PK.sel.map((f, i) => `<div class="it"><span>${f.is_folder ? '📁' : '📄'}</span><span class="nm">${esc(f.name)}</span><button class="btn sm danger" data-rm="${i}">${S.del}</button></div>`).join('') : `<div class="empty">${S.nofolders}</div>`);
+  pkCount(); }
 function pkCount(){ $('m-count').textContent = S.selected(PK.sel.length); }
 async function browse(){
   $('m-crumb').innerHTML = PK.stack.map((s, i) => i < PK.stack.length - 1 ? `<a data-lvl="${i}">${esc(s.name)}</a>` : `<b>${esc(s.name)}</b>`).join(' › ');
@@ -408,7 +425,9 @@ async function browse(){
 }
 $('modal').addEventListener('click', e => {
   if (e.target === $('modal')) return void ($('modal').hidden = true);
-  const o = e.target.dataset.open, l = e.target.dataset.lvl;
+  const o = e.target.dataset.open, l = e.target.dataset.lvl, rm = e.target.dataset.rm, cp = e.target.dataset.copy;
+  if (rm !== undefined) { PK.sel.splice(+rm, 1); return shareView(); }
+  if (cp !== undefined) return void navigator.clipboard.writeText(cp).then(() => msg(S.copied), () => msg(cp));
   if (o !== undefined) { const it = PK.items[+o]; PK.stack.push({id: it.id, name: it.name}); browse(); }
   else if (l !== undefined) { PK.stack = PK.stack.slice(0, +l + 1); browse(); }
 });
@@ -420,7 +439,7 @@ $('tmodal').addEventListener('click', e => { if (e.target === $('tmodal')) $('tm
 $('m-save').onclick = () => { $('modal').hidden = true; act(() => api('kb/source-update', {source: PK.src.id, folders: PK.sel, audience: PK.src.audience}), S.saved); };
 $('m-url-add').onclick = async () => { const u = $('m-url').value.trim(); if (!u) return;
   try { const r = await api('kb/share-link', {source: PK.src.id, link: u}); const it = r.item;
-    if (!PK.sel.some(s => s.id === it.id)) PK.sel.push({id: it.id, name: it.name, is_folder: it.is_folder}); $('m-url').value = ''; pkCount(); msg('✓ ' + it.name); }
+    if (!PK.sel.some(s => s.id === it.id)) PK.sel.push({id: it.id, name: it.name, is_folder: it.is_folder}); $('m-url').value = ''; pkCount(); msg('✓ ' + it.name); if (PK.src.provider === 'gshare') shareView(); }
   catch(e){ msg(e.message, true); } };
 
 // API klíče

@@ -8,17 +8,21 @@ Nastavení (proměnné prostředí, nic se neukládá do repozitáře):
   KB_MS_CLIENT_ID / KB_MS_CLIENT_SECRET              – Microsoft Entra, registrace aplikace (účty: libovolná organizace + osobní)
   KB_DROPBOX_CLIENT_ID / KB_DROPBOX_CLIENT_SECRET    – Dropbox App Console (App key / App secret)
   KB_BOX_CLIENT_ID / KB_BOX_CLIENT_SECRET            – Box Developer Console (Custom App, OAuth 2.0)
+  KB_GOOGLE_SA_JSON                                  – Google Cloud, klíč servisního účtu (JSON, případně v base64);
+                                                       zapíná „Google Drive – sdílená složka“: hotel složku nasdílí na
+                                                       adresu servisního účtu a aplikace vidí jen ji, bez přihlašování
   KB_SECRET                                          – volitelné heslo k šifrování uložených tokenů
 U všech služeb je návratová adresa stejná:  {BASE_URL}/api/kb/oauth/callback
 Služba bez nastavených klíčů se v portálu ukáže jako „připravujeme“.
 """
-import os, json, time, base64, hashlib, logging, asyncio
+import os, re, json, time, base64, hashlib, logging, asyncio
 from urllib.parse import urlencode, quote
 
 import kb as kbmod
 
 PROVIDERS = {
     "google": {"name": "Google Drive", "env": "KB_GOOGLE", "icon": "🟢"},
+    "gshare": {"name": "Google Drive – sdílená složka", "env": "KB_GOOGLE_SA", "icon": "🟢"},
     "microsoft": {"name": "OneDrive / SharePoint", "env": "KB_MS", "icon": "🔷"},
     "dropbox": {"name": "Dropbox", "env": "KB_DROPBOX", "icon": "🟦"},
     "box": {"name": "Box", "env": "KB_BOX", "icon": "📦"},
@@ -45,7 +49,76 @@ def creds(provider: str) -> tuple:
 
 
 def configured(provider: str) -> bool:
+    if provider == "gshare":
+        return bool(sa_info())
     return provider in PROVIDERS and all(creds(provider))
+
+
+# ─────────────────────────────────────────────────────────────
+# Google Drive přes sdílenou složku (servisní účet)
+# ─────────────────────────────────────────────────────────────
+def sa_info() -> dict:
+    """Klíč servisního účtu z prostředí; {} když není nastavený nebo nejde přečíst."""
+    raw = os.getenv("KB_GOOGLE_SA_JSON", "").strip()
+    if not raw:
+        return {}
+    try:
+        if not raw.startswith("{"):
+            raw = base64.b64decode(raw).decode()
+        j = json.loads(raw)
+    except Exception:
+        return {}
+    return j if isinstance(j, dict) and j.get("client_email") and j.get("private_key") else {}
+
+
+def share_email() -> str:
+    """Adresa, na kterou hotel složku nasdílí."""
+    return sa_info().get("client_email", "")
+
+
+def drive_id_from_link(link: str) -> str:
+    """Odkaz na složku či soubor na Google Disku (nebo holé ID) → ID položky; '' když ho nenajdeme."""
+    s = (link or "").strip()
+    m = re.search(r"/(?:folders|d)/([A-Za-z0-9_-]{10,})", s) or re.search(r"[?&]id=([A-Za-z0-9_-]{10,})", s)
+    if m:
+        return m.group(1)
+    return s if re.fullmatch(r"[A-Za-z0-9_-]{15,}", s) else ""
+
+
+_sa_cache = {}
+
+
+def _b64u(b: bytes) -> str:
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+
+async def sa_tokens(client) -> dict:
+    """Přístupový token servisního účtu (jen čtení Disku); drží se v paměti do vypršení."""
+    info = sa_info()
+    if not info:
+        raise CloudError("Sdílení složek z Google Disku zatím není zapnuté.")
+    c = _sa_cache.get(info["client_email"])
+    if c and c.get("expires_at", 0) > time.time() + 120:
+        return c
+    try:
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import padding
+        uri = info.get("token_uri") or _AUTH["google"][1]
+        now = int(time.time())
+        body = _b64u(json.dumps({"alg": "RS256", "typ": "JWT"}).encode()) + "." + _b64u(json.dumps(
+            {"iss": info["client_email"], "scope": _SCOPE["google"], "aud": uri, "iat": now, "exp": now + 3600}).encode())
+        key = serialization.load_pem_private_key(info["private_key"].encode(), password=None)
+        jwt = body + "." + _b64u(key.sign(body.encode(), padding.PKCS1v15(), hashes.SHA256()))
+    except Exception:
+        logging.exception("KB: klíč servisního účtu Google nejde použít")
+        raise CloudError("Sdílení složek z Google Disku teď nefunguje. Dejte nám prosím vědět.")
+    r = await client.post(uri, data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": jwt}, timeout=30)
+    if r.status_code != 200:
+        logging.warning("KB servisní účet Google: %s %s", r.status_code, r.text[:300])
+        raise CloudError("Sdílení složek z Google Disku teď nefunguje. Dejte nám prosím vědět.")
+    t = _tokens_from(r.json())
+    _sa_cache[info["client_email"]] = t
+    return t
 
 
 # ─────────────────────────────────────────────────────────────
@@ -230,6 +303,33 @@ async def _g_account(client, tokens):
     return u.get("emailAddress") or u.get("displayName") or ""
 
 
+async def _gs_list(client, tokens, folder_id):
+    """Sdílená složka: kořen se neprochází – servisní účet je společný všem hotelům a ukázal by i cizí složky."""
+    if folder_id in ("", "root", "__shared"):
+        return []
+    return await _g_list(client, tokens, folder_id)
+
+
+async def g_ancestors(client, tokens, item_id: str) -> list:
+    """ID nadřazených složek, kam až účet dohlédne (nad nasdílenou složku nevidí)."""
+    out, cur = [], item_id
+    for _ in range(MAX_DEPTH * 2):
+        try:
+            r = await _req(client, "GET", _G + "/files/%s?supportsAllDrives=true&fields=parents" % quote(cur), tokens)
+        except CloudError:
+            break
+        par = r.json().get("parents") or []
+        if not par or par[0] in out:
+            break
+        cur = par[0]
+        out.append(cur)
+    return out
+
+
+async def _gs_account(client, tokens):
+    return ""
+
+
 # — Microsoft OneDrive / SharePoint (Graph) —
 _M = "https://graph.microsoft.com/v1.0"
 _M_SEL = "$select=id,name,size,file,folder,eTag,cTag,webUrl,lastModifiedDateTime,parentReference,remoteItem&$top=200"
@@ -362,6 +462,7 @@ async def _b_account(client, tokens):
 
 _API = {
     "google": (_g_list, _g_get, _g_download, _g_account),
+    "gshare": (_gs_list, _g_get, _g_download, _gs_account),
     "microsoft": (_m_list, _m_get, _m_download, _m_account),
     "dropbox": (_d_list, _d_get, _d_download, _d_account),
     "box": (_b_list, _b_get, _b_download, _b_account),
@@ -424,6 +525,8 @@ def list_sources(store, hotel_id: str = "") -> list:
 
 async def source_tokens(client, store, src: dict, secret: str) -> dict:
     """Platné tokeny zdroje; obnovené se hned uloží (Box refresh token po použití mění)."""
+    if src["provider"] == "gshare":
+        return await sa_tokens(client)
     tokens, changed = await fresh_tokens(client, src["provider"], unseal(src["tokens"], secret))
     if changed:
         src["tokens"] = seal(tokens, secret)
