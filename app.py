@@ -24,6 +24,7 @@ import print_i18n     # texty tiskovin v jazycích hostů
 import kb_routes       # znalostní báze hotelu (dokumenty, cloudové disky, asistent pro personál) — testy v test_kb.py
 import sg_api          # veřejné API /api/v1 a onboarding vývojářů — testy v test_sg_api.py
 import parking         # místa k parkování a max. rozměry vozu („vejde se moje auto?") — testy v test_parking.py
+import partners        # doporučené (spřátelené) firmy: ručně, z webu nebo z vyfoceného letáku — testy v test_partners.py
 
 load_dotenv()
 
@@ -2512,6 +2513,10 @@ def hotel_portal_update(token: str, data: dict = Body(default={})):
     _pk = parking.normalize(update_data)
     if _pk is not None:
         update_data.update(_pk)
+    # Doporučené firmy: čisté texty, strop počtu, čas potvrzení „doporučujeme z vlastní vůle"
+    _pt = partners.normalize(update_data)
+    if _pt is not None:
+        update_data.update(_pt)
     # Při prvním nastavení lůžek u aktivního předplatného ulož jako zaplacená lůžka
     new_beds = update_data.get("bed_count")
     paid_beds = current.get("subscription_paid_beds", 0)
@@ -8725,6 +8730,7 @@ INSTRUKCE K MÍSTŮM: Pokud host žádá tipy na okolí, doporučuj turistická 
 {chr(10).join([f"- {cf.get('label','Info')}: {cf.get('value','')}" for cf in h.get('custom_fields', []) if cf.get('value')]) if h.get('custom_fields') else ''}
 {alex_learn.prompt_block(h)}
 {parking.prompt_block(h)}
+{partners.prompt_block(h)}
 {"\n⭐ AKTIVNÍ NABÍDKA HOTELU: " + h.get('active_offer') + "\nTuto nabídku VŽDY zmíň pokud se host ptá na téma které s ní souvisí (wellness, restaurace, bar, aktivity, služby apod.). Zmiň ji přirozeně jako součást odpovědi — ne jako reklamu, ale jako přátelský tip." if h.get('active_offer') else ''}
 
 Guest name: {req.guest_name or 'Guest'}"""
@@ -11784,6 +11790,10 @@ kb_routes.setup(
     learn_block=alex_learn.prompt_block,
     database_url=DATABASE_URL,
 )
+
+# Doporučené firmy: návrh karty z webu nebo z vyfoceného letáku (cesty jsou v partners.py, nic neukládají)
+partners.setup(app, find_hotel_by_token=find_hotel_by_token, get_settings=db_get_settings,
+               rate_limit_ok=_rate_limit_ok, client_ip=_client_ip)
 
 # ─────────────────────────────────────────────
 # Veřejné API (/api/v1) a onboarding vývojářů (/developers) — cesty jsou v sg_api.py
