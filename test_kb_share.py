@@ -124,6 +124,37 @@ def test_off_without_key():
     assert cloud.configured("gshare") is False
 
 
+def test_full_drive_only_for_listed_hotels():
+    """Celý Disk (přihlášení účtem) je hotelům vypnutý; zapne se jen jmenovitě."""
+    c = make()
+    old = {k: os.environ.get(k) for k in ("KB_GOOGLE_CLIENT_ID", "KB_GOOGLE_CLIENT_SECRET", "KB_GOOGLE_FULL_HOTELS")}
+    os.environ.update(KB_GOOGLE_CLIENT_ID="cid", KB_GOOGLE_CLIENT_SECRET="sec")
+    os.environ.pop("KB_GOOGLE_FULL_HOTELS", None)
+
+    def google_on(token):
+        p = {x["id"]: x for x in c.get("/api/hotel-portal/kb/status", params={"token": token}).json()["providers"]}
+        return p["google"]["configured"], p["gshare"]["configured"]
+
+    def conn(token):
+        return c.get("/api/hotel-portal/kb/connect", params={"token": token, "provider": "google"}).status_code
+    try:
+        assert cloud.configured("google") is True
+        assert google_on("tok1") == (False, True) and conn("tok1") == 400, "bez povolení jen sdílená složka"
+        os.environ["KB_GOOGLE_FULL_HOTELS"] = "jiny, h1"
+        assert google_on("tok1") == (True, True) and conn("tok1") == 200
+        assert google_on("tok2") == (False, True) and conn("tok2") == 400, "povolení jednoho hotelu neplatí pro druhý"
+        os.environ["KB_GOOGLE_FULL_HOTELS"] = "*"
+        assert google_on("tok2") == (True, True) and conn("tok2") == 200
+        os.environ.pop("KB_GOOGLE_FULL_HOTELS")
+        HOTELS["h2"]["kb_google_full"] = True
+        assert google_on("tok2") == (True, True) and conn("tok2") == 200
+        assert google_on("tok1") == (False, True)
+    finally:
+        HOTELS["h2"].pop("kb_google_full", None)
+        for k, v in old.items():
+            os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+
+
 def test_status_and_connect():
     c = make()
     p = {x["id"]: x for x in c.get("/api/hotel-portal/kb/status", params={"token": "tok1"}).json()["providers"]}

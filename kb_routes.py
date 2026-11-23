@@ -24,6 +24,14 @@ def _secret() -> str:
     return os.getenv("KB_SECRET", "").strip() or D["admin_token"]() or ""
 
 
+def full_drive_allowed(h: dict) -> bool:
+    """Smí se hotel přihlásit ke Google Disku celým účtem? Výchozí je NE – hotelům nabízíme jen sdílenou složku
+    (čtení celého Disku by vyžadovalo placené ověření aplikace u Googlu). Povolit lze jmenovitě: proměnnou
+    KB_GOOGLE_FULL_HOTELS (ID hotelů oddělená čárkou, * = všem) nebo polem hotelu kb_google_full."""
+    ids = {x.strip() for x in os.getenv("KB_GOOGLE_FULL_HOTELS", "").split(",") if x.strip()}
+    return bool(h.get("kb_google_full")) or "*" in ids or str(h.get("id", "")) in ids
+
+
 def _hotel(request: Request) -> dict:
     """Hotel podle tokenu portálu, nebo (pro přihlášeného admina) podle ?hotel=<id>."""
     q = request.query_params
@@ -116,7 +124,7 @@ def setup(app, **deps):
         base = D["get_base_url"](request)
         return {
             "hotel": {"id": hid, "name": h.get("name", "")},
-            "providers": [{"id": p, "name": v["name"], "configured": cloud.configured(p)}
+            "providers": [{"id": p, "name": v["name"], "configured": cloud.configured(p) and (p != "google" or full_drive_allowed(h))}
                           | ({"share_email": cloud.share_email()} if p == "gshare" else {}) for p, v in cloud.PROVIDERS.items()],
             "sources": [_public_source(s) for s in srcs],
             "docs": docs,
@@ -131,7 +139,7 @@ def setup(app, **deps):
     @app.get("/api/hotel-portal/kb/connect")
     async def kb_connect(request: Request, provider: str = "", audience: str = "staff"):
         h = _hotel(request)
-        if provider == "gshare" or not cloud.configured(provider):
+        if provider == "gshare" or not cloud.configured(provider) or (provider == "google" and not full_drive_allowed(h)):
             raise HTTPException(400, "Tahle služba zatím není zapnutá.")
         state = uuid.uuid4().hex + uuid.uuid4().hex
         via = "token" if request.query_params.get("token") else "admin"
