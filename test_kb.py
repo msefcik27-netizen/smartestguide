@@ -204,3 +204,23 @@ if __name__ == "__main__":
                 traceback.print_exc()
     print("selhalo:", fails)
     sys.exit(1 if fails else 0)
+
+
+def test_onboarding_docs():
+    import kb_routes
+    docs = [
+        {"id": "a", "title": "Řád pro hosty", "audience": "guest", "chunks": 3, "chars": 6000, "url": "https://x.example/a"},
+        {"id": "b", "title": "Požární směrnice", "audience": "staff", "chunks": 2, "chars": 100, "url": "http://x.example/b"},
+        {"id": "c", "title": "Vypnutý", "audience": "staff", "chunks": 2, "enabled": False},
+        {"id": "d", "title": "Nenačtený", "audience": "staff", "chunks": 0},
+        {"id": "e", "title": "Bez určení", "chunks": 1, "chars": 2400, "url": "javascript:alert(1)"},
+        "nesmysl",
+    ]
+    out = kb_routes.onboarding_docs(docs)
+    assert [d["id"] for d in out] == ["e", "b", "a"]                 # interní napřed (podle názvu), pak pro hosty
+    assert out[0] == {"id": "e", "title": "Bez určení", "url": "", "audience": "staff", "minutes": 2}
+    assert out[1]["url"] == "" and out[1]["minutes"] == 1            # jen https, nejméně 1 minuta
+    assert out[2]["url"] == "https://x.example/a" and out[2]["minutes"] == 5
+    assert kb_routes.onboarding_docs(None) == []
+    many = [{"id": str(i), "title": f"D{i:03d}", "chunks": 1} for i in range(100)]
+    assert len(kb_routes.onboarding_docs(many)) == kb_routes.ONBOARDING_MAX

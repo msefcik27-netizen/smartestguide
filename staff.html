@@ -47,6 +47,20 @@ textarea:focus{outline:2px solid rgba(255,107,0,.35);border-color:var(--accent)}
 .note{max-width:760px;margin:0 auto;padding:0 16px 8px;font-size:11.5px;color:var(--muted);text-align:center}
 .denied{max-width:520px;margin:60px auto;padding:24px;background:#fff;border:1px solid var(--border);border-radius:14px;text-align:center}
 .denied h1{font-family:var(--head);font-size:19px;margin-bottom:6px}.denied p{color:var(--muted)}
+.onb{background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px}
+.onb h2{font-family:var(--head);font-size:17px}.onb h3{font-size:13.5px;margin:14px 0 6px}
+.onb p{color:var(--muted);font-size:13.5px;margin-top:4px}
+.prog{height:8px;background:var(--soft);border-radius:8px;margin-top:12px;overflow:hidden}
+.prog div{height:100%;width:0;background:var(--teal);border-radius:8px;transition:width .2s}
+.progt{font-size:12.5px;color:var(--muted);margin:5px 0 8px}
+.doc{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-top:1px solid var(--soft)}
+.doc input{width:20px;height:20px;margin-top:2px;accent-color:var(--teal);flex:none;cursor:pointer}
+.doc .dt{flex:1;min-width:0}.doc .dt b{font-weight:600;word-wrap:break-word}.doc .dt a{color:var(--accent);text-decoration:none}
+.doc .dm{font-size:12px;color:var(--muted)}
+.doc.done .dt b{color:var(--muted);text-decoration:line-through}
+.doc button,.onbq button{font:500 12.5px var(--body);background:#fff;color:var(--ink);border:1px solid var(--border);border-radius:16px;padding:5px 10px;cursor:pointer;flex:none}
+.doc button:hover,.onbq button:hover{border-color:var(--accent);color:var(--accent)}
+.onbq{display:flex;flex-wrap:wrap;gap:8px}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -54,6 +68,7 @@ textarea:focus{outline:2px solid rgba(255,107,0,.35);border-color:var(--accent)}
 <div class="top"><div class="top-in">
   <div class="logo">SMARTEST <span>GUIDE</span></div>
   <div class="hname"><span id="t-sub">Asistent pro personál</span> · <strong id="hname"></strong></div>
+  <button class="btn" id="onbbtn" hidden></button>
   <button class="btn" id="clear" hidden>Nový dotaz</button>
 </div></div>
 
@@ -62,6 +77,12 @@ textarea:focus{outline:2px solid rgba(255,107,0,.35);border-color:var(--accent)}
     <h1 id="t-h1"></h1>
     <p id="t-lead"></p>
     <div class="sugg" id="sugg"></div>
+  </div>
+  <div class="onb" id="onb" hidden>
+    <h2 id="t-onb-h"></h2><p id="t-onb-p"></p>
+    <div class="prog"><div id="onb-bar"></div></div><div class="progt" id="onb-prog"></div>
+    <div id="onb-docs"></div>
+    <h3 id="t-onb-q"></h3><div class="onbq" id="onb-q"></div>
   </div>
 </div></div>
 
@@ -76,23 +97,43 @@ textarea:focus{outline:2px solid rgba(255,107,0,.35);border-color:var(--accent)}
 const P = new URLSearchParams(location.search), HOTEL = P.get('h') || '', KEY = P.get('k') || '';
 const L2 = (navigator.language || 'cs').slice(0, 2).toLowerCase();
 const TX = {
- cs:{sub:'Asistent pro personál', h1:'Na co se chcete zeptat?', lead:n=>`Odpovídám jen z dokumentů hotelu (${n} v bázi) a u každé odpovědi uvedu, odkud čerpám. Když v nich odpověď není, řeknu to.`,
+ cs:{onb:'Zaškolení', onbH:'První dny v hotelu', onbP:'Projděte si dokumenty hotelu a odškrtávejte, co už máte přečtené. Na cokoli se můžete hned zeptat dole.',
+     onbProg:(a,b)=>`Přečteno ${a} z ${b}`, onbDone:'Hotovo, máte přečteno vše. Když si nebudete jistí, zeptejte se dole.', onbAsk:'Co je důležité?', onbSum:t=>`Shrň mi nejdůležitější body z dokumentu „${t}“. Co z něj musím znát první den?`,
+     onbMin:n=>`asi ${n} min čtení`, onbStaff:'interní', onbGuest:'i pro hosty', onbQ:'Na co se nováčci ptají nejčastěji',
+     onbQs:['Co mám udělat první den?','Na koho se mám obrátit, když si nevím rady?','Jak postupovat při požáru nebo úrazu?','Jak řešit stížnost hosta?','Jaká jsou pravidla pro klíče a bezpečnost?'],
+     sub:'Asistent pro personál', h1:'Na co se chcete zeptat?', lead:n=>`Odpovídám jen z dokumentů hotelu (${n} v bázi) a u každé odpovědi uvedu, odkud čerpám. Když v nich odpověď není, řeknu to.`,
      empty:'Hotel zatím do báze nenahrál žádné dokumenty. Požádejte vedení, ať je doplní.', ph:'Napište otázku…', send:'Odeslat', clear:'Nový dotaz',
      note:'Odpovědi vycházejí z dokumentů hotelu. V nejasných případech rozhoduje vedoucí.', src:'Zdroje', den:'Odkaz není platný', den2:'Požádejte vedení hotelu o nový odkaz pro personál.',
      err:'Nepodařilo se spojit. Zkuste to znovu.', sugg:['Jak postupovat při požáru?','Do kdy se podává snídaně?','Co dělat při stížnosti hosta?']},
- en:{sub:'Staff assistant', h1:'What would you like to know?', lead:n=>`I answer only from the hotel's documents (${n} in the knowledge base) and show where each answer comes from. If the answer is not there, I will say so.`,
+ en:{onb:'Onboarding', onbH:'Your first days at the hotel', onbP:'Go through the hotel\'s documents and tick off what you have read. You can ask about anything below.',
+     onbProg:(a,b)=>`${a} of ${b} read`, onbDone:'Done, you have read everything. When in doubt, ask below.', onbAsk:'What matters here?', onbSum:t=>`Summarise the most important points of the document "${t}". What do I need to know on my first day?`,
+     onbMin:n=>`about ${n} min read`, onbStaff:'internal', onbGuest:'also for guests', onbQ:'What new colleagues ask most often',
+     onbQs:['What should I do on my first day?','Who do I turn to when I am not sure?','What do I do in case of fire or injury?','How do I handle a guest complaint?','What are the rules for keys and security?'],
+     sub:'Staff assistant', h1:'What would you like to know?', lead:n=>`I answer only from the hotel's documents (${n} in the knowledge base) and show where each answer comes from. If the answer is not there, I will say so.`,
      empty:'The hotel has not added any documents yet. Ask the management to add them.', ph:'Type your question…', send:'Send', clear:'New question',
      note:'Answers come from the hotel\'s documents. When in doubt, your manager decides.', src:'Sources', den:'This link is not valid', den2:'Ask the hotel management for a new staff link.',
      err:'Connection failed. Please try again.', sugg:['What do I do in case of fire?','Until when is breakfast served?','How do I handle a guest complaint?']},
- de:{sub:'Assistent für Mitarbeiter', h1:'Was möchten Sie wissen?', lead:n=>`Ich antworte nur aus den Dokumenten des Hotels (${n} in der Wissensdatenbank) und nenne die Quelle. Steht die Antwort nicht darin, sage ich das.`,
+ de:{onb:'Einarbeitung', onbH:'Ihre ersten Tage im Hotel', onbP:'Gehen Sie die Dokumente des Hotels durch und haken Sie ab, was Sie gelesen haben. Unten können Sie jederzeit fragen.',
+     onbProg:(a,b)=>`${a} von ${b} gelesen`, onbDone:'Fertig, Sie haben alles gelesen. Im Zweifel fragen Sie unten.', onbAsk:'Was ist wichtig?', onbSum:t=>`Fasse die wichtigsten Punkte des Dokuments „${t}“ zusammen. Was muss ich am ersten Tag wissen?`,
+     onbMin:n=>`ca. ${n} Min. Lesezeit`, onbStaff:'intern', onbGuest:'auch für Gäste', onbQ:'Was neue Kollegen am häufigsten fragen',
+     onbQs:['Was soll ich am ersten Tag tun?','An wen wende ich mich, wenn ich nicht weiterweiß?','Was tun bei Feuer oder Unfall?','Wie gehe ich mit einer Beschwerde um?','Welche Regeln gelten für Schlüssel und Sicherheit?'],
+     sub:'Assistent für Mitarbeiter', h1:'Was möchten Sie wissen?', lead:n=>`Ich antworte nur aus den Dokumenten des Hotels (${n} in der Wissensdatenbank) und nenne die Quelle. Steht die Antwort nicht darin, sage ich das.`,
      empty:'Das Hotel hat noch keine Dokumente hinterlegt. Bitten Sie die Leitung, sie zu ergänzen.', ph:'Frage eingeben…', send:'Senden', clear:'Neue Frage',
      note:'Die Antworten stammen aus den Dokumenten des Hotels. Im Zweifel entscheidet die Leitung.', src:'Quellen', den:'Dieser Link ist ungültig', den2:'Bitten Sie die Hotelleitung um einen neuen Link.',
      err:'Verbindung fehlgeschlagen. Bitte erneut versuchen.', sugg:['Was tun bei Feuer?','Bis wann gibt es Frühstück?','Wie gehe ich mit einer Beschwerde um?']},
- sk:{sub:'Asistent pre personál', h1:'Na čo sa chcete opýtať?', lead:n=>`Odpovedám len z dokumentov hotela (${n} v báze) a pri každej odpovedi uvediem, odkiaľ čerpám. Keď v nich odpoveď nie je, poviem to.`,
+ sk:{onb:'Zaškolenie', onbH:'Prvé dni v hoteli', onbP:'Prejdite si dokumenty hotela a odškrtávajte, čo už máte prečítané. Na čokoľvek sa môžete hneď opýtať dole.',
+     onbProg:(a,b)=>`Prečítané ${a} z ${b}`, onbDone:'Hotovo, máte prečítané všetko. Keď si nebudete istí, opýtajte sa dole.', onbAsk:'Čo je dôležité?', onbSum:t=>`Zhrň mi najdôležitejšie body z dokumentu „${t}“. Čo z neho musím vedieť prvý deň?`,
+     onbMin:n=>`asi ${n} min čítania`, onbStaff:'interné', onbGuest:'aj pre hostí', onbQ:'Na čo sa nováčikovia pýtajú najčastejšie',
+     onbQs:['Čo mám urobiť prvý deň?','Na koho sa mám obrátiť, keď si neviem rady?','Ako postupovať pri požiari alebo úraze?','Ako riešiť sťažnosť hosťa?','Aké sú pravidlá pre kľúče a bezpečnosť?'],
+     sub:'Asistent pre personál', h1:'Na čo sa chcete opýtať?', lead:n=>`Odpovedám len z dokumentov hotela (${n} v báze) a pri každej odpovedi uvediem, odkiaľ čerpám. Keď v nich odpoveď nie je, poviem to.`,
      empty:'Hotel zatiaľ do bázy nenahral žiadne dokumenty. Požiadajte vedenie, nech ich doplní.', ph:'Napíšte otázku…', send:'Odoslať', clear:'Nová otázka',
      note:'Odpovede vychádzajú z dokumentov hotela. V nejasných prípadoch rozhoduje vedúci.', src:'Zdroje', den:'Odkaz nie je platný', den2:'Požiadajte vedenie hotela o nový odkaz pre personál.',
      err:'Nepodarilo sa spojiť. Skúste to znova.', sugg:['Ako postupovať pri požiari?','Dokedy sa podávajú raňajky?','Čo robiť pri sťažnosti hosťa?']},
- pl:{sub:'Asystent dla personelu', h1:'O co chcesz zapytać?', lead:n=>`Odpowiadam tylko na podstawie dokumentów hotelu (${n} w bazie) i podaję źródło. Jeśli odpowiedzi tam nie ma, powiem to.`,
+ pl:{onb:'Wdrożenie', onbH:'Pierwsze dni w hotelu', onbP:'Przejrzyj dokumenty hotelu i odhaczaj to, co już przeczytane. O wszystko możesz zapytać poniżej.',
+     onbProg:(a,b)=>`Przeczytano ${a} z ${b}`, onbDone:'Gotowe, wszystko przeczytane. W razie wątpliwości zapytaj poniżej.', onbAsk:'Co jest ważne?', onbSum:t=>`Streść najważniejsze punkty dokumentu „${t}”. Co muszę wiedzieć pierwszego dnia?`,
+     onbMin:n=>`ok. ${n} min czytania`, onbStaff:'wewnętrzny', onbGuest:'także dla gości', onbQ:'O co najczęściej pytają nowi pracownicy',
+     onbQs:['Co mam zrobić pierwszego dnia?','Do kogo się zwrócić, gdy nie wiem, co robić?','Co robić w razie pożaru lub wypadku?','Jak postąpić przy skardze gościa?','Jakie są zasady dotyczące kluczy i bezpieczeństwa?'],
+     sub:'Asystent dla personelu', h1:'O co chcesz zapytać?', lead:n=>`Odpowiadam tylko na podstawie dokumentów hotelu (${n} w bazie) i podaję źródło. Jeśli odpowiedzi tam nie ma, powiem to.`,
      empty:'Hotel nie dodał jeszcze żadnych dokumentów. Poproś kierownictwo o ich dodanie.', ph:'Wpisz pytanie…', send:'Wyślij', clear:'Nowe pytanie',
      note:'Odpowiedzi pochodzą z dokumentów hotelu. W razie wątpliwości decyduje przełożony.', src:'Źródła', den:'Link jest nieprawidłowy', den2:'Poproś kierownictwo hotelu o nowy link.',
      err:'Błąd połączenia. Spróbuj ponownie.', sugg:['Co robić w razie pożaru?','Do której podawane jest śniadanie?','Jak postąpić przy skardze gościa?']}
@@ -130,10 +171,37 @@ $('q').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) 
 $('q').addEventListener('input', e => { e.target.style.height = ''; e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px'; });
 $('clear').onclick = () => { HIST = []; document.querySelectorAll('#list .m').forEach(x => x.remove()); $('clear').hidden = true; $('q').focus(); };
 
+// ── Zaškolení nováčka: seznam dokumentů k přečtení; co je přečteno, si pamatuje tento prohlížeč ──
+const ONB_KEY = 'sg_onb_' + HOTEL; let ONB = null;
+function onbRead(){ try { return JSON.parse(localStorage.getItem(ONB_KEY) || '{}') || {}; } catch(e){ return {}; } }
+function onbSave(o){ try { localStorage.setItem(ONB_KEY, JSON.stringify(o)); } catch(e){} }
+function onbDraw(){
+  const done = onbRead(), n = ONB.length, a = ONB.filter(d => done[d.id]).length;
+  $('onb-bar').style.width = (n ? Math.round(a / n * 100) : 0) + '%';
+  $('onb-prog').textContent = n && a === n ? T.onbDone : T.onbProg(a, n);
+  $('onb-docs').innerHTML = ONB.map((d, i) => { const u = safeUrl(d.url);
+    return `<div class="doc${done[d.id] ? ' done' : ''}"><input type="checkbox" data-i="${i}" aria-label="${esc(d.title)}"${done[d.id] ? ' checked' : ''}>` +
+      `<div class="dt">${u ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer"><b>${esc(d.title)}</b></a>` : `<b>${esc(d.title)}</b>`}` +
+      `<div class="dm">${esc(d.audience === 'staff' ? T.onbStaff : T.onbGuest)} · ${esc(T.onbMin(d.minutes))}</div></div>` +
+      `<button data-ask="${i}">${esc(T.onbAsk)}</button></div>`; }).join('');
+}
+$('onb-docs').addEventListener('change', e => { const d = ONB[e.target.dataset.i]; if (!d) return;
+  const o = onbRead(); if (e.target.checked) o[d.id] = 1; else delete o[d.id]; onbSave(o); onbDraw(); });
+$('onb-docs').addEventListener('click', e => { const d = ONB && ONB[e.target.dataset.ask]; if (d) ask(T.onbSum(d.title)); });
+$('onb-q').onclick = e => { if (e.target.tagName === 'BUTTON') ask(e.target.textContent); };
+$('onbbtn').onclick = async () => {
+  if (!$('onb').hidden) { $('onb').hidden = true; return; }
+  if (!ONB) { try { ONB = (await post('onboarding')).docs || []; } catch(e){ add('err', esc(e.message || T.err)); return; } }
+  $('t-onb-h').textContent = T.onbH; $('t-onb-p').textContent = T.onbP; $('t-onb-q').textContent = T.onbQ;
+  $('onb-q').innerHTML = T.onbQs.map(s => `<button>${esc(s)}</button>`).join('');
+  onbDraw(); $('onb').hidden = false; $('feed').scrollTop = 0;
+};
+
 (async () => {
   try {
     const r = await post('info'); $('hname').textContent = r.hotel; $('intro').hidden = false; $('bar').hidden = false;
     $('t-lead').textContent = r.counts.docs ? T.lead(r.counts.docs) : T.empty;
+    if (r.counts.docs) { $('onbbtn').textContent = T.onb; $('onbbtn').hidden = false; }
     if (r.counts.docs) $('sugg').innerHTML = T.sugg.map(s => `<button>${esc(s)}</button>`).join('');
     $('sugg').onclick = e => { if (e.target.tagName === 'BUTTON') ask(e.target.textContent); };
   } catch(e){ $('feed').hidden = true; $('denied').hidden = false; }

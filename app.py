@@ -23,6 +23,7 @@ import alex_learn      # „Alex se učí": odpovědi recepce na dotazy bez odpo
 import print_i18n     # texty tiskovin v jazycích hostů
 import kb_routes       # znalostní báze hotelu (dokumenty, cloudové disky, asistent pro personál) — testy v test_kb.py
 import sg_api          # veřejné API /api/v1 a onboarding vývojářů — testy v test_sg_api.py
+import sg_mcp          # napojení pro AI asistenty (MCP, adresa /mcp) — testy v test_sg_mcp.py
 import parking         # místa k parkování a max. rozměry vozu („vejde se moje auto?") — testy v test_parking.py
 import partners        # doporučené (spřátelené) firmy: ručně, z webu nebo z vyfoceného letáku — testy v test_partners.py
 import ratings         # hodnocení odpovědí palcem (host v chatu, hotel v portálu) — testy v test_ratings.py
@@ -721,7 +722,7 @@ app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), check_dir=False), name="static")  # self-host fotek, fontů a log (GDPR — nic z Google/Pexels CDN)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.25"
+APP_VERSION = "0.5.26"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -9089,6 +9090,7 @@ Guest name: {req.guest_name or 'Guest'}"""
     # s limity a verdikt spočítá server a odpověď se vygeneruje znovu s hotovým výsledkem. Model sám
     # u rezervy 1 cm uzavíral „VEJDE SE" (test na stagingu 22. 11. 2026). Značka se hostovi neukáže.
     _car = parking.parse_marker(_raw)
+    _car_src = _raw
     # Značku model často vynechá (test 22. 11. 2026). Když odpověď bez značky zmiňuje některý limit
     # hotelu, server si rozměry auta vyžádá zvlášť krátkým dotazem.
     if not _car and _car_marker_block and parking.mentions_limit(h, _raw):
@@ -9096,12 +9098,15 @@ Guest name: {req.guest_name or 'Guest'}"""
             _rawx, _usagex = await _alex(pms_extra_blocks, messages + [{"role": "assistant", "content": parking.strip_marker(_raw)},
                                                                        {"role": "user", "content": parking.EXTRACT_PROMPT}])
             _car = parking.parse_marker(_rawx)
+            _car_src = _rawx
             _usage = {k: int(_usage.get(k) or 0) + int(_usagex.get(k) or 0) for k in ("input_tokens", "output_tokens")}
         except Exception as e:
             logging.warning("Dotaz na rozměry auta selhal: %s", e)
     if _car:
         try:
-            _blk_car = parking.verdict_block(h, _car)
+            # Rozměry od modelu se zpřesní podle databáze ověřených údajů (car_db), když je shoda jistá.
+            _car, _car_label = parking.refine(_car_src, _car)
+            _blk_car = parking.verdict_block(h, _car, _car_label)
             if _blk_car:
                 _raw3, _usage3 = await _alex(pms_extra_blocks + [_blk_car], messages)
                 if parking.strip_marker(_raw3):
@@ -11005,7 +11010,7 @@ PRIVACY_CS = LEGAL_CSS + """
   <h2>IX. Změny Zásad</h2>
   <p>O podstatných změnách Vás budeme informovat prostřednictvím aplikace nebo webu. Doporučujeme tuto stránku pravidelně kontrolovat.</p>
 
-  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Účinnost od 1. 6. 2025</footer>
+  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Účinnost od 1. 6. 2025 · <a href="/data?lang=cs" style="color:#2fd0d8">Kde leží vaše data a jak je chráníme</a></footer>
 </div>
 """
 
@@ -11087,7 +11092,7 @@ PRIVACY_EN = LEGAL_CSS + """
   <h2>IX. Changes to this Policy</h2>
   <p>We will notify you of material changes via the app or website. We recommend checking this page regularly.</p>
 
-  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Effective from 1 June 2025</footer>
+  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Effective from 1 June 2025 · <a href="/data?lang=en" style="color:#2fd0d8">Where your data lives and how we protect it</a></footer>
 </div>
 """
 
@@ -11155,7 +11160,7 @@ TERMS_CS = LEGAL_CSS + """
     <li>O změnách podmínek informujeme e-mailem s předstihem 30 dní</li>
   </ul>
 
-  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Účinnost od 1. 6. 2025</footer>
+  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Účinnost od 1. 6. 2025 · <a href="/data?lang=cs" style="color:#2fd0d8">Kde leží vaše data a jak je chráníme</a></footer>
 </div>
 """
 
@@ -11223,7 +11228,7 @@ TERMS_EN = LEGAL_CSS + """
     <li>Changes to these Terms are communicated by email with 30 days' notice</li>
   </ul>
 
-  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Effective from 1 June 2025</footer>
+  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Effective from 1 June 2025 · <a href="/data?lang=en" style="color:#2fd0d8">Where your data lives and how we protect it</a></footer>
 </div>
 """
 
@@ -12126,3 +12131,7 @@ sg_api.setup(
     guest_url=_guest_url,
     send_email=_api_send_verification,
 )
+
+# Napojení pro AI asistenty (MCP, adresa /mcp) — cesty jsou v sg_mcp.py
+sg_mcp.setup(app, db_load=db_load, resolve_hotel=_resolve_hotel, rate_limit_ok=_rate_limit_ok, client_ip=_client_ip,
+             get_base_url=get_base_url, guest_chat=_api_guest_chat, guest_url=_guest_url)

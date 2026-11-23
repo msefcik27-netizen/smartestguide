@@ -135,7 +135,7 @@ def place_line(p: dict) -> str:
 RULES = """VEJDE SE AUTO HOSTA? (postup, když se host ptá, jestli se jeho auto vejde do garáže nebo na parkoviště, nebo kde zaparkovat větší vůz)
 1. Když host neuvedl přesné auto, zeptej se jednou krátkou otázkou: značka, model, generace nebo rok a varianta délky (např. Mercedes třídy V: kompaktní / dlouhá / extra dlouhá), a jestli má střešní box nebo nosič kol. Co už z konverzace víš, na to se neptej. Dokud přesnou variantu neznáš, NEŘÍKEJ žádný verdikt (ani „vejde se“, ani „je to těsné“): jen se zeptej.
 2. Rozměry auta (výška, šířka bez zrcátek, délka) vezmi ze svých obecných znalostí údajů výrobce. To je JEDINÁ výjimka z ACCURACY RULE a platí jen pro rozměry aut. V odpovědi je uveď jako přibližné („podle údajů výrobce asi …“), aby si je host mohl porovnat s technickým průkazem. Když model nebo variantu neznáš jistě, popros hosta o rozměry z technického průkazu. Se střešním boxem nebo nosičem výšku neznáš: popros o celkovou výšku.
-3. ZNAČKA PRO VÝPOČET (POVINNÁ): jakmile znáš přesnou variantu auta a host chce vědět, jestli se vejde, začni odpověď PŘESNĚ značkou [[CAR:výška,šířka,délka]] s rozměry auta v centimetrech, celými čísly, např. [[CAR:189,193,489]]. Rozměr, který neznáš, napiš jako 0. Za značkou pokračuj normální odpovědí. Značku host neuvidí; hotelový systém podle ní rozměry přesně porovná s limity. Značku vynech jen tehdy, když se teprve doptáváš na variantu.
+3. ZNAČKA PRO VÝPOČET (POVINNÁ): jakmile znáš přesnou variantu auta a host chce vědět, jestli se vejde, začni odpověď PŘESNĚ značkou [[CAR:výška,šířka,délka|auto]] s rozměry auta v centimetrech, celými čísly, a za svislítkem značka, model, karoserie nebo varianta délky a rok, např. [[CAR:147,183,469|Škoda Octavia Combi 2021]]. Rozměr, který neznáš, napiš jako 0. Za značkou pokračuj normální odpovědí. Značku host neuvidí; hotelový systém podle ní rozměry přesně porovná s limity. Značku vynech jen tehdy, když se teprve doptáváš na variantu.
    V odpovědi pak ke každému posuzovanému rozměru napiš řádek „Výška: auto asi X cm, limit Y cm, rezerva R cm → vyhovuje / těsné / přesahuje“ (R = Y − X; záporná = přesahuje, 0 až 4 cm = těsné, 5 cm a víc = vyhovuje) a POD řádky verdikt: některý řádek „přesahuje“ → „NEVEJDE SE“ (který rozměr a o kolik); jinak některý „těsné“ → „TĚSNÉ“ (vejde se jen o pár centimetrů, ať host před vjezdem požádá recepci o ověření; NIKDY nepiš „VEJDE SE“); jinak → „VEJDE SE“ (podle rozměrů by se mělo vejít).
    Verdikt nesmí odporovat řádkům nad ním. Limit, který hotel neuvedl, neposuzuj a řekni, že ho neznáš: netvrď, že místo je „bez omezení“, pokud to hotel výslovně nenapsal. U výšky nikdy neriskuj.
 4. Rovnou nabídni další možnosti ze seznamu výše: kde to je, za kolik, jak daleko, jak se tam dostat a jestli je místo hlídané nebo pod kamerami. Když se auto nevejde, začni místem, kam se vejde. Nevymýšlej parkoviště, která v seznamu nejsou. Místo, do kterého se auto podle rozměrů nevejde, znovu jako možnost nenabízej.
@@ -162,20 +162,37 @@ def prompt_block(hotel: dict) -> str:
 # auta značkou [[CAR:v,š,d]] a porovnání s limity i verdikt spočítá tahle část; odpověď se pak
 # vygeneruje znovu s hotovým výsledkem.
 TIGHT_CM = 4      # rezerva 0 až 4 cm = těsné
-_MARKER_RE = re.compile(r"\[\[\s*CAR\s*:\s*(\d{1,5})\s*[,;x×]\s*(\d{1,5})\s*[,;x×]\s*(\d{1,5})\s*\]\]", re.I)
+_MARKER_RE = re.compile(r"\[\[\s*CAR\s*:\s*(\d{1,5})\s*[,;x×]\s*(\d{1,5})\s*[,;x×]\s*(\d{1,5})\s*(?:\|\s*([^\[\]|]{0,120}))?\]\]", re.I)
 _MARKER_ANY_RE = re.compile(r"\s*\[\[\s*CAR\b[^\]]*\]\]\s*", re.I)
 _DIMS = (("výška", "max_height_cm"), ("šířka", "max_width_cm"), ("délka", "max_length_cm"))
 VERDICTS = {"no": "NEVEJDE SE", "tight": "TĚSNÉ", "ok": "VEJDE SE"}
 
 
 def parse_marker(text):
-    """Rozměry auta ze značky [[CAR:výška,šířka,délka]] v cm → (v, š, d); neznámý rozměr None.
+    """Rozměry auta ze značky [[CAR:výška,šířka,délka|auto]] v cm → (v, š, d); neznámý rozměr None.
     Bez značky nebo bez jediného rozumného rozměru → None."""
     m = _MARKER_RE.search(str(text or ""))
     if not m:
         return None
-    car = tuple(v if CM_MIN <= v <= CM_MAX else None for v in (int(g) for g in m.groups()))
+    car = tuple(v if CM_MIN <= v <= CM_MAX else None for v in (int(g) for g in m.groups()[:3]))
     return car if any(car) else None
+
+
+def marker_name(text) -> str:
+    """Název auta ze značky [[CAR:v,š,d|Značka Model varianta rok]]; bez názvu ''."""
+    m = _MARKER_RE.search(str(text or ""))
+    return _clean(m.group(4), 120) if m and m.group(4) else ""
+
+
+def refine(text, car):
+    """Rozměry auta zpřesněné podle databáze ověřených údajů (car_db). → (auto, popis zdroje)
+    Bez jisté shody vrací rozměry beze změny a prázdný popis. Nikdy nevyhazuje."""
+    try:
+        import car_db
+        hit = car_db.lookup(marker_name(text), car)
+    except Exception:
+        hit = None
+    return (hit["car"], hit["label"]) if hit else (car, "")
 
 
 def strip_marker(text) -> str:
@@ -200,14 +217,18 @@ def fit(place: dict, car) -> dict:
     return {"verdict": verdict, "rows": rows, "unknown": unknown}
 
 
-def verdict_block(hotel: dict, car) -> str:
-    """Blok pro druhý průchod: hotové porovnání a verdikt pro každé místo. Prázdný, když není co říct."""
+def verdict_block(hotel: dict, car, db_label: str = "") -> str:
+    """Blok pro druhý průchod: hotové porovnání a verdikt pro každé místo. Prázdný, když není co říct.
+    db_label = název auta, pokud rozměry pocházejí z databáze ověřených údajů (viz refine)."""
     rows = places(hotel)
     if not rows or not car or not any(car):
         return ""
     word = {"no": "přesahuje", "tight": "těsné", "ok": "vyhovuje"}
     car_txt = ", ".join(f"{lbl} {c} cm" for (lbl, _), c in zip(_DIMS, car) if c)
-    out = [f"VÝSLEDEK POROVNÁNÍ ROZMĚRŮ (spočítal hotelový systém z rozměrů auta, které jsi uvedla: {car_txt}). "
+    origin = (f"z rozměrů auta z databáze údajů výrobců pro {_clean(db_label, 80)}: {car_txt}. V odpovědi použij PRÁVĚ tyto "
+              "rozměry auta, ne ty, které jsi uvedla dřív" if db_label
+              else f"z rozměrů auta, které jsi uvedla: {car_txt}")
+    out = [f"VÝSLEDEK POROVNÁNÍ ROZMĚRŮ (spočítal hotelový systém {origin}). "
            "Je ZÁVAZNÝ: řádky i verdikty převezmi přesně, nic nepřepočítávej a neměň."]
     for p in rows:
         f = fit(p, car)
@@ -244,7 +265,7 @@ def marker_block(hotel: dict) -> str:
         return ""
     return ("INTERNÍ ZNAČKA PARKOVÁNÍ (POVINNÁ): pokud v této odpovědi posuzuješ, jestli se konkrétní auto hosta vejde "
             "do garáže nebo na parkoviště (uvádíš rozměry auta), MUSÍ odpověď začínat přesně značkou "
-            "[[CAR:výška,šířka,délka]] s rozměry auta v centimetrech, např. [[CAR:189,193,489]]; neznámý rozměr 0. "
+            "[[CAR:výška,šířka,délka|auto]] s rozměry auta v centimetrech, např. [[CAR:147,183,469|Škoda Octavia Combi 2021]]; neznámý rozměr 0. "
             "Bez značky hotelový systém rozměry neporovná a host může dostat chybný výsledek. Značku host neuvidí. "
             "Když se teprve doptáváš na variantu auta nebo jde o jiné téma, značku nepiš.")
 
@@ -267,6 +288,6 @@ def mentions_limit(hotel: dict, text) -> bool:
 
 
 EXTRACT_PROMPT = ("[Interní dotaz hotelového systému, ne hosta.] Posuzovala jsi ve své poslední odpovědi, jestli se "
-                  "konkrétní auto hosta vejde? Pokud ano, odpověz POUZE značkou [[CAR:výška,šířka,délka]] s rozměry "
-                  "toho auta v centimetrech (celá čísla, neznámý rozměr 0), např. [[CAR:189,193,489]]. "
+                  "konkrétní auto hosta vejde? Pokud ano, odpověz POUZE značkou [[CAR:výška,šířka,délka|auto]] s rozměry "
+                  "toho auta v centimetrech (celá čísla, neznámý rozměr 0), např. [[CAR:147,183,469|Škoda Octavia Combi 2021]]. "
                   "Pokud ne (jen ses doptávala, nebo šlo o jiné téma), odpověz POUZE slovem NONE.")

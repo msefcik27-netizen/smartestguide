@@ -908,6 +908,7 @@ footer{padding:30px 5vw 26px;margin:0 24px 24px;background:#fff;border-radius:0 
     <a href="/apaleo">Apaleo integration</a>
     <a href="/privacy">Privacy Policy</a>
     <a href="/terms">Terms of Service</a>
+    <a href="/data" id="footer-data">Data &amp; security</a>
   </div>
   <div class="footer-copy">
     <span id="footer-operator">Operated by: Native Hotel Guide s.r.o. · Korunní 2569/108, 101 00 Prague, Czech Republic · Company ID 23112905</span><br>
@@ -1510,6 +1511,7 @@ function setLang(lang){
   const set=(id,html)=>{const el=document.getElementById(id);if(el)el.innerHTML=html;};
   const setText=(id,txt)=>{const el=document.getElementById(id);if(el)el.textContent=txt;};
   setText('footer-operator', T.footer_operator || TRANSLATIONS.en.footer_operator);
+  { const fd=document.getElementById('footer-data'); if(fd){ fd.textContent = lang==='cs'?'Data a bezpečnost':'Data & security'; fd.href = '/data?lang=' + (lang==='cs'?'cs':'en'); } }
   set('hero-h1',T.hero_h1);setText('hero-badge',T.hero_badge);setText('hero-p',T.hero_p);
   setText('hero-btn1',T.hero_btn1);setText('hero-btn2',T.hero_btn2);
   setText('stat1-label',T.stat1_label);setText('stat2-label',T.stat2_label);setText('stat3-label',T.stat3_label);setText('stat4-label',T.stat4_label);

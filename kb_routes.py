@@ -84,6 +84,25 @@ async def guest_block(hotel_id: str, message: str, history: list = None) -> str:
         return ""
 
 
+ONBOARDING_MAX = 60
+
+
+def onboarding_docs(docs: list) -> list:
+    """Dokumenty pro zaškolení nováčka: jen zapnuté a načtené, interní (staff) před těmi pro hosty, pak podle názvu.
+    Ven jde jen to, co nováček potřebuje: název, odkaz (jen https), pro koho dokument je a přibližná délka čtení."""
+    out = []
+    for d in docs or []:
+        if not isinstance(d, dict) or not d.get("enabled", True) or not int(d.get("chunks") or 0):
+            continue
+        url = str(d.get("url") or "")
+        out.append({"id": str(d.get("id") or ""), "title": str(d.get("title") or "")[:200],
+                    "url": url if url.lower().startswith("https://") else "",
+                    "audience": d.get("audience") if d.get("audience") in kbmod.AUDIENCES else "staff",
+                    "minutes": max(1, round(int(d.get("chars") or 0) / 1200))})     # ~1200 znaků za minutu
+    out.sort(key=lambda x: (x["audience"] != "staff", x["title"].lower()))
+    return out[:ONBOARDING_MAX]
+
+
 def setup(app, **deps):
     """Zaregistruje cesty. deps: db_load, find_hotel_by_token, resolve_hotel, admin_token (fn), rate_limit_ok,
     client_ip, get_base_url, staging_banner, get_settings, learn_block, database_url."""
@@ -399,6 +418,15 @@ def setup(app, **deps):
             raise HTTPException(429, "Zkuste to za chvíli.")
         hid, h = _staff(await _body(request))
         return {"hotel": h.get("name", ""), "counts": await asyncio.to_thread(KB.counts, hid)}
+
+    @app.post("/api/staff/onboarding")
+    async def staff_onboarding(request: Request):
+        """Zaškolení nováčka: seznam dokumentů k přečtení (interní napřed). Co má přečteno, si pamatuje jeho prohlížeč."""
+        if not rl("stonb:" + ip(request), 30, 60):
+            raise HTTPException(429, "Zkuste to za chvíli.")
+        hid, h = _staff(await _body(request))
+        docs = await asyncio.to_thread(KB.list_documents, hid)
+        return {"hotel": h.get("name", ""), "docs": onboarding_docs(docs)}
 
     async def _answer(h: dict, msg: str, hist: list, hits: list, lang: str = "") -> dict:
         """Odpověď z nalezených úryvků a odpovědí recepce, s čísly zdrojů. Sdílí režim pro personál i hledání v portálu."""
