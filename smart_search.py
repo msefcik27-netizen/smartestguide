@@ -11,7 +11,7 @@ Jak se chová (a proč):
 
 Čisté funkce mají testy v test_smart_search.py. Cesty registruje kb_routes.setup().
 """
-import re, time, asyncio, logging
+import re, json, time, asyncio, logging
 
 import kb as kbmod
 
@@ -238,10 +238,49 @@ def worth_learning(q: str) -> bool:
     return len(w) >= 2 or (len(w) == 1 and len(qnorm(q)) >= 8)
 
 
+PROPOSALS_MAX = 5
+BLANK = "___"                              # místo pro údaj, který zná jen hotel (cena, čas…)
+
+
+def parse_proposals(text: str, known_questions=(), limit: int = PROPOSALS_MAX) -> list:
+    """Z odpovědi AI vytáhne návrhy [{q, options[]}]. Snese text okolo JSONu, zahodí vadné položky,
+    opakované otázky a otázky, na které už hotel odpověď má."""
+    s = str(text or "")
+    a, b = s.find("["), s.rfind("]")
+    if a < 0 or b <= a:
+        return []
+    try:
+        data = json.loads(s[a:b + 1])
+    except Exception:
+        return []
+    seen = {qnorm(x) for x in known_questions if x}
+    out = []
+    for it in data if isinstance(data, list) else []:
+        if not isinstance(it, dict):
+            continue
+        q = " ".join(str(it.get("q") or "").split())[:200]
+        k_ = qnorm(q)
+        if len(k_) < 4 or k_ in seen:
+            continue
+        opts = []
+        for o in it.get("options") if isinstance(it.get("options"), list) else []:
+            o = " ".join(str(o or "").split())[:240] if isinstance(o, str) else ""
+            if o and o not in opts:
+                opts.append(o)
+        if not opts:
+            continue
+        seen.add(k_)
+        out.append({"q": q, "options": opts[:4]})
+        if len(out) >= limit:
+            break
+    return out
+
+
 # ─────────────────────────────────────────────────────────────
 # Cesty
 # ─────────────────────────────────────────────────────────────
-def setup(app, *, KB, STORE, hotel_fn, body_fn, rate_limit_ok, answer_fn, learned_fn, note_unanswered=None, k=6):
+def setup(app, *, KB, STORE, hotel_fn, body_fn, rate_limit_ok, answer_fn, learned_fn, note_unanswered=None,
+          propose_fn=None, k=6):
     from fastapi import Request, HTTPException
 
     def _df(hid):
@@ -345,6 +384,30 @@ def setup(app, *, KB, STORE, hotel_fn, body_fn, rate_limit_ok, answer_fn, learne
             await asyncio.to_thread(note_unanswered, h["id"], q, str(b.get("lang") or "")[:5])
             return {"ok": True, "noted": True}
         return {"ok": True, "noted": False}
+
+    @app.post("/api/hotel-portal/search/expand")
+    async def portal_search_expand(request: Request):
+        """K tématu dotazu navrhne další otázky hostů a ke každé hotové odpovědi na výběr. Nic se neukládá –
+        hotel si vybere, upraví a uloží sám (cesta learn)."""
+        h = hotel_fn(request)
+        hid = h["id"]
+        b = await body_fn(request)
+        q = str(b.get("q") or "").strip()[:300]
+        if len(q) < 3:
+            raise HTTPException(400, "Prázdný dotaz.")
+        if not propose_fn:
+            raise HTTPException(503, "Návrhy teď nejsou dostupné.")
+        if not rate_limit_ok("sqx:" + hid, 8, 60):
+            raise HTTPException(429, "Zkuste to za chvíli.")
+        df = await asyncio.to_thread(_df, hid)
+        used, _f = correct(q, df)
+        hits = await KB.search(hid, used, audiences=("guest", "staff"), k=k)
+        if not hits:
+            hits = await closest(KB, hid, used, df, k)
+        include_self = bool(b.get("self"))
+        known = [x.get("q", "") for x in learned_fn(h)]
+        text = await propose_fn(h, q, hits, str(b.get("lang") or "")[:2], include_self)
+        return {"q": q, "items": parse_proposals(text, known), "blank": BLANK}
 
     @app.get("/api/hotel-portal/search/insights")
     async def portal_search_insights(request: Request):

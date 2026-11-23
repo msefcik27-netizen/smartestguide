@@ -242,6 +242,14 @@ html{color-scheme:light}
   .sq-chips{display:flex;flex-wrap:wrap;gap:8px;padding:4px 18px 8px}
   .sq-chip{all:unset;cursor:pointer;font-size:13px;border:1px solid var(--border);border-radius:20px;padding:5px 12px;color:var(--text)}
   .sq-chip:hover,.sq-chip.sq-on{border-color:var(--accent);color:var(--accent)}
+  .sq-prop-btn{all:unset;cursor:pointer;font-size:13px;font-weight:600;color:var(--accent);border:1px dashed var(--accent);border-radius:20px;padding:7px 16px}
+  .sq-prop-btn:hover{background:rgba(255,107,0,.08)}
+  .sq-prop{margin:6px 14px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;font-size:13px}
+  .sq-prop-done{background:rgba(0,212,170,.07);border-color:var(--accent2,#00d4aa)}
+  .sq-prop-q{font-size:14px;font-weight:600}
+  .sq-prop-opts{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0 0}
+  .sq-prop-opts .sq-chip{text-align:left;line-height:1.4;border-radius:12px}
+  .sq-prop textarea{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font:inherit;font-size:13px;padding:8px 10px;margin:8px 0;resize:vertical}
   .sq-teach{margin:6px 14px;padding:12px 14px;border:1px dashed var(--border);border-radius:12px}
   .sq-teach textarea{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font:inherit;font-size:13px;padding:8px 10px;margin:8px 0;resize:vertical}
   @keyframes sqflash{0%,60%{background:rgba(255,107,0,.25)}100%{background:transparent}}
@@ -2942,7 +2950,11 @@ const SQ_T = {
       teachOk:'Odpověď uložena. Příště ji najde hledání i Alex.', nodocs:'Zatím nemáte nahrané žádné dokumenty. Hledání umí prohledat provozní řády, ceníky a manuály – ',
       nodocsLink:'přidat je ve Znalostní bázi', hint:'Enter = prohledat i podle významu a odpovědět · ↑↓ výběr · Esc zavřít', open:'Otevřít zdroj ↗',
       guest:'pro hosty', staff:'interní', setting:'nastavení', tab:'záložka', more:'Celý úryvek', err:'Hledání teď neodpovídá. Zkuste to za chvíli.',
-      learnLink:'Otevřít „Alex se učí“', pressEnter:'Stiskněte Enter – prohledám dokumenty i podle významu.', cached:'z paměti, bez AI', partial:'Přesnou shodu jsme nenašli – ukazuji nejbližší.'},
+      learnLink:'Otevřít „Alex se učí“', pressEnter:'Stiskněte Enter – prohledám dokumenty i podle významu.', cached:'z paměti, bez AI', partial:'Přesnou shodu jsme nenašli – ukazuji nejbližší.',
+      propBtn:'✨ Doplnit další otázky a odpovědi k tématu', propBtn0:'✨ Navrhnout otázky a odpovědi s AI', propLoading:'Připravuji otázky, na které se hosté k tématu ptají…',
+      propT:'Na co se hosté ptají dál', propNote:'Klikněte na odpověď, která u vás platí, případně ji upravte a uložte. Návrhy jsou jen předlohy – hostům se dostane jen to, co uložíte.',
+      propPh:'Vyberte odpověď výše nebo napište vlastní…', propSave:'Uložit', propSkip:'Přeskočit', propSaved:'Uloženo', propNone:'K tomuhle tématu už další otázky nenapadají. Zkuste jiné téma.',
+      propErr:'Návrhy se teď nepodařilo připravit. Zkuste to za chvíli.', propBlank:'Doplňte údaj místo ___ a uložte znovu.', propMore:'Navrhnout další', propDone:'Vše vyřízeno. Uložené odpovědi najde hledání i Alex.'},
   en:{ph:'Ask a question or search the hotel documents and the portal…', go:'Search', often:'Popular searches', docs:'In hotel documents',
       learned:'Front desk answers', portal:'In the portal', answer:'Answer', thinking:'Looking for the answer in your documents…', src:'Sources',
       helpful:'Was this helpful?', thanks:'Thanks, we will keep offering it.', noted:'We added the question to “Alex learns” – please add the right answer there.',
@@ -2952,10 +2964,14 @@ const SQ_T = {
       teachOk:'Answer saved. Next time both search and Alex will find it.', nodocs:'You have no documents yet. Search can go through house rules, price lists and manuals – ',
       nodocsLink:'add them in the Knowledge base', hint:'Enter = search by meaning and answer · ↑↓ select · Esc close', open:'Open source ↗',
       guest:'for guests', staff:'internal', setting:'setting', tab:'tab', more:'Full excerpt', err:'Search is not responding. Please try again in a moment.',
-      learnLink:'Open “Alex learns”', pressEnter:'Press Enter – I will also search the documents by meaning.', cached:'from memory, no AI', partial:'No exact match – showing the closest results.'}
+      learnLink:'Open “Alex learns”', pressEnter:'Press Enter – I will also search the documents by meaning.', cached:'from memory, no AI', partial:'No exact match – showing the closest results.',
+      propBtn:'✨ Add more questions and answers on this topic', propBtn0:'✨ Suggest questions and answers with AI', propLoading:'Preparing the questions guests ask about this topic…',
+      propT:'What guests ask next', propNote:'Click the answer that applies to you, edit it if needed and save. Suggestions are only templates – guests get only what you save.',
+      propPh:'Pick an answer above or write your own…', propSave:'Save', propSkip:'Skip', propSaved:'Saved', propNone:'No more questions come to mind for this topic. Try another one.',
+      propErr:'Suggestions could not be prepared right now. Please try again in a moment.', propBlank:'Fill in the value instead of ___ and save again.', propMore:'Suggest more', propDone:'All done. Search and Alex will find the saved answers.'}
 };
 const sqL = () => SQ_T[portalLang==='en'?'en':'cs'];
-let _sqSeq=0, _sqTimer=null, _sqData=null, _sqAnswer=null, _sqExact=false, _sqPortal=[], _sqFullQ='';
+let _sqSeq=0, _sqTimer=null, _sqData=null, _sqAnswer=null, _sqExact=false, _sqPortal=[], _sqFullQ='', _sqProp=null;
 const sqFold = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
 const sqKey = w => w.length>=5 ? w.slice(0,5) : w;
 
@@ -3027,6 +3043,7 @@ async function sqRun(full){
   const inp=document.getElementById('sq-input'), q=inp.value.trim(), seq=++_sqSeq;
   document.getElementById('sq-clear').hidden=!inp.value;
   if(!_sqPortal.length) _sqPortal=sqPortalIndex();
+  if(_sqProp && _sqProp.q!==q) _sqProp=null;
   if(full){ _sqAnswer = q.length>=3 ? {loading:true} : null; _sqFullQ=q; } else if(q!==_sqFullQ){ _sqAnswer=null; _sqFullQ=''; }
   let d;
   try{ d = await sqPost('search', {q, mode: full?'full':'instant', exact:_sqExact, local:sqPortalHits(q).length}); }
@@ -3084,10 +3101,57 @@ function sqRender(full){
       if(d.docs===0) h+=`<div class="sq-note">${esc(L.nodocs)}<a onclick="sqClose();showPortalTab('znalosti')">${esc(L.nodocsLink)}</a>.</div>`;
     } else if(!ph.length || d.docs!==0) h+=`<div class="sq-note">${esc(L.pressEnter)}</div>`;
   } else if(!d.full) h+=`<div class="sq-note" style="font-size:12px">${esc(L.hint)}</div>`;
+  if(d.full && q.length>=3) h+=sqPropHtml(q, !found);
   const sug=(d.suggest||[]).filter(s=>sqFold(s)!==sqFold(q)).slice(0,4);
   if(sug.length) h+=`<div class="sq-h">${esc(L.often)}</div><div class="sq-chips">`+sug.map(s=>`<button type="button" class="sq-chip sq-item" data-i="${n++}" data-sq="${esc(s)}">${esc(s)}</button>`).join('')+'</div>';
   p.innerHTML=h; sqOpen();
 }
+// Návrhy AI: další otázky k tématu + hotové odpovědi na kliknutí. Ukládá se až to, co hotel potvrdí.
+function sqPropHtml(q, nothing){
+  const L=sqL(), P=_sqProp;
+  if(!P) return `<div style="padding:8px 18px 4px"><button type="button" class="sq-prop-btn" onclick="sqExpand(${nothing?1:0})">${esc(nothing?L.propBtn0:L.propBtn)}</button></div>`;
+  if(P.loading) return `<div class="sq-note"><span class="loader" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:8px"></span>${esc(L.propLoading)}</div>`;
+  if(P.error) return `<div class="sq-note">${esc(L.propErr)} <a onclick="sqExpand(${P.self?1:0})">↻</a></div>`;
+  if(!P.items.length) return `<div class="sq-note">${esc(L.propNone)}</div>`;
+  const open=P.items.filter(x=>!x.done&&!x.skip).length;
+  let h=`<div class="sq-h">${esc(L.propT)}</div><div class="sq-note" style="padding-top:0">${esc(L.propNote)}</div>`;
+  P.items.forEach((x,i)=>{
+    if(x.skip) return;
+    if(x.done){ h+=`<div class="sq-prop sq-prop-done"><b>✓ ${esc(L.propSaved)}:</b> ${esc(x.q)}<div class="sq-s" style="color:var(--text)">${esc(x.a)}</div></div>`; return; }
+    h+=`<div class="sq-prop"><div class="sq-prop-q">${esc(x.q)}</div><div class="sq-prop-opts">`
+      + x.options.map((o,j)=>`<button type="button" class="sq-chip${x.a===o?' sq-on':''}" onclick="sqPropPick(${i},${j})">${esc(o)}</button>`).join('')
+      + `</div><textarea id="sq-prop-a-${i}" rows="2" maxlength="800" placeholder="${esc(L.propPh)}" oninput="sqPropDraft(${i},this.value)">${esc(x.a||'')}</textarea>`
+      + `<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn btn-primary" style="font-size:12px;padding:7px 14px" onclick="sqPropSave(${i})">${esc(L.propSave)}</button>`
+      + `<button type="button" class="btn" style="font-size:12px;padding:7px 14px" onclick="sqPropSkip(${i})">${esc(L.propSkip)}</button></div></div>`;
+  });
+  if(!open) h+=`<div class="sq-note">${esc(L.propDone)} <a onclick="sqExpand(0)">${esc(L.propMore)}</a></div>`;
+  return h;
+}
+async function sqExpand(self){
+  const q=((_sqData||{}).q||'').trim(); if(q.length<3) return;
+  const kept=(_sqProp&&_sqProp.q===q&&_sqProp.items)?_sqProp.items.filter(x=>x.done):[];
+  _sqProp={q, loading:true, self:!!self, items:[]}; sqRender(true);
+  try{
+    const d=await sqPost('search/expand', {q, self:!!self});
+    if(!_sqProp || _sqProp.q!==q) return;
+    _sqProp={q, self:!!self, items:kept.concat((d.items||[]).filter(x=>!kept.some(k=>k.q===x.q)).map(x=>({q:x.q, options:x.options||[], a:''})))};
+  }catch(e){ if(!_sqProp || _sqProp.q!==q) return; _sqProp={q, self:!!self, error:true, items:kept}; }
+  if(((_sqData||{}).q||'').trim()===q) sqRender(true);
+}
+function sqPropDraft(i,v){ if(_sqProp&&_sqProp.items[i]) _sqProp.items[i].a=v; }
+function sqPropPick(i,j){
+  const x=_sqProp.items[i]; x.a=x.options[j]; sqRender(true);
+  const t=document.getElementById('sq-prop-a-'+i); if(!t) return;
+  t.focus(); const k=t.value.indexOf('___');
+  if(k>=0) t.setSelectionRange(k,k+3); else t.setSelectionRange(t.value.length,t.value.length);
+}
+async function sqPropSave(i){
+  const L=sqL(), x=_sqProp.items[i], t=document.getElementById('sq-prop-a-'+i), a=(x.a||'').trim();
+  if(!a){ if(t) t.focus(); return; }
+  if(a.indexOf('___')>=0){ toast(L.propBlank,'err'); if(t){ t.focus(); const k=t.value.indexOf('___'); t.setSelectionRange(k,k+3); } return; }
+  if(await learnPost('learn', {q:x.q, a, lang:portalLang==='en'?'en':'cs'}, L.teachOk)){ x.a=a; x.done=true; sqRender(true); }
+}
+function sqPropSkip(i){ _sqProp.items[i].skip=true; sqRender(true); }
 function sqExactSearch(){ _sqExact=true; sqRun(true).finally(()=>{ _sqExact=false; }); }
 function sqClick(doc){ const d=_sqData||{}; if(doc && d.q) sqPost('search/click', {q:d.used||d.q, doc}).catch(()=>{}); }
 function sqActivate(el){

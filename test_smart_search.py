@@ -168,6 +168,24 @@ def test_add_pending_feeds_alex_learn():
     assert ss.learned_hits(al.learned(hotel), "kola")                     # a hledání ji příště najde
 
 
+def test_parse_proposals():
+    raw = ('Zde jsou návrhy:\n[{"q": "Kolik stojí parkování?", "options": ["Parkování je zdarma.", "Parkování stojí ___ Kč za noc.", "Parkování je zdarma."]},'
+           ' {"q": "Máte žehličku?", "options": ["Ano."]},'
+           ' {"q": "kolik stoji parkovani", "options": ["x"]},'
+           ' {"q": "Je nutná rezervace?", "options": []},'
+           ' "nesmysl", {"q": "ab", "options": ["y"]},'
+           ' {"q": "Je parkoviště hlídané?", "options": ["Ano, kamerami.", 5, "Ne."]}]\nHotovo.')
+    out = ss.parse_proposals(raw, known_questions=["Máte žehličku?"])
+    assert [x["q"] for x in out] == ["Kolik stojí parkování?", "Je parkoviště hlídané?"], out
+    assert out[0]["options"] == ["Parkování je zdarma.", "Parkování stojí ___ Kč za noc."]     # bez opakování
+    assert out[1]["options"] == ["Ano, kamerami.", "Ne."]
+    assert ss.parse_proposals("omlouvám se, nevím") == []
+    assert ss.parse_proposals("[rozbitý json") == []
+    assert ss.parse_proposals('{"q": "x"}') == []
+    many = "[" + ",".join('{"q": "Otázka číslo %d?", "options": ["Ano."]}' % i for i in range(9)) + "]"
+    assert len(ss.parse_proposals(many)) == ss.PROPOSALS_MAX
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
