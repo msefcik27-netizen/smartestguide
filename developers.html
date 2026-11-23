@@ -176,9 +176,12 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--border);color
 
     <h3 style="font-family:var(--head);font-size:18px;margin-top:30px"><span lang="en">Limits</span><span lang="cs">Limity</span></h3>
     <ul class="plain">
-      <li><span lang="en">Sandbox key: 100 calls a day. Hotel key: 2,000 calls a day. Both: 60 calls a minute.</span><span lang="cs">Zkušební klíč: 100 volání denně. Klíč hotelu: 2 000 volání denně. Oba: 60 volání za minutu.</span></li>
-      <li><span lang="en">Every answer carries <code>X-RateLimit-Limit</code> and <code>X-RateLimit-Remaining</code>. The daily counter resets at 00:00 UTC.</span><span lang="cs">Každá odpověď nese hlavičky <code>X-RateLimit-Limit</code> a <code>X-RateLimit-Remaining</code>. Denní počítadlo se nuluje v 00:00 UTC.</span></li>
-      <li><span lang="en">Need more? Write to us and tell us what you are running.</span><span lang="cs">Potřebujete víc? Napište nám, co provozujete.</span></li>
+      <li><span lang="en">Sandbox key: 100 calls a day, free.</span><span lang="cs">Zkušební klíč: 100 volání denně, zdarma.</span></li>
+      <li><span lang="en">Hotel key: the hotel's subscription includes 3,000 <code>/chat</code> calls per calendar month, counted across all of the hotel's keys. Knowledge search and document calls are not counted.</span><span lang="cs">Klíč hotelu: v předplatném hotelu je 3 000 volání <code>/chat</code> za kalendářní měsíc, počítáno za všechny klíče hotelu dohromady. Hledání v bázi a práce s dokumenty se nepočítají.</span></li>
+      <li><span lang="en">When the monthly quota runs out, <code>/chat</code> answers 429 <code>monthly_limit</code> until the 1st of the next month (UTC). Everything else keeps working, and so does Alex in the hotel's own guest app. Show the guest a fallback, e.g. the reception phone number.</span><span lang="cs">Po vyčerpání měsíčního počtu vrací <code>/chat</code> chybu 429 <code>monthly_limit</code> až do 1. dne dalšího měsíce (UTC). Vše ostatní běží dál, stejně jako Alex v aplikaci hotelu pro hosty. Hostovi ukažte náhradu, třeba telefon na recepci.</span></li>
+      <li><span lang="en">Safety caps per key: 60 calls a minute and 2,000 calls a day.</span><span lang="cs">Ochranné stropy na klíč: 60 volání za minutu a 2 000 volání denně.</span></li>
+      <li><span lang="en">Every answer carries <code>X-RateLimit-Limit</code> and <code>X-RateLimit-Remaining</code>. The daily counter resets at 00:00 UTC. Hotel keys also get <code>X-Quota-Limit</code>, <code>X-Quota-Remaining</code> and <code>X-Quota-Reset</code> for the monthly chat quota.</span><span lang="cs">Každá odpověď nese hlavičky <code>X-RateLimit-Limit</code> a <code>X-RateLimit-Remaining</code>. Denní počítadlo se nuluje v 00:00 UTC. U klíčů hotelu navíc <code>X-Quota-Limit</code>, <code>X-Quota-Remaining</code> a <code>X-Quota-Reset</code> pro měsíční počet volání chatu.</span></li>
+      <li><span lang="en">Need more? The hotel can ask us for a higher monthly quota.</span><span lang="cs">Potřebujete víc? Hotel si u nás může říct o vyšší měsíční počet.</span></li>
     </ul>
 
     <h3 style="font-family:var(--head);font-size:18px;margin-top:30px"><span lang="en">Errors</span><span lang="cs">Chyby</span></h3>
@@ -191,6 +194,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--border);color
         <tr><td>401</td><td><code>missing_key</code>, <code>invalid_key</code>, <code>revoked_key</code></td><td><span lang="en">Key missing, unknown or cancelled.</span><span lang="cs">Klíč chybí, není známý nebo byl zrušen.</span></td></tr>
         <tr><td>403</td><td><code>missing_scope</code>, <code>sandbox_restricted</code></td><td><span lang="en">The key is not allowed to do this.</span><span lang="cs">Klíč k tomu nemá oprávnění.</span></td></tr>
         <tr><td>429</td><td><code>rate_limit</code>, <code>daily_limit</code></td><td><span lang="en">Too many calls. Wait and retry.</span><span lang="cs">Příliš mnoho volání. Počkejte a zkuste znovu.</span></td></tr>
+        <tr><td>429</td><td><code>monthly_limit</code></td><td><span lang="en">The hotel's monthly chat quota is used up. Do not retry; show a fallback until the date in <code>X-Quota-Reset</code>.</span><span lang="cs">Měsíční počet volání chatu je vyčerpaný. Neopakujte; do data v <code>X-Quota-Reset</code> ukazujte náhradu.</span></td></tr>
         <tr><td>502</td><td><code>chat_unavailable</code></td><td><span lang="en">The concierge could not answer. Retry later.</span><span lang="cs">Concierge teď nedokázal odpovědět. Zkuste později.</span></td></tr>
       </tbody>
     </table>

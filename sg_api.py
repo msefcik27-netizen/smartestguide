@@ -4,6 +4,8 @@ Dva druhy klíčů:
   * sg_live_…  vydává hotel v portálu (Znalostní báze → Napojení jiných systémů). Platí pro data toho hotelu.
   * sg_test_…  zkušební klíč: vývojář se zaregistruje na /developers, potvrdí e-mail a dostane klíč
                k ukázkovému hotelu. Jen čtení a chat, malý denní limit.
+Limity: za minutu a za den na klíč (ochrana proti zacyklení), u ostrých klíčů navíc měsíční počet volání chatu
+na hotel (CHAT_MONTHLY) – to je ta část, která stojí peníze. Hledání v bázi se do měsíčního počtu nepočítá.
 Klíč se ukládá jen jako otisk (SHA-256); celý ho vidí majitel jednou, při vydání.
 
 Registruje se z app.py voláním setup(app, ...) až po kb_routes.setup (sdílí jeho úložiště a bázi).
@@ -24,6 +26,8 @@ SCOPES = ("chat", "knowledge:read", "knowledge:write")
 SANDBOX_SCOPES = ("chat", "knowledge:read")
 LIVE_DAILY, SANDBOX_DAILY = 2000, 100
 PER_MINUTE = 60
+CHAT_MONTHLY = 3000            # volání chatu přes API v ceně předplatného, na hotel a kalendářní měsíc (všechny klíče dohromady)
+CHAT_WARN = 0.8                # od kolika procent portál upozorňuje
 MAX_KEYS_PER_HOTEL = 10
 VERIFY_HOURS = 48
 _EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[A-Za-z]{2,24}$")
@@ -75,6 +79,36 @@ def _usage_today(key_id: str) -> int:
     return int((r or [0])[0] or 0)
 
 
+def chat_quota(hotel_id: str) -> int:
+    """Kolik volání chatu přes API má hotel na měsíc. Jde zvednout hotelu na míru polem api_chat_monthly."""
+    try:
+        h = (D["db_load"]().get("hotels") or {}).get(hotel_id) or {}
+        n = int(h.get("api_chat_monthly") or 0)
+        return n if n > 0 else CHAT_MONTHLY
+    except Exception:
+        return CHAT_MONTHLY
+
+
+def chat_used_month(hotel_id: str, month: str = "") -> int:
+    """Volání chatu ostrými klíči hotelu v daném měsíci (RRRR-MM, výchozí je ten běžící, UTC)."""
+    m = month or _today()[:7]
+    r = _store().x("SELECT COALESCE(SUM(n),0) FROM api_usage WHERE kind='chat' AND day>=%s AND day<=%s "
+                   "AND key_id IN (SELECT id FROM api_keys WHERE hotel_id=%s AND kind='live')", (m + "-01", m + "-31", hotel_id), "one")
+    return int((r or [0])[0] or 0)
+
+
+def next_month_start() -> str:
+    d = datetime.utcnow()
+    return f"{d.year + (d.month == 12)}-{d.month % 12 + 1:02d}-01"
+
+
+def usage_summary(hotel_id: str) -> dict:
+    """Spotřeba pro portál: kolik z měsíčních volání chatu je pryč a kdy se počítadlo vynuluje."""
+    limit, used = chat_quota(hotel_id), chat_used_month(hotel_id)
+    return {"month": _today()[:7], "chat_used": used, "chat_limit": limit, "resets": next_month_start(),
+            "warn": used >= limit * CHAT_WARN, "exhausted": used >= limit}
+
+
 def _auth_sync(token: str, scope: str, kind: str) -> dict:
     r = _store().x(f"SELECT {_COLS} FROM api_keys WHERE key_hash=%s", (_hash(token),), "one")
     if not r:
@@ -88,6 +122,15 @@ def _auth_sync(token: str, scope: str, kind: str) -> dict:
     if used >= k["daily_limit"]:
         raise ApiError(429, "daily_limit", f"Daily limit of {k['daily_limit']} requests reached. It resets at 00:00 UTC.",
                        {"X-RateLimit-Limit": str(k["daily_limit"]), "X-RateLimit-Remaining": "0"})
+    if k["kind"] == "live":
+        k["chat_limit"], k["chat_used"] = chat_quota(k["hotel_id"]), chat_used_month(k["hotel_id"])
+        if kind == "chat":
+            if k["chat_used"] >= k["chat_limit"]:
+                raise ApiError(429, "monthly_limit",
+                               f"The hotel's monthly quota of {k['chat_limit']} chat calls is used up. It resets on {next_month_start()} (UTC). "
+                               "Knowledge search keeps working. The hotel can ask SmartestGuide for a higher quota.",
+                               {"X-Quota-Limit": str(k["chat_limit"]), "X-Quota-Remaining": "0", "X-Quota-Reset": next_month_start()})
+            k["chat_used"] += 1
     _store().tx([
         ("INSERT INTO api_usage (key_id, day, kind, n) VALUES (%s,%s,%s,1) "
          "ON CONFLICT (key_id, day, kind) DO UPDATE SET n = api_usage.n + 1", (k["id"], _today(), kind)),
@@ -114,7 +157,11 @@ async def auth(request: Request, scope: str = "", kind: str = "other"):
 
 
 def _limit_headers(k: dict) -> dict:
-    return {"X-RateLimit-Limit": str(k["daily_limit"]), "X-RateLimit-Remaining": str(max(0, k["daily_limit"] - k.get("used_today", 0)))}
+    h = {"X-RateLimit-Limit": str(k["daily_limit"]), "X-RateLimit-Remaining": str(max(0, k["daily_limit"] - k.get("used_today", 0)))}
+    if "chat_limit" in k:
+        h.update({"X-Quota-Limit": str(k["chat_limit"]), "X-Quota-Remaining": str(max(0, k["chat_limit"] - k["chat_used"])),
+                  "X-Quota-Reset": next_month_start()})
+    return h
 
 
 def _ok(k: dict, data: dict, status: int = 200):
@@ -172,7 +219,9 @@ def setup(app, **deps):
         return _ok(k, {"key": {"id": k["id"], "name": k["name"], "prefix": k["prefix"], "mode": "live" if k["kind"] == "live" else "sandbox",
                                "scopes": k["scopes"], "created_at": k["created_at"]},
                        "hotel": {"id": k["hotel_id"], "name": h.get("name", "")},
-                       "limits": {"per_day": k["daily_limit"], "used_today": k["used_today"], "per_minute": PER_MINUTE},
+                       "limits": {"per_day": k["daily_limit"], "used_today": k["used_today"], "per_minute": PER_MINUTE,
+                                  **({"chat_per_month": k["chat_limit"], "chat_used_this_month": k["chat_used"],
+                                      "chat_resets": next_month_start()} if "chat_limit" in k else {})},
                        "api_version": VERSION})
 
     @app.get("/api/v1/hotel")
@@ -268,7 +317,8 @@ def setup(app, **deps):
         rows = await asyncio.to_thread(_store().x, f"SELECT {_COLS} FROM api_keys WHERE hotel_id=%s AND kind='live' ORDER BY created_at DESC",
                                        (h["id"],), "all")
         return {"keys": [{x: k[x] for x in ("id", "name", "prefix", "scopes", "daily_limit", "created_at", "last_used", "revoked")}
-                         for k in (_row(r) for r in rows or [])]}
+                         for k in (_row(r) for r in rows or [])],
+                "usage": await asyncio.to_thread(usage_summary, h["id"])}
 
     @app.post("/api/hotel-portal/api-keys")
     async def portal_key_new(request: Request):
@@ -398,7 +448,7 @@ def openapi(base: str) -> dict:
              "responses": {("201" if created else "200"): {"description": "OK", "content": {"application/json": {"schema": resp or {"type": "object"}}}},
                            "401": {"description": "Missing, unknown or revoked key", "content": {"application/json": {"schema": err}}},
                            "403": {"description": "Key lacks the required scope", "content": {"application/json": {"schema": err}}},
-                           "429": {"description": "Rate or daily limit reached", "content": {"application/json": {"schema": err}}}}}
+                           "429": {"description": "Rate, daily or monthly chat limit reached", "content": {"application/json": {"schema": err}}}}}
         if body:
             o["requestBody"] = {"required": True, "content": {"application/json": {"schema": body}}}
         if params:

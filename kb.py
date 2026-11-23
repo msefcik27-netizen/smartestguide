@@ -298,6 +298,9 @@ def file_ext(name: str) -> str:
     return os.path.splitext((name or "").lower())[1]
 
 
+SCAN_NOTE = "PDF neobsahuje text (sken) – nahrajte verzi s textem"
+
+
 def extract_text(name: str, data: bytes, mime: str = "") -> tuple:
     """Vrátí (text, poznámka). Prázdný text + poznámka = nešlo přečíst (důvod lidsky)."""
     ext = file_ext(name)
@@ -314,7 +317,7 @@ def extract_text(name: str, data: bytes, mime: str = "") -> tuple:
         if ext == ".pdf":
             t = _pdf_text(data)
             if len(t.strip()) < 40:
-                return "", "PDF neobsahuje text (sken) – nahrajte verzi s textem"
+                return "", SCAN_NOTE
         elif ext == ".docx":
             t = _docx_text(data)
         elif ext == ".xlsx":
@@ -684,6 +687,7 @@ class KB:
     def __init__(self, store: Store, embed_key_fn=None):
         self.store = store
         self.embed_key_fn = embed_key_fn or (lambda: os.getenv("OPENAI_API_KEY", "").strip())
+        self.ocr_fn = None        # async (hotel_id, pdf_bajty) -> (text, poznámka); čte skenovaná PDF
         self._idx = {}
         self._ver = {}            # hotel_id -> (verze, čas načtení)
         self._lock = threading.Lock()
@@ -771,6 +775,13 @@ class KB:
         note = ""
         if data is not None:
             text, note = extract_text(name or title, data, mime)
+            if note == SCAN_NOTE and not text and self.ocr_fn:
+                try:
+                    text, note = await self.ocr_fn(hotel_id, data)
+                    text = clean_text(text)[:MAX_DOC_CHARS]
+                except Exception as e:
+                    logging.warning("KB: rozpoznání skenu selhalo: %s", e)
+                    text, note = "", SCAN_NOTE
         else:
             text = clean_text(text)[:MAX_DOC_CHARS]
         existing = None
@@ -807,6 +818,28 @@ class KB:
         self.bump(hotel_id)
         return {"id": did, "status": status, "error": error, "chunks": len(chunks),
                 "embedded": sum(1 for v in vecs if v)}
+
+    def document_text(self, hotel_id: str, doc_id: str):
+        """Text dokumentu tak, jak ho má báze (složený z úryvků, bez jejich překryvů). None = dokument není."""
+        d = self.store.x("SELECT title, error FROM kb_docs WHERE id=%s AND hotel_id=%s", (doc_id, hotel_id), "one")
+        if not d:
+            return None
+        rows = self.store.x("SELECT section, text FROM kb_chunks WHERE doc_id=%s AND hotel_id=%s ORDER BY seq",
+                            (doc_id, hotel_id), "all") or []
+        out, prev_sec = "", None
+        for sec, tx in rows:
+            sec, tx = sec or "", tx or ""
+            if sec != prev_sec:
+                out += ("\n\n" if out else "") + (("## " + sec + "\n") if sec else "") + tx
+            else:
+                cut = 0
+                for n in range(min(len(tx), len(out), 400), 15, -1):      # konec předchozího úryvku se opakuje
+                    if out.endswith(tx[:n]):
+                        cut = n
+                        break
+                out += ("" if cut else "\n") + tx[cut:]
+            prev_sec = sec
+        return {"title": d[0] or "", "note": d[1] or "", "text": out}
 
     def delete_document(self, hotel_id: str, doc_id: str) -> bool:
         row = self.store.x("SELECT id FROM kb_docs WHERE id=%s AND hotel_id=%s", (doc_id, hotel_id), "one")

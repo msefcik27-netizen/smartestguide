@@ -194,6 +194,50 @@ def test_knowledge_roundtrip_and_isolation():
     assert err(c.post("/api/v1/knowledge/documents", headers=H(key), json={"title": "", "text": "x"})) == "missing_fields"
 
 
+def test_monthly_chat_quota():
+    c = make()
+    key, key2 = live(c), live(c)
+    old = sg_api.CHAT_MONTHLY
+    sg_api.CHAT_MONTHLY = 5
+    try:
+        for i in range(4):
+            r = c.post("/api/v1/chat", headers=H(key if i % 2 else key2), json={"message": "Kdy je snídaně?"})
+            assert r.status_code == 200 and r.headers["X-Quota-Limit"] == "5" and r.headers["X-Quota-Remaining"] == str(4 - i)
+        u = c.get("/api/hotel-portal/api-keys", params={"token": "tok1"}).json()["usage"]
+        assert u["chat_used"] == 4 and u["chat_limit"] == 5 and u["warn"] and not u["exhausted"] and u["resets"].endswith("-01")
+        assert c.post("/api/v1/chat", headers=H(key), json={"message": "a"}).status_code == 200
+        n = len(CHATS)
+        r = c.post("/api/v1/chat", headers=H(key2), json={"message": "b"})          # počítá se za hotel, ne za klíč
+        assert r.status_code == 429 and err(r) == "monthly_limit" and r.headers["X-Quota-Remaining"] == "0" and len(CHATS) == n
+        assert c.get("/api/hotel-portal/api-keys", params={"token": "tok1"}).json()["usage"]["exhausted"]
+        # hledání a ostatní volání běží dál a do měsíčního počtu se nepočítají
+        assert c.post("/api/v1/knowledge/search", headers=H(key), json={"query": "snídaně"}).status_code == 200
+        me = c.get("/api/v1/me", headers=H(key)).json()["limits"]
+        assert me["chat_per_month"] == 5 and me["chat_used_this_month"] == 5
+        # jiný hotel má vlastní počet; hotel s vyšším počtem na míru také
+        other = live(c, token="tok2")
+        assert c.post("/api/v1/chat", headers=H(other), json={"message": "c"}).status_code == 200
+        HOTELS["h1"]["api_chat_monthly"] = 10
+        assert c.post("/api/v1/chat", headers=H(key), json={"message": "d"}).status_code == 200
+        HOTELS["h1"].pop("api_chat_monthly")
+        # minulý měsíc se nepočítá
+        kbr.STORE.x("UPDATE api_usage SET day=%s", ("2020-01-15",))
+        r = c.post("/api/v1/chat", headers=H(key), json={"message": "e"})
+        assert r.status_code == 200 and r.headers["X-Quota-Remaining"] == "4"
+    finally:
+        sg_api.CHAT_MONTHLY = old
+        HOTELS["h1"].pop("api_chat_monthly", None)
+
+
+def test_sandbox_key_has_no_monthly_quota():
+    c = make()
+    assert _register(c).status_code == 200
+    key = c.post("/api/developers/verify", json={"token": _token()}).json()["key"]
+    r = c.post("/api/v1/chat", headers=H(key), json={"message": "Kdy je snídaně?"})
+    assert r.status_code == 200 and "X-Quota-Limit" not in r.headers
+    assert "chat_per_month" not in c.get("/api/v1/me", headers=H(key)).json()["limits"]
+
+
 def test_daily_limit():
     c = make()
     key = live(c)

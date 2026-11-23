@@ -84,6 +84,12 @@ def setup(app, **deps):
     KB = kbmod.KB(STORE)
     rl, ip = deps["rate_limit_ok"], deps["client_ip"]
 
+    async def _ocr(hotel_id, data):
+        import kb_ocr
+        key = (D["get_settings"]() or {}).get("anthropic_api_key", "")
+        return await kb_ocr.ocr_pdf(data, key, hotel_id=hotel_id)
+    KB.ocr_fn = _ocr
+
     def _page(name):
         with open(os.path.join(_HERE, name), "r", encoding="utf-8") as f:
             return D["staging_banner"](f.read())
@@ -241,6 +247,15 @@ def setup(app, **deps):
                                     mime=request.headers.get("content-type", ""), audience=_aud(audience))
         if not res["id"]:
             raise HTTPException(400, res["error"])
+        return res
+
+    @app.get("/api/hotel-portal/kb/doc-text")
+    async def kb_doc_text(request: Request, doc: str = ""):
+        """Text dokumentu, jak ho má báze – hotel si tak zkontroluje hlavně text rozpoznaný ze skenu."""
+        h = _hotel(request)
+        res = await asyncio.to_thread(KB.document_text, h["id"], str(doc)[:64])
+        if res is None:
+            raise HTTPException(404, "Dokument nenalezen.")
         return res
 
     @app.post("/api/hotel-portal/kb/text")

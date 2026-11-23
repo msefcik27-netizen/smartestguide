@@ -43,6 +43,7 @@ h1{font-family:var(--head);font-size:24px;line-height:1.2}
 .src{border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:10px}
 .src .t{font-weight:600}.src .m{color:var(--muted);font-size:12.5px}
 .chip{display:inline-flex;align-items:center;gap:5px;background:var(--soft);border-radius:20px;padding:3px 10px;font-size:12px;margin:3px 4px 0 0}
+.p.warn{font-size:12.5px;line-height:1.45;color:#8a4b00;background:rgba(255,107,0,.08);border-radius:8px;padding:6px 9px;margin-top:5px}
 .pill{display:inline-block;font-size:11px;font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap}
 .pill.ok{background:rgba(10,168,138,.12);color:#07806a}.pill.err{background:rgba(217,61,66,.1);color:var(--bad)}
 .pill.run{background:rgba(255,107,0,.12);color:#c35200}.pill.g{background:rgba(10,168,138,.12);color:#07806a}.pill.s{background:#ece9e1;color:#555}
@@ -177,6 +178,13 @@ body.embed .msg{position:absolute;bottom:auto}body.embed .modal{position:absolut
       <a class="btn" href="/developers" target="_blank" rel="noopener" data-t="api_docs">Dokumentace</a>
     </div>
     <div class="save" id="key-shown" hidden></div>
+    <div id="key-usage" style="margin-top:12px" hidden></div>
+    <div class="p warn" style="margin-top:12px">⚠ <span data-t="key_warn">Klíč je heslo k datům vašeho hotelu. Neposílejte ho běžným e-mailem ani do skupinového chatu a nevkládejte ho do stránek, které vidí hosté.</span></div>
+    <details style="margin-top:8px;font-size:13px"><summary style="cursor:pointer;font-weight:600" data-t="key_how">Co poslat dodavateli</summary>
+      <ol style="margin:8px 0 8px 20px;line-height:1.6"><li data-t="key_how1">Klíč – bezpečnou cestou: správcem hesel, odkazem na jedno zobrazení, nebo ho nadiktujte po telefonu.</li>
+        <li><span data-t="key_how2">Odkaz na dokumentaci:</span> <code id="dev-url"></code></li>
+        <li data-t="key_how3">Pro každého dodavatele vytvořte vlastní klíč. Až spolupráce skončí, zrušte jen ten jeho.</li></ol>
+      <button class="btn sm" id="key-mail" data-t="key_mail">Zkopírovat text pro dodavatele</button></details>
     <div id="keys" style="margin-top:10px"></div>
   </div>
 </div>
@@ -191,6 +199,12 @@ body.embed .msg{position:absolute;bottom:auto}body.embed .modal{position:absolut
     <span id="m-count" style="color:var(--muted);font-size:12.5px;margin-right:auto"></span>
     <button class="btn" id="m-cancel" data-t="cancel">Zrušit</button><button class="btn pri" id="m-save" data-t="m_save">Uložit a načíst</button>
   </div>
+</div></div>
+
+<div class="modal" id="tmodal" hidden><div class="box">
+  <div class="hd"><h2 id="t-title" style="font-family:var(--head);font-size:16px"></h2><div class="crumb" data-t="doc_text_d">Takhle má dokument uložený znalostní báze. Místa označená [nečitelné] se nepodařilo spolehlivě přečíst – Alex je hostům neřekne.</div></div>
+  <div class="bd"><div class="p warn" id="t-note" style="margin-bottom:10px" hidden></div><pre id="t-text" style="white-space:pre-wrap;word-break:break-word;font:inherit;font-size:13px;line-height:1.55;margin:0"></pre></div>
+  <div class="ft"><button class="btn" id="t-close" data-t="close">Zavřít</button></div>
 </div></div>
 
 <script>
@@ -217,6 +231,10 @@ const EN = {
  copy:'Copy', open:'Open', st_new:'Create a new link',
  api_h:'Connect other systems (API)', api_d:'A key lets another system – the hotel website, booking engine, kiosk – ask Alex and search the knowledge base. The key is shown only once, right after you create it.',
  key_ph:'What the key is for, e.g. Hotel website', sc_read:'chat and read knowledge', sc_write:'chat, read and write knowledge', key_new:'Create key', api_docs:'Documentation',
+ key_warn:'The key is a password to your hotel data. Do not send it by ordinary e-mail or group chat, and do not put it into pages that guests can see.',
+ key_how:'What to send to your supplier', key_how1:'The key – by a safe route: a password manager, a one-time link, or read it out over the phone.',
+ key_how2:'The documentation link:', key_how3:'Create a separate key for each supplier. When the work ends, revoke just that one.', key_mail:'Copy a message for the supplier',
+ doc_text_d:'This is how the knowledge base stores the document. Places marked [nečitelné] could not be read reliably – Alex will not tell them to guests.', close:'Close',
  den_h:'This link is not valid', den_d:'Open the knowledge base from the hotel portal.',
  sp_ph:'Link to a SharePoint folder', sp_add:'Add', cancel:'Cancel', m_save:'Save and load'
 };
@@ -232,7 +250,7 @@ const S = CS ? {
  match:'shoda', words:'slov', root:'Disk', choose:'Vyberte složky nebo soubory', selected:n=>`Vybráno: ${n}`, loading:'Načítám…', emptyf:'Složka je prázdná.',
  unsupported:'tento typ neumíme číst', types:(t,m)=>`Podporované typy: ${t}. Nejvýše ${m} MB na soubor. Naskenované PDF bez textu přečíst neumíme.`,
  e_denied:'Přihlášení jste nedokončili, disk se nepřipojil.', e_login:'Přihlášení ke službě se nepodařilo. Zkuste to znovu.', connected:'Disk je připojený. Teď vyberte složky.',
- key_once:'Klíč si teď uložte, znovu ho neukážeme:', nokeys:'Zatím žádný klíč.', revoke:'Zrušit', revoked:'zrušen', last:'naposledy použit', neverused:'zatím nepoužit', perday:'dotazů denně', fill:'Vyplňte název a text.', keyname:'Napište, k čemu klíč slouží.'
+ key_once:'Klíč si teď uložte, znovu ho neukážeme:', key_warn:'Klíč je heslo k datům vašeho hotelu. Neposílejte ho běžným e-mailem ani do skupinového chatu a nevkládejte ho do stránek, které vidí hosté.', key_how:'Co poslat dodavateli', key_how1:'Klíč – bezpečnou cestou: správcem hesel, odkazem na jedno zobrazení, nebo ho nadiktujte po telefonu.', key_how2:'Odkaz na dokumentaci:', key_how3:'Pro každého dodavatele vytvořte vlastní klíč. Až spolupráce skončí, zrušte jen ten jeho.', key_mail:'Zkopírovat text pro dodavatele', key_mail_t:u=>`Dobrý den,\nposíláme přístup k API našeho hotelu v SmartestGuide.\nDokumentace: ${u}\nKlíč vám předáme zvlášť bezpečnou cestou – do e-mailu ho nepíšeme. Uložte ho prosím jen na serveru, ne do kódu stránky.\nDěkujeme`, us_t:(u,l)=>`Chat přes API tento měsíc: ${u} z ${l} volání`, us_reset:d=>`Počítadlo se vynuluje ${d}. Hledání v bázi se nepočítá.`, us_warn:'Blíží se měsíční limit. Po jeho vyčerpání přestane chat u napojených systémů odpovídat; Alex v aplikaci pro hosty poběží dál. Potřebujete víc? Napište nám.', us_out:'Měsíční limit je vyčerpaný. Chat u napojených systémů teď neodpovídá; Alex v aplikaci pro hosty běží dál. Potřebujete víc? Napište nám.', doc_text:'Zobrazit text', doc_text_h:'Text, ze kterého Alex odpovídá', doc_text_d:'Takhle má dokument uložený znalostní báze. Místa označená [nečitelné] se nepodařilo spolehlivě přečíst – Alex je hostům neřekne.', close:'Zavřít', scan_wait:'u skenů čteme text ze stránek, může to trvat i pár minut', nokeys:'Zatím žádný klíč.', revoke:'Zrušit', revoked:'zrušen', last:'naposledy použit', neverused:'zatím nepoužit', perday:'dotazů denně', fill:'Vyplňte název a text.', keyname:'Napište, k čemu klíč slouží.'
 } : {
  soon:'coming soon', connect:'Connect', vec:'meaning + words', lex:'words',
  st_ok:'up to date', st_new:'pick folders', st_run:'loading…', st_err:'error', never:'not loaded yet', synced:'Loaded',
@@ -245,7 +263,7 @@ const S = CS ? {
  match:'match', words:'words', root:'Drive', choose:'Choose folders or files', selected:n=>`Selected: ${n}`, loading:'Loading…', emptyf:'This folder is empty.',
  unsupported:'we cannot read this type', types:(t,m)=>`Supported types: ${t}. Up to ${m} MB per file. Scanned PDFs without text cannot be read.`,
  e_denied:'You did not finish signing in, the drive was not connected.', e_login:'Signing in to the service failed. Please try again.', connected:'The drive is connected. Now pick folders.',
- key_once:'Save the key now, we will not show it again:', nokeys:'No keys yet.', revoke:'Revoke', revoked:'revoked', last:'last used', neverused:'not used yet', perday:'requests per day', fill:'Fill in the title and the text.', keyname:'Say what the key is for.'
+ key_once:'Save the key now, we will not show it again:', key_warn:'The key is a password to your hotel data. Do not send it by ordinary e-mail or group chat, and do not put it into pages that guests can see.', key_how:'What to send to your supplier', key_how1:'The key – by a safe route: a password manager, a one-time link, or read it out over the phone.', key_how2:'The documentation link:', key_how3:'Create a separate key for each supplier. When the work ends, revoke just that one.', key_mail:'Copy a message for the supplier', key_mail_t:u=>`Hello,\nwe are sending you access to our hotel API in SmartestGuide.\nDocumentation: ${u}\nWe will hand over the key separately by a safe route – we do not write it in e-mail. Please keep it on the server only, not in page code.\nThank you`, us_t:(u,l)=>`Chat via API this month: ${u} of ${l} calls`, us_reset:d=>`The counter resets on ${d}. Knowledge search is not counted.`, us_warn:'The monthly limit is close. Once it is used up, chat in connected systems stops answering; Alex in the guest app keeps running. Need more? Write to us.', us_out:'The monthly limit is used up. Chat in connected systems is not answering now; Alex in the guest app keeps running. Need more? Write to us.', doc_text:'Show text', doc_text_h:'The text Alex answers from', doc_text_d:'This is how the knowledge base stores the document. Places marked [nečitelné] could not be read reliably – Alex will not tell them to guests.', close:'Close', scan_wait:'for scans we read the text from the pages, it can take a few minutes', nokeys:'No keys yet.', revoke:'Revoke', revoked:'revoked', last:'last used', neverused:'not used yet', perday:'requests per day', fill:'Fill in the title and the text.', keyname:'Say what the key is for.'
 };
 if (!CS) {
   document.documentElement.lang = 'en'; document.title = 'SMARTEST GUIDE – Knowledge base';
@@ -296,7 +314,7 @@ function render(){
   const srcName = id => { const x = s.sources.find(y => y.id === id); return x ? x.provider_name : S.manual; };
   $('docs').innerHTML = s.docs.map(d => `<tr class="${d.enabled ? '' : 'off'}"><td><b>${d.url ? `<a href="${esc(d.url)}" target="_blank" rel="noopener" style="color:inherit">${esc(d.title)}</a>` : esc(d.title)}</b><div class="p">${esc(srcName(d.source_id))}${d.path ? ' · ' + esc(d.path) : ''}</div></td>
     <td><select data-daud="${esc(d.id)}"><option value="staff"${d.audience === 'staff' ? ' selected' : ''}>${audLabel('staff')}</option><option value="guest"${d.audience === 'guest' ? ' selected' : ''}>${audLabel('guest')}</option></select></td>
-    <td>${d.status === 'ok' ? `<span class="pill ok">${d.chunks} ${S.passages}</span>` : `<span class="pill err">${S.st_err}</span>`}${d.error ? `<div class="p">${esc(d.error)}</div>` : ''}</td>
+    <td>${d.status === 'ok' ? `<span class="pill ok">${d.chunks} ${S.passages}</span>` : `<span class="pill err">${S.st_err}</span>`}${d.error ? `<div class="p${d.status === 'ok' ? ' warn' : ''}">${esc(d.error)}</div>` : ''}${d.status === 'ok' ? `<div class="p"><a data-dtxt="${esc(d.id)}" href="#">${S.doc_text}</a></div>` : ''}</td>
     <td><input type="checkbox" data-don="${esc(d.id)}" ${d.enabled ? 'checked' : ''} aria-label="${S.ok}"/></td>
     <td><button class="btn sm danger" data-ddel="${esc(d.id)}">${S.del}</button></td></tr>`).join('');
   $('docs-empty').hidden = s.docs.length > 0;
@@ -318,6 +336,13 @@ document.addEventListener('click', e => {
   else if (d.ddel) { if (confirm(S.confirm_del)) act(() => api('kb/doc-delete', {doc: d.ddel}), S.saved); }
   else if (d.rev) { if (confirm(S.confirm_rev)) act(async () => { await api('api-keys/revoke', {id: d.rev}); await loadKeys(); }, S.saved); }
 });
+document.addEventListener('click', async e => {
+  const a = e.target.closest('a[data-dtxt]'); if (!a) return; e.preventDefault();
+  try { const r = await api('kb/doc-text?doc=' + encodeURIComponent(a.dataset.dtxt));
+    $('t-title').textContent = r.title; $('t-note').textContent = r.note || ''; $('t-note').hidden = !r.note; $('t-text').textContent = r.text;
+    $('tmodal').hidden = false; if (EMBED) $('tmodal').style.top = (viewport().top + 40) + 'px'; }
+  catch(err){ msg(err.message, true); }
+});
 document.addEventListener('change', e => {
   const d = e.target.dataset;
   if (d.daud) act(() => api('kb/doc-update', {doc: d.daud, audience: e.target.value}), S.saved);
@@ -337,7 +362,7 @@ $('file').onchange = e => { upload(e.target.files); e.target.value = ''; };
 async function upload(files){
   const log = $('up-log');
   for (const f of files) {
-    const row = document.createElement('div'); row.textContent = S.uploading + ' ' + f.name + ' …'; log.prepend(row);
+    const row = document.createElement('div'); row.textContent = S.uploading + ' ' + f.name + ' …' + (/\.pdf$/i.test(f.name) ? ' (' + S.scan_wait + ')' : ''); log.prepend(row);
     try { const r = await api('kb/upload?name=' + encodeURIComponent(f.name) + '&audience=' + $('up-aud').value, f, true);
       row.textContent = '✓ ' + f.name + ' – ' + (r.status === 'ok' ? r.chunks + ' ' + S.passages : r.error) + (r.status === 'ok' && r.error ? ' (' + r.error + ')' : ''); }
     catch(e){ row.textContent = '✗ ' + f.name + ' – ' + e.message; row.style.color = 'var(--bad)'; }
@@ -390,6 +415,8 @@ $('modal').addEventListener('click', e => {
 $('m-list').addEventListener('change', e => { const i = e.target.dataset.i; if (i === undefined) return; const it = PK.items[+i];
   if (e.target.checked) PK.sel.push({id: it.id, name: it.name, is_folder: it.is_folder}); else PK.sel = PK.sel.filter(s => s.id !== it.id); pkCount(); });
 $('m-cancel').onclick = () => { $('modal').hidden = true; };
+$('t-close').onclick = () => { $('tmodal').hidden = true; };
+$('tmodal').addEventListener('click', e => { if (e.target === $('tmodal')) $('tmodal').hidden = true; });
 $('m-save').onclick = () => { $('modal').hidden = true; act(() => api('kb/source-update', {source: PK.src.id, folders: PK.sel, audience: PK.src.audience}), S.saved); };
 $('m-url-add').onclick = async () => { const u = $('m-url').value.trim(); if (!u) return;
   try { const r = await api('kb/share-link', {source: PK.src.id, link: u}); const it = r.item;
@@ -397,8 +424,17 @@ $('m-url-add').onclick = async () => { const u = $('m-url').value.trim(); if (!u
   catch(e){ msg(e.message, true); } };
 
 // API klíče
+function renderUsage(u){ const el = $('key-usage'); if (!u || !u.chat_limit) { el.hidden = true; return; }
+  const pct = Math.min(100, Math.round(u.chat_used * 100 / u.chat_limit)), col = u.exhausted ? 'var(--bad)' : u.warn ? '#c35200' : 'var(--accent2, #0aa88a)';
+  const d = new Date(u.resets + 'T00:00:00Z').toLocaleDateString(CS ? 'cs-CZ' : 'en-GB', {timeZone: 'UTC'});
+  el.hidden = false; el.innerHTML = `<div style="font-size:13px;font-weight:600">${esc(S.us_t(u.chat_used.toLocaleString(), u.chat_limit.toLocaleString()))} <span style="font-weight:400;color:var(--muted)">(${pct} %)</span></div>
+    <div style="height:8px;border-radius:6px;background:#ece9e1;overflow:hidden;margin:6px 0" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><div style="height:100%;width:${pct}%;background:${col}"></div></div>
+    <div class="p">${esc(S.us_reset(d))}</div>${u.exhausted ? `<div class="p warn" style="color:var(--bad)">${esc(S.us_out)}</div>` : u.warn ? `<div class="p warn">${esc(S.us_warn)}</div>` : ''}`; }
+const DEV_URL = location.origin + '/developers';
+$('dev-url').textContent = DEV_URL;
+$('key-mail').onclick = () => navigator.clipboard.writeText(S.key_mail_t(DEV_URL)).then(() => msg(S.copied), () => msg(DEV_URL));
 async function loadKeys(){
-  try { const r = await api('api-keys'); $('keys').innerHTML = r.keys.length ? r.keys.map(k => `<div class="it"><span class="nm"><b>${esc(k.name)}</b> <code>${esc(k.prefix)}…</code>
+  try { const r = await api('api-keys'); renderUsage(r.usage); $('keys').innerHTML = r.keys.length ? r.keys.map(k => `<div class="it"><span class="nm"><b>${esc(k.name)}</b> <code>${esc(k.prefix)}…</code>
       <span class="p" style="color:var(--muted);font-size:11.5px"> ${esc(k.scopes.join(', '))} · ${k.daily_limit} ${S.perday} · ${k.last_used ? S.last + ' ' + esc(new Date(k.last_used + 'Z').toLocaleDateString()) : S.neverused}</span></span>
       ${k.revoked ? `<span class="pill err">${S.revoked}</span>` : `<button class="btn sm danger" data-rev="${esc(k.id)}">${S.revoke}</button>`}</div>`).join('') : `<div class="empty">${S.nokeys}</div>`; }
   catch(e){ $('api-card').hidden = true; }
