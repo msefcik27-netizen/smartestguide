@@ -64,6 +64,13 @@ _SCHEMA = [
     "CREATE TABLE IF NOT EXISTS api_usage (key_id TEXT, day TEXT, kind TEXT, n INTEGER, PRIMARY KEY (key_id, day, kind))",
     """CREATE TABLE IF NOT EXISTS api_devs (
         email TEXT PRIMARY KEY, name TEXT, company TEXT, purpose TEXT, created_at TEXT, verify_hash TEXT, verified INTEGER DEFAULT 0)""",
+    # paměť chytrého hledání v portálu (smart_search.py): co se hledá a na co se kliklo
+    """CREATE TABLE IF NOT EXISTS kb_queries (
+        hotel_id TEXT NOT NULL, qn TEXT NOT NULL, q TEXT, n INTEGER DEFAULT 0, zero INTEGER DEFAULT 0, last_at TEXT,
+        PRIMARY KEY (hotel_id, qn))""",
+    """CREATE TABLE IF NOT EXISTS kb_clicks (
+        hotel_id TEXT NOT NULL, qn TEXT NOT NULL, doc_id TEXT NOT NULL, n INTEGER DEFAULT 0,
+        PRIMARY KEY (hotel_id, qn, doc_id))""",
     "CREATE INDEX IF NOT EXISTS kb_docs_hotel ON kb_docs (hotel_id)",
     "CREATE INDEX IF NOT EXISTS kb_chunks_hotel ON kb_chunks (hotel_id)",
     "CREATE INDEX IF NOT EXISTS kb_chunks_doc ON kb_chunks (doc_id)",
@@ -718,7 +725,9 @@ class KB:
             self._idx[hotel_id] = ix
         return ix
     # — vyhledávání —
-    async def search(self, hotel_id: str, query: str, audiences=("guest",), k: int = 5, client=None) -> list:
+    async def search(self, hotel_id: str, query: str, audiences=("guest",), k: int = 5, client=None,
+                     lexical: bool = False) -> list:
+        """lexical=True: jen podle slov, bez dotazu na vektory (hledání při psaní – nic nestojí)."""
         query = (query or "").strip()
         if not query:
             return []
@@ -732,7 +741,7 @@ class KB:
         q_terms = len({t for t in qtok if t[0] != "~"})
         bm_all = ix.bm.scores(qtok)
         vec_all = []
-        if ix.has_vec:
+        if ix.has_vec and not lexical:
             qv = (await embed([query[:2000]], self.embed_key_fn(), client=client))[0]
             if qv:
                 vec_all = cosine_all(unpack_vec(pack_vec(qv)), ix.vecs)

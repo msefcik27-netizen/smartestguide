@@ -3011,8 +3011,8 @@ def generate_qr_poster(hotel_id: str, request: Request):
     _pl_map = json.dumps({c: {"n": print_i18n.get(c)["n"], "h": print_i18n.get(c)["h"]} for c, _n in print_i18n.options()}, ensure_ascii=False)
     _pl_first = print_i18n.get(_pl_default)
     _pl_label = "Jazyk tiskovin" if is_cs else "Language of the materials"
-    _pl_note = ("Zvolený jazyk platí pro roll-up, QR plakát a letáky ve zvoleném jazyce. Anglické letáky zůstávají anglicky." if is_cs else
-                "The selected language applies to the roll-up, the QR poster and the selected-language flyers. English flyers stay in English.")
+    _pl_note = ("Všechny tiskoviny se připraví ve zvoleném jazyce. Potřebujete je i v jiném? Přepněte jazyk a otevřete je znovu." if is_cs else
+                "All materials are prepared in the selected language. Need another one too? Switch the language and open them again.")
     _pl_span = '<span class="pl-name">' + _pl_first["n"] + "</span>"
 
     # EN je vždy primární, lokální jazyk je sekundární
@@ -3020,7 +3020,7 @@ def generate_qr_poster(hotel_id: str, request: Request):
     flyer_primary_desc = "English A4 flyer, print-ready."
     flyer_primary_url = "flyer-en"
     flyer_secondary_name = ("A4 Leták · " if is_cs else "A4 Flyer · ") + _pl_span
-    flyer_secondary_desc = "Leták ve zvoleném jazyce pro hosty, kteří jím mluví." if is_cs else "A4 flyer in the selected language."
+    flyer_secondary_desc = "Leták A4 na recepci, do výtahu nebo na nástěnku." if is_cs else "A4 flyer for the reception, lift or notice board."
     flyer_secondary_url = "flyer-loc"
     rollup_desc = "Vysoký banner pro lobby, veletrh nebo konferenci." if is_cs else "Tall banner for lobby or trade show."
 
@@ -3091,7 +3091,7 @@ function drawQR(holderId, size){{
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-height:100vh}}
 .topbar{{position:fixed;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#2c5fae,#2fd0d8);z-index:200}}
-.hub{{max-width:1020px;margin:0 auto;padding:56px 24px 80px}}
+.hub{{max-width:1180px;margin:0 auto;padding:56px 24px 80px}}
 .hub-header{{text-align:center;margin-bottom:40px}}
 .hub-logo{{font-family:'Sora',sans-serif;font-weight:800;font-size:24px;letter-spacing:1px;color:#0c1b33;display:inline-flex;align-items:center;gap:10px}}
 .hub-logo img{{width:28px;height:28px;display:block}}
@@ -3104,8 +3104,8 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
 .theme-wrap{{display:inline-flex;background:#fff;border:1px solid #e3e9f4;border-radius:99px;padding:4px;gap:4px;margin-top:18px;box-shadow:0 4px 12px rgba(12,27,51,.05)}}
 .theme-btn{{border:none;background:transparent;color:#51617e;border-radius:99px;padding:8px 18px;font-family:'Manrope',sans-serif;font-size:13px;font-weight:700;cursor:pointer}}
 .theme-btn.active{{background:#2c5fae;color:#fff}}
-.formats{{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}}
-@media(max-width:820px){{.formats{{grid-template-columns:repeat(2,1fr)}}}}
+.formats{{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}}
+@media(max-width:980px){{.formats{{grid-template-columns:repeat(2,1fr)}}}}
 @media(max-width:560px){{.formats{{grid-template-columns:1fr}}}}
 .fmt-card{{background:#fff;border:1px solid #e3e9f4;border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(12,27,51,.07);transition:transform .2s,box-shadow .2s}}
 .fmt-card:hover{{transform:translateY(-4px);box-shadow:0 22px 44px rgba(12,27,51,.13)}}
@@ -3172,25 +3172,7 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
       </div>
     </div>
 
-    <!-- A4 primární (EN) -->
-    <div class="fmt-card">
-      <div class="fmt-preview" onclick="openFormat('{flyer_primary_url}')">
-        <div class="mini" style="width:118px;height:164px">
-          <div class="mini-h" style="font-size:9px">Your personal<br>AI concierge</div>
-          <div class="mini-s" style="font-size:6.5px">100+ LANGUAGES</div>
-          <div class="mini-qr"><div id="qr-a4-primary" style="width:64px;height:64px"></div></div>
-          <div class="mini-u" style="font-size:6.5px">smartestguide.com</div>
-        </div>
-      </div>
-      <div class="fmt-info">
-        <div class="fmt-name">{flyer_primary_name}</div>
-        <div class="fmt-desc">{flyer_primary_desc}</div>
-        <button class="fmt-btn" onclick="openFormat('{flyer_primary_url}')">{btn_print}</button>
-        <button class="fmt-btn fmt-btn2" title="{press_tip}" onclick="openFormat('{flyer_primary_url}',1)">{btn_press}</button>
-      </div>
-    </div>
-
-    <!-- A4 sekundární (lokální) -->
+    <!-- A4 leták ve zvoleném jazyce (anglický se vybere v nabídce jazyků, zvlášť už se nenabízí) -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('{flyer_secondary_url}')">
         <div class="mini" style="width:118px;height:164px">
@@ -3226,26 +3208,7 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
       </div>
     </div>
 
-    <!-- A5 primární (EN) -->
-    <div class="fmt-card">
-      <div class="fmt-preview" onclick="openFormat('flyer-a5-en')">
-        <div class="mini" style="width:132px;height:96px;flex-direction:row;gap:9px;padding:10px 12px">
-          <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left">
-            <div class="mini-h" style="font-size:8.5px;text-align:left">Your AI<br>concierge</div>
-            <div class="mini-s" style="font-size:6px">100+ LANG</div>
-          </div>
-          <div class="mini-qr"><div id="qr-a5-primary" style="width:52px;height:52px"></div></div>
-        </div>
-      </div>
-      <div class="fmt-info">
-        <div class="fmt-name">A5 Flyer · English</div>
-        <div class="fmt-desc">{'Kompaktní A5 — na pokoje a stolky.' if is_cs else 'Compact A5 — perfect for rooms and tables.'}</div>
-        <button class="fmt-btn" onclick="openFormat('flyer-a5-en')">{btn_print}</button>
-        <button class="fmt-btn fmt-btn2" title="{press_tip}" onclick="openFormat('flyer-a5-en',1)">{btn_press}</button>
-      </div>
-    </div>
-
-    <!-- A5 sekundární (lokální) -->
+    <!-- A5 leták ve zvoleném jazyce -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('flyer-a5-loc')">
         <div class="mini" style="width:132px;height:96px;flex-direction:row;gap:9px;padding:10px 12px">
@@ -3258,7 +3221,7 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
       </div>
       <div class="fmt-info">
         <div class="fmt-name">{'A5 Leták · ' if is_cs else 'A5 Flyer · '}{_pl_span}</div>
-        <div class="fmt-desc">{'Kompaktní A5 ve zvoleném jazyce.' if is_cs else 'Compact A5 in the selected language.'}</div>
+        <div class="fmt-desc">{'Kompaktní A5 — na pokoje a stolky.' if is_cs else 'Compact A5 — perfect for rooms and tables.'}</div>
         <button class="fmt-btn" onclick="openFormat('flyer-a5-loc')">{btn_print}</button>
         <button class="fmt-btn fmt-btn2" title="{press_tip}" onclick="openFormat('flyer-a5-loc',1)">{btn_press}</button>
       </div>
@@ -3272,9 +3235,7 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
 window.addEventListener('load', function(){{
   setTimeout(function(){{
     drawQR('qr-thumb', 126);
-    drawQR('qr-a4-primary', 64);
     drawQR('qr-a4-secondary', 64);
-    drawQR('qr-a5-primary', 52);
     drawQR('qr-a5-secondary', 52);
     drawQR('qr-rollup', 42);
   }}, 300);
@@ -11798,8 +11759,19 @@ def download_invoice_pdf(invoice_id: str, request: Request, token: str = ""):
 # ─────────────────────────────────────────────
 # Znalostní báze hotelu — cesty jsou v kb_routes.py
 # ─────────────────────────────────────────────
+def _note_unanswered(hotel_id: str, q: str, lang: str = ""):
+    """Hledání v portálu nic nenašlo (nebo dostalo palec dolů) → dotaz jde do „Alex se učí“."""
+    db = db_load()
+    if hotel_id not in db.get("hotels", {}):
+        return
+    a = db.setdefault("analytics", {}).setdefault(hotel_id, {"total": 0, "topics": {}})
+    if alex_learn.add_pending(a, q, lang, datetime.utcnow(), "Hledání v portálu"):
+        analytics_view.prune_unanswered(a, datetime.utcnow())
+        db_save(db)
+
 kb_routes.setup(
     app,
+    note_unanswered=_note_unanswered,
     db_load=db_load,
     find_hotel_by_token=find_hotel_by_token,
     resolve_hotel=_resolve_hotel,

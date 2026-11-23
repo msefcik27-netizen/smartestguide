@@ -320,32 +320,18 @@ def setup(app, **deps):
         hid, h = _staff(await _body(request))
         return {"hotel": h.get("name", ""), "counts": await asyncio.to_thread(KB.counts, hid)}
 
-    @app.post("/api/staff/chat")
-    async def staff_chat(request: Request):
-        b = await _body(request)
-        if not rl("stchat:" + ip(request), 20, 60):
-            raise HTTPException(429, "Příliš mnoho dotazů. Zkuste to za chvíli.")
-        hid, h = _staff(b)
-        msg = str(b.get("message") or "").strip()[:2000]
-        if not msg:
-            raise HTTPException(400, "Prázdný dotaz.")
-        hist = [m for m in (b.get("history") or []) if isinstance(m, dict) and m.get("role") in ("user", "assistant")
-                and isinstance(m.get("content"), str)][-6:]
-        q = msg
-        if len(q) < 30:
-            prev = [m["content"] for m in hist if m["role"] == "user"]
-            if prev:
-                q = prev[-1][:300] + " " + q
-        hits = await KB.search(hid, q, audiences=("guest", "staff"), k=STAFF_K)
+    async def _answer(h: dict, msg: str, hist: list, hits: list, lang: str = "") -> dict:
+        """Odpověď z nalezených úryvků a odpovědí recepce, s čísly zdrojů. Sdílí režim pro personál i hledání v portálu."""
         block = kbmod.prompt_block(hits, max_chars=STAFF_CHARS, staff=True)
         learned = ""
         try:
             learned = D["learn_block"](h) or ""
         except Exception:
             pass
-        sources = [{"n": i, "title": x["title"], "section": x["section"], "url": x["url"]} for i, x in enumerate(hits, 1)]
+        sources = [{"n": i, "title": x["title"], "section": x["section"], "url": x["url"], "doc_id": x["doc_id"]}
+                   for i, x in enumerate(hits, 1)]
         if not block and not learned:
-            return {"reply": _NO_ANSWER.get(str(b.get("language") or "")[:2], _NO_ANSWER["en"]), "sources": [], "found": False}
+            return {"reply": _NO_ANSWER.get(lang, _NO_ANSWER["en"]), "sources": [], "found": False}
         api_key = (D["get_settings"]() or {}).get("anthropic_api_key", "")
         if not api_key:
             raise HTTPException(503, "Asistent teď není dostupný.")
@@ -372,7 +358,32 @@ def setup(app, **deps):
             raise HTTPException(502, "Asistent teď neodpovídá. Zkuste to za chvíli.")
         reply = "".join(p.get("text", "") for p in r.json().get("content", []) if p.get("type") == "text")
         used = [s for s in sources if f"[{s['n']}]" in reply]
-        return {"reply": reply, "sources": used or sources[:3], "found": bool(hits)}
+        return {"reply": reply, "sources": used or sources[:3], "found": bool(hits) or bool(learned)}
+
+    @app.post("/api/staff/chat")
+    async def staff_chat(request: Request):
+        b = await _body(request)
+        if not rl("stchat:" + ip(request), 20, 60):
+            raise HTTPException(429, "Příliš mnoho dotazů. Zkuste to za chvíli.")
+        hid, h = _staff(b)
+        msg = str(b.get("message") or "").strip()[:2000]
+        if not msg:
+            raise HTTPException(400, "Prázdný dotaz.")
+        hist = [m for m in (b.get("history") or []) if isinstance(m, dict) and m.get("role") in ("user", "assistant")
+                and isinstance(m.get("content"), str)][-6:]
+        q = msg
+        if len(q) < 30:
+            prev = [m["content"] for m in hist if m["role"] == "user"]
+            if prev:
+                q = prev[-1][:300] + " " + q
+        hits = await KB.search(hid, q, audiences=("guest", "staff"), k=STAFF_K)
+        return await _answer(h, msg, hist, hits, str(b.get("language") or "")[:2])
+
+    # ── chytré hledání v portálu ──
+    import smart_search
+    smart_search.setup(app, KB=KB, STORE=STORE, hotel_fn=_hotel, body_fn=_body, rate_limit_ok=rl, answer_fn=_answer,
+                       learned_fn=lambda h: [x for x in (h.get("learned_answers") or []) if isinstance(x, dict)],
+                       note_unanswered=deps.get("note_unanswered"), k=STAFF_K)
 
     return KB
 

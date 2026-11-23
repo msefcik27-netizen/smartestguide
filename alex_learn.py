@@ -63,6 +63,20 @@ def pending(a: dict, utc_now: datetime) -> list:
     return out[:PENDING_MAX]
 
 
+def add_pending(a: dict, q: str, lang: str, utc_now: datetime, topic: str = "") -> bool:
+    """Zařadí dotaz mezi nezodpovězené (např. z hledání v portálu, které nic nenašlo).
+    Stejný dotaz se za posledních 24 hodin nezapíše dvakrát. Vrací True, když byl přidán."""
+    q = _clean(q, Q_MAX)
+    if not q:
+        return False
+    un = _ensure_unanswered(a, utc_now)
+    k, day = norm(q), (utc_now - timedelta(days=1)).isoformat()
+    if any(norm(u.get("q", "")) == k and str(u.get("at", "")) >= day for u in un):
+        return False
+    un.insert(0, {"q": q, "lang": _clean(lang, 8), "at": utc_now.isoformat(), "topic": topic})
+    return True
+
+
 def resolve(a: dict, q: str, utc_now: datetime) -> int:
     """Odebere dotaz (všechny jeho výskyty) ze seznamu bez odpovědi. Vrací počet odebraných."""
     k = norm(q)
