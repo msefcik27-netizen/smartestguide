@@ -5,7 +5,8 @@ Alex podle nich hostovi řekne, jestli se jeho auto vejde, a nabídne další mo
 
 Kde data žijí:
   hotel["parking_places"] … [{name, type, max_height_cm, max_width_cm, max_length_cm, price,
-                              distance, address, directions, security, hours, reservation, ev, note}]
+                              distance, address, directions, security, hours, reservation, ev, note,
+                              lpg, cng, walk_to_hotel, pay_machine}]
 """
 import re
 
@@ -13,7 +14,8 @@ MAX_PLACES = 8
 TYPES = {"garage": "garáž", "lot": "parkoviště", "street": "ulice / parkovací zóna", "other": "jiné"}
 SECURITY = {"guarded": "hlídané obsluhou", "camera": "pod kamerami", "none": "bez ostrahy"}
 _TEXT_LIMITS = {"name": 80, "price": 120, "distance": 120, "address": 200, "directions": 600,
-                "hours": 120, "note": 400}
+                "hours": 120, "note": 400, "walk_to_hotel": 500, "pay_machine": 700}
+FUEL = {"yes": "vjezd povolen", "no": "vjezd zakázán"}   # auta na LPG / CNG; prázdné = hotel neuvedl
 CM_MIN, CM_MAX = 100, 1500   # rozumný rozsah rozměru vozu (1 m až 15 m)
 
 
@@ -65,7 +67,10 @@ def normalize_place(p):
         out[k] = to_cm(p.get(k))
     out["reservation"] = _truthy(p.get("reservation"))
     out["ev"] = _truthy(p.get("ev"))
+    for k in ("lpg", "cng"):
+        out[k] = p.get(k) if p.get(k) in FUEL else ""
     has_content = (any(out[k] for k in _TEXT_LIMITS) or out["security"] or out["reservation"] or out["ev"]
+                   or out["lpg"] or out["cng"]
                    or any(out[k] for k in ("max_height_cm", "max_width_cm", "max_length_cm")))
     if not has_content:
         return None
@@ -113,6 +118,13 @@ def place_line(p: dict) -> str:
         parts.append("nutná rezervace předem")
     if p.get("ev"):
         parts.append("nabíječka pro elektromobily")
+    for lbl, k in (("auta na LPG", "lpg"), ("auta na CNG", "cng")):
+        if p.get(k) in FUEL:
+            parts.append(f"{lbl}: {FUEL[p[k]]}")
+    for lbl, k in (("cesta z parkoviště do hotelu", "walk_to_hotel"), ("návod k parkovacímu automatu", "pay_machine")):
+        v = _clean(p.get(k), _TEXT_LIMITS[k])
+        if v:
+            parts.append(f"{lbl}: {v}")
     note = _clean(p.get("note"), _TEXT_LIMITS["note"])
     if note:
         parts.append(f"poznámka: {note}")
@@ -127,7 +139,11 @@ RULES = """VEJDE SE AUTO HOSTA? (postup, když se host ptá, jestli se jeho auto
    V odpovědi pak ke každému posuzovanému rozměru napiš řádek „Výška: auto asi X cm, limit Y cm, rezerva R cm → vyhovuje / těsné / přesahuje“ (R = Y − X; záporná = přesahuje, 0 až 4 cm = těsné, 5 cm a víc = vyhovuje) a POD řádky verdikt: některý řádek „přesahuje“ → „NEVEJDE SE“ (který rozměr a o kolik); jinak některý „těsné“ → „TĚSNÉ“ (vejde se jen o pár centimetrů, ať host před vjezdem požádá recepci o ověření; NIKDY nepiš „VEJDE SE“); jinak → „VEJDE SE“ (podle rozměrů by se mělo vejít).
    Verdikt nesmí odporovat řádkům nad ním. Limit, který hotel neuvedl, neposuzuj a řekni, že ho neznáš: netvrď, že místo je „bez omezení“, pokud to hotel výslovně nenapsal. U výšky nikdy neriskuj.
 4. Rovnou nabídni další možnosti ze seznamu výše: kde to je, za kolik, jak daleko, jak se tam dostat a jestli je místo hlídané nebo pod kamerami. Když se auto nevejde, začni místem, kam se vejde. Nevymýšlej parkoviště, která v seznamu nejsou. Místo, do kterého se auto podle rozměrů nevejde, znovu jako možnost nenabízej.
-5. Nic negarantuj: poslední slovo má recepce nebo obsluha garáže. Neříkej „určitě“ ani „bez problému“; řekni „podle rozměrů by se mělo vejít“. Ceny, vzdálenosti, cesty a ostrahu uváděj jen podle seznamu."""
+5. Nic negarantuj: poslední slovo má recepce nebo obsluha garáže. Neříkej „určitě“ ani „bez problému“; řekni „podle rozměrů by se mělo vejít“. Ceny, vzdálenosti, cesty a ostrahu uváděj jen podle seznamu.
+
+LPG / CNG, CESTA Z PARKOVIŠTĚ A PARKOVACÍ AUTOMAT
+- Jestli smí do garáže nebo na parkoviště auto na LPG nebo CNG, říkej JEN podle seznamu výše. Když u místa údaj chybí, řekni, že to hotel neuvedl, a doporuč ověřit na recepci. Nikdy neodhaduj podle typu místa.
+- Cestu z parkoviště do hotelu a návod k parkovacímu automatu podej v jazyce hosta jako krátké očíslované kroky. Přelož je věrně: nic nepřidávej, nevynechávej a neměň pořadí kroků, ceny ani názvy tlačítek (název tlačítka nech i v původním znění v závorce, aby ho host na automatu poznal)."""
 
 
 def prompt_block(hotel: dict) -> str:

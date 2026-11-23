@@ -25,6 +25,8 @@ import kb_routes       # znalostní báze hotelu (dokumenty, cloudové disky, as
 import sg_api          # veřejné API /api/v1 a onboarding vývojářů — testy v test_sg_api.py
 import parking         # místa k parkování a max. rozměry vozu („vejde se moje auto?") — testy v test_parking.py
 import partners        # doporučené (spřátelené) firmy: ručně, z webu nebo z vyfoceného letáku — testy v test_partners.py
+import ratings         # hodnocení odpovědí palcem (host v chatu, hotel v portálu) — testy v test_ratings.py
+import helpdesk        # helpdesk hotelu: závada / úklid / přání se stavem, řešitelem a historií — testy v test_helpdesk.py
 
 load_dotenv()
 
@@ -2513,6 +2515,10 @@ def hotel_portal_update(token: str, data: dict = Body(default={})):
     _pk = parking.normalize(update_data)
     if _pk is not None:
         update_data.update(_pk)
+    # Helpdesk zapíná hotel sám — hodnota jde hostovi i do promptu, proto jen čisté ano/ne
+    if "helpdesk_enabled" in update_data:
+        _hv = update_data.get("helpdesk_enabled")
+        update_data["helpdesk_enabled"] = _hv is True or str(_hv).strip().lower() in ("1", "true", "ano", "yes", "on")
     # Doporučené firmy: čisté texty, strop počtu, čas potvrzení „doporučujeme z vlastní vůle"
     _pt = partners.normalize(update_data)
     if _pt is not None:
@@ -2657,7 +2663,12 @@ def _portal_overview(token: str, lang: str = "") -> dict:
         (db.get("analytics", {}) or {}).get(hid, {}) or {}, orders, h,
         lang=lang, utc_now=datetime.utcnow(), lang_names=_LANG_NAMES.get(lang, _LANG_NAMES["en"]))
     ov["hotel_name"] = h.get("name") or ""
-    ov["orders_enabled"] = bool(h.get("pms_write_services") or h.get("pms_write_extension") or orders)
+    # Hodnocení odpovědí palcem (hosté) — za každé období + souhrn za celou dobu
+    _an = (db.get("analytics", {}) or {}).get(hid, {}) or {}
+    for _p in (ov.get("periods") or {}).values():
+        _p["ratings"] = ratings.period_block(_an, _p.get("keys") or [])
+    ov["ratings"] = ratings.summary(_an)
+    ov["orders_enabled"] =bool(h.get("pms_write_services") or h.get("pms_write_extension") or orders)
     return ov
 
 @app.get("/api/hotel-portal/overview")
@@ -2723,6 +2734,66 @@ def hotel_portal_learn_delete(token: str, data: dict = Body(default={})):
         hotel["portal_last_edit"] = datetime.utcnow().isoformat()
         db_save(db)
     return _learn_state(hotel, a)
+
+# ── Hodnocení odpovědí: hotel posoudí odpovědi, které hostům nepomohly ──────────────────────
+def _ratings_state(a: dict) -> dict:
+    return {"status": "ok", "summary": ratings.summary(a), "down": ratings.down_list(a)}
+
+@app.get("/api/hotel-portal/ratings")
+def hotel_portal_ratings(token: str):
+    _, _, a = _learn_ctx(token)
+    return _ratings_state(a)
+
+@app.post("/api/hotel-portal/ratings-resolve")
+def hotel_portal_ratings_resolve(token: str, data: dict = Body(default={})):
+    """Hotel posoudí odpověď s palcem dolů: {id, verdict: ok|bad, answer?}.
+    U „bad" s vyplněnou správnou odpovědí se oprava uloží do znalostí (Alex se učí)."""
+    db, hotel, a = _learn_ctx(token)
+    data = data or {}
+    fix = str(data.get("answer") or "").strip()
+    if data.get("verdict") == "bad" and fix and len(alex_learn.learned(hotel)) >= alex_learn.MAX_ANSWERS:
+        raise HTTPException(400, "full")
+    try:
+        item = ratings.hotel_verdict(a, str(data.get("id") or ""), str(data.get("verdict") or ""))
+    except ValueError:
+        raise HTTPException(400, "verdict")
+    if item:
+        if data.get("verdict") == "bad" and fix:
+            try:
+                alex_learn.add_answer(hotel, a, item.get("q"), fix, datetime.utcnow(), item.get("lang") or "")
+                hotel["portal_last_edit"] = datetime.utcnow().isoformat()
+            except ValueError:
+                pass
+        db_save(db)
+    return _ratings_state(a)
+
+# ── Helpdesk v portálu: seznam, stav, řešitel, poznámka ─────────────────────────────────────
+def _helpdesk_state(db: dict, hotel: dict) -> dict:
+    tickets = db.get("tickets") or {}
+    return {"status": "ok", "enabled": bool(hotel.get("helpdesk_enabled")),
+            "tickets": helpdesk.hotel_list(tickets, hotel["id"]), "counts": helpdesk.counts(tickets, hotel["id"])}
+
+@app.get("/api/hotel-portal/helpdesk")
+def hotel_portal_helpdesk(token: str):
+    db, hotel, _ = _learn_ctx(token)
+    return _helpdesk_state(db, hotel)
+
+@app.post("/api/hotel-portal/helpdesk-update")
+def hotel_portal_helpdesk_update(token: str, data: dict = Body(default={})):
+    """Hotel změní požadavek: {id, status?, assignee?, note?}. Poznámku uvidí host u svého požadavku."""
+    db, hotel, _ = _learn_ctx(token)
+    data = data or {}
+    t = (db.get("tickets") or {}).get(str(data.get("id") or ""))
+    if not t or t.get("hid") != hotel["id"]:
+        raise HTTPException(404, "Požadavek nenalezen")
+    try:
+        changed = helpdesk.update(t, status=data.get("status"), assignee=data.get("assignee"),
+                                  note=data.get("note"), utc_now=datetime.utcnow())
+    except ValueError:
+        raise HTTPException(400, "status")
+    if changed:
+        db_save(db)
+    return _helpdesk_state(db, hotel)
 
 @app.get("/api/hotel-portal/monthly-report")
 def hotel_portal_monthly_report(token: str, month: str = ""):
@@ -8318,6 +8389,112 @@ async def _send_guest_message_notification(hid: str, h: dict, rec: dict, oid: st
     except Exception as e:
         logging.warning("Guest reply notification selhala (%s): %s", hid, e)
 
+# ── Hodnocení odpovědí palcem (výpočty v ratings.py) ─────────────────────────────────────────
+def _rate_sig(hid: str, q: str, answer: str) -> str:
+    return hmac.new(_order_secret(), ratings.sig_payload(hid, q, answer).encode(), hashlib.sha256).hexdigest()[:24]
+
+def _dev_hash(device_id: str) -> str:
+    """Zkrácený hash zařízení hosta — stejný jako v analytice (v databázi není samotné ID zařízení)."""
+    d = str(device_id or "")[:64]
+    return hashlib.sha256(d.encode()).hexdigest()[:12] if d else ""
+
+@app.post("/api/guest/chat/rate")
+def guest_chat_rate(request: Request, data: dict = Body(default={})):
+    """Host ohodnotil odpověď Alex: {hotel_id, device_id, value: up|down, q, a, sig, language}.
+    Podpis `sig` dostal od serveru spolu s odpovědí — bez něj nejde hodnotit vymyšlený text."""
+    data = data or {}
+    if not _rate_limit_ok("rate:" + _client_ip(request), max_hits=30):
+        raise HTTPException(429, "Too many requests")
+    q, ans, sig = str(data.get("q") or ""), str(data.get("a") or ""), str(data.get("sig") or "")
+    db = db_load()
+    hid, h = _resolve_hotel(db, str(data.get("hotel_id") or ""))
+    if not h:
+        raise HTTPException(404, "Hotel nenalezen")
+    dev = _dev_hash(data.get("device_id"))
+    if not dev or not sig or not hmac.compare_digest(sig, _rate_sig(hid, q, ans)):
+        raise HTTPException(400, "Neplatné hodnocení")
+    a = db.setdefault("analytics", {}).setdefault(hid, {"total": 0, "topics": {}})
+    try:
+        res = ratings.record(a, value=str(data.get("value") or ""), sig=sig, device_hash=dev, q=q, answer=ans,
+                             lang=str(data.get("language") or ""), utc_now=datetime.utcnow())
+    except ValueError:
+        raise HTTPException(400, "Neplatné hodnocení")
+    if res != "same":
+        db_save(db)
+    return {"status": "ok"}
+
+# ── Helpdesk: závada / úklid / přání (výpočty v helpdesk.py) ─────────────────────────────────
+@app.post("/api/guest/helpdesk/new")
+async def guest_helpdesk_new(request: Request, data: dict = Body(default={})):
+    """Host nahlásí závadu, úklid nebo přání: {hotel_id, device_id, kind, room, text, language, guest_name}."""
+    data = data or {}
+    if not _rate_limit_ok("hd:" + _client_ip(request), max_hits=6):
+        raise HTTPException(429, "Too many requests")
+    db = db_load()
+    hid, h = _resolve_hotel(db, str(data.get("hotel_id") or ""))
+    if not h:
+        raise HTTPException(404, "Hotel nenalezen")
+    if not h.get("helpdesk_enabled"):
+        raise HTTPException(403, "Helpdesk není zapnutý")
+    dev = _dev_hash(data.get("device_id"))
+    if not dev:
+        raise HTTPException(400, "Chybí zařízení")
+    try:
+        t = helpdesk.create(db.setdefault("tickets", {}), hid=hid, kind=str(data.get("kind") or ""),
+                            room=data.get("room"), text=data.get("text"), lang=data.get("language"),
+                            guest=data.get("guest_name"), device_hash=dev, utc_now=datetime.utcnow())
+    except ValueError as e:
+        raise HTTPException(429 if str(e) == "too_many" else 400, str(e))
+    db_save(db)
+    asyncio.create_task(_send_helpdesk_notification(hid, dict(h), dict(t)))
+    return {"status": "ok", "id": t["id"]}
+
+@app.get("/api/guest/helpdesk/list")
+def guest_helpdesk_list(hotel_id: str, device_id: str = ""):
+    """Požadavky hosta z tohoto zařízení se stavem a poslední zprávou hotelu."""
+    db = db_load()
+    hid, h = _resolve_hotel(db, hotel_id)
+    if not h:
+        raise HTTPException(404, "Hotel nenalezen")
+    return {"tickets": helpdesk.guest_list(db.get("tickets") or {}, hid, _dev_hash(device_id))}
+
+async def _send_helpdesk_notification(hid: str, h: dict, t: dict):
+    """Mail hotelu: nový požadavek z helpdesku, s odkazem do portálu."""
+    brevo_key = os.getenv("BREVO_API_KEY", "")
+    wr = _write_settings(h)
+    to_email = (wr.get("pms_write_notify_email") or h.get("registration_email") or h.get("email") or "").strip()
+    if not brevo_key or not to_email:
+        return
+    cs = (h.get("country") or "").strip().upper() in ("CZ", "SK")
+    name = h.get("name") or hid
+    kind = helpdesk.kind_label(t.get("kind"), "cs" if cs else "en")
+    room = html.escape(t.get("room") or "")
+    link = f"{(os.getenv('BASE_URL') or 'https://www.smartestguide.com').rstrip('/')}/portal?token={h.get('hotel_token', '')}&blok=helpdesk#alex"
+    _b = "display:inline-block;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:700;background:#FF6B00;color:#fff"
+    quote = (f"<blockquote style='border-left:3px solid #FF6B00;margin:0;padding:6px 12px;color:#333'>"
+             f"{html.escape(t.get('text') or '').replace(chr(10), '<br>')}</blockquote>")
+    if cs:
+        subject = f"🛠 {name}: {kind}" + (f" — pokoj {t.get('room')}" if t.get("room") else "")
+        body = (f"<p>Dobrý den,</p><p>host nahlásil přes aplikaci: <b>{kind}</b>" + (f", pokoj <b>{room}</b>" if room else "") + f".</p>{quote}"
+                f"<p><a href=\"{link}\" style=\"{_b}\">Otevřít v portálu</a><br><span style='font-size:12px;color:#666'>V portálu nastavíte stav a řešitele. Host stav uvidí ve své aplikaci.</span></p>")
+    else:
+        subject = f"🛠 {name}: {kind}" + (f" — room {t.get('room')}" if t.get("room") else "")
+        body = (f"<p>Hello,</p><p>a guest reported through the app: <b>{kind}</b>" + (f", room <b>{room}</b>" if room else "") + f".</p>{quote}"
+                f"<p><a href=\"{link}\" style=\"{_b}\">Open in the portal</a><br><span style='font-size:12px;color:#666'>In the portal you set the status and who handles it. The guest sees the status in their app.</span></p>")
+    payload = {"sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"}, "to": [{"email": to_email}],
+               "subject": subject, "htmlContent": body + "<p>— SMARTEST GUIDE · support@smartestguide.com</p>",
+               "textContent": f"{subject}: {t.get('text') or ''}"}
+    bcc = _admin_notify_bcc(exclude=to_email)
+    if bcc:
+        payload["bcc"] = bcc
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post("https://api.brevo.com/v3/smtp/email", json=payload,
+                                  headers={"api-key": brevo_key, "Content-Type": "application/json"}, timeout=30)
+        logging.info("Helpdesk notification %s: HTTP %s", hid, r.status_code)
+    except Exception as e:
+        logging.warning("Helpdesk notification selhala (%s): %s", hid, e)
+
 @app.get("/api/guest/orders/status")
 async def guest_order_status(hotel_id: str, ids: str = "", device_id: str = ""):
     """Appka hosta se ptá na stav svých požadavků (jen ty, které založilo totéž zařízení).
@@ -8730,6 +8907,7 @@ INSTRUKCE K MÍSTŮM: Pokud host žádá tipy na okolí, doporučuj turistická 
 {chr(10).join([f"- {cf.get('label','Info')}: {cf.get('value','')}" for cf in h.get('custom_fields', []) if cf.get('value')]) if h.get('custom_fields') else ''}
 {alex_learn.prompt_block(h)}
 {parking.prompt_block(h)}
+{helpdesk.prompt_block(h)}
 {partners.prompt_block(h)}
 {"\n⭐ AKTIVNÍ NABÍDKA HOTELU: " + h.get('active_offer') + "\nTuto nabídku VŽDY zmíň pokud se host ptá na téma které s ní souvisí (wellness, restaurace, bar, aktivity, služby apod.). Zmiň ji přirozeně jako součást odpovědi — ne jako reklamu, ale jako přátelský tip." if h.get('active_offer') else ''}
 
@@ -8940,8 +9118,10 @@ Guest name: {req.guest_name or 'Guest'}"""
         logging.warning("Log dotazu hosta selhal: %s", e)
     # „lang" vracíme jen když jsme jazyk přepsali na základě jednoznačného důkazu —
     # klient si ho pak uloží a vyléčí tím dřív špatně uložený jazyk (anglické „Welcome back").
+    # „rate" = podpis odpovědi; s ním smí host odpověď ohodnotit palcem (viz /api/guest/chat/rate)
     return {"status": "ok", "reply": reply, "lang": reply_lang if _lang_forced else None,
-            "actions": order_actions or None, "room_detected": _room_detected or None}
+            "actions": order_actions or None, "room_detected": _room_detected or None,
+            "rate": _rate_sig(_hid, req.message, reply)}
 
 # ─────────────────────────────────────────────
 # TTS — Alex čte odpověď nahlas. HLAVNÍ: ElevenLabs, hlas „Sarah" (rozhodnuto 7. 8. 2026).
@@ -10592,6 +10772,11 @@ def terms_of_service(lang: str = "en"):
         return HTMLResponse(content=TERMS_CS)
     return HTMLResponse(content=TERMS_EN)
 
+@app.get("/data")
+def data_page(lang: str = "en"):
+    """Stránka pro hotely: kde data leží, jak jsou oddělená a zálohovaná."""
+    return HTMLResponse(content=DATA_CS if lang == "cs" else DATA_EN)
+
 LEGAL_CSS = """
 <meta name="google" content="notranslate">
 <meta charset="utf-8">
@@ -10616,6 +10801,130 @@ LEGAL_CSS = """
   .back:hover{color:#fff}
   footer{text-align:center;padding:32px;color:#7a7fa8;font-size:12px;border-top:1px solid rgba(255,255,255,.06);margin-top:48px}
 </style>
+"""
+
+DATA_CS = LEGAL_CSS + """
+<title>Vaše data — SMARTEST GUIDE</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Kde leží data hotelu ve službě SMARTEST GUIDE, jak jsou oddělená od ostatních hotelů a jak je zálohujeme.">
+<div class="topbar">
+  <div class="logo"><img src="/static/img/logo-inverse.svg" alt=""/>Smartest<span>Guide</span></div>
+  <div class="lang-switch">
+    <a href="/data?lang=cs" class="active">🇨🇿 CZ</a>
+    <a href="/data?lang=en">🇬🇧 EN</a>
+  </div>
+</div>
+<div class="container">
+  <h1>Vaše data</h1>
+  <div class="subtitle">Stručně a bez právničiny: kde data hotelu leží, kdo se k nim dostane a jak je zálohujeme. Stav k 23. 11. 2026.</div>
+
+  <h2>Kde data leží</h2>
+  <ul>
+    <li>Aplikace i databáze běží u poskytovatele <strong>Railway Corp.</strong>, v datovém centru v <strong>regionu EU</strong>.</li>
+    <li>Data jsou uložená v databázi <strong>PostgreSQL</strong>.</li>
+    <li>Spojení mezi telefonem hosta, portálem hotelu a serverem je šifrované (HTTPS).</li>
+  </ul>
+
+  <h2>Co o hotelu a hostech ukládáme</h2>
+  <ul>
+    <li><strong>Profil hotelu</strong> — to, co vyplníte v portálu (služby, časy, ceny, parkování, doporučená místa).</li>
+    <li><strong>Znalosti hotelu</strong> — dokumenty a odpovědi, které jste Alex naučili.</li>
+    <li><strong>Statistiky dotazů</strong> — o čem se hosté ptají, v jakém jazyce a kdy. Místo identifikace telefonu ukládáme jen zkrácený otisk, ze kterého se telefon nedá zpětně zjistit.</li>
+    <li><strong>Objednávky, zprávy recepci a požadavky z helpdesku</strong> — s číslem pokoje a případně křestním jménem, pokud je host sám zadá.</li>
+    <li><strong>Hodnocení odpovědí</strong> — počty palců nahoru a dolů. Text odpovědi ukládáme jen u palce dolů, abyste ji mohli opravit.</li>
+  </ul>
+
+  <h2>Jak jsou hotely oddělené</h2>
+  <ul>
+    <li>Každý hotel má vlastní záznam s vlastním identifikátorem. Statistiky, objednávky, požadavky i znalosti jsou vždy přiřazené jednomu hotelu.</li>
+    <li>Do portálu se dostane jen ten, kdo má <strong>tajný odkaz hotelu</strong>. Odkaz si držte jako heslo; na požádání vám vystavíme nový.</li>
+    <li>Host vidí jen informace svého hotelu a v helpdesku jen své vlastní požadavky.</li>
+    <li>Alex odpovídá hostům výhradně z údajů jejich hotelu. Údaje jiného hotelu se do odpovědi nedostanou.</li>
+  </ul>
+
+  <h2>Zálohy</h2>
+  <ul>
+    <li><strong>Každý den</strong> se vytváří záloha dat na oddělené úložiště, starší zálohy se postupně obměňují.</li>
+    <li><strong>Jednou týdně</strong> se kopie zálohy ukládá mimo hostingové prostředí.</li>
+    <li>Přístupové klíče k napojeným systémům v zálohách nejsou.</li>
+  </ul>
+
+  <h2>Kdo data zpracovává s námi</h2>
+  <ul>
+    <li><strong>Anthropic (USA)</strong> — AI model, který skládá odpovědi Alex. Dostává text dotazu a informace o hotelu. Data se nepoužívají k trénování modelů.</li>
+    <li><strong>OpenAI (USA) a ElevenLabs</strong> — hlasový výstup. Dostávají jen text odpovědi, která se právě čte nahlas.</li>
+    <li><strong>Apaleo (Německo)</strong> — jen pokud máte napojený hotelový systém Apaleo.</li>
+    <li><strong>Brevo (Německo)</strong> — odesílání e-mailů hotelu. <strong>Stripe</strong> — platby hotelů; údaje hostů nezpracovává.</li>
+  </ul>
+  <p>Podrobnosti a právní rámec najdete v <a href="/privacy?lang=cs" style="color:#2fd0d8">Zásadách ochrany osobních údajů</a>.</p>
+
+  <h2>Chcete data vidět, opravit nebo smazat?</h2>
+  <p>Profil a znalosti upravíte sami v portálu. Export nebo výmaz dat hotelu vyřídíme na požádání: <a href="mailto:support@smartestguide.com" style="color:#2fd0d8">support@smartestguide.com</a>.</p>
+
+  <footer>Native Hotel Guide s.r.o. · Korunní 2569/108, Praha 10 · IČO 231 12 905</footer>
+</div>
+"""
+
+DATA_EN = LEGAL_CSS + """
+<title>Your data — SMARTEST GUIDE</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Where a hotel's data lives in SMARTEST GUIDE, how it is kept separate from other hotels and how we back it up.">
+<div class="topbar">
+  <div class="logo"><img src="/static/img/logo-inverse.svg" alt=""/>Smartest<span>Guide</span></div>
+  <div class="lang-switch">
+    <a href="/data?lang=cs">🇨🇿 CZ</a>
+    <a href="/data?lang=en" class="active">🇬🇧 EN</a>
+  </div>
+</div>
+<div class="container">
+  <h1>Your data</h1>
+  <div class="subtitle">In plain words: where your hotel's data lives, who can reach it and how we back it up. As of 23 November 2026.</div>
+
+  <h2>Where the data lives</h2>
+  <ul>
+    <li>The application and the database run at <strong>Railway Corp.</strong>, in a data centre in the <strong>EU region</strong>.</li>
+    <li>Data is stored in a <strong>PostgreSQL</strong> database.</li>
+    <li>The connection between the guest's phone, the hotel portal and the server is encrypted (HTTPS).</li>
+  </ul>
+
+  <h2>What we store about the hotel and its guests</h2>
+  <ul>
+    <li><strong>Hotel profile</strong> — what you fill in in the portal (services, hours, prices, parking, recommended places).</li>
+    <li><strong>Hotel knowledge</strong> — documents and answers you have taught Alex.</li>
+    <li><strong>Question statistics</strong> — what guests ask about, in which language and when. Instead of a phone identifier we keep only a shortened fingerprint that cannot be traced back to the phone.</li>
+    <li><strong>Orders, messages to reception and helpdesk requests</strong> — with the room number and a first name if the guest chooses to enter it.</li>
+    <li><strong>Answer ratings</strong> — counts of thumbs up and down. We keep the answer text only for a thumbs down, so that you can correct it.</li>
+  </ul>
+
+  <h2>How hotels are kept separate</h2>
+  <ul>
+    <li>Each hotel has its own record with its own identifier. Statistics, orders, requests and knowledge always belong to one hotel.</li>
+    <li>The portal opens only with the hotel's <strong>secret link</strong>. Treat the link like a password; we will issue a new one on request.</li>
+    <li>A guest sees only their hotel's information and, in the helpdesk, only their own requests.</li>
+    <li>Alex answers guests only from their hotel's data. Another hotel's data never enters the answer.</li>
+  </ul>
+
+  <h2>Backups</h2>
+  <ul>
+    <li><strong>Every day</strong> a backup is written to separate storage; older backups are rotated out.</li>
+    <li><strong>Once a week</strong> a copy of the backup is stored outside the hosting environment.</li>
+    <li>Access keys to connected systems are not part of the backups.</li>
+  </ul>
+
+  <h2>Who processes data with us</h2>
+  <ul>
+    <li><strong>Anthropic (USA)</strong> — the AI model that composes Alex's answers. It receives the question text and hotel information. Data is not used to train models.</li>
+    <li><strong>OpenAI (USA) and ElevenLabs</strong> — voice output. They receive only the text of the answer being read aloud.</li>
+    <li><strong>Apaleo (Germany)</strong> — only if your hotel is connected to the Apaleo system.</li>
+    <li><strong>Brevo (Germany)</strong> — sending e-mails to the hotel. <strong>Stripe</strong> — hotel payments; it does not process guest data.</li>
+  </ul>
+  <p>Details and the legal framework are in the <a href="/privacy?lang=en" style="color:#2fd0d8">Privacy Policy</a>.</p>
+
+  <h2>Want to see, correct or delete your data?</h2>
+  <p>You can edit the profile and knowledge yourself in the portal. We handle export or deletion of hotel data on request: <a href="mailto:support@smartestguide.com" style="color:#2fd0d8">support@smartestguide.com</a>.</p>
+
+  <footer>Native Hotel Guide s.r.o. · Korunní 2569/108, Prague 10 · Company ID 231 12 905</footer>
+</div>
 """
 
 PRIVACY_CS = LEGAL_CSS + """

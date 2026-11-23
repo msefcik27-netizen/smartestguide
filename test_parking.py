@@ -128,6 +128,36 @@ def test_marker_block_and_mentions_limit():
     assert "NONE" in pk.EXTRACT_PROMPT
 
 
+# ── LPG / CNG, cesta z parkoviště do hotelu, návod k automatu ─────────────────────────────────
+def test_fuel_walk_and_pay_machine_are_kept_and_shown_to_alex():
+    p = pk.normalize_place({"name": "Garáž Centrum", "type": "garage", "lpg": "no", "cng": "yes",
+                                 "walk_to_hotel": "Výtahem do patra 0,\npak 50 m doleva.",
+                                 "pay_machine": "1. Vložte lístek. 2. Zaplaťte kartou."})
+    assert p["lpg"] == "no" and p["cng"] == "yes"
+    assert "\n" not in p["walk_to_hotel"]
+    line = pk.place_line(p)
+    assert "auta na LPG: vjezd zakázán" in line and "auta na CNG: vjezd povolen" in line
+    assert "cesta z parkoviště do hotelu: Výtahem do patra 0, pak 50 m doleva." in line
+    assert "návod k parkovacímu automatu: 1. Vložte lístek." in line
+
+
+def test_unknown_fuel_value_is_dropped_and_not_mentioned():
+    p = pk.normalize_place({"name": "Parkoviště", "lpg": "maybe", "cng": ""})
+    assert p["lpg"] == "" and p["cng"] == ""
+    assert "LPG" not in pk.place_line(p) and "CNG" not in pk.place_line(p)
+
+
+def test_place_with_only_pay_machine_counts_as_content():
+    p = pk.normalize_place({"pay_machine": "Platí se u výjezdu."})
+    assert p is not None and p["pay_machine"] == "Platí se u výjezdu."
+    assert pk.normalize_place({"lpg": "yes"}) is not None
+
+
+def test_rules_tell_alex_not_to_guess_fuel_and_to_translate_steps():
+    block = pk.prompt_block({"parking_places": [pk.normalize_place({"name": "Garáž", "lpg": "no"})]})
+    assert "LPG / CNG" in block and "v jazyce hosta" in block
+
+
 if __name__ == "__main__":
     import sys
     fails = 0

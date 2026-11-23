@@ -423,6 +423,14 @@ const EN_MAP = {
   "např. Vjezd do garáže je z ulice Kněžská, zazvoňte u vrat na recepci.":"e.g. The garage entrance is from Kněžská street, ring reception at the gate.",
   "např. Jen 6 míst, velká auta na místa č. 1 a 2":"e.g. Only 6 spaces, large cars to spaces 1 and 2",
   "Nejvýše 8 parkovacích míst.":"At most 8 parking places.",
+  "Cesta z parkoviště do hotelu (pěšky, s kufry)":"Way from the car park to the hotel (on foot, with luggage)",
+  "Návod k parkovacímu automatu (Alex ho hostovi přeloží)":"Pay machine instructions (Alex translates them for the guest)",
+  "Auta na LPG":"LPG cars","Auta na CNG":"CNG cars","nevyplněno":"not filled in","Vjezd povolen":"Entry allowed","Vjezd zakázán":"Entry not allowed",
+  "např. Z garáže výtahem do přízemí, vyjdete přímo u recepce. Bez schodů.":"e.g. Take the lift from the garage to the ground floor, you come out right at reception. No stairs.",
+  "např. 1. Zadejte SPZ. 2. Zvolte dobu parkování. 3. Plaťte kartou nebo mincemi. 4. Lístek dejte za sklo.":"e.g. 1. Enter your plate number. 2. Choose the parking time. 3. Pay by card or coins. 4. Put the ticket behind the windscreen.",
+  "🔒 Kde leží vaše data a jak je chráníme →":"🔒 Where your data lives and how we protect it →",
+  "🛠 Helpdesk":"🛠 Helpdesk","Závady, úklid a přání hostů — stav, řešitel, historie":"Guest problems, cleaning and wishes — status, assignee, history",
+  "👍 Hodnocení odpovědí":"👍 Answer ratings","Jak hosté hodnotí odpovědi Alex a které jim nepomohly":"How guests rate Alex's answers and which ones did not help",
   // ── Doporučené firmy ──
   "Doporučené firmy":"Recommended businesses","Spřátelené firmy, jejichž letáky máte na recepci — Alex je hostům doporučí":"Partner businesses whose leaflets you have at reception — Alex will recommend them to guests",
   "💡 Doporučte hostům firmy, se kterými spolupracujete":"💡 Recommend businesses you work with to your guests",
@@ -728,7 +736,7 @@ function setPortalLang(lang){
   sqLang(); _sqPortal=[]; _sqData=null;
   if(hotelData){
     renderPortal(); renderOnboarding(); loadCompleteness(); loadPaymentSection();
-    loadPmsSection(); loadOrdersSection(); loadRequestsSection(); loadLearnSection(); loadGroupSection(); loadAddHotelSection(); loadInvoicesSection(); loadMonthlyReport();
+    loadPmsSection(); loadOrdersSection(); loadRequestsSection(); loadLearnSection(); loadHelpdeskSection(); loadRatingsSection(); loadGroupSection(); loadAddHotelSection(); loadInvoicesSection(); loadMonthlyReport();
     setTimeout(initEmbedCode, 100);
   }
 }
@@ -763,7 +771,7 @@ async function loadHotel() {
     renderOnboarding();
     loadCompleteness();
     loadPaymentSection();
-    loadPmsSection(); loadOrdersSection(); loadRequestsSection(); loadLearnSection();
+    loadPmsSection(); loadOrdersSection(); loadRequestsSection(); loadLearnSection(); loadHelpdeskSection(); loadRatingsSection();
     loadGroupSection();
     loadAddHotelSection();
     loadInvoicesSection();
@@ -881,6 +889,7 @@ function renderPortal() {
       <strong>Jak to funguje:</strong> Vyplňte informace o vašem hotelu co nejpřesněji.
       Tyto informace bude avatar sdělovat vašim hostům. Čím více vyplníte, tím lépe
       bude avatar sloužit. Po každé úpravě klikněte na <strong>Uložit změny</strong>.
+      <div style="margin-top:6px"><a href="/data?lang=${portalLang==='en'?'en':'cs'}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700;text-decoration:none">🔒 Kde leží vaše data a jak je chráníme →</a></div>
     </div>
 
     <div id="group-section"></div>
@@ -888,7 +897,9 @@ function renderPortal() {
     <div id="pms-section"></div>
     <div id="orders-section"></div>
     <div id="requests-section"></div>
+    <div id="helpdesk-section"></div>
     <div id="learn-section"></div>
+    <div id="ratings-section"></div>
 
     <div id="onboarding-wizard"></div>
 
@@ -1162,18 +1173,19 @@ const PORTAL_TAB_OF = {            // sekce z renderSection podle (českého) ti
 const PORTAL_SOLO = {};            // tab -> id bloku otevřeného z dlaždice (ostatní bloky tabu skryté); undefined = všechny
 const PORTAL_FIXED = {             // pevné bloky podle id / třídy
   'completeness-banner':'profil', 'group-section':'ucet', 'add-hotel-section':'ucet', 'pms-section':'alex',
-  'orders-section':'alex', 'requests-section':'alex', 'learn-section':'alex', 'onboarding-wizard':'prehled', 'payment-section':'ucet', 'invoices-section':'ucet',
+  'orders-section':'alex', 'requests-section':'alex', 'helpdesk-section':'alex', 'learn-section':'alex', 'ratings-section':'alex', 'onboarding-wizard':'prehled', 'payment-section':'ucet', 'invoices-section':'ucet',
   'monthly-report-section':'prehled', 'analytics-frame-section':'analytika', 'kb-frame-section':'znalosti'
 };
 // Štítky dlaždic pevných bloků (sekce z renderSection si berou ikonu a titulek z DOM)
 const PORTAL_FIXED_TILE = {
-  'pms-section':'🔌 Hotelový systém', 'orders-section':'🛎 Objednávky v chatu', 'requests-section':'📬 Požadavky hostů', 'learn-section':'🎓 Alex se učí',
+  'pms-section':'🔌 Hotelový systém', 'orders-section':'🛎 Objednávky v chatu', 'requests-section':'📬 Požadavky hostů', 'helpdesk-section':'🛠 Helpdesk', 'learn-section':'🎓 Alex se učí', 'ratings-section':'👍 Hodnocení odpovědí',
   'group-section':'🏨 Vaše hotely', 'add-hotel-section':'➕ Přidat další hotel', 'payment-section':'💳 Předplatné', 'invoices-section':'🧾 Faktury',
   'onboarding-wizard':'🧭 Průvodce nastavením', 'monthly-report-section':'📈 Přehled & statistiky'
 };
 const PORTAL_FIXED_DESC = {
   'pms-section':'Propojení s Apaleem — pobyty hostů a zápis objednávek', 'orders-section':'Co smí Alex nabízet a objednat, ceny',
-  'requests-section':'Objednávky a žádosti hostů, odpovědi recepce', 'learn-section':'Dotazy, na které Alex neznal odpověď — doplňte ji', 'group-section':'Všechny hotely pod vaším účtem',
+  'requests-section':'Objednávky a žádosti hostů, odpovědi recepce', 'learn-section':'Dotazy, na které Alex neznal odpověď — doplňte ji',
+  'helpdesk-section':'Závady, úklid a přání hostů — stav, řešitel, historie', 'ratings-section':'Jak hosté hodnotí odpovědi Alex a které jim nepomohly', 'group-section':'Všechny hotely pod vaším účtem',
   'add-hotel-section':'Další hotel na stejné předplatné', 'payment-section':'Stav předplatného a platby', 'invoices-section':'Vystavené faktury ke stažení',
   'onboarding-wizard':'Co ještě doplnit, aby Alex odpovídal nejlépe', 'monthly-report-section':'Kolik hostů Alex obsloužil a na co se ptali'
 };
@@ -1651,7 +1663,8 @@ function getNavCustomItems() {
 // Pole mají id „pk-…" (ne „f-…"), aby je obecný sběr v saveAll() neukládal jako samostatná pole hotelu.
 const PK_TYPES = [['garage','Garáž'],['lot','Parkoviště'],['street','Ulice / parkovací zóna'],['other','Jiné']];
 const PK_SEC = [['','Ostraha: nevyplněno'],['guarded','Hlídané obsluhou'],['camera','Pod kamerami'],['none','Bez ostrahy']];
-const PK_TEXT = ['name','price','distance','hours','address','directions','note'];
+const PK_TEXT = ['name','price','distance','hours','address','directions','note','walk_to_hotel','pay_machine'];
+const PK_FUEL = [['','nevyplněno'],['yes','Vjezd povolen'],['no','Vjezd zakázán']];
 const PK_DIMS = ['max_height_cm','max_width_cm','max_length_cm'];
 const PK_IN = 'padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;width:100%;box-sizing:border-box';
 
@@ -1686,6 +1699,12 @@ function renderParking(items) {
         <div>${lab('Ostraha')}<select id="pk-security-${i}" onchange="markChanged()" style="${PK_IN}">${opts(PK_SEC, p.security)}</select></div>
       </div>
       <div style="margin-bottom:8px">${lab('Jak se tam dostat')}<textarea id="pk-directions-${i}" placeholder="např. Vjezd do garáže je z ulice Kněžská, zazvoňte u vrat na recepci." oninput="markChanged()" style="${PK_IN};resize:vertical;min-height:52px">${esc(p.directions||'')}</textarea></div>
+      <div style="margin-bottom:8px">${lab('Cesta z parkoviště do hotelu (pěšky, s kufry)')}<textarea id="pk-walk_to_hotel-${i}" maxlength="500" placeholder="např. Z garáže výtahem do přízemí, vyjdete přímo u recepce. Bez schodů." oninput="markChanged()" style="${PK_IN};resize:vertical;min-height:52px">${esc(p.walk_to_hotel||'')}</textarea></div>
+      <div style="margin-bottom:8px">${lab('Návod k parkovacímu automatu (Alex ho hostovi přeloží)')}<textarea id="pk-pay_machine-${i}" maxlength="700" placeholder="např. 1. Zadejte SPZ. 2. Zvolte dobu parkování. 3. Plaťte kartou nebo mincemi. 4. Lístek dejte za sklo." oninput="markChanged()" style="${PK_IN};resize:vertical;min-height:52px">${esc(p.pay_machine||'')}</textarea></div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px">
+        <div>${lab('Auta na LPG')}<select id="pk-lpg-${i}" onchange="markChanged()" style="${PK_IN}">${opts(PK_FUEL, p.lpg)}</select></div>
+        <div>${lab('Auta na CNG')}<select id="pk-cng-${i}" onchange="markChanged()" style="${PK_IN}">${opts(PK_FUEL, p.cng)}</select></div>
+      </div>
       <div style="margin-bottom:8px">${lab('Poznámka')}${inp(i, 'note', 'např. Jen 6 míst, velká auta na místa č. 1 a 2', p.note||'')}</div>
       <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--text)">
         <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="pk-reservation-${i}" onchange="markChanged()"${p.reservation ? ' checked' : ''}/> <span>Nutná rezervace předem</span></label>
@@ -1698,6 +1717,7 @@ function getParkingItems() {
   const items = [];
   for (let i = 0; document.getElementById('pk-name-'+i) !== null; i++) {
     const p = { type: document.getElementById('pk-type-'+i).value, security: document.getElementById('pk-security-'+i).value,
+                lpg: document.getElementById('pk-lpg-'+i).value, cng: document.getElementById('pk-cng-'+i).value,
                 reservation: document.getElementById('pk-reservation-'+i).checked, ev: document.getElementById('pk-ev-'+i).checked };
     PK_TEXT.concat(PK_DIMS).forEach(k => { p[k] = document.getElementById('pk-'+k+'-'+i).value.trim(); });
     items.push(p);
@@ -2657,8 +2677,172 @@ async function loadLearnSection(data){
   // odkaz „Doplnit v portálu" z analytiky: /portal?token=…&blok=learn#alex
   if(!_learnDeepLinkDone && new URLSearchParams(location.search).get('blok')==='learn'){ _learnDeepLinkDone=true; openLearnBlock(); }
 }
+// ── Helpdesk: závady, úklid a přání hostů se stavem, řešitelem a historií (23. 11. 2026) ───
+const HD_T = {
+  cs:{title:'Helpdesk', desc:'závady, úklid a přání hostů — stav, řešitel a historie',
+      on:'Hosté mohou hlásit závady, úklid a přání přímo v aplikaci (tlačítko 🛠)', off:'Helpdesk je vypnutý. Zapněte ho a hostům se v aplikaci objeví tlačítko 🛠.',
+      note:'Nový požadavek vám přijde i e-mailem. Stav a vaši zprávu host uvidí ve své aplikaci.',
+      none:'Zatím žádný požadavek.', room:'Pokoj', who:'Řešitel', whoPh:'např. Petr, údržba', msg:'Zpráva pro hosta', msgPh:'např. Technik přijde do 30 minut.',
+      save:'Uložit', hist:'Historie', saved:'Uloženo', err:'Uložení se nepovedlo, zkuste to znovu.', open:'Otevřené', done:'Vyřízené',
+      kind:{fault:'Závada',cleaning:'Úklid',wish:'Přání'}, st:{new:'Nový',in_progress:'Řeší se',done:'Vyřízeno'},
+      ev:{created:'Host požadavek odeslal',status:'Stav',assignee:'Řešitel',note:'Zpráva hostovi'}},
+  en:{title:'Helpdesk', desc:'guest problems, cleaning and wishes — status, assignee and history',
+      on:'Guests can report problems, cleaning and wishes right in the app (🛠 button)', off:'The helpdesk is off. Turn it on and guests will see the 🛠 button in the app.',
+      note:'A new request also arrives by e-mail. The guest sees the status and your message in their app.',
+      none:'No requests yet.', room:'Room', who:'Assignee', whoPh:'e.g. Peter, maintenance', msg:'Message for the guest', msgPh:'e.g. A technician will come within 30 minutes.',
+      save:'Save', hist:'History', saved:'Saved', err:'Saving failed, please try again.', open:'Open', done:'Done',
+      kind:{fault:'Problem',cleaning:'Cleaning',wish:'Wish'}, st:{new:'New',in_progress:'In progress',done:'Done'},
+      ev:{created:'Guest sent the request',status:'Status',assignee:'Assignee',note:'Message to guest'}}
+};
+const HD_COL = {new:'#ffaa33', in_progress:'#2fd0d8', done:'#2ecc87'};
+let _hdData=null, _hdDeepLinkDone=false;
+function hdEsc(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+async function hdToggle(cb){
+  const L=HD_T[portalLang==='en'?'en':'cs'];
+  try{
+    const r=await fetch(`${API}/api/hotel-portal/update?token=${token}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({helpdesk_enabled:cb.checked})});
+    if(!r.ok) throw 0;
+    hotelData.helpdesk_enabled=cb.checked; toast(L.saved); loadHelpdeskSection();
+  }catch(e){ cb.checked=!cb.checked; toast(L.err,'err'); }
+}
+async function hdSave(i){
+  const t=_hdData.tickets[i], L=HD_T[portalLang==='en'?'en':'cs'];
+  const body={id:t.id, status:document.getElementById('hd-st-'+i).value, assignee:document.getElementById('hd-who-'+i).value, note:document.getElementById('hd-msg-'+i).value};
+  try{
+    const r=await fetch(`${API}/api/hotel-portal/helpdesk-update?token=${token}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok) throw 0;
+    toast(L.saved); loadHelpdeskSection(await r.json());
+  }catch(e){ toast(L.err,'err'); }
+}
+async function loadHelpdeskSection(data){
+  const el=document.getElementById('helpdesk-section');
+  if(!el||!hotelData) return;
+  // rozepsaný text neztratit při automatické obnově
+  if(!data && el.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && document.activeElement.type!=='checkbox') return;
+  let d=data;
+  if(!d){ try{ const r=await fetch(`${API}/api/hotel-portal/helpdesk?token=${token}`); if(!r.ok) throw 0; d=await r.json(); }catch(e){ if(!_hdData) el.innerHTML=''; return; } }
+  _hdData=d;
+  const L=HD_T[portalLang==='en'?'en':'cs'], c=d.counts||{};
+  const inp='width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 10px;font-family:inherit';
+  const lab=t=>`<div style="font-size:11px;color:var(--muted);margin-bottom:3px">${t}</div>`;
+  const evTxt=e=>e.kind==='status'?L.ev.status+': '+(L.st[e.text]||hdEsc(e.text)):(e.kind==='created'?L.ev.created:(L.ev[e.kind]||hdEsc(e.kind))+': '+hdEsc(e.text));
+  const rows=(d.tickets||[]).map((t,i)=>{ const col=HD_COL[t.status]||'var(--muted)'; return `
+    <div style="background:var(--surface);border:1px solid var(--border);border-left:4px solid ${col};border-radius:10px;padding:12px 14px;margin-bottom:10px${t.status==='done'?';opacity:.75':''}">
+      <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px">
+        <span style="font-weight:800;font-size:13.5px">${L.kind[t.kind]||hdEsc(t.kind)}</span>
+        ${t.room?`<span style="font-size:12.5px;font-weight:700">${L.room} ${hdEsc(t.room)}</span>`:''}
+        ${t.guest?`<span style="font-size:12.5px;color:var(--muted)">${hdEsc(t.guest)}</span>`:''}
+        <span style="padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;color:${col};border:1px solid ${col}">${L.st[t.status]||hdEsc(t.status)}</span>
+        <span style="margin-left:auto;font-size:11.5px;color:var(--muted);white-space:nowrap">${t.lang?hdEsc(String(t.lang).toUpperCase())+' · ':''}${fmtReqTime(t.created)}</span>
+      </div>
+      <div style="font-size:13.5px;white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:10px">${hdEsc(t.text)}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:8px">
+        <div>${lab(L.ev.status)}<select id="hd-st-${i}" style="${inp}">${['new','in_progress','done'].map(s=>`<option value="${s}"${s===t.status?' selected':''}>${L.st[s]}</option>`).join('')}</select></div>
+        <div>${lab(L.who)}<input type="text" id="hd-who-${i}" maxlength="60" placeholder="${hdEsc(L.whoPh)}" value="${hdEsc(t.assignee)}" style="${inp}"></div>
+      </div>
+      <div style="margin-bottom:8px">${lab(L.msg)}<input type="text" id="hd-msg-${i}" maxlength="400" placeholder="${hdEsc(L.msgPh)}" value="${hdEsc(t.note)}" style="${inp}"></div>
+      <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+        <button onclick="hdSave(${i})" style="background:var(--accent);color:#0a0b0f;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">${L.save}</button>
+        <details style="flex:1;min-width:200px;font-size:12px;color:var(--muted)"><summary style="cursor:pointer;padding:8px 0">${L.hist} (${(t.events||[]).length})</summary>
+          ${(t.events||[]).map(e=>`<div style="padding:2px 0">${fmtReqTime(e.t)} — ${evTxt(e)}</div>`).join('')}</details>
+      </div>
+    </div>`; }).join('');
+  const chip=(label,n,color)=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;min-width:110px;text-align:center"><div style="font-size:22px;font-weight:800;color:${color}">${n||0}</div><div style="font-size:11px;color:var(--muted)">${label}</div></div>`;
+  const prevBody=el.querySelector('#sec-helpdesk .section-body'); const openNow=prevBody?prevBody.classList.contains('open'):true; const oc=openNow?'open':'';
+  el.innerHTML=`<div class="section ${openNow?'section-open':''}" id="sec-helpdesk" style="margin-bottom:24px">
+    <div class="section-head ${oc}" onclick="toggleSection('sec-helpdesk')">
+      <div class="section-icon">🛠</div>
+      <div style="flex:1;min-width:0"><div class="section-title">${L.title}${c.open?` <span style="color:#ffaa33">(${c.open})</span>`:''}</div>
+      <div class="section-desc">${L.desc}</div></div>
+      <span class="section-toggle-lbl">${tr(openNow?'Sbalit':'Rozbalit')}</span><div class="section-chevron ${oc}">▼</div>
+    </div>
+    <div class="section-body ${oc}">
+      <label style="display:flex;gap:10px;align-items:center;cursor:pointer;font-size:13.5px;font-weight:700;margin-bottom:6px"><input type="checkbox" onchange="hdToggle(this)"${d.enabled?' checked':''} style="width:18px;height:18px"/> <span>${d.enabled?L.on:L.off}</span></label>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">${L.note}</div>
+      ${(d.tickets||[]).length?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${chip(L.st.new,c.new,HD_COL.new)}${chip(L.st.in_progress,c.in_progress,HD_COL.in_progress)}${chip(L.st.done,c.done,HD_COL.done)}</div>${rows}`
+        :`<div style="font-size:13px;color:var(--muted)">${L.none}</div>`}
+    </div>
+  </div>`;
+  try{ buildPortalTiles(); }catch(e){}
+  // odkaz z e-mailu: /portal?token=…&blok=helpdesk#alex
+  if(!_hdDeepLinkDone && new URLSearchParams(location.search).get('blok')==='helpdesk'){ _hdDeepLinkDone=true; PORTAL_SOLO.alex=null; openPortalBlock('alex','helpdesk-section'); }
+}
+
+// ── Hodnocení odpovědí: palce hostů + posouzení hotelem (23. 11. 2026) ──────────────────────
+const RT_T = {
+  cs:{title:'Hodnocení odpovědí', desc:'jak hosté hodnotí odpovědi Alex — a které jim nepomohly',
+      up:'Palec nahoru', down:'Palec dolů', sat:'Spokojenost', wait:'Čeká na vás',
+      none:'Hosté zatím žádnou odpověď nehodnotili. Palce se ukazují pod každou odpovědí Alex.',
+      waitH:'Odpovědi, které hostům nepomohly', waitNone:'Žádná odpověď nečeká na posouzení. 👍',
+      q:'Host se ptal', a:'Alex odpověděl', ok:'Odpověď je v pořádku', bad:'Je špatně', fixPh:'Správná odpověď (nepovinné) — Alex ji příště použije',
+      okDone:'Označeno jako správná odpověď', badDone:'Uloženo — Alex už zná správnou odpověď', badNoFix:'Označeno jako špatná odpověď',
+      times:n=>n+'× palec dolů', full:'Seznam naučených odpovědí je plný. Smažte některou starší v bloku „Alex se učí“.', err:'Uložení se nepovedlo, zkuste to znovu.',
+      you:(o,b)=>`Vy jste posoudili: ${o}× v pořádku, ${b}× špatně`},
+  en:{title:'Answer ratings', desc:'how guests rate Alex\'s answers — and which ones did not help',
+      up:'Thumbs up', down:'Thumbs down', sat:'Satisfaction', wait:'Waiting for you',
+      none:'Guests have not rated any answer yet. Thumbs appear under each of Alex\'s answers.',
+      waitH:'Answers that did not help guests', waitNone:'No answer is waiting for review. 👍',
+      q:'Guest asked', a:'Alex answered', ok:'The answer is fine', bad:'It is wrong', fixPh:'Correct answer (optional) — Alex will use it next time',
+      okDone:'Marked as a correct answer', badDone:'Saved — Alex now knows the correct answer', badNoFix:'Marked as a wrong answer',
+      times:n=>n+'× thumbs down', full:'The list of learned answers is full. Delete an older one in the “Alex learns” block.', err:'Saving failed, please try again.',
+      you:(o,b)=>`Your review: ${o}× fine, ${b}× wrong`}
+};
+let _rtData=null;
+async function rtResolve(i, verdict){
+  const x=_rtData.down[i], L=RT_T[portalLang==='en'?'en':'cs'];
+  const fix=verdict==='bad'?(document.getElementById('rt-fix-'+i).value||'').trim():'';
+  try{
+    const r=await fetch(`${API}/api/hotel-portal/ratings-resolve?token=${token}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:x.id,verdict,answer:fix})});
+    if(!r.ok){ const e=await r.json().catch(()=>({})); toast(e.detail==='full'?L.full:L.err,'err'); return; }
+    toast(verdict==='ok'?L.okDone:(fix?L.badDone:L.badNoFix));
+    loadRatingsSection(await r.json());
+    if(fix) try{ loadLearnSection(); }catch(e){}
+  }catch(e){ toast(L.err,'err'); }
+}
+async function loadRatingsSection(data){
+  const el=document.getElementById('ratings-section');
+  if(!el||!hotelData) return;
+  if(!data && el.contains(document.activeElement) && document.activeElement.tagName==='TEXTAREA') return;
+  let d=data;
+  if(!d){ try{ const r=await fetch(`${API}/api/hotel-portal/ratings?token=${token}`); if(!r.ok) throw 0; d=await r.json(); }catch(e){ if(!_rtData) el.innerHTML=''; return; } }
+  _rtData=d;
+  const L=RT_T[portalLang==='en'?'en':'cs'], s=d.summary||{};
+  const inp='width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 10px;font-family:inherit';
+  const btnS='background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text);padding:7px 12px;font-size:12.5px;cursor:pointer';
+  const chip=(label,n,color)=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;min-width:110px;text-align:center"><div style="font-size:22px;font-weight:800;color:${color}">${n}</div><div style="font-size:11px;color:var(--muted)">${label}</div></div>`;
+  const rows=(d.down||[]).map((x,i)=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">${L.q}</div>
+        <span style="margin-left:auto;font-size:11.5px;color:var(--muted);white-space:nowrap">${x.lang?hdEsc(String(x.lang).toUpperCase())+' · ':''}${x.n>1?L.times(x.n)+' · ':''}${fmtReqTime(x.at)}</span></div>
+      <div style="font-weight:700;font-size:14px;overflow-wrap:anywhere;margin-bottom:8px">${hdEsc(x.q)}</div>
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">${L.a}</div>
+      <div style="font-size:13px;color:var(--muted);overflow-wrap:anywhere;margin-bottom:10px">${hdEsc(x.a)}</div>
+      <textarea id="rt-fix-${i}" rows="2" maxlength="800" placeholder="${hdEsc(L.fixPh)}" style="${inp};resize:vertical"></textarea>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <button onclick="rtResolve(${i},'bad')" style="background:var(--accent);color:#0a0b0f;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">👎 ${L.bad}</button>
+        <button onclick="rtResolve(${i},'ok')" style="${btnS}">👍 ${L.ok}</button>
+      </div>
+    </div>`).join('');
+  const h4='font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin:0 0 10px';
+  const prevBody=el.querySelector('#sec-ratings .section-body'); const openNow=prevBody?prevBody.classList.contains('open'):true; const oc=openNow?'open':'';
+  el.innerHTML=`<div class="section ${openNow?'section-open':''}" id="sec-ratings" style="margin-bottom:24px">
+    <div class="section-head ${oc}" onclick="toggleSection('sec-ratings')">
+      <div class="section-icon">👍</div>
+      <div style="flex:1;min-width:0"><div class="section-title">${L.title}${s.waiting?` <span style="color:#ffaa33">(${s.waiting})</span>`:''}</div>
+      <div class="section-desc">${L.desc}</div></div>
+      <span class="section-toggle-lbl">${tr(openNow?'Sbalit':'Rozbalit')}</span><div class="section-chevron ${oc}">▼</div>
+    </div>
+    <div class="section-body ${oc}">
+      ${s.total?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">${chip('👍 '+L.up,s.up||0,'#2ecc87')}${chip('👎 '+L.down,s.down||0,'#ff4f6a')}${chip(L.sat,(s.satisfied_pct==null?'–':s.satisfied_pct+' %'),'var(--accent)')}${chip(L.wait,s.waiting||0,'#ffaa33')}</div>
+        ${(s.hotel_ok||s.hotel_bad)?`<div style="font-size:12px;color:var(--muted);margin-bottom:14px">${L.you(s.hotel_ok||0,s.hotel_bad||0)}</div>`:'<div style="margin-bottom:14px"></div>'}
+        <div style="${h4}">${L.waitH}</div>
+        ${rows||`<div style="font-size:13px;color:var(--muted)">${L.waitNone}</div>`}`
+        :`<div style="font-size:13px;color:var(--muted)">${L.none}</div>`}
+    </div>
+  </div>`;
+  try{ buildPortalTiles(); }catch(e){}
+}
 // obnova seznamu při návratu na záložku a každou minutu, dokud je záložka otevřená
-setInterval(()=>{ if(currentPortalTab()==='alex' && document.visibilityState==='visible') loadRequestsSection(); }, 60000);
+setInterval(()=>{ if(currentPortalTab()==='alex' && document.visibilityState==='visible'){ loadRequestsSection(); loadHelpdeskSection(); } }, 60000);
 
 // ── Objednávky v chatu (zápis do rezervace, APALEO_ZAPIS_DO_REZERVACE_NAVRH.md) ─────────
 // Sekce se ukazuje jen tam, kde je zápis zapnutý na serveru (pms_write_available = gate).

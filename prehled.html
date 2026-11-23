@@ -122,6 +122,8 @@ cs:{title:'Přehled & statistiky',sub:'Jak Alex slouží vašim hostům',back:'�
   ord_t:'Objednávky a požadavky',ord_d:'Co si hosté přes Alexe objednali.',o_req:'požadavků na recepci',o_conf:'potvrzeno',o_decl:'nelze vyřídit',o_book:'zapsáno přímo do PMS',
   o_30:'Posledních 30 dní',o_med:m=>`Recepce odpovídá obvykle do ${m}.`,o_wait:n=>`Čeká na odpověď: ${n}`,o_top:'Nejžádanější',
   voice_t:'Hlas',voice_d:'Jak hosté využívají mluvení a poslech.',v_stt:'min hosté nadiktovali',v_tts:'znaků Alex přečetl nahlas',
+  rt_t:'Hodnocení odpovědí',rt_d:'Jak hosté hodnotí odpovědi Alex palcem nahoru nebo dolů.',rt_up:'odpověď pomohla',rt_down:'odpověď nepomohla',rt_sat:'spokojenost hostů',
+  rt_none:'V tomto období hosté žádnou odpověď nehodnotili.',rt_wait:n=>`Na vaše posouzení čeká: ${n}`,rt_go:'Posoudit v portálu →',
   none:'V tomto období zatím nic.',min:'min',h:'h',err:'Přehled se nepodařilo načíst. Otevřete ho prosím odkazem z portálu hotelu.'},
 en:{title:'Overview & statistics',sub:'How Alex serves your guests',back:'← Back to portal',print:'🖨 Print / PDF',csv:'⬇ Export CSV',
   p_this:'This month',p_prev:'Last month',p_3m:'3 months',p_12m:'12 months',
@@ -146,6 +148,8 @@ en:{title:'Overview & statistics',sub:'How Alex serves your guests',back:'← Ba
   ord_t:'Orders and requests',ord_d:'What guests ordered through Alex.',o_req:'requests to reception',o_conf:'confirmed',o_decl:'could not arrange',o_book:'booked directly in PMS',
   o_30:'Last 30 days',o_med:m=>`Reception usually replies within ${m}.`,o_wait:n=>`Waiting for a reply: ${n}`,o_top:'Most requested',
   voice_t:'Voice',voice_d:'How guests use speaking and listening.',v_stt:'min dictated by guests',v_tts:'characters read aloud by Alex',
+  rt_t:'Answer ratings',rt_d:'How guests rate Alex\'s answers with thumbs up or down.',rt_up:'answer helped',rt_down:'answer did not help',rt_sat:'guest satisfaction',
+  rt_none:'Guests did not rate any answer in this period.',rt_wait:n=>`Waiting for your review: ${n}`,rt_go:'Review in the portal →',
   none:'Nothing in this period yet.',min:'min',h:'h',err:'The overview could not be loaded. Please open it from the link in your hotel portal.'}
 };
 const L = k => T[LANG][k];
@@ -255,6 +259,15 @@ function render(){
       `<a class="btn" href="/api/hotel-portal/overview-export?token=${TQ}&kind=gaps&lang=${LANG}">${L('gap_csv')}</a><a class="btn" href="/portal?token=${TQ}&blok=learn#alex" target="_top" onclick="try{if(EMBED&&parent.openLearnBlock){parent.openLearnBlock();return false}}catch(e){}">${L('gap_fill')}</a></div>`;
   } else gap += `<div class="empty">${L('gap_none')}</div>`;
   html += card('', L('gap_t'), L('gap_d')(g.keep_days), gap);
+
+  // 7b) Hodnocení odpovědí palcem
+  const rt = p.ratings || {total:0}, rall = o.ratings || {};
+  let rb;
+  if(rt.total){
+    rb = `<div class="kpis">${kpi('👍 '+nf(rt.up), L('rt_up'))}${kpi('👎 '+nf(rt.down), L('rt_down'))}${kpi(rt.satisfied_pct+' %', L('rt_sat'))}</div>`;
+  } else rb = `<div class="empty">${L('rt_none')}</div>`;
+  if(rall.waiting) rb += `<div class="legend noprint"><span style="font-weight:600">${esc(L('rt_wait')(rall.waiting))}</span><a class="btn" href="/portal?token=${TQ}#alex" target="_top">${L('rt_go')}</a></div>`;
+  html += card('', L('rt_t'), L('rt_d'), rb);
 
   // 8) Objednávky
   if(o.orders_enabled){

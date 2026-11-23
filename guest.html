@@ -274,6 +274,30 @@
     #voice-btn{background:rgba(255,107,0,.16);border:1.5px solid var(--accent);color:var(--accent)}
     .nav-chip{display:inline-flex;align-items:center;gap:4px;background:var(--teal);color:#04241d;border-radius:14px;padding:4px 10px;margin:2px 0;font-size:12px;line-height:1.2;text-decoration:none;font-weight:700;vertical-align:middle;white-space:nowrap;box-shadow:0 1px 4px rgba(0,212,170,.35)}
     .nav-chip:active{transform:scale(.96)}
+    /* Volba mapy, hodnocení odpovědí, helpdesk */
+    #x-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60;display:none;backdrop-filter:blur(4px)}
+    #x-overlay.show{display:flex;align-items:flex-end}
+    .x-opt{display:flex;align-items:center;gap:10px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:8px;color:var(--text);font-size:15px;font-weight:600;text-decoration:none;cursor:pointer;font-family:inherit;text-align:left}
+    .x-opt:active{transform:scale(.99)}
+    .x-opt span.i{font-size:20px;width:26px;text-align:center}
+    .x-map{width:100%;height:300px;border:0;border-radius:12px;margin-top:4px;background:var(--surface)}
+    .x-sub{font-size:13px;color:var(--muted);margin:-8px 0 14px}
+    .rate-btn{background:none;border:none;font-size:14px;cursor:pointer;opacity:.45;padding:2px 4px;border-radius:6px;transition:all .15s;filter:grayscale(1)}
+    .rate-btn:hover{opacity:.8}
+    .rate-btn.on{opacity:1;filter:none;background:rgba(0,212,170,.14)}
+    .rate-btn.on.down{background:rgba(255,79,106,.16)}
+    .hd-kinds{display:flex;gap:8px;margin-bottom:10px}
+    .hd-kind{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 4px;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;text-align:center}
+    .hd-kind.on{border-color:var(--accent);background:rgba(255,107,0,.14);color:var(--accent)}
+    .hd-in{width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:15px;padding:11px 12px;margin-bottom:10px;font-family:inherit}
+    .hd-send{width:100%;background:var(--accent);border:none;border-radius:10px;padding:13px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+    .hd-send:disabled{opacity:.5}
+    .hd-msg{font-size:13px;margin-top:8px;min-height:18px;color:var(--accent2)}
+    .hd-item{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-top:8px;font-size:13.5px}
+    .hd-item .top{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:4px;font-size:12px;color:var(--muted)}
+    .hd-st{border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap}
+    .hd-st.new{background:rgba(255,170,51,.18);color:#ffaa33}.hd-st.in_progress{background:rgba(74,158,255,.18);color:#6db3ff}.hd-st.done{background:rgba(0,212,170,.16);color:var(--teal)}
+    .hd-note{margin-top:6px;padding-top:6px;border-top:1px solid var(--border);color:var(--accent2)}
     #voice-btn.listening{background:var(--danger);border-color:var(--danger);color:#fff;animation:voicePulse 1s infinite}
     @keyframes voicePulse{0%,100%{box-shadow:0 0 0 0 rgba(255,79,106,.4)}70%{box-shadow:0 0 0 8px rgba(255,79,106,0)}}
     #send-btn{background:var(--accent);color:#ffffff;order:2}
@@ -375,6 +399,7 @@
       <div class="hdr-sub" style="font-size:11px;color:var(--accent2)">AI Concierge · SMARTEST GUIDE</div>
     </div>
     <button class="hdr-btn" id="wa-hdr-btn" onclick="openWhatsAppMenu()" title="WhatsApp" style="display:none;background:rgba(37,211,102,.15);border-color:rgba(37,211,102,.3);color:#25d366">💬</button>
+    <button class="hdr-btn" id="hd-hdr-btn" onclick="openHelpdesk()" title="Nahlásit závadu nebo přání" style="display:none">🛠</button>
     <button class="hdr-btn" id="weather-btn" onclick="fetchWeather()" title="Počasí">🌤</button>
     <button class="hdr-btn" id="info-btn" onclick="showInfo()" title="Info o hotelu">ℹ</button>
   </div>
@@ -402,6 +427,16 @@
     <div class="sheet-title" id="sheet-title">Informace o hotelu</div>
     <div id="sheet-content"></div>
     <button class="close-sheet" onclick="hideInfo()">Zavřít</button>
+  </div>
+</div>
+
+<!-- LIST: volba mapy / helpdesk -->
+<div id="x-overlay" onclick="hideX(event)">
+  <div class="info-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="x-title"></div>
+    <div id="x-content"></div>
+    <button class="close-sheet" id="x-close" onclick="hideX()">Zavřít</button>
   </div>
 </div>
 
@@ -1173,6 +1208,9 @@ function startChat(){
   const waNum = hotelData.whatsapp_number || hotelData.whatsapp_wellness || hotelData.whatsapp_restaurant || hotelData.whatsapp_sport || hotelData.phone || '';
   const waHdrBtn = document.getElementById('wa-hdr-btn');
   if(waHdrBtn && waNum) waHdrBtn.style.display='';
+  // Helpdesk (závada / úklid / přání) — jen když ho hotel zapnul
+  const hdBtn = document.getElementById('hd-hdr-btn');
+  if(hdBtn && hotelData.helpdesk_enabled){ hdBtn.style.display=''; hdBtn.title=xT('hd_title'); }
 
   // Přidej WhatsApp tlačítko do quick replies pokud je nastaveno
   if(hotelData.whatsapp_reception || hotelData.whatsapp_number){
@@ -1571,7 +1609,7 @@ function formatBotText(text){
         const city = hotelData.address ? hotelData.address.split(',').slice(-1)[0].trim() : '';
         const q = encodeURIComponent(name + (city ? ', ' + city : ''));
         const navUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + q;
-        h = h.replace(regex, `$1 <a class="nav-chip" href="${navUrl}" target="_blank" rel="noopener">🧭 ${navLabel()} ›</a>`);
+        h = h.replace(regex, `$1 <a class="nav-chip" href="${navUrl}" target="_blank" rel="noopener" data-nav="${q}" onclick="return openNav(this)">🧭 ${navLabel()} ›</a>`);
       }
     });
   }
@@ -1607,6 +1645,16 @@ function addBot(text, opts){
   btn.title=TTS_LABEL[guestLang]||TTS_LABEL.en;
   btn.onclick=()=>speakText(text,btn);
   meta.appendChild(btn);
+  // Hodnocení odpovědi palcem — jen u čerstvé odpovědi Alex, ke které server poslal podpis
+  if(opts.rate && !opts.reception){
+    ['up','down'].forEach(v=>{
+      const rb=document.createElement('button');
+      rb.type='button'; rb.className='rate-btn '+v; rb.textContent=(v==='up'?'👍':'👎');
+      rb.title=xT(v==='up'?'rate_up':'rate_down'); rb.setAttribute('aria-label',rb.title);
+      rb.onclick=()=>rateAnswer(meta,rb,v,opts.q||'',text,opts.rate);
+      meta.appendChild(rb);
+    });
+  }
   msgs.appendChild(d);
   msgs.scrollTop=msgs.scrollHeight;
   return btn;
@@ -1749,7 +1797,7 @@ async function sendMsg(){
         try{ localStorage.setItem('sg_lang_'+hotelId, guestLang); }catch(e){}
         applyGuestLangUI();
       }
-      const botBtn=addBot(d.reply);
+      const botBtn=addBot(d.reply,{rate:d.rate,q:text});
       // Zápis do rezervace: server poslal konkrétní nabídky k potvrzení → karty s tlačítkem
       if(d.actions && d.actions.length) showOrderCards(d.actions);
       // Host napsal číslo pokoje do chatu (hotel bez PMS nemá „Propojit pobyt") → zapamatovat
@@ -2123,8 +2171,8 @@ function showInfo(){
         return '<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;gap:8px">'
           +'<span style="font-size:13px;color:var(--text)">📍 '+esc(p)+'</span>'
           +'<div style="display:flex;gap:6px;flex-shrink:0">'
-          +'<a href="'+searchUrl+'" target="_blank" style="background:rgba(255,107,0,.15);color:var(--accent);border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🔍 Mapa</a>'
-          +'<a href="'+navUrl+'" target="_blank" style="background:rgba(0,212,170,.15);color:var(--teal);border:1px solid rgba(0,212,170,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🧭 '+navLabel()+'</a>'
+          +'<a href="'+searchUrl+'" target="_blank" data-nav="'+q+'" onclick="return openNav(this,true)" style="background:rgba(255,107,0,.15);color:var(--accent);border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🔍 '+xT('map')+'</a>'
+          +'<a href="'+navUrl+'" target="_blank" data-nav="'+q+'" onclick="return openNav(this)" style="background:rgba(0,212,170,.15);color:var(--teal);border:1px solid rgba(0,212,170,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🧭 '+navLabel()+'</a>'
           +'</div></div>';
       }).join('')}</div></div></div>`;
   }
@@ -2136,6 +2184,129 @@ function showInfo(){
 function hideInfo(e){
   if(!e||e.target===document.getElementById('info-overlay'))
     document.getElementById('info-overlay').classList.remove('show');
+}
+
+// ══ VOLBA MAPY · HODNOCENÍ ODPOVĚDÍ · HELPDESK ══════════════════════
+const X_T={
+cs:{map:'Mapa',nav_title:'Otevřít v mapách',nav_sub:'Vyberte aplikaci, kterou máte nejraději.',g:'Google Mapy',a:'Apple Mapy',m:'Mapy.cz',here:'Zobrazit mapu tady',close:'Zavřít',
+  rate_up:'Odpověď pomohla',rate_down:'Odpověď nepomohla',
+  hd_title:'Nahlásit závadu nebo přání',hd_sub:'Pošleme to rovnou hotelu. Stav uvidíte tady.',k_fault:'🔧 Závada',k_cleaning:'🧹 Úklid',k_wish:'✨ Přání',hd_room:'Číslo pokoje',hd_text:'Co potřebujete? (např. nesvítí lampa u postele)',hd_send:'Odeslat hotelu',hd_ok:'✅ Odesláno. Hotel už o tom ví.',hd_err:'Odeslání se nepovedlo. Zkuste to prosím znovu.',hd_need:'Napište prosím, co potřebujete.',hd_mine:'Moje požadavky',s_new:'Přijato',s_in_progress:'Řeší se',s_done:'Vyřízeno',hd_chat:'Předal jsem to hotelu'},
+sk:{map:'Mapa',nav_title:'Otvoriť v mapách',nav_sub:'Vyberte aplikáciu, ktorú máte najradšej.',g:'Google Mapy',a:'Apple Mapy',m:'Mapy.cz',here:'Zobraziť mapu tu',close:'Zavrieť',
+  rate_up:'Odpoveď pomohla',rate_down:'Odpoveď nepomohla',
+  hd_title:'Nahlásiť poruchu alebo želanie',hd_sub:'Pošleme to priamo hotelu. Stav uvidíte tu.',k_fault:'🔧 Porucha',k_cleaning:'🧹 Upratovanie',k_wish:'✨ Želanie',hd_room:'Číslo izby',hd_text:'Čo potrebujete? (napr. nesvieti lampa pri posteli)',hd_send:'Odoslať hotelu',hd_ok:'✅ Odoslané. Hotel už o tom vie.',hd_err:'Odoslanie sa nepodarilo. Skúste to prosím znova.',hd_need:'Napíšte prosím, čo potrebujete.',hd_mine:'Moje požiadavky',s_new:'Prijaté',s_in_progress:'Rieši sa',s_done:'Vybavené',hd_chat:'Odovzdal som to hotelu'},
+en:{map:'Map',nav_title:'Open in maps',nav_sub:'Choose the app you prefer.',g:'Google Maps',a:'Apple Maps',m:'Mapy.com',here:'Show the map here',close:'Close',
+  rate_up:'This answer helped',rate_down:'This answer did not help',
+  hd_title:'Report a problem or a wish',hd_sub:'We send it straight to the hotel. You will see the status here.',k_fault:'🔧 Problem',k_cleaning:'🧹 Cleaning',k_wish:'✨ Wish',hd_room:'Room number',hd_text:'What do you need? (e.g. the bedside lamp does not work)',hd_send:'Send to the hotel',hd_ok:'✅ Sent. The hotel knows about it.',hd_err:'Sending failed. Please try again.',hd_need:'Please describe what you need.',hd_mine:'My requests',s_new:'Received',s_in_progress:'In progress',s_done:'Done',hd_chat:'I passed this on to the hotel'},
+de:{map:'Karte',nav_title:'In Karten öffnen',nav_sub:'Wählen Sie Ihre bevorzugte App.',g:'Google Maps',a:'Apple Karten',m:'Mapy.com',here:'Karte hier anzeigen',close:'Schließen',
+  rate_up:'Die Antwort hat geholfen',rate_down:'Die Antwort hat nicht geholfen',
+  hd_title:'Mangel oder Wunsch melden',hd_sub:'Wir leiten es direkt an das Hotel weiter. Den Status sehen Sie hier.',k_fault:'🔧 Mangel',k_cleaning:'🧹 Reinigung',k_wish:'✨ Wunsch',hd_room:'Zimmernummer',hd_text:'Was brauchen Sie? (z. B. die Nachttischlampe funktioniert nicht)',hd_send:'An das Hotel senden',hd_ok:'✅ Gesendet. Das Hotel weiß Bescheid.',hd_err:'Senden fehlgeschlagen. Bitte versuchen Sie es erneut.',hd_need:'Bitte beschreiben Sie, was Sie brauchen.',hd_mine:'Meine Anfragen',s_new:'Eingegangen',s_in_progress:'In Bearbeitung',s_done:'Erledigt',hd_chat:'Ich habe es an das Hotel weitergegeben'},
+fr:{map:'Carte',nav_title:'Ouvrir dans les cartes',nav_sub:"Choisissez l'application que vous préférez.",g:'Google Maps',a:'Plans (Apple)',m:'Mapy.com',here:'Afficher la carte ici',close:'Fermer',
+  rate_up:'Cette réponse a aidé',rate_down:"Cette réponse n'a pas aidé",
+  hd_title:'Signaler un problème ou un souhait',hd_sub:"Nous le transmettons directement à l'hôtel. Vous verrez le statut ici.",k_fault:'🔧 Problème',k_cleaning:'🧹 Ménage',k_wish:'✨ Souhait',hd_room:'Numéro de chambre',hd_text:'De quoi avez-vous besoin ? (ex. la lampe de chevet ne fonctionne pas)',hd_send:"Envoyer à l'hôtel",hd_ok:"✅ Envoyé. L'hôtel est informé.",hd_err:"L'envoi a échoué. Veuillez réessayer.",hd_need:'Veuillez décrire ce dont vous avez besoin.',hd_mine:'Mes demandes',s_new:'Reçu',s_in_progress:'En cours',s_done:'Terminé',hd_chat:"J'ai transmis cela à l'hôtel"},
+it:{map:'Mappa',nav_title:'Apri nelle mappe',nav_sub:"Scelga l'app che preferisce.",g:'Google Maps',a:'Mappe di Apple',m:'Mapy.com',here:'Mostra la mappa qui',close:'Chiudi',
+  rate_up:'La risposta è stata utile',rate_down:'La risposta non è stata utile',
+  hd_title:'Segnalare un guasto o un desiderio',hd_sub:"Lo inviamo direttamente all'hotel. Qui vedrà lo stato.",k_fault:'🔧 Guasto',k_cleaning:'🧹 Pulizia',k_wish:'✨ Desiderio',hd_room:'Numero di camera',hd_text:'Di cosa ha bisogno? (es. la lampada del comodino non funziona)',hd_send:"Invia all'hotel",hd_ok:"✅ Inviato. L'hotel è informato.",hd_err:'Invio non riuscito. Riprovi per favore.',hd_need:'Descriva per favore di cosa ha bisogno.',hd_mine:'Le mie richieste',s_new:'Ricevuto',s_in_progress:'In corso',s_done:'Risolto',hd_chat:"L'ho inoltrato all'hotel"},
+es:{map:'Mapa',nav_title:'Abrir en mapas',nav_sub:'Elija la aplicación que prefiera.',g:'Google Maps',a:'Mapas de Apple',m:'Mapy.com',here:'Mostrar el mapa aquí',close:'Cerrar',
+  rate_up:'La respuesta ayudó',rate_down:'La respuesta no ayudó',
+  hd_title:'Informar de una avería o un deseo',hd_sub:'Lo enviamos directamente al hotel. Aquí verá el estado.',k_fault:'🔧 Avería',k_cleaning:'🧹 Limpieza',k_wish:'✨ Deseo',hd_room:'Número de habitación',hd_text:'¿Qué necesita? (p. ej. la lámpara de la mesilla no funciona)',hd_send:'Enviar al hotel',hd_ok:'✅ Enviado. El hotel ya lo sabe.',hd_err:'No se pudo enviar. Inténtelo de nuevo.',hd_need:'Describa por favor lo que necesita.',hd_mine:'Mis solicitudes',s_new:'Recibido',s_in_progress:'En curso',s_done:'Resuelto',hd_chat:'Lo he pasado al hotel'},
+pl:{map:'Mapa',nav_title:'Otwórz w mapach',nav_sub:'Wybierz aplikację, którą wolisz.',g:'Mapy Google',a:'Mapy Apple',m:'Mapy.com',here:'Pokaż mapę tutaj',close:'Zamknij',
+  rate_up:'Odpowiedź pomogła',rate_down:'Odpowiedź nie pomogła',
+  hd_title:'Zgłoś usterkę lub życzenie',hd_sub:'Przekażemy to prosto do hotelu. Status zobaczysz tutaj.',k_fault:'🔧 Usterka',k_cleaning:'🧹 Sprzątanie',k_wish:'✨ Życzenie',hd_room:'Numer pokoju',hd_text:'Czego potrzebujesz? (np. nie działa lampka przy łóżku)',hd_send:'Wyślij do hotelu',hd_ok:'✅ Wysłano. Hotel już o tym wie.',hd_err:'Nie udało się wysłać. Spróbuj ponownie.',hd_need:'Opisz proszę, czego potrzebujesz.',hd_mine:'Moje zgłoszenia',s_new:'Przyjęte',s_in_progress:'W realizacji',s_done:'Załatwione',hd_chat:'Przekazałem to hotelowi'},
+ru:{map:'Карта',nav_title:'Открыть в картах',nav_sub:'Выберите удобное приложение.',g:'Google Карты',a:'Apple Карты',m:'Mapy.com',here:'Показать карту здесь',close:'Закрыть',
+  rate_up:'Ответ помог',rate_down:'Ответ не помог',
+  hd_title:'Сообщить о неисправности или пожелании',hd_sub:'Мы сразу передадим это отелю. Статус вы увидите здесь.',k_fault:'🔧 Неисправность',k_cleaning:'🧹 Уборка',k_wish:'✨ Пожелание',hd_room:'Номер комнаты',hd_text:'Что вам нужно? (например, не работает лампа у кровати)',hd_send:'Отправить отелю',hd_ok:'✅ Отправлено. Отель уже знает.',hd_err:'Не удалось отправить. Попробуйте ещё раз.',hd_need:'Пожалуйста, опишите, что вам нужно.',hd_mine:'Мои запросы',s_new:'Принято',s_in_progress:'В работе',s_done:'Выполнено',hd_chat:'Я передал это отелю'},
+uk:{map:'Карта',nav_title:'Відкрити в картах',nav_sub:'Оберіть зручний застосунок.',g:'Google Карти',a:'Apple Карти',m:'Mapy.com',here:'Показати карту тут',close:'Закрити',
+  rate_up:'Відповідь допомогла',rate_down:'Відповідь не допомогла',
+  hd_title:'Повідомити про несправність або побажання',hd_sub:'Ми одразу передамо це готелю. Статус ви побачите тут.',k_fault:'🔧 Несправність',k_cleaning:'🧹 Прибирання',k_wish:'✨ Побажання',hd_room:'Номер кімнати',hd_text:'Що вам потрібно? (наприклад, не працює лампа біля ліжка)',hd_send:'Надіслати готелю',hd_ok:'✅ Надіслано. Готель уже знає.',hd_err:'Не вдалося надіслати. Спробуйте ще раз.',hd_need:'Будь ласка, опишіть, що вам потрібно.',hd_mine:'Мої запити',s_new:'Прийнято',s_in_progress:'В роботі',s_done:'Виконано',hd_chat:'Я передав це готелю'}
+};
+function xT(k){ const d=X_T[guestLang]||X_T.en; return (d[k]!==undefined)?d[k]:X_T.en[k]; }
+function showX(title, html){
+  document.getElementById('x-title').textContent=title;
+  document.getElementById('x-content').innerHTML=html;
+  document.getElementById('x-close').textContent=xT('close');
+  document.getElementById('x-overlay').classList.add('show');
+}
+function hideX(e){
+  if(!e||e.target===document.getElementById('x-overlay')){
+    document.getElementById('x-overlay').classList.remove('show');
+    document.getElementById('x-content').innerHTML='';   // zahodí i vloženou mapu
+  }
+}
+
+// — Volba mapy: Google / Apple / Mapy.cz, nebo mapa přímo v aplikaci —
+function openNav(el, mapFirst){
+  try{
+    const q=el.getAttribute('data-nav')||''; if(!q) return true;
+    let name=''; try{ name=decodeURIComponent(q); }catch(e){ name=q; }
+    const opt=(href,icon,label)=>`<a class="x-opt" href="${href}" target="_blank" rel="noopener" onclick="hideX()"><span class="i">${icon}</span>${label}</a>`;
+    const html=`<div class="x-sub">📍 ${esc(name)}<br>${xT('nav_sub')}</div>`
+      +opt('https://www.google.com/maps/dir/?api=1&destination='+q,'🧭',xT('g'))
+      +opt('https://maps.apple.com/?daddr='+q+'&dirflg=w','🍎',xT('a'))
+      +opt('https://mapy.com/fnc/v1/search?query='+q,'🗺',xT('m'))
+      +`<button type="button" class="x-opt" id="x-here" onclick="showMapHere('${q.replace(/'/g,'%27')}')"><span class="i">👁</span>${xT('here')}</button><div id="x-map-box"></div>`;
+    showX(xT('nav_title'), html);
+    if(mapFirst) showMapHere(q);
+    return false;   // odkaz se neotevře, host si vybere
+  }catch(e){ return true; }   // cokoli selže → původní odkaz na Google Mapy
+}
+function showMapHere(q){
+  const box=document.getElementById('x-map-box'); if(!box) return;
+  box.innerHTML=`<iframe class="x-map" loading="lazy" referrerpolicy="no-referrer" src="https://www.google.com/maps?q=${q}&output=embed" title="map"></iframe>`;
+  const b=document.getElementById('x-here'); if(b) b.style.display='none';
+}
+
+// — Hodnocení odpovědi palcem —
+async function rateAnswer(meta, btn, value, q, a, sig){
+  const was=btn.classList.contains('on');
+  meta.querySelectorAll('.rate-btn').forEach(b=>b.classList.remove('on'));
+  if(was) return;   // druhé klepnutí jen zruší zvýraznění
+  btn.classList.add('on');
+  try{
+    await fetch(`${API}/api/guest/chat/rate`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({hotel_id:hotelId,device_id:deviceId,value:value,q:q,a:a,sig:sig,language:guestLang})});
+  }catch(e){}
+}
+
+// — Helpdesk: závada / úklid / přání —
+let hdKind='fault';
+function hdSetKind(k){ hdKind=k; document.querySelectorAll('.hd-kind').forEach(b=>b.classList.toggle('on', b.dataset.k===k)); }
+function openHelpdesk(){
+  const kinds=['fault','cleaning','wish'].map(k=>`<button type="button" class="hd-kind${k===hdKind?' on':''}" data-k="${k}" onclick="hdSetKind('${k}')">${xT('k_'+k)}</button>`).join('');
+  showX(xT('hd_title'),
+    `<div class="x-sub">${xT('hd_sub')}</div><div class="hd-kinds">${kinds}</div>`
+    +`<input class="hd-in" id="hd-room" maxlength="12" placeholder="${xT('hd_room')}" value="${esc(roomNumber||'')}">`
+    +`<textarea class="hd-in" id="hd-text" rows="3" maxlength="600" placeholder="${xT('hd_text')}"></textarea>`
+    +`<button type="button" class="hd-send" id="hd-send" onclick="sendHelpdesk()">${xT('hd_send')}</button><div class="hd-msg" id="hd-msg"></div>`
+    +`<div id="hd-list"></div>`);
+  loadHelpdesk();
+}
+async function sendHelpdesk(){
+  const t=document.getElementById('hd-text'), r=document.getElementById('hd-room'), m=document.getElementById('hd-msg'), b=document.getElementById('hd-send');
+  const text=(t.value||'').trim();
+  if(text.length<3){ m.textContent=xT('hd_need'); return; }
+  b.disabled=true; m.textContent='';
+  try{
+    const res=await fetch(`${API}/api/guest/helpdesk/new`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({hotel_id:hotelId,device_id:deviceId,kind:hdKind,room:(r.value||'').trim(),text:text,language:guestLang,guest_name:guestName||''})});
+    if(!res.ok) throw new Error(res.status);
+    t.value=''; m.textContent=xT('hd_ok');
+    addBot(`🛠 ${xT('hd_chat')}: ${xT('k_'+hdKind).replace(/^\S+\s/,'')} — ${text}`);
+    loadHelpdesk();
+  }catch(e){ m.textContent=xT('hd_err'); }
+  b.disabled=false;
+}
+async function loadHelpdesk(){
+  const box=document.getElementById('hd-list'); if(!box) return;
+  try{
+    const res=await fetch(`${API}/api/guest/helpdesk/list?hotel_id=${encodeURIComponent(hotelId)}&device_id=${encodeURIComponent(deviceId)}`,{cache:'no-store'});
+    if(!res.ok) return;
+    const items=(await res.json()).tickets||[];
+    if(!items.length){ box.innerHTML=''; return; }
+    box.innerHTML=`<div class="info-label" style="margin-top:18px">${xT('hd_mine')}</div>`+items.map(x=>{
+      const when=x.created?new Date(x.created+'Z').toLocaleString([], {day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+      return `<div class="hd-item"><div class="top"><span>${xT('k_'+x.kind)||''} · ${esc(when)}</span><span class="hd-st ${esc(x.status)}">${xT('s_'+x.status)||esc(x.status)}</span></div>${esc(x.text)}${x.note?`<div class="hd-note">💬 ${esc(x.note)}</div>`:''}</div>`;
+    }).join('');
+  }catch(e){}
 }
 
 // ══ PŘEKLAD MENU (FOTO) ══════════════════════
