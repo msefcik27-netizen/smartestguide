@@ -180,6 +180,12 @@ def test_route_transport():
     assert c.post("/mcp", content=b"{nesmysl").status_code == 400
     assert c.post("/mcp", content=b" " * (sg_mcp.MAX_BODY + 1)).status_code == 413
     assert c.get("/mcp").status_code == 405 and c.delete("/mcp").status_code == 405
+    # člověk v prohlížeči dostane srozumitelnou stránku místo chyby (nález testera 24. 11. 2026)
+    page = c.get("/mcp", headers={"Accept": "text/html,application/xhtml+xml", "Accept-Language": "cs-CZ,cs;q=0.9"})
+    assert page.status_code == 200 and page.headers["content-type"].startswith("text/html")
+    assert "/mcp</code>" in page.text and "Napojení pro AI asistenty" in page.text
+    assert "Connection for AI assistants" in c.get("/mcp", headers={"Accept": "text/html"}).text
+    assert c.delete("/mcp", headers={"Accept": "text/html"}).status_code == 405
     batch = c.post("/mcp", json=[rpc("ping", rid=1), rpc("notifications/initialized", rid=None), rpc("tools/list", rid=2)])
     assert [x["id"] for x in batch.json()] == [1, 2]
     assert c.post("/mcp", json=[]).status_code == 400

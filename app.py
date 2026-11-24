@@ -724,7 +724,7 @@ app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), check_dir=False), name="static")  # self-host fotek, fontů a log (GDPR — nic z Google/Pexels CDN)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.27"
+APP_VERSION = "0.5.28"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -3077,8 +3077,8 @@ def generate_qr_poster(hotel_id: str, request: Request):
     btn_print = "🖨️ Otevřít a tisknout" if is_cs else "🖨️ Open and print"
     btn_press = "✂️ Data pro tiskárnu" if is_cs else "✂️ Print-shop file"
     press_tip = "PDF pro profesionální tisk: spadávka 3 mm a ořezové značky" if is_cs else "PDF for professional printing: 3 mm bleed and crop marks"
-    press_note = ("Tisknete sami? Stačí „Otevřít a tisknout“. Zadáváte tisk tiskárně? Pošlete jí „Data pro tiskárnu“ – PDF se spadávkou 3 mm a ořezovými značkami, roll-up ve skutečné velikosti." if is_cs else
-                  "Printing yourself? Use “Open and print”. Ordering from a print shop? Send them the “Print-shop file” – a PDF with 3 mm bleed and crop marks, roll-up at full size.")
+    press_note = ("Tisknete sami? Stačí „Otevřít a tisknout“. Zadáváte tisk tiskárně? Pošlete jí „Data pro tiskárnu“ – PDF se spadávkou 3 mm a ořezovými značkami, roll-up ve skutečné velikosti. Po otevření je uložíte jako PDF a tlačítkem si připravíte e-mail pro tiskárnu." if is_cs else
+                  "Printing yourself? Use “Open and print”. Ordering from a print shop? Send them the “Print-shop file” – a PDF with 3 mm bleed and crop marks, roll-up at full size. Once it opens, save it as a PDF and use the button to prepare an e-mail for the print shop.")
     hub_title = "Tiskové materiály" if is_cs else "Print materials"
     qr_poster_label = "QR Plakát · 210×210&nbsp;mm" if is_cs else "QR Poster · 210×210&nbsp;mm"
     qr_poster_desc = "Čtvercový plakát s QR kódem. Ideální pro recepci, výtah nebo restaurační stoly." if is_cs else "Square poster with QR code. Perfect for reception, elevator or restaurant tables."
@@ -3195,9 +3195,11 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
 .fmt-btn{{display:block;width:100%;background:linear-gradient(90deg,#2c5fae,#3a72c4);color:#fff;border:none;border-radius:99px;padding:11px;font-family:'Manrope',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-align:center;text-decoration:none;transition:opacity .15s}}
 .fmt-btn:hover{{opacity:.9}}
 .fmt-btn2{{margin-top:8px;background:#fff;color:#2c5fae;border:1.5px solid #2c5fae;padding:9.5px}}
-.pl-wrap{{margin-top:16px;display:inline-flex;align-items:center;gap:10px;background:#fff;border:1px solid #e3e9f4;border-radius:99px;padding:6px 8px 6px 18px;font-size:13px;font-weight:700;color:#0c1b33;box-shadow:0 4px 12px rgba(12,27,51,.05)}}
-.pl-wrap select{{border:1px solid #e3e9f4;border-radius:99px;padding:7px 12px;font-family:'Manrope',sans-serif;font-size:13px;font-weight:700;color:#2c5fae;background:#f6f8fc;cursor:pointer}}
-.press-note{{max-width:560px;margin:10px auto 0;font-size:12.5px;line-height:1.5;color:#51617e}}
+.pl-wrap{{margin-top:16px;display:inline-flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:12px;background:#fff;border:2px solid #2c5fae;border-radius:99px;padding:8px 10px 8px 22px;font-size:16px;font-weight:800;color:#0c1b33;box-shadow:0 8px 22px rgba(44,95,174,.16)}}
+.pl-wrap select{{border:none;border-radius:99px;padding:9px 16px;font-family:'Manrope',sans-serif;font-size:15px;font-weight:800;color:#fff;background:#2c5fae;cursor:pointer}}
+.pl-wrap select option{{color:#0c1b33;background:#fff}}
+.pl-note{{max-width:560px;margin:10px auto 6px;font-size:13.5px;line-height:1.5;color:#0c1b33}}
+.press-note{{max-width:600px;margin:14px auto 0;font-size:13.5px;line-height:1.55;color:#0c1b33;background:#eaf2ff;border:1px solid #c9dcf7;border-radius:12px;padding:12px 16px}}
 /* Mini-náhledy = zmenšeniny skutečných tiskovin (tmavé téma) */
 .mini{{background:#0c1b33;border-radius:9px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:5px;box-shadow:0 10px 24px rgba(12,27,51,.28)}}
 .mini-h{{font-family:'Sora',sans-serif;font-weight:800;color:#fff;line-height:1.25;text-align:center}}
@@ -3221,14 +3223,14 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
     <br>
     {f'<a href="{portal_url}" class="portal-link">⚙️ {portal_label}</a>' if portal_url else ''}
     <br>
+    <label class="pl-wrap">🌍 {_pl_label}<select id="pl-lang" onchange="setPrintLang(this.value)">{_pl_opts}</select></label>
+    <div class="pl-note">{_pl_note}</div>
     <div class="theme-wrap">
       <button id="theme-dark" class="theme-btn active" onclick="setFlyerTheme('dark')">🌙 {'Tmavá' if is_cs else 'Dark'}</button>
       <button id="theme-light" class="theme-btn" onclick="setFlyerTheme('light')">📄 Print-friendly</button>
     </div>
     <div class="theme-note">{'Tmavá = ideální pro PDF a obrazovky · Print-friendly (světlá) šetří inkoust při tisku' if is_cs else 'Dark = best for PDF and screens · Print-friendly (light) saves ink when printing'}</div>
     <div class="press-note">{press_note}</div>
-    <label class="pl-wrap">🌍 {_pl_label}<select id="pl-lang" onchange="setPrintLang(this.value)">{_pl_opts}</select></label>
-    <div class="theme-note">{_pl_note}</div>
   </div>
 
   <div class="formats" id="formats">
@@ -3465,9 +3467,18 @@ if(P&&!sheet.querySelector('.sg-mark')){var t=0.15;
 function mk(l,tp,wd,ht){var d=document.createElement('div');d.className='sg-mark';d.style.cssText='left:'+l+'mm;top:'+tp+'mm;width:'+wd+'mm;height:'+ht+'mm';sheet.appendChild(d);}
 [M,M+W].forEach(function(x,ix){[M,M+H].forEach(function(y,iy){mk(ix?x+4:x-9,y-t/2,5,t);mk(x-t/2,iy?y+4:y-9,t,5);});});
 var cs=/^(cs|sk)/i.test(navigator.language||''),n=document.createElement('div');n.className='sg-hint';
-n.textContent=(cs?'Data pro tiskárnu: čistý formát '+W+' × '+H+' mm, spadávka 3 mm, ořezové značky. Uložte jako PDF (okraje: žádné, grafika na pozadí: zapnuto) a pošlete tiskárně.__NCS__'
-:'Print-shop file: trim size '+W+' × '+H+' mm, 3 mm bleed, crop marks. Save as PDF (margins: none, background graphics: on) and send it to your print shop.__NEN__');
-document.body.appendChild(n);document.title+=cs?' – data pro tiskárnu':' – print-shop file';}}
+document.title+=cs?' – data pro tiskárnu':' – print-shop file';
+var par=cs?'čistý formát '+W+' × '+H+' mm, spadávka 3 mm, ořezové značky':'trim size '+W+' × '+H+' mm, 3 mm bleed, crop marks';
+function el(tag,cls,txt){var e=document.createElement(tag);e.className=cls;e.textContent=txt;n.appendChild(e);return e;}
+el('div','sg-hint-t',cs?'Data pro tiskárnu':'Print-shop file');
+el('div','sg-hint-x',(cs?'1. Uložte jako PDF – v okně tisku zvolte „Uložit jako PDF“, okraje: žádné, grafika na pozadí: zapnuto. 2. Uložené PDF pošlete tiskárně jako přílohu e-mailu. ('+par+')__NCS__'
+:'1. Save as PDF – in the print dialog choose “Save as PDF”, margins: none, background graphics: on. 2. Send the saved PDF to your print shop as an e-mail attachment. ('+par+')__NEN__'));
+var bx=document.createElement('div');bx.className='sg-hint-b';n.appendChild(bx);
+var b1=document.createElement('button');b1.type='button';b1.className='sg-hb';b1.textContent=cs?'💾 Uložit jako PDF':'💾 Save as PDF';b1.onclick=function(){window.print();};bx.appendChild(b1);
+var b2=document.createElement('a');b2.className='sg-hb sg-hb2';b2.textContent=cs?'✉️ Napsat e-mail tiskárně':'✉️ E-mail the print shop';
+b2.href='mailto:?subject='+encodeURIComponent(document.title)+'&body='+encodeURIComponent(cs?'Dobrý den,\n\nv příloze posílám tisková data (PDF): '+par+'.\n\nDěkuji':'Hello,\n\nplease find the print-ready PDF attached: '+par+'.\n\nThank you');
+b2.title=cs?'Otevře nový e-mail s předvyplněným textem. Uložené PDF k němu přiložte sami.':'Opens a new e-mail with the text filled in. Attach the saved PDF yourself.';bx.appendChild(b2);
+document.body.appendChild(n);}}
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(build);
 window.addEventListener('load',function(){setTimeout(build,350);});
 if(P)window.addEventListener('resize',build);
@@ -3485,9 +3496,13 @@ def _print_kit(w_mm: float, h_mm: float, press: bool = False, note_cs: str = "",
              ".btn,.sg-hint{display:none!important}#sg-sheet{box-shadow:none!important}}"
            + ".sg-mark{position:absolute;background:#000;z-index:5}"
            + ".sg-hint{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);width:max-content;max-width:92vw;background:#0c1b33;color:#fff;"
-             "border-radius:10px;padding:10px 16px;font-size:13px;line-height:1.45;text-align:center;box-shadow:0 8px 24px rgba(12,27,51,.25);z-index:20}")
+             "border:2px solid #2fd0d8;border-radius:14px;padding:14px 20px;font-size:14px;line-height:1.5;text-align:center;box-shadow:0 10px 30px rgba(12,27,51,.35);z-index:20}"
+           + ".sg-hint-t{font-size:16px;font-weight:800;color:#2fd0d8;margin-bottom:4px}.sg-hint-x{max-width:640px;margin:0 auto}"
+           + ".sg-hint-b{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:10px}"
+           + ".sg-hb{border:none;border-radius:99px;padding:9px 18px;font:700 14px 'Manrope',sans-serif;cursor:pointer;background:#2fd0d8;color:#0c1b33;text-decoration:none;display:inline-block}"
+           + ".sg-hb2{background:#fff}")
     if press:
-        css += "@media screen{body{padding:64px 24px 96px!important}#sg-sheet{box-shadow:0 6px 30px rgba(12,27,51,.18)}}"
+        css += "@media screen{body{padding:64px 24px 230px!important}#sg-sheet{box-shadow:0 6px 30px rgba(12,27,51,.18)}}"
     js = (_PRINT_KIT_JS.replace("__W__", "%g" % w_mm).replace("__H__", "%g" % h_mm)
           .replace("__B__", str(b)).replace("__M__", str(m)).replace("__P__", "1" if press else "0")
           .replace("__NCS__", (" " + note_cs) if note_cs else "").replace("__NEN__", (" " + note_en) if note_en else ""))

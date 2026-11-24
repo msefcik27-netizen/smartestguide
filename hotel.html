@@ -124,7 +124,7 @@ html{color-scheme:light}
     @keyframes spin{to{transform:rotate(360deg)}}
 
     /* Last saved */
-    .last-saved{font-size:11px;color:var(--muted)}
+    .last-saved{font-size:12px;font-weight:600;color:var(--muted)}
   .plang-btn{background:none;border:none;color:var(--muted);font-size:11px;font-weight:700;padding:4px 7px;border-radius:5px;cursor:pointer;transition:all .15s}
 .plang-btn.active{background:var(--accent);color:#ffffff;font-weight:700}
 </style>
@@ -143,7 +143,7 @@ html{color-scheme:light}
       <button class="plang-btn" id="plb-cs" onclick="setPortalLang('cs')" title="Česky">CZ</button>
       <button class="plang-btn" id="plb-en" onclick="setPortalLang('en')" title="English">EN</button>
     </span>
-    <span class="last-saved" id="last-saved"></span>
+    <span class="last-saved" id="last-saved">Ukládá se automaticky</span>
     <span class="unsaved-dot" id="unsaved-dot"></span>
     <button class="btn btn-secondary" id="save-btn" onclick="saveAll()" title="Ukládá se automaticky — tlačítko je jen pojistka">✓ Uloženo</button>
   </div>
@@ -304,7 +304,7 @@ const EN_MAP = {
   "⊞ Rozbalit vše":"⊞ Expand all","⊟ Sbalit vše":"⊟ Collapse all",
   "Rozbalit všechny sekce":"Expand all sections","Sbalit všechny sekce":"Collapse all sections",
   "Rozbalit":"Expand","Sbalit":"Collapse",
-  "✓ Uloženo":"✓ Saved","💾 Uložit teď":"💾 Save now","Ukládá se…":"Saving…","✓ Uloženo v":"✓ Saved at",
+  "✓ Uloženo":"✓ Saved","💾 Uložit teď":"💾 Save now","Ukládá se…":"Saving…","✓ Uloženo v":"✓ Saved at","✓ Automaticky uloženo v":"✓ Auto-saved at",
   "Ukládá se automaticky — tlačítko je jen pojistka":"Saves automatically — this button is just a backup",
   "Načítám data hotelu…":"Loading hotel data…","⛔ Přístup odepřen":"⛔ Access denied",
   "Tento odkaz není platný. Požádej správce SMARTEST GUIDE o nový přístupový odkaz.":"This link is not valid. Ask SMARTEST GUIDE support for a new access link.",
@@ -330,7 +330,8 @@ const EN_MAP = {
   "Chybí počet lůžek!":"Bed count is missing!",
   "Doplňte počet lůžek v sekci Základní provozní informace — jinak nelze správně vypočítat cenu předplatného a AI nemá přesné informace o kapacitě hotelu.":"Add the bed count in the Basic operational info section — otherwise the subscription price can't be calculated correctly and the AI lacks exact capacity information.",
   "Jak to funguje:":"How it works:",
-  "Vyplňte informace o vašem hotelu co nejpřesněji. Tyto informace bude avatar sdělovat vašim hostům. Čím více vyplníte, tím lépe bude avatar sloužit. Po každé úpravě klikněte na":"Fill in your hotel information as precisely as possible. The avatar shares it with your guests. The more you fill in, the better it serves. After each change click",
+  "Vyplňte informace o vašem hotelu co nejpřesněji. Tyto informace bude avatar sdělovat vašim hostům. Čím více vyplníte, tím lépe bude avatar sloužit. Změny se ukládají samy, nic nemusíte potvrzovat.":"Fill in your hotel information as precisely as possible. The avatar shares it with your guests. The more you fill in, the better it serves. Changes are saved automatically, there is nothing to confirm.",
+  "Ukládá se automaticky":"Saves automatically",
   "Uložit změny":"Save changes",
   // ── Názvy a popisy sekcí ──
   "Základní provozní informace":"Basic operational info","Check-in, check-out, stravování":"Check-in, check-out, meals",
@@ -722,6 +723,9 @@ function refreshStaticTexts(){
   if(co2) co2.textContent = tr('⊟ Sbalit vše');
   const sb = document.getElementById('save-btn');
   if(sb){ sb.innerHTML = hasChanges ? tr('💾 Uložit teď') : tr('✓ Uloženo'); sb.title = tr('Ukládá se automaticky — tlačítko je jen pojistka'); }
+  // Viditelná věta o automatickém ukládání (dřív jen v nápovědě pod kurzorem – nález testera 24. 11. 2026)
+  const ls = document.getElementById('last-saved');
+  if(ls && (!ls.textContent || ls.textContent==='Ukládá se automaticky' || ls.textContent==='Saves automatically')) ls.textContent = tr('Ukládá se automaticky');
 }
 function updateLangButtons(){
   document.querySelectorAll('.plang-btn').forEach(b => b.classList.toggle('active', b.id === 'plb-'+portalLang));
@@ -888,7 +892,7 @@ function renderPortal() {
     <div class="info-banner">
       <strong>Jak to funguje:</strong> Vyplňte informace o vašem hotelu co nejpřesněji.
       Tyto informace bude avatar sdělovat vašim hostům. Čím více vyplníte, tím lépe
-      bude avatar sloužit. Po každé úpravě klikněte na <strong>Uložit změny</strong>.
+      bude avatar sloužit. Změny se ukládají samy, nic nemusíte potvrzovat.
       <div style="margin-top:6px"><a href="/data?lang=${portalLang==='en'?'en':'cs'}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700;text-decoration:none">🔒 ${portalLang==='en'?'Where your data lives and how we protect it':'Kde leží vaše data a jak je chráníme'} →</a></div>
     </div>
 
@@ -2236,7 +2240,7 @@ async function saveAll(auto) {
     hasChanges = false;
     document.getElementById('unsaved-dot').classList.remove('show');
     const now = new Date().toLocaleTimeString('cs-CZ', {hour:'2-digit',minute:'2-digit'});
-    document.getElementById('last-saved').textContent = `${tr('✓ Uloženo v')} ${now}`;
+    document.getElementById('last-saved').textContent = `${tr('✓ Automaticky uloženo v')} ${now}`;
     // Okamžitá aktualizace platební sekce a hlavičky bez refreshe
     await loadPaymentSection();
     // Přepočítej completeness skóre

@@ -15,13 +15,14 @@ Hotel lze z napojení vyřadit polem hotelu ai_assistants_off.
 Registruje se z app.py voláním setup(app, ...). Jádro (handle, match_hotels) jsou čisté funkce, testy v test_sg_mcp.py.
 """
 import hashlib
+import html
 import json
 import logging
 import re
 import unicodedata
 
 from fastapi import HTTPException, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 D = {}
 SERVER_VERSION = "1.0.0"
@@ -234,7 +235,61 @@ def setup(app, **deps):
 
     @app.get("/mcp")
     @app.delete("/mcp")
-    def mcp_other():
+    def mcp_other(request: Request):
+        # Člověk, který adresu otevře v prohlížeči, dostane srozumitelnou stránku (nález testera 24. 11. 2026:
+        # „odkaz nefunguje“). Asistenti (bez Accept: text/html) dostanou dál 405.
+        if request.method == "GET" and "text/html" in (request.headers.get("accept") or "").lower():
+            cs = re.match(r"\s*(cs|sk)", (request.headers.get("accept-language") or "").lower()) is not None
+            return HTMLResponse(info_page(D["get_base_url"](request).rstrip("/") + "/mcp", cs))
         # Server neposílá vlastní zprávy a nedrží relace → GET (stream) ani DELETE (ukončení relace) nepodporuje.
         return JSONResponse(_error(None, -32000, "Method not allowed. Send JSON-RPC with POST."), status_code=405,
                             headers={"Allow": "POST"})
+
+
+def info_page(url: str, cs: bool = True) -> str:
+    """Stránka pro člověka, který adresu /mcp otevře v prohlížeči."""
+    u = html.escape(url, quote=True)
+    if cs:
+        t = dict(lang="cs", title="Napojení pro AI asistenty", lead="Tato adresa není webová stránka pro lidi. "
+                 "Je to přípojka, přes kterou se AI asistent (například Claude) umí zeptat na hotel přímo u SmartestGuide.",
+                 how="Jak ji použít", s1="Otevřete nastavení svého AI asistenta a najděte Konektory (vlastní konektor, MCP).",
+                 s2="Přidejte nový konektor a jako adresu vložte:", s3="Pak se asistenta zeptejte třeba: "
+                 "„Kdy je snídaně v hotelu …?“ Odpověď přijde přímo od hotelu.", copy="Zkopírovat adresu", done="Zkopírováno",
+                 what="Co umí", w1="najít hotel, který používá SmartestGuide,", w2="sdělit základní údaje o hotelu,",
+                 w3="odpovědět na dotaz hosta stejně jako concierge Alex.",
+                 safe="Přípojka jen čte. Nic neobjednává, nerezervuje ani nemění.", back="Zpět na SmartestGuide")
+    else:
+        t = dict(lang="en", title="Connection for AI assistants", lead="This address is not a web page for people. "
+                 "It is a connector that lets an AI assistant (such as Claude) ask SmartestGuide about a hotel directly.",
+                 how="How to use it", s1="Open your AI assistant's settings and find Connectors (custom connector, MCP).",
+                 s2="Add a new connector and paste this address:", s3="Then ask the assistant, for example: "
+                 "“When is breakfast at hotel …?” The answer comes straight from the hotel.", copy="Copy address", done="Copied",
+                 what="What it can do", w1="find a hotel that uses SmartestGuide,", w2="give basic facts about the hotel,",
+                 w3="answer a guest question just like the concierge Alex.",
+                 safe="The connector is read-only. It makes no orders, bookings or changes.", back="Back to SmartestGuide")
+    return f"""<!DOCTYPE html><html lang="{t['lang']}"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
+<title>{t['title']} — SmartestGuide</title>
+<link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg"/>
+<link rel="stylesheet" href="/static/fonts/fonts.css">
+<style>*{{box-sizing:border-box}}body{{margin:0;background:#f6f8fc;font-family:'Manrope',system-ui,sans-serif;color:#0c1b33;line-height:1.6}}
+.w{{max-width:640px;margin:0 auto;padding:48px 20px 64px}}
+.logo{{font-family:'Sora',sans-serif;font-weight:800;letter-spacing:1px;font-size:20px;display:flex;align-items:center;gap:8px}}
+.logo img{{width:26px;height:26px}}.logo span{{color:#2c5fae}}
+h1{{font-family:'Sora',sans-serif;font-size:26px;margin:22px 0 10px}}h2{{font-family:'Sora',sans-serif;font-size:17px;margin:0 0 10px}}
+.card{{background:#fff;border:1px solid #e3e9f4;border-radius:16px;padding:20px 22px;margin-top:18px;box-shadow:0 8px 24px rgba(12,27,51,.06)}}
+ol,ul{{margin:0;padding-left:22px}}li{{margin:6px 0}}
+.url{{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0 4px}}
+code{{background:#eef3fc;border:1px solid #d6e2f5;border-radius:8px;padding:8px 12px;font-size:14px;word-break:break-all}}
+button{{border:none;border-radius:99px;background:#2c5fae;color:#fff;font:700 14px 'Manrope',sans-serif;padding:9px 16px;cursor:pointer}}
+.safe{{color:#51617e;font-size:14px;margin-top:18px}}a{{color:#2c5fae;font-weight:700;text-decoration:none}}</style></head>
+<body><div class="w">
+<div class="logo" translate="no"><img src="/static/img/logo.svg" alt=""/>SMARTEST<span>GUIDE</span></div>
+<h1>{t['title']}</h1><p>{t['lead']}</p>
+<div class="card"><h2>{t['how']}</h2><ol><li>{t['s1']}</li><li>{t['s2']}
+<div class="url"><code id="u">{u}</code><button type="button" onclick="cp(this)">{t['copy']}</button></div></li><li>{t['s3']}</li></ol></div>
+<div class="card"><h2>{t['what']}</h2><ul><li>{t['w1']}</li><li>{t['w2']}</li><li>{t['w3']}</li></ul></div>
+<p class="safe">{t['safe']}</p><p><a href="/">← {t['back']}</a></p></div>
+<script>function cp(b){{var t=document.getElementById('u').textContent;
+if(navigator.clipboard)navigator.clipboard.writeText(t).then(function(){{b.textContent='✓ {t['done']}';}});}}</script>
+</body></html>"""
