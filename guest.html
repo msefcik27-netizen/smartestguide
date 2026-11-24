@@ -707,12 +707,129 @@ function _ttsPlain(text){
 function _ttsReset(btn){ if(btn){btn.classList.remove('speaking');btn.textContent='🔊';} }
 
 let _ttsAudio=null;  // právě přehrávané serverové MP3
+let _ttsSeq=0;       // roste při každém zastavení — rozběhnuté čtení podle toho pozná, že má skončit
+let _ttsWake=null;   // probudí čekání na konec právě čtené části
 
 function _ttsStopAll(){
+  _ttsSeq++;
   if(_ttsAudio){ try{_ttsAudio.pause();}catch(e){} _ttsAudio=null; }
+  if(_ttsWake){ const w=_ttsWake; _ttsWake=null; try{w();}catch(e){} }
+  _bargeStop();
   if(TTS_OK && (speechSynthesis.speaking||speechSynthesis.pending)) speechSynthesis.cancel();
   _ttsReset(_ttsBtn); _ttsBtn=null;
 }
+
+// ČTENÍ CELÉ ODPOVĚDI PO ČÁSTECH (24. 11. 2026).
+// MĚNÍ ROZHODNUTÍ ZE 7. 8. 2026: tehdy se dlouhá odpověď na hlasový dotaz četla jen jako
+// krátký úvod. Tester 24. 11. třikrát nahlásil „hlas přečte jen první větu“ a Martin
+// rozhodl: číst celé, dokud host čtení nepřeruší (hlasem, mikrofonem, tlačítkem ⏹ nebo
+// další zprávou). Text se dělí na věty a posílá po částech — první část je krátká, aby
+// hlas začal rychle, další se načítá, zatímco předchozí hraje.
+// Dělení je ruční smyčkou schválně: regex „lookbehind“ starší Safari neumí.
+const TTS_FIRST=220, TTS_PART=480;   // server bere nejvýš 700 znaků na jedno volání
+function _ttsChunks(say){
+  const sent=[]; let cur='';
+  for(let i=0;i<say.length;i++){
+    const ch=say[i]; cur+=ch;
+    if('.!?…'.indexOf(ch)<0) continue;
+    const next=say[i+1]||'', prev=say[i-1]||'';
+    if(next && next!==' ') continue;                 // „7.30“, „www.hotel.cz“
+    if(ch==='.' && prev>='0' && prev<='9') continue; // „3. patro“, „24. 11.“
+    sent.push(cur); cur='';
+  }
+  if(cur.trim()) sent.push(cur);
+  const parts=[];
+  sent.forEach(s=>{
+    s=s.trim();
+    while(s.length>TTS_PART){                        // přerostlá věta → dělit u čárky / mezery
+      let cut=s.lastIndexOf(', ',TTS_PART);
+      if(cut<TTS_PART*0.4) cut=s.lastIndexOf(' ',TTS_PART);
+      if(cut<=0) cut=TTS_PART-1;
+      parts.push(s.slice(0,cut+1).trim()); s=s.slice(cut+1).trim();
+    }
+    if(s) parts.push(s);
+  });
+  const out=[]; let buf='';
+  parts.forEach(p=>{
+    const lim=out.length?TTS_PART:TTS_FIRST;
+    if(buf && buf.length+1+p.length>lim){ out.push(buf); buf=p; }
+    else buf=buf?buf+' '+p:p;
+  });
+  if(buf) out.push(buf);
+  return out;
+}
+
+// PŘERUŠENÍ HLASEM (24. 11. 2026): když Alex čte odpověď na HLASOVÝ dotaz, mikrofon
+// potichu poslouchá. Jakmile host začne mluvit, čtení se zastaví a rovnou se nahrává
+// další dotaz. Hlasitost se porovnává s tím, co mikrofon slyší z reproduktoru (práh se
+// nastaví podle prvních 600 ms čtení), aby Alex nepřerušila sama sebe.
+// Na iPhonu vypnuto — Safari při zapnutém mikrofonu ztlumí přehrávání; tam přeruší
+// klepnutí na mikrofon nebo ⏹. ⚠️ Na telefonech zatím neověřeno poslechem.
+const _IS_IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+let _barge=null;
+async function _bargeStart(seq){
+  const AC=window.AudioContext||window.webkitAudioContext;
+  if(_IS_IOS||!AC||!navigator.mediaDevices||!window.MediaRecorder) return;
+  let stream;
+  try{ stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:false}}); }
+  catch(e){ return; }
+  const drop=()=>{ try{stream.getTracks().forEach(t=>t.stop());}catch(e){} };
+  if(seq!==_ttsSeq){ drop(); return; }
+  let ac,an;
+  try{ ac=new AC(); an=ac.createAnalyser(); an.fftSize=512; ac.createMediaStreamSource(stream).connect(an); }
+  catch(e){ drop(); return; }
+  const st={stream:stream,ac:ac,iv:null};
+  _barge=st;
+  const buf=new Uint8Array(an.fftSize);
+  const t0=Date.now(); let prev=t0, loud=0, floor=0;
+  st.iv=setInterval(()=>{
+    if(_barge!==st) return;
+    an.getByteTimeDomainData(buf);
+    let peak=0;
+    for(let i=0;i<buf.length;i++){ const d=Math.abs(buf[i]-128); if(d>peak)peak=d; }
+    const now=Date.now(), dt=now-prev; prev=now;
+    if(now-t0<600){ if(peak>floor)floor=peak; return; }   // rozjezd: změř ozvěnu reproduktoru
+    if(peak>Math.max(38,floor*2+10)) loud+=dt; else loud=0;
+    if(loud>=350){                                         // host mluví souvisle ≥ 0,35 s
+      clearInterval(st.iv); try{ac.close();}catch(e){}
+      _barge=null;                                         // mikrofon si necháme pro nahrávání
+      _ttsStopAll();
+      whisperVoice({stream:stream,barge:true});
+    }
+  },70);
+}
+function _bargeStop(){
+  const st=_barge; if(!st) return;
+  _barge=null;
+  clearInterval(st.iv);
+  try{st.ac.close();}catch(e){}
+  try{st.stream.getTracks().forEach(t=>t.stop());}catch(e){}
+}
+
+// DISPLEJ NEZHASÍNÁ (24. 11. 2026, tester: „telefon při řeči zhasne“).
+// Displej držíme rozsvícený po celou dobu čtení a poslechu a ještě 5 minut po poslední
+// aktivitě hosta. Technický strop není (drží, dokud je stránka vidět) — 5 minut šetří baterii.
+const WAKE_IDLE_MS=5*60*1000;
+let _wakeLock=null,_wakeTimer=null,_wakePending=false;
+function _wakeIdle(){
+  if(_ttsBtn||_rec||isListening){ _wakeTimer=setTimeout(_wakeIdle,30000); return; }
+  if(_wakeLock){ try{_wakeLock.release();}catch(e){} _wakeLock=null; }
+}
+async function wakeTouch(){
+  clearTimeout(_wakeTimer);
+  _wakeTimer=setTimeout(_wakeIdle,WAKE_IDLE_MS);
+  if(_wakeLock||_wakePending||!('wakeLock' in navigator)||document.visibilityState!=='visible') return;
+  _wakePending=true;
+  try{
+    const l=await navigator.wakeLock.request('screen');
+    _wakeLock=l;
+    l.addEventListener('release',()=>{ if(_wakeLock===l)_wakeLock=null; });
+  }catch(e){}
+  _wakePending=false;
+}
+document.addEventListener('pointerdown',wakeTouch,{passive:true});
+document.addEventListener('keydown',wakeTouch,{passive:true});
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') wakeTouch(); });
 
 // Fallback: systémový hlas prohlížeče (když serverové TTS není dostupné)
 function _speakLocal(say, btn){
@@ -727,34 +844,54 @@ function _speakLocal(say, btn){
   speechSynthesis.speak(u);
 }
 
-async function speakText(text, btn){
-  const wasPlaying = !!_ttsAudio || (TTS_OK && (speechSynthesis.speaking||speechSynthesis.pending));
+// opts.barge=true → při čtení poslouchat, jestli host nezačal mluvit (jen po hlasovém dotazu)
+async function speakText(text, btn, opts){
+  const wasPlaying = !!_ttsBtn || !!_ttsAudio || (TTS_OK && (speechSynthesis.speaking||speechSynthesis.pending));
   const sameBtn = (_ttsBtn===btn);
   _ttsStopAll();
   if(wasPlaying && sameBtn) return;  // klik na totéž tlačítko = jen zastavit (toggle)
-  const say=_ttsPlain(text);
-  if(!say) return;
+  const parts=_ttsChunks(_ttsPlain(text));
+  if(!parts.length) return;
   btn.classList.add('speaking'); btn.textContent='⏹';
   _ttsBtn=btn;
-  // 1) Serverové TTS (lidský hlas Coral) → 2) fallback na hlas prohlížeče
-  try{
-    const r=await fetch(`${API}/api/guest/tts`,{
+  wakeTouch();
+  const seq=_ttsSeq, live=()=>seq===_ttsSeq;
+  const fetchPart=i=>fetch(`${API}/api/guest/tts`,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({text:say,language:guestLang,hotel_id:hotelId,device_id:deviceId})
-    });
-    if(!r.ok) throw new Error('tts '+r.status);
-    const blob=await r.blob();
-    if(_ttsBtn!==btn) return;  // mezitím kliknuto jinam/zastaveno
-    const a=new Audio(URL.createObjectURL(blob));
-    _ttsAudio=a;
-    a.onended=()=>{ URL.revokeObjectURL(a.src); if(_ttsAudio===a)_ttsAudio=null; _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null; };
-    a.onerror=()=>{ URL.revokeObjectURL(a.src); if(_ttsAudio===a)_ttsAudio=null; _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null; };
-    await a.play();
+      body:JSON.stringify({text:parts[i],language:guestLang,hotel_id:hotelId,device_id:deviceId})
+    }).then(r=>{ if(!r.ok) throw new Error('tts '+r.status); return r.blob(); });
+  // Jeden přehrávač na všechny části — telefon pak dovolí pustit další část bez klepnutí.
+  const a=new Audio();
+  _ttsAudio=a;
+  let url=null;
+  try{
+    let next=fetchPart(0);
+    if(opts && opts.barge) _bargeStart(seq);
+    for(let i=0;i<parts.length;i++){
+      const blob=await next;
+      if(!live()) return;                 // mezitím zastaveno / kliknuto jinam
+      next=(i+1<parts.length)?fetchPart(i+1):null;   // další část se načítá, zatímco tahle hraje
+      if(next) next.catch(()=>{});
+      if(url) URL.revokeObjectURL(url);
+      url=URL.createObjectURL(blob);
+      a.src=url;
+      const done=new Promise(res=>{ _ttsWake=res; a.onended=res; a.onerror=res; });
+      await a.play();
+      await done;
+      _ttsWake=null;
+      if(!live()) return;
+      wakeTouch();
+    }
   }catch(e){
     // Server TTS selhal → NEpadat na robotický hlas prohlížeče (tester 4. 8.:
     // „hlas je děsnej" — plechový fallback škodí víc než ticho). Jen reset tlačítka.
-    if(_ttsBtn!==btn) return;
-    _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null;
+  }finally{
+    if(url){ try{URL.revokeObjectURL(url);}catch(e){} }
+    if(live()){
+      if(_ttsAudio===a)_ttsAudio=null;
+      _bargeStop();
+      _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null;
+    }
   }
 }
 
@@ -1660,40 +1797,8 @@ function addBot(text, opts){
   return btn;
 }
 
-// Má smysl odpověď číst nahlas? Krátká konverzační ANO; menu / ceník / dlouhý výčet NE.
-function ttsWorthSpeaking(text){
-  const t=String(text||'').trim();
-  if(!t) return false;
-  if(t.length>900) return false;                              // dlouhé = spíš výčet/menu/návod
-  const lines=t.split('\n').filter(x=>x.trim());
-  if(lines.length>8) return false;                            // hodně řádků = seznam/jídelní lístek
-  const bullets=(t.match(/^\s*(?:[-•*]|\d+[\.\)])\s+/gm)||[]).length;
-  if(bullets>=4) return false;                                // odrážkový/číslovaný seznam
-  const prices=(t.match(/(?:€|Kč|CZK|EUR|USD|\$)\s?\d|\d+\s?(?:€|Kč|CZK|EUR)/gi)||[]).length;
-  if(prices>=4) return false;                                 // ceník / menu s cenami
-  return true;
-}
-
-// Host se zeptal HLASEM a odpověď je dlouhý výčet (ttsWorthSpeaking=false) →
-// nečteme celý seznam, ale krátký MLUVENÝ ÚVOD: text před prvním výčtem
-// (typicky uvítací věta + „Hlavní atrakce:"), detaily zůstanou napsané.
-// Rozhodnutí Martina 7. 8. 2026 („zeptám hlasem, jen napíše"). Čistě klientské.
-function ttsSpokenIntro(text){
-  const raw=String(text||'');
-  const bulletRe=/^\s*(?:[-•*]|\d+[\.\)])\s+/;
-  const intro=[];
-  for(const ln of raw.split('\n')){
-    if(bulletRe.test(ln)) break;      // narazili jsme na výčet → konec úvodu
-    intro.push(ln);
-  }
-  let s=intro.join('\n').trim();
-  if(!s) s=raw.trim();                 // odpověď začíná rovnou výčtem → vezmi začátek
-  if(s.length>320){                    // strop: opravdu krátký úvod (max ~2 věty)
-    const m=s.slice(0,320).match(/^[\s\S]*?[.!?](?=\s|$)/);
-    s=(m?m[0]:s.slice(0,320)).trim();
-  }
-  return s;
-}
+// (Funkce ttsWorthSpeaking a ttsSpokenIntro byly 24. 11. 2026 odstraněny: dlouhá odpověď
+// se už nezkracuje na úvod, čte se celá po částech — viz _ttsChunks a speakText.)
 
 function addUser(text){
   const msgs=document.getElementById('messages');
@@ -1755,6 +1860,7 @@ async function sendMsg(){
   const inp=document.getElementById('msg-input');
   const text=inp.value.trim();
   if(!text||isTyping)return;
+  _ttsStopAll(); wakeTouch();   // nová zpráva = Alex přestane číst tu předchozí
   inp.value='';inp.style.height='auto';
   if(REPLY_ORDER){ await sendReplyToReception(text); return; }   // zpráva recepci, ne Alexovi
   document.getElementById('send-btn').disabled=true;
@@ -1807,17 +1913,9 @@ async function sendMsg(){
         try{ localStorage.setItem('sg_stay_'+hotelId, JSON.stringify({room:roomNumber, mode:'typed'})); sessionStorage.setItem('sg_room', roomNumber); }catch(e){}
         setQuickReplies();
       }
-      // Host mluvil → Alex odpoví taky hlasem. Krátká odpověď se přečte celá;
-      // u dlouhého výčtu (menu/ceník/tipy) se přečte jen krátký úvod, detaily zůstanou
-      // napsané (rozhodnutí Martina 7. 8. 2026). Tlačítko 🔊 pak přehraje celou odpověď.
-      if(viaVoice && botBtn){
-        if(ttsWorthSpeaking(d.reply)){
-          speakText(d.reply, botBtn);
-        } else {
-          const intro=ttsSpokenIntro(d.reply);
-          if(intro) speakText(intro, botBtn);
-        }
-      }
+      // Host mluvil → Alex odpoví taky hlasem a přečte CELOU odpověď, dokud ji host
+      // nepřeruší (rozhodnutí Martina 24. 11. 2026; do té doby se dlouhá četla jen jako úvod).
+      if(viaVoice && botBtn) speakText(d.reply, botBtn, {barge:true});
       history.push({role:'assistant',content:d.reply});
       saveHistory();
     } else {
@@ -2032,12 +2130,17 @@ function toggleVoice(){
 
 const SVG_MIC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>', SVG_STOP='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor"/></svg>';
 let _rec=null,_recChunks=[],_recTimer=null;
-async function whisperVoice(){
+// opts.stream + opts.barge: host skočil Alex do řeči — mikrofon už běží a host už mluví.
+async function whisperVoice(opts){
+  opts=opts||{};
   const b=document.getElementById('voice-btn');
-  if(_rec){ try{_rec.stop();}catch(e){} return; }   // druhé ťuknutí = stop
-  let stream;
-  try{ stream=await navigator.mediaDevices.getUserMedia({audio:true}); }
-  catch(e){ browserVoice(); return; }               // mikrofon zamítnut → fallback
+  if(_rec){ try{_rec.stop();}catch(e){} if(opts.stream){ try{opts.stream.getTracks().forEach(t=>t.stop());}catch(e){} } return; }   // druhé ťuknutí = stop
+  _ttsStopAll(); wakeTouch();                       // klepnutí na mikrofon přeruší čtení
+  let stream=opts.stream;
+  if(!stream){
+    try{ stream=await navigator.mediaDevices.getUserMedia({audio:true}); }
+    catch(e){ browserVoice(); return; }             // mikrofon zamítnut → fallback
+  }
   const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
              : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '';
   const fmt = mime==='audio/mp4' ? 'mp4' : 'webm';
@@ -2061,7 +2164,11 @@ async function whisperVoice(){
       if(!r.ok) throw new Error('stt '+r.status);
       const d=await r.json();
       const text=(d.text||'').trim();
-      if(!text){ addBot(uiT('stt_retry')||'Nerozuměla jsem ti — zkus to prosím říct znovu, klidně pomaleji. 🎤'); return; }
+      if(!text){
+        // Při skočení do řeči mohl mikrofon zachytit jen hluk — tehdy mlčíme, nic nevyčítáme.
+        if(!opts.barge) addBot(uiT('stt_retry')||'Nerozuměla jsem ti — zkus to prosím říct znovu, klidně pomaleji. 🎤');
+        return;
+      }
       // Jazyk z Whisperu se ZÁMĚRNĚ neukládá. Dřív stačil jeden špatný odhad ze šumu
       // a host měl napořád uložený třeba portugalský jazyk (tester 7. 8. 2026).
       // Jazyk mění jen výslovná volba hosta nebo jednoznačný důkaz z textu (server).
@@ -2070,7 +2177,7 @@ async function whisperVoice(){
       _lastInputVoice=true; sendMsg();
     }catch(e){
       console.warn('whisper stt failed → browser fallback', e&&(e.message||e));
-      browserVoice();                                 // server nedostupný → aspoň prohlížeč
+      if(!opts.barge) browserVoice();                 // server nedostupný → aspoň prohlížeč
     }finally{ b.innerHTML=SVG_MIC; b.disabled=false; }
   };
   _rec.start();
@@ -2083,7 +2190,7 @@ async function whisperVoice(){
     const an=ac.createAnalyser(); an.fftSize=512;
     src.connect(an);
     const buf=new Uint8Array(an.fftSize);
-    let spoke=false, quietMs=0, prev=Date.now();
+    let spoke=!!opts.barge, quietMs=0, prev=Date.now();
     const iv=setInterval(()=>{
       if(!_rec){ clearInterval(iv); try{ac.close();}catch(e){} return; }
       an.getByteTimeDomainData(buf);
@@ -2117,6 +2224,7 @@ function browserVoice(){
     return;
   }
   if(isListening){recognition?.stop();return;}
+  _ttsStopAll(); wakeTouch();
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   recognition=new SR();
   recognition.lang=LANG_SR[guestLang]||'cs-CZ';

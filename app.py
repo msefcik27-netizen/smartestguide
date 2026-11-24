@@ -28,6 +28,8 @@ import parking         # místa k parkování a max. rozměry vozu („vejde se 
 import partners        # doporučené (spřátelené) firmy: ručně, z webu nebo z vyfoceného letáku — testy v test_partners.py
 import ratings         # hodnocení odpovědí palcem (host v chatu, hotel v portálu) — testy v test_ratings.py
 import helpdesk        # helpdesk hotelu: závada / úklid / přání se stavem, řešitelem a historií — testy v test_helpdesk.py
+import reply_guard     # pojistky nad odpovědí Alex: ženský rod, cizí písmo — testy v test_reply_guard.py
+import tts_units       # měrné jednotky a desetinná čísla pro hlas — testy v test_tts_units.py
 
 load_dotenv()
 
@@ -722,7 +724,7 @@ app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), check_dir=False), name="static")  # self-host fotek, fontů a log (GDPR — nic z Google/Pexels CDN)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.26"
+APP_VERSION = "0.5.27"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -7335,6 +7337,12 @@ def _alex_feminine_fix(text: str) -> str:
     text = _FEM_RAD_RE.sub(lambda m: ("R" if m.group(1) == "R" else "r") + "áda" + m.group(2), text)
     text = _FEM_KTERA_RAD_RE.sub(lambda m: m.group(1) + "ráda", text)
     text = _CZ_BYSTE_RE.sub(lambda m: m.group(1), text)
+    # Širší pojistka (24. 11. 2026, tester: „Abych ti to mohl ověřit"): slovník výše chytá
+    # jen tvary těsně vedle „jsem/bych"; reply_guard projde celý úsek věty za nimi.
+    try:
+        text = reply_guard.feminine_fix(text)
+    except Exception:
+        logging.exception("reply_guard.feminine_fix selhal")
     return text
 
 # ── Zápis do rezervace z chatu (APALEO_ZAPIS_DO_REZERVACE_NAVRH.md) ─────────────────────
@@ -8839,7 +8847,7 @@ Whole sentences can arrive garbled from voice transcription, not just single wor
 
 CONVERSATION MEMORY (IMPORTANT): The guest may have reloaded the page, switched devices or returned after days — messages you sent earlier may NOT be visible to them anymore. NEVER claim you already showed or said something, and never refer to the position of earlier messages ("as I showed above", "ten jsem vam uz ukazal vyse", "see my previous message"). If the guest asks for something again, simply give the complete answer again, naturally, as if for the first time.
 
-VOICE & GENDER (CRITICAL — applies to EVERY sentence, including casual greetings): You are a woman. Your replies can be read aloud by a FEMALE voice. In languages with grammatical gender, ALWAYS speak about yourself in FEMININE first-person forms. Czech: "Ráda vám pomohu" (NEVER "Rád vám pomohu"), "ukázala jsem", "našla jsem", "byla bych ráda". Same in Slovak ("rada vám pomôžem"), Polish, Russian and other gendered languages. This applies ONLY to how you speak about yourself; when speaking about or to the guest, use the gender that fits them. The name Alex is never declined or changed. Also make adjectives and participles agree with the GENDER OF THE NOUN they describe: Czech "recepce" is feminine, so "recepce vám ráda poradí" and "s recepcí, která vám ráda poskytne" — never "rád" there. Czech conditional: after "by / bys / byste" always use the past participle, never the present tense — "detaily byste našli u recepce" or simply "detaily najdete u recepce", NEVER "detaily byste najdete".
+VOICE & GENDER (CRITICAL — applies to EVERY sentence, including casual greetings): You are a woman. Your replies can be read aloud by a FEMALE voice. In languages with grammatical gender, ALWAYS speak about yourself in FEMININE first-person forms. Czech: "Ráda vám pomohu" (NEVER "Rád vám pomohu"), "ukázala jsem", "našla jsem", "byla bych ráda", "abych ti to mohla ověřit" (NEVER "abych ti to mohl ověřit"), "kdybych věděla", "nejsem si jistá", "jsem tvoje asistentka" — the feminine form applies to EVERY verb and adjective about yourself, also when other words stand between "jsem/bych/abych" and the verb. Same in Slovak ("rada vám pomôžem"), Polish, Russian and other gendered languages. This applies ONLY to how you speak about yourself; when speaking about or to the guest, use the gender that fits them. The name Alex is never declined or changed. ONE SCRIPT ONLY: write every word in the script of the reply language — in Czech write "Personál", NEVER "Персонал"; never mix Cyrillic letters into a Latin-script reply (and vice versa). Also make adjectives and participles agree with the GENDER OF THE NOUN they describe: Czech "recepce" is feminine, so "recepce vám ráda poradí" and "s recepcí, která vám ráda poskytne" — never "rád" there. Czech conditional: after "by / bys / byste" always use the past participle, never the present tense — "detaily byste našli u recepce" or simply "detaily najdete u recepce", NEVER "detaily byste najdete".
 
 FORM OF ADDRESS (CRITICAL — rozhodnuto 25. 9. 2026): Always address the guest FORMALLY, and keep it consistent within every single reply. You are a hotel receptionist speaking to a guest, not a friend. Czech and Slovak: always "vy/vám/vás/váš" — NEVER "ty/ti/tě/tvůj" ("Ráda vám pomohu", "Máte ještě nějaké otázky?", NEVER "Ráda ti pomohu", "Máš ještě otázky?"). German: "Sie", never "du". Spanish: "usted", never "tú". French: "vous", never "tu". Russian/Ukrainian/Polish: "вы"/"Pan/Pani", never "ты"/"ty". NEVER mix the two within one reply — a sentence like "Máš nějaké další otázky nebo chcete vědět víc?" is WRONG; it must be "Máte nějaké další otázky nebo chcete vědět víc?". Keep formal address even if the guest writes informally to you.
 
@@ -9115,6 +9123,11 @@ Guest name: {req.guest_name or 'Guest'}"""
         except Exception as e:
             logging.warning("Druhý průchod pro parkování selhal: %s", e)
     reply = _alex_feminine_fix(parking.strip_marker(re.sub(r"\s*\[\[EXT\]\]\s*", " ", _raw)))
+    # Slovo azbukou v odpovědi psané latinkou (24. 11. 2026, tester: „Персонал") → přepsat.
+    try:
+        reply = reply_guard.fix_foreign_script(reply, reply_lang, req.message)
+    except Exception:
+        logging.exception("reply_guard.fix_foreign_script selhal")
     reply = _drop_ext_reception(reply, order_actions)
     # Zaloguj reálný dotaz hosta (analytika + detekce mezer v informacích)
     try:
@@ -9155,7 +9168,7 @@ _TTS_INSTRUCTIONS = os.getenv(
     "digit. Friendly and reassuring, with a light smile in the voice — no theatrical "
     "or advertising tone, no robotic flatness.",
 )
-_TTS_MAX_CHARS = 700  # bezpečnostní strop; frontend beztak čte jen krátké odpovědi (~600)
+_TTS_MAX_CHARS = 700  # bezpečnostní strop na JEDNO volání; frontend posílá dlouhou odpověď po částech (≤ 480 znaků)
 
 # ─────────────────────────────────────────────
 # Výslovnost českých číslovek (25. 9. 2026 — nález Martina: „výslovnost čísel je divná")
@@ -9405,14 +9418,15 @@ def _cz_telefon_for_speech(text: str) -> str:
 
 
 def _cz_desetinna_for_speech(text: str) -> str:
-    """„1,4 metru" → „jedna celá čtyři metru". Desetinná část s vedoucí nulou
-    („1,05") se nechává být — „nula pět" by se muselo číst po číslicích."""
+    """„1,4 metru" → „jedna celá čtyři metru", „2,1" → „dvě celé jedna",
+    „5,5" → „pět celých pět", „1,05" → „jedna celá nula pět" (24. 11. 2026:
+    dřív vždy „celá" a čísla s nulou za čárkou zůstávala číslicí)."""
     def _rep(m):
         cela, des = m.group(1), m.group(2)
-        if len(des) > 1 and des.startswith("0"):
+        try:
+            return tts_units.desetinne_slovy(cela, des) or m.group(0)
+        except Exception:
             return m.group(0)
-        a, b = _cz_cislo_slovy(int(cela)), _cz_cislo_slovy(int(des))
-        return f"{a} celá {b}" if a and b else m.group(0)
     return _CZ_DESETINNE_RE.sub(_rep, text)
 
 
@@ -9656,7 +9670,8 @@ class GuestTTSRequest(BaseModel):
 async def guest_tts(req: GuestTTSRequest, request: Request):
     """Převede text odpovědi na řeč (MP3). Rate-limit proti zneužití nákladů."""
     _rl_key = (req.device_id or "").strip()[:64] or _client_ip(request)
-    if not _rate_limit_ok("tts:" + _rl_key, max_hits=30):
+    # 60 za minutu: od 24. 11. 2026 se dlouhá odpověď čte celá, po částech (víc volání).
+    if not _rate_limit_ok("tts:" + _rl_key, max_hits=60):
         raise HTTPException(429, "Příliš mnoho požadavků na hlas. Zkuste to za chvíli.")
     text = (req.text or "").strip()
     if not text:
@@ -9672,6 +9687,11 @@ async def guest_tts(req: GuestTTSRequest, request: Request):
     # dořeší obecné zjednodušení celých hodin beze změny chování.
     _lang2 = (req.language or "").strip().lower()[:2]
     if _lang2 == "cs":
+        # Jednotky NEJDŘÍV („2,1 m" → „dvě celé jedna metru"), dokud u nich stojí číslice.
+        try:
+            text = tts_units.cz_units_for_speech(text)
+        except Exception:
+            logging.exception("tts_units selhal")
         text = _cz_numbers_for_speech(text)
     elif _lang2 in _SLAV:
         text = _slav_numbers_for_speech(_lang2, text)
