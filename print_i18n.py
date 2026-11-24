@@ -137,6 +137,13 @@ _T = {
                scan="סרקו אותי", long="סרקו לקבלת הקונסיירז׳ האישי שלכם", noapp="ללא התקנת אפליקציה", langs="יותר מ-100 שפות"),
 }
 
+# „Pokoj“ na kartičkách do pokojů
+_ROOM = {"en": "Room", "cs": "Pokoj", "sk": "Izba", "de": "Zimmer", "fr": "Chambre", "it": "Camera", "es": "Habitación",
+         "pl": "Pokój", "hu": "Szoba", "nl": "Kamer", "pt": "Quarto", "ru": "Номер", "uk": "Номер", "ja": "客室",
+         "zh": "客房", "ko": "객실", "el": "Δωμάτιο", "sv": "Rum", "da": "Værelse", "no": "Rom", "fi": "Huone",
+         "ro": "Camera", "bg": "Стая", "hr": "Soba", "sl": "Soba", "sr": "Soba", "tr": "Oda", "et": "Tuba",
+         "lv": "Numurs", "lt": "Kambarys", "ar": "غرفة", "he": "חדר"}
+
 # pořadí ve výběru jazyka: nejčastější napřed
 ORDER = ["en", "cs", "sk", "de", "fr", "it", "es", "pl", "hu", "nl", "pt", "uk", "ru",
          "sv", "da", "no", "fi", "ro", "bg", "hr", "sl", "sr", "el", "tr", "et", "lv", "lt",
@@ -161,6 +168,7 @@ def get(lang: str) -> dict:
     t.setdefault("rtl", False)
     t["code"] = code
     t["tag"] = t["h"].replace("<br>", " ")
+    t["room"] = _ROOM[code]
     return t
 
 
@@ -170,3 +178,4 @@ def options() -> list:
 
 
 assert set(ORDER) == set(_T), "ORDER a _T se rozcházejí"
+assert set(_ROOM) == set(_T), "_ROOM a _T se rozcházejí"

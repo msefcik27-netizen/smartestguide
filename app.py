@@ -724,7 +724,7 @@ app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), check_dir=False), name="static")  # self-host fotek, fontů a log (GDPR — nic z Google/Pexels CDN)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.28"
+APP_VERSION = "0.5.29"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -3087,7 +3087,7 @@ def generate_qr_poster(hotel_id: str, request: Request):
     has_local = local_lang != "en"
     _pl_default = local_lang if has_local else ("cs" if is_cs else "en")
     _pl_opts = "".join('<option value="' + c + '"' + (" selected" if c == _pl_default else "") + ">" + n + "</option>" for c, n in print_i18n.options())
-    _pl_map = json.dumps({c: {"n": print_i18n.get(c)["n"], "h": print_i18n.get(c)["h"]} for c, _n in print_i18n.options()}, ensure_ascii=False)
+    _pl_map = json.dumps({c: {"n": print_i18n.get(c)["n"], "h": print_i18n.get(c)["h"], "l": print_i18n.get(c)["langs"]} for c, _n in print_i18n.options()}, ensure_ascii=False)
     _pl_first = print_i18n.get(_pl_default)
     _pl_label = "Jazyk tiskovin" if is_cs else "Language of the materials"
     _pl_note = ("Všechny tiskoviny se připraví ve zvoleném jazyce. Potřebujete je i v jiném? Přepněte jazyk a otevřete je znovu." if is_cs else
@@ -3240,7 +3240,7 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
       <div class="fmt-preview" onclick="openFormat('rollup')">
         <div class="mini" style="width:68px;height:164px;padding:8px 6px">
           <div class="mini-h pl-h" style="font-size:7px">{_pl_first["h"]}</div>
-          <div class="mini-s" style="font-size:5.5px">100+ LANGUAGES</div>
+          <div class="mini-s pl-l" style="font-size:5.5px;text-transform:uppercase">{_pl_first["langs"]}</div>
           <div class="mini-qr"><div id="qr-rollup" style="width:42px;height:42px"></div></div>
           <div class="mini-u" style="font-size:5.5px">smartestguide.com</div>
         </div>
@@ -3258,7 +3258,7 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
       <div class="fmt-preview" onclick="openFormat('{flyer_secondary_url}')">
         <div class="mini" style="width:118px;height:164px">
           <div class="mini-h pl-h" style="font-size:9px">{_pl_first["h"]}</div>
-          <div class="mini-s" style="font-size:6.5px">100+ LANGUAGES</div>
+          <div class="mini-s pl-l" style="font-size:6.5px;text-transform:uppercase">{_pl_first["langs"]}</div>
           <div class="mini-qr"><div id="qr-a4-secondary" style="width:64px;height:64px"></div></div>
           <div class="mini-u" style="font-size:6.5px">smartestguide.com</div>
         </div>
@@ -3295,7 +3295,7 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
         <div class="mini" style="width:132px;height:96px;flex-direction:row;gap:9px;padding:10px 12px">
           <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left">
             <div class="mini-h pl-h" style="font-size:7px;text-align:start;max-width:62px">{_pl_first["h"]}</div>
-            <div class="mini-s" style="font-size:6px">100+ LANG</div>
+            <div class="mini-s pl-l" style="font-size:6px;text-transform:uppercase">{_pl_first["langs"]}</div>
           </div>
           <div class="mini-qr"><div id="qr-a5-secondary" style="width:52px;height:52px"></div></div>
         </div>
@@ -3354,6 +3354,7 @@ function setPrintLang(c){{
   window._printLang = c;
   document.querySelectorAll('.pl-name').forEach(function(e){{ e.textContent = PL_MAP[c].n; }});
   document.querySelectorAll('.pl-h').forEach(function(e){{ e.innerHTML = PL_MAP[c].h; }});
+  document.querySelectorAll('.pl-l').forEach(function(e){{ e.textContent = PL_MAP[c].l; }});
 }}
 function setFlyerTheme(t){{
   window._flyerTheme=t;
@@ -3368,9 +3369,11 @@ function setFlyerTheme(t){{
     return HTMLResponse(content=html)
 
 @app.get("/api/hotels/{hotel_id}/room-cards")
-def room_qr_cards(hotel_id: str, request: Request, rooms: str = ""):
+def room_qr_cards(hotel_id: str, request: Request, rooms: str = "", lang: str = ""):
     """Arch QR kartiček per pokoj (tisk). ?rooms=101-110,201,3.001 — rozsahy i jednotlivé,
-    max 200 kartiček. Každá karta nese guest URL s ?room=<pokoj> (personalizace z PMS)."""
+    max 200 kartiček. Každá karta nese guest URL s ?room=<pokoj> (personalizace z PMS).
+    ?lang= jazyk textu na kartičce (jako u ostatních tiskovin); výchozí je místní jazyk hotelu."""
+    from html import escape as _e
     db = db_load()
     hotel = db["hotels"].get(hotel_id)
     if not hotel:
@@ -3397,16 +3400,21 @@ def room_qr_cards(hotel_id: str, request: Request, rooms: str = ""):
     room_list = room_list[:200]
     if not room_list:
         return HTMLResponse("<meta charset='utf-8'><body style='font-family:sans-serif;padding:40px'>Zadejte pokoje v URL: <code>?rooms=101-110,201,3.001</code></body>")
-    is_cs = (hotel.get("country") or "").upper() in ("CZ", "SK")
-    scan_txt = "Naskenujte — váš AI concierge" if is_cs else "Scan me — your AI concierge"
-    room_lbl = "Pokoj" if is_cs else "Room"
-    sep = "&" if "?" in guest_url else "?"
+    is_cs = (hotel.get("country") or "").upper() in ("CZ", "SK")   # jazyk nápovědy pro hoteliéra, ne kartičky
+    # text na kartičce vždy v jazyce tiskoviny (nález testera 24. 11. 2026: nadpis nesmí zůstat anglicky)
+    _t = print_i18n.get(lang or get_hotel_local_lang(hotel))
+    scan_txt = f'{_t["scan"]} — {_t["tag"]}'
+    room_lbl = _t["room"]
+    _dir = ' dir="rtl"' if _t["rtl"] else ""
+    _lang_opts = "".join(f'<option value="{c}"{" selected" if c == _t["code"] else ""}>{n}</option>' for c, n in print_i18n.options())
+    from urllib.parse import quote as _q
+    _room_url = guest_url + ("&" if "?" in guest_url else "?") + "room="
     cards = "".join(f"""
     <div class="cardx">
-      <div class="ctop"><div class="cbrand">{hotel_name}</div></div>
-      <div class="cqr"><div class="qrh" data-url="{guest_url}{sep}room={r}"></div></div>
-      <div class="croom">{room_lbl} <b>{r}</b></div>
-      <div class="cscan">{scan_txt}</div>
+      <div class="ctop"><div class="cbrand">{_e(hotel_name)}</div></div>
+      <div class="cqr"><div class="qrh" data-url="{_e(_room_url + _q(r, safe=''))}"></div></div>
+      <div class="croom"{_dir}>{room_lbl} <b>{_e(r)}</b></div>
+      <div class="cscan"{_dir}>{scan_txt}</div>
       <div class="csg" translate="no"><img src="/static/img/logo-inverse.svg" alt=""/>SmartestGuide</div>
     </div>""" for r in room_list)
     html = f"""<!DOCTYPE html><html><head><meta charset="utf-8">
@@ -3433,7 +3441,8 @@ body{{margin:0;background:#f6f8fc;font-family:'Manrope',sans-serif;padding:24px}
 @media print{{.btn,.hint{{display:none}}body{{background:#fff;padding:0}}.sheet{{gap:4mm}}@page{{margin:8mm}}}}
 </style></head><body>
 <button class="btn" onclick="window.print()">🖨️ Tisknout / PDF</button>
-<div class="hint">{'Kartičky 85×54 mm (vizitkový formát) — vytiskněte, rozstříhejte a umístěte na pokoje. QR každé kartičky nese číslo pokoje → Alex zná pobyt hosta.' if is_cs else 'Cards 85×54 mm (business-card size) — print, cut and place in rooms. Each QR carries the room number → Alex knows the guest stay.'} ({len(room_list)})</div>
+<div class="hint">{'Kartičky 85×54 mm (vizitkový formát) — vytiskněte, rozstříhejte a umístěte na pokoje. QR každé kartičky nese číslo pokoje → Alex zná pobyt hosta.' if is_cs else 'Cards 85×54 mm (business-card size) — print, cut and place in rooms. Each QR carries the room number → Alex knows the guest stay.'} ({len(room_list)})
+ &nbsp;·&nbsp; {'Jazyk kartiček' if is_cs else 'Card language'}: <select onchange="var u=new URL(location.href);u.searchParams.set('lang',this.value);location.href=u.toString()">{_lang_opts}</select></div>
 <div class="sheet">{cards}</div>
 <script>
 (function(){{function draw(){{if(!window.qrcode){{setTimeout(draw,120);return;}}

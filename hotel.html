@@ -2314,6 +2314,7 @@ async function loadInvoicesSection(){
 function openRoomCards(hid){
   const v=(document.getElementById('rc-rooms')||{}).value||'';
   if(!v.trim()){alert('Zadejte čísla pokojů — např. 101-110, 201');return;}
+  // jazyk kartiček = místní jazyk hotelu; na stránce kartiček jde přepnout na kterýkoli z jazyků tiskovin
   window.open('/api/hotels/'+hid+'/room-cards?rooms='+encodeURIComponent(v.trim()),'_blank');
 }
 async function loadGroupSection(){
