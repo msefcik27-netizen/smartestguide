@@ -35,7 +35,7 @@ def norm(q: str) -> str:
 # když odpověď mimo telefonní čísla neobsahuje žádný konkrétní údaj (čas, cenu, číslo).
 _NEVIM = (
     "i don't have", "i do not have", "i'm not sure", "i am not sure", "no information", "not sure",
-    "nemám", "nemam", "bohužel nevím", "bohuzel nevim", "nevím", "nemáme tu informaci",
+    "bohužel nevím", "bohuzel nevim", "nevím", "nemáme tu informaci",
     "žádné informace", "zadne informace", "leider", "désolé je n'ai pas", "no tengo esa información",
 )
 _NA_RECEPCI = ("kontaktujte recepci", "contact the reception", "ask the reception", "ask at reception")
@@ -45,7 +45,8 @@ _TELEFON = re.compile(r"\+?\d[\d  ().-]{7,}\d")
 def looks_unanswered(reply: str) -> bool:
     """True, když odpověď vypadá, že Alex informaci neměla (dotaz pak jde do „Alex se učí“)."""
     low = str(reply or "").lower()
-    if any(m in low for m in _NEVIM):
+    # „nemám (tu informaci)“ ano, ale „nabíječku nemáme“ je platná odpověď hotelu
+    if any(m in low for m in _NEVIM) or re.search(r"\bnem[áa]m\b", low):
         return True
     if any(m in low for m in _NA_RECEPCI):
         return not re.search(r"\d", _TELEFON.sub(" ", low))

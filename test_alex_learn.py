@@ -89,6 +89,8 @@ def test_looks_unanswered():
     assert al.looks_unanswered("I don't have that information.")
     assert not al.looks_unanswered("Bazén je otevřen denně od 7:00 do 21:00.")
     assert not al.looks_unanswered("")
+    assert not al.looks_unanswered("Nabíječku pro elektromobily v hotelové garáži nemáme.")
+    assert al.looks_unanswered("Tuhle informaci bohužel nemám.")
 
 
 if __name__ == "__main__":
