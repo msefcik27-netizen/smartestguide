@@ -262,11 +262,14 @@ function render(){
 
   // 7b) Hodnocení odpovědí palcem
   const rt = p.ratings || {total:0}, rall = o.ratings || {};
+  const RT_A = `href="/portal?token=${TQ}&blok=ratings#alex" target="_top" onclick="try{if(EMBED&&parent.openRatingsBlock){parent.openRatingsBlock();return false}}catch(e){}"`;
   let rb;
   if(rt.total){
-    rb = `<div class="kpis">${kpi('👍 '+nf(rt.up), L('rt_up'))}${kpi('👎 '+nf(rt.down), L('rt_down'))}${kpi(rt.satisfied_pct+' %', L('rt_sat'))}</div>`;
+    // čísla jsou proklikávací: otevřou v portálu blok „Hodnocení odpovědí“
+    const rlink = inner => `<a ${RT_A} style="text-decoration:none;color:inherit;cursor:pointer;display:block" title="${esc(L('rt_go'))}">${inner}</a>`;
+    rb = `<div class="kpis">${rlink(kpi('👍 '+nf(rt.up), L('rt_up')+' ›'))}${rlink(kpi('👎 '+nf(rt.down), L('rt_down')+' ›'))}${rlink(kpi(rt.satisfied_pct+' %', L('rt_sat')+' ›'))}</div>`;
   } else rb = `<div class="empty">${L('rt_none')}</div>`;
-  if(rall.waiting) rb += `<div class="legend noprint"><span style="font-weight:600">${esc(L('rt_wait')(rall.waiting))}</span><a class="btn" href="/portal?token=${TQ}#alex" target="_top">${L('rt_go')}</a></div>`;
+  if(rall.waiting) rb += `<div class="legend noprint"><span style="font-weight:600">${esc(L('rt_wait')(rall.waiting))}</span><a class="btn" ${RT_A}>${L('rt_go')}</a></div>`;
   html += card('', L('rt_t'), L('rt_d'), rb);
 
   // 8) Objednávky

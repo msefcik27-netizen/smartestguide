@@ -2615,6 +2615,7 @@ const LEARN_T = {
 };
 let _learnData=null, _learnDrafts={}, _learnDeepLinkDone=false;
 function openLearnBlock(){ PORTAL_SOLO.alex=null; openPortalBlock('alex','learn-section'); }
+function openRatingsBlock(){ PORTAL_SOLO.alex=null; openPortalBlock('alex','ratings-section'); }
 async function learnPost(path, body, okMsg){
   const L=LEARN_T[portalLang==='en'?'en':'cs'];
   try{
@@ -2802,6 +2803,7 @@ const RT_T = {
       unans:'Dotazy bez odpovědi', fixed:'Vaše oprava', doneH:'Už posouzené odpovědi', doneNone:'Zatím jste žádnou odpověď neposoudili.',
       upTip:'U kladně hodnocených odpovědí text neukládáme — není co opravovat.', downTip:'Ukázat odpovědi s palcem dolů — čekající i už posouzené',
       satTip:'Ukázat odpovědi, které spokojenost snižují', waitTip:'Ukázat odpovědi, které čekají na vaše posouzení', unansTip:'Otevřít dotazy, na které Alex neznala odpověď',
+      waitSum:(a,v)=>`${a} ${a===1?'odpověď':(a<5?'odpovědi':'odpovědí')}, dohromady ${v}× palec dolů (stejnou odpověď může označit víc hostů)`,
       you:(o,b)=>`Vy jste posoudili: ${o}× v pořádku, ${b}× špatně`},
   en:{title:'Answer ratings', desc:'how guests rate Alex\'s answers — and which ones did not help',
       up:'Thumbs up', down:'Thumbs down', sat:'Satisfaction', wait:'Waiting for you',
@@ -2813,9 +2815,10 @@ const RT_T = {
       unans:'Unanswered questions', fixed:'Your correction', doneH:'Answers you already reviewed', doneNone:'You have not reviewed any answer yet.',
       upTip:'We do not store the text of positively rated answers — there is nothing to fix.', downTip:'Show thumbs-down answers — waiting and already reviewed',
       satTip:'Show the answers that lower satisfaction', waitTip:'Show answers waiting for your review', unansTip:'Open the questions Alex could not answer',
+      waitSum:(a,v)=>`${a} ${a===1?'answer':'answers'}, ${v} thumbs down in total (several guests can rate the same answer)`,
       you:(o,b)=>`Your review: ${o}× fine, ${b}× wrong`}
 };
-let _rtData=null;
+let _rtData=null, _rtDeepLinkDone=false;
 // klik na dlaždici s číslem: sjede na příslušný seznam a krátce ho zvýrazní
 function rtGo(id){
   const e=document.getElementById(id); if(!e) return;
@@ -2840,7 +2843,10 @@ async function loadRatingsSection(data){
   let d=data;
   if(!d){ try{ const r=await fetch(`${API}/api/hotel-portal/ratings?token=${token}`); if(!r.ok) throw 0; d=await r.json(); }catch(e){ if(!_rtData) el.innerHTML=''; return; } }
   _rtData=d;
+  // odkaz z analytiky: /portal?token=…&blok=ratings#alex
+  if(!_rtDeepLinkDone && new URLSearchParams(location.search).get('blok')==='ratings'){ _rtDeepLinkDone=true; setTimeout(()=>{ try{ openRatingsBlock(); }catch(e){} },0); }
   const L=RT_T[portalLang==='en'?'en':'cs'], s=d.summary||{};
+  const waitVotes=(d.down||[]).reduce((t,x)=>t+(parseInt(x.n)||1),0);
   const inp='width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 10px;font-family:inherit';
   const btnS='background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text);padding:7px 12px;font-size:12.5px;cursor:pointer';
   const chip=(label,n,color,go,tip)=>`<button type="button" onclick="${go}" title="${hdEsc(tip||'')}" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;min-width:110px;text-align:center;cursor:pointer;font-family:inherit"><div style="font-size:22px;font-weight:800;color:${color}">${n}</div><div style="font-size:11px;color:var(--muted)">${label} ›</div></button>`;
@@ -2853,7 +2859,7 @@ async function loadRatingsSection(data){
     </div>`).join('');
   const rows=(d.down||[]).map((x,i)=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px">
       <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">${L.q}</div>
-        <span style="margin-left:auto;font-size:11.5px;color:var(--muted);white-space:nowrap">${x.lang?hdEsc(String(x.lang).toUpperCase())+' · ':''}${x.n>1?L.times(x.n)+' · ':''}${fmtReqTime(x.at)}</span></div>
+        <span style="margin-left:auto;font-size:11.5px;color:var(--muted);white-space:nowrap">${x.lang?hdEsc(String(x.lang).toUpperCase())+' · ':''}${x.n>1?`<b style="color:#ff4f6a">${L.times(x.n)}</b> · `:''}${fmtReqTime(x.at)}</span></div>
       <div style="font-weight:700;font-size:14px;overflow-wrap:anywhere;margin-bottom:8px">${hdEsc(x.q)}</div>
       <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">${L.a}</div>
       <div style="font-size:13px;color:var(--muted);overflow-wrap:anywhere;margin-bottom:10px">${hdEsc(x.a)}</div>
@@ -2875,7 +2881,7 @@ async function loadRatingsSection(data){
     <div class="section-body ${oc}">
       ${s.total?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">${chip('👍 '+L.up,s.up||0,'#2ecc87',"toast(RT_T[portalLang==='en'?'en':'cs'].upTip)",L.upTip)}${chip('👎 '+L.down,s.down||0,'#ff4f6a',"rtGo('rt-wait')",L.downTip)}${chip(L.sat,(s.satisfied_pct==null?'–':s.satisfied_pct+' %'),'var(--accent)',"rtGo('rt-wait')",L.satTip)}${chip(L.wait,s.waiting||0,'#ffaa33',"rtGo('rt-wait')",L.waitTip)}${chip('🎓 '+L.unans,unans,'#ffaa33',"openLearnBlock()",L.unansTip)}</div>
         ${(s.hotel_ok||s.hotel_bad)?`<div style="font-size:12px;color:var(--muted);margin-bottom:14px">${L.you(s.hotel_ok||0,s.hotel_bad||0)}</div>`:'<div style="margin-bottom:14px"></div>'}
-        <div id="rt-wait" style="${h4};scroll-margin-top:80px">${L.waitH}</div>
+        <div id="rt-wait" style="${h4};scroll-margin-top:80px">${L.waitH}${(d.down||[]).length?` <span style="text-transform:none;letter-spacing:0;font-weight:600">— ${L.waitSum((d.down||[]).length,waitVotes)}</span>`:''}</div>
         ${rows||`<div style="font-size:13px;color:var(--muted)">${L.waitNone}</div>`}
         <div id="rt-done" style="${h4};margin-top:18px;scroll-margin-top:80px">${L.doneH}</div>
         ${doneRows||`<div style="font-size:13px;color:var(--muted)">${L.doneNone}</div>`}`
