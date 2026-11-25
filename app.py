@@ -728,7 +728,7 @@ app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan,
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), check_dir=False), name="static")  # self-host fotek, fontů a log (GDPR — nic z Google/Pexels CDN)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.37"
+APP_VERSION = "0.5.38"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -7053,7 +7053,7 @@ class GuestChatRequest(BaseModel):
 
 _CHAT_MODEL = "claude-haiku-4-5-20251001"
 # Modely, které smí zkušební verze na požádání použít místo výchozího (srovnání kvality a ceny).
-_CHAT_TEST_MODELS = ("claude-haiku-5-5", "claude-sonnet-5-5")
+_CHAT_TEST_MODELS = ("claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5")
 
 def _norm_date(s: str) -> str:
     """Normalizuje datum na YYYY-MM-DD. Přijímá i DD.MM.YYYY / D.M.YYYY. Jinak vrací ''. """
