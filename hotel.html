@@ -124,7 +124,7 @@ html{color-scheme:light}
     @keyframes spin{to{transform:rotate(360deg)}}
 
     /* Last saved */
-    .last-saved{font-size:11px;color:var(--muted)}
+    .last-saved{font-size:12px;font-weight:600;color:var(--muted)}
   .plang-btn{background:none;border:none;color:var(--muted);font-size:11px;font-weight:700;padding:4px 7px;border-radius:5px;cursor:pointer;transition:all .15s}
 .plang-btn.active{background:var(--accent);color:#ffffff;font-weight:700}
 </style>
@@ -143,7 +143,7 @@ html{color-scheme:light}
       <button class="plang-btn" id="plb-cs" onclick="setPortalLang('cs')" title="Česky">CZ</button>
       <button class="plang-btn" id="plb-en" onclick="setPortalLang('en')" title="English">EN</button>
     </span>
-    <span class="last-saved" id="last-saved"></span>
+    <span class="last-saved" id="last-saved">Ukládá se automaticky</span>
     <span class="unsaved-dot" id="unsaved-dot"></span>
     <button class="btn btn-secondary" id="save-btn" onclick="saveAll()" title="Ukládá se automaticky — tlačítko je jen pojistka">✓ Uloženo</button>
   </div>
@@ -201,6 +201,10 @@ html{color-scheme:light}
   .ptile-t{font-family:var(--font-head);font-size:14px;font-weight:700;line-height:1.3}
   .ptile-d{font-size:12px;color:var(--muted);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .ptile-s{margin-top:auto;font-size:12px}
+  /* Dlaždice, která čeká na hotel (Alex se učí s dotazy bez odpovědi) — má být vidět na první pohled */
+  .ptile.ptile-hot{border:2px solid var(--accent);background:color-mix(in srgb,var(--accent) 9%,var(--surface));padding:13px 13px 11px}
+  .ptile-pill{display:inline-block;background:var(--accent);color:#fff;font-weight:700;font-size:12.5px;line-height:1.3;padding:4px 11px;border-radius:999px}
+  .cnt-pill{display:inline-block;background:var(--accent);color:#fff;font-weight:700;font-size:12px;line-height:1.3;padding:2px 9px;border-radius:999px;margin-left:6px;vertical-align:middle}
 </style>
 <div id="portal-sidebar" style="width:280px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:20px 0;position:sticky;top:60px;height:calc(100vh - 60px);overflow-y:auto">
   <div style="padding:0 16px;margin-bottom:8px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:600">Sekce</div>
@@ -209,6 +213,65 @@ html{color-scheme:light}
 
 <!-- Hlavní obsah -->
 <div style="flex:1;min-width:0;overflow-y:auto">
+<!-- Chytré hledání: jedno pole nad dokumenty hotelu, odpověďmi recepce i nastavením portálu (smart_search.py) -->
+<style>
+  #sq-wrap{max-width:100%;margin:16px 0 0;padding:0 32px;position:relative;z-index:9}
+  #sq-box{display:flex;align-items:center;gap:10px;background:var(--surface);border:2px solid var(--border);border-radius:14px;padding:4px 8px 4px 16px;transition:border-color .15s, box-shadow .15s}
+  #sq-box:focus-within{border-color:var(--accent);box-shadow:0 0 0 4px rgba(255,107,0,.14)}
+  #sq-ico{font-size:18px;flex-shrink:0}
+  #sq-input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--text);font:500 16px var(--font-body,inherit);padding:13px 0}
+  #sq-input::placeholder{color:var(--muted);font-weight:400}
+  #sq-kbd{font-size:11px;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:3px 7px;white-space:nowrap}
+  #sq-clear{all:unset;cursor:pointer;color:var(--muted);font-size:18px;padding:4px 8px;border-radius:8px}
+  #sq-clear:hover{color:var(--text)}
+  #sq-go{flex-shrink:0;font-size:13px;padding:9px 16px}
+  #sq-panel{position:absolute;left:32px;right:32px;top:100%;margin-top:6px;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.18);max-height:min(72vh,720px);overflow-y:auto;padding:6px 0 10px}
+  .sq-h{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:700;padding:12px 18px 6px;display:flex;justify-content:space-between;gap:8px}
+  .sq-item{display:block;width:100%;box-sizing:border-box;text-align:left;background:transparent;border:0;border-left:3px solid transparent;color:var(--text);font:inherit;padding:9px 18px 9px 15px;cursor:pointer}
+  .sq-item:hover,.sq-item.sq-on{background:var(--bg3);border-left-color:var(--accent)}
+  .sq-t{font-size:14px;font-weight:600;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+  .sq-s{font-size:13px;color:var(--muted);line-height:1.5;margin-top:3px}
+  .sq-s mark,.sq-t mark{background:rgba(255,107,0,.22);color:inherit;border-radius:3px;padding:0 1px}
+  .sq-tag{font-size:10.5px;font-weight:600;color:var(--muted);border:1px solid var(--border);border-radius:20px;padding:1px 8px;white-space:nowrap}
+  .sq-full{font-size:13px;line-height:1.6;white-space:pre-wrap;margin-top:8px;padding:10px 12px;background:var(--bg3);border-radius:8px;color:var(--text)}
+  .sq-note{font-size:13px;color:var(--muted);padding:8px 18px;line-height:1.5}
+  .sq-note a,.sq-ans a{color:var(--accent);cursor:pointer;text-decoration:none}
+  .sq-fix{font-size:13px;padding:10px 18px 2px}
+  .sq-fix a{color:var(--accent);cursor:pointer}
+  .sq-ans{margin:8px 14px 4px;padding:14px 16px;border:1px solid var(--accent2,#00d4aa);border-radius:12px;background:rgba(0,212,170,.07);font-size:14px;line-height:1.6}
+  .sq-ans sup{color:var(--accent2,#00d4aa);font-weight:700;font-size:11px;margin-left:1px}
+  .sq-ans-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--muted)}
+  .sq-fb button{all:unset;cursor:pointer;padding:3px 8px;border-radius:8px;font-size:15px}
+  .sq-fb button:hover{background:var(--bg3)}
+  .sq-chips{display:flex;flex-wrap:wrap;gap:8px;padding:4px 18px 8px}
+  .sq-chip{all:unset;cursor:pointer;font-size:13px;border:1px solid var(--border);border-radius:20px;padding:5px 12px;color:var(--text)}
+  .sq-chip:hover,.sq-chip.sq-on{border-color:var(--accent);color:var(--accent)}
+  .sq-prop-btn{all:unset;cursor:pointer;font-size:13px;font-weight:600;color:var(--accent);border:1px dashed var(--accent);border-radius:20px;padding:7px 16px}
+  .sq-prop-btn:hover{background:rgba(255,107,0,.08)}
+  .sq-prop{margin:6px 14px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;font-size:13px}
+  .sq-prop-done{background:rgba(0,212,170,.07);border-color:var(--accent2,#00d4aa)}
+  .sq-prop-q{font-size:14px;font-weight:600}
+  .sq-prop-opts{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0 0}
+  .sq-prop-opts .sq-chip{text-align:left;line-height:1.4;border-radius:12px}
+  .sq-prop textarea{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font:inherit;font-size:13px;padding:8px 10px;margin:8px 0;resize:vertical}
+  .sq-teach{margin:6px 14px;padding:12px 14px;border:1px dashed var(--border);border-radius:12px}
+  .sq-teach textarea{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font:inherit;font-size:13px;padding:8px 10px;margin:8px 0;resize:vertical}
+  @keyframes sqflash{0%,60%{background:rgba(255,107,0,.25)}100%{background:transparent}}
+  .sq-flash{animation:sqflash 2.2s ease-out}
+  @media (max-width:820px){ #sq-wrap{padding:0 14px} #sq-panel{left:14px;right:14px} #sq-kbd{display:none} #sq-go{padding:9px 12px} }
+</style>
+<div class="container" id="sq-wrap" role="search">
+  <div id="sq-box">
+    <span id="sq-ico" aria-hidden="true">🔎</span>
+    <input id="sq-input" type="text" inputmode="search" enterkeyhint="search" autocomplete="off" spellcheck="false" maxlength="300" role="combobox" aria-expanded="false" aria-controls="sq-panel"
+           placeholder="Zeptejte se nebo hledejte v dokumentech hotelu a v portálu…" aria-label="Hledat">
+    <button id="sq-clear" type="button" hidden aria-label="Smazat" title="Smazat">×</button>
+    <span id="sq-kbd" title="Klávesová zkratka">Ctrl K</span>
+    <button id="sq-go" type="button" class="btn btn-primary">Hledat</button>
+  </div>
+  <div id="sq-panel" hidden></div>
+</div>
+
 <div class="container" id="completeness-banner" style="max-width:100%;margin:16px 0 0;padding:0 32px"></div>
 
 <div class="container" style="max-width:100%;padding:10px 32px 0;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
@@ -245,7 +308,7 @@ const EN_MAP = {
   "⊞ Rozbalit vše":"⊞ Expand all","⊟ Sbalit vše":"⊟ Collapse all",
   "Rozbalit všechny sekce":"Expand all sections","Sbalit všechny sekce":"Collapse all sections",
   "Rozbalit":"Expand","Sbalit":"Collapse",
-  "✓ Uloženo":"✓ Saved","💾 Uložit teď":"💾 Save now","Ukládá se…":"Saving…","✓ Uloženo v":"✓ Saved at",
+  "✓ Uloženo":"✓ Saved","💾 Uložit teď":"💾 Save now","Ukládá se…":"Saving…","✓ Uloženo v":"✓ Saved at","✓ Automaticky uloženo v":"✓ Auto-saved at",
   "Ukládá se automaticky — tlačítko je jen pojistka":"Saves automatically — this button is just a backup",
   "Načítám data hotelu…":"Loading hotel data…","⛔ Přístup odepřen":"⛔ Access denied",
   "Tento odkaz není platný. Požádej správce SMARTEST GUIDE o nový přístupový odkaz.":"This link is not valid. Ask SMARTEST GUIDE support for a new access link.",
@@ -271,7 +334,8 @@ const EN_MAP = {
   "Chybí počet lůžek!":"Bed count is missing!",
   "Doplňte počet lůžek v sekci Základní provozní informace — jinak nelze správně vypočítat cenu předplatného a AI nemá přesné informace o kapacitě hotelu.":"Add the bed count in the Basic operational info section — otherwise the subscription price can't be calculated correctly and the AI lacks exact capacity information.",
   "Jak to funguje:":"How it works:",
-  "Vyplňte informace o vašem hotelu co nejpřesněji. Tyto informace bude avatar sdělovat vašim hostům. Čím více vyplníte, tím lépe bude avatar sloužit. Po každé úpravě klikněte na":"Fill in your hotel information as precisely as possible. The avatar shares it with your guests. The more you fill in, the better it serves. After each change click",
+  "Vyplňte informace o vašem hotelu co nejpřesněji. Tyto informace bude avatar sdělovat vašim hostům. Čím více vyplníte, tím lépe bude avatar sloužit. Změny se ukládají samy, nic nemusíte potvrzovat.":"Fill in your hotel information as precisely as possible. The avatar shares it with your guests. The more you fill in, the better it serves. Changes are saved automatically, there is nothing to confirm.",
+  "Ukládá se automaticky":"Saves automatically",
   "Uložit změny":"Save changes",
   // ── Názvy a popisy sekcí ──
   "Základní provozní informace":"Basic operational info","Check-in, check-out, stravování":"Check-in, check-out, meals",
@@ -346,6 +410,77 @@ const EN_MAP = {
   "např. Konferenční sál Morava je v 1. patře, výtahem nebo schodištěm vpravo od recepce.":"e.g. The Morava conference hall is on the 1st floor, by lift or stairs right of reception.",
   "např. Obchod se suvenýry je v přízemí vlevo od recepce, otevřeno 9:00–20:00.":"e.g. The souvenir shop is on the ground floor left of reception, open 9:00–20:00.",
   "Přidejte libovolný počet vlastních míst — knihovna, dětský koutek, lyžárna, prodejna…":"Add any number of custom places — library, kids corner, ski room, shop…",
+  "Parkování a garáž":"Parking & garage","Vejde se auto hosta? Rozměry, ceny a další parkoviště v okolí":"Will the guest’s car fit? Dimensions, prices and other car parks nearby",
+  "💡 Alex hostovi řekne, jestli se jeho auto vejde":"💡 Alex tells the guest whether their car will fit",
+  "Zadejte každé místo, kde hosté mohou parkovat: garáž, parkoviště u hotelu i parkoviště v okolí. U garáže vyplňte":"Enter every place where guests can park: the garage, the hotel car park and car parks nearby. For the garage, fill in",
+  "největší auto, které se vejde":"the largest car that fits","(výška, šířka, délka).":"(height, width, length).",
+  "Když se host zeptá, Alex se doptá na přesný model auta, porovná rozměry a rovnou nabídne i ostatní místa s cenou a cestou. Těsné případy pošle na recepci.":"When a guest asks, Alex checks the exact car model, compares the dimensions and offers the other places with price and directions. Tight cases are referred to reception.",
+  "+ Přidat parkovací místo":"+ Add parking place","Zatím žádné místo. Přidejte garáž nebo parkoviště.":"No place yet. Add a garage or a car park.",
+  "Garáž":"Garage","Parkoviště":"Car park","Ulice / parkovací zóna":"Street / parking zone",
+  "Ostraha: nevyplněno":"Security: not filled in","Hlídané obsluhou":"Attended","Pod kamerami":"CCTV","Bez ostrahy":"No security",
+  "Největší auto, které se vejde (v metrech)":"Largest car that fits (in metres)",
+  "Max. výška vozu":"Max. vehicle height","Max. šířka vozu":"Max. vehicle width","Max. délka vozu":"Max. vehicle length",
+  "Cena":"Price","Vzdálenost od hotelu":"Distance from hotel","Provozní doba":"Opening hours","Adresa (pro navigaci)":"Address (for navigation)",
+  "Ostraha":"Security","Jak se tam dostat":"How to get there","Poznámka":"Note",
+  "Nutná rezervace předem":"Reservation required","Nabíječka pro elektromobily":"EV charger",
+  "Název (např. Garáž hotelu, Parkoviště na náměstí)":"Name (e.g. Hotel garage, Car park on the square)",
+  "např. 300 m, 4 minuty pěšky":"e.g. 300 m, 4 minutes on foot","např. 450 Kč/noc":"e.g. 450 CZK/night","např. nonstop":"e.g. 24/7",
+  "např. Vjezd do garáže je z ulice Kněžská, zazvoňte u vrat na recepci.":"e.g. The garage entrance is from Kněžská street, ring reception at the gate.",
+  "např. Jen 6 míst, velká auta na místa č. 1 a 2":"e.g. Only 6 spaces, large cars to spaces 1 and 2",
+  "Nejvýše 8 parkovacích míst.":"At most 8 parking places.",
+  "Další kontakty":"More contacts","+ Přidat kontakt":"+ Add contact","Zatím žádný další kontakt.":"No extra contact yet.",
+  "Přidejte libovolný další kontakt a pojmenujte si ho po svém: Recepce 2, Masáže, Půjčovna kol… Do poznámky napište, co tam host vyřídí (například druhy masáží, ceny a jak se platí). Alex to hostům řekne.":"Add any extra contact and name it your way: Reception 2, Massages, Bike rental… In the note, write what guests can arrange there (for example massage types, prices and how to pay). Alex will tell the guests.",
+  "Typ":"Type","📞 Telefon":"📞 Phone","✉️ E-mail":"✉️ E-mail","💬 WhatsApp":"💬 WhatsApp",
+  "Název (vyberte nebo napište vlastní)":"Name (choose or type your own)","Číslo nebo adresa":"Number or address","např. Masáže":"e.g. Massages",
+  "Poznámka pro hosty (co tu vyřídí, ceny, způsob platby)":"Note for guests (what they can arrange, prices, how to pay)",
+  "např. Klasická masáž 60 min 900 Kč, thajská 90 min 1 500 Kč. Platba kartou na místě nebo na hotelový účet.":"e.g. Classic massage 60 min CZK 900, Thai massage 90 min CZK 1,500. Pay by card on the spot or charge it to the room.",
+  "Nejvýše 20 dalších kontaktů.":"At most 20 extra contacts.",
+  "Kontakt bez platného čísla nebo e-mailu se neuloží — doplňte ho prosím.":"A contact without a valid number or e-mail will not be saved — please complete it.",
+  "Cesta z parkoviště do hotelu (pěšky, s kufry)":"Way from the car park to the hotel (on foot, with luggage)",
+  "Návod k parkovacímu automatu (Alex ho hostovi přeloží)":"Pay machine instructions (Alex translates them for the guest)",
+  "Auta na LPG":"LPG cars","Auta na CNG":"CNG cars","nevyplněno":"not filled in","Vjezd povolen":"Entry allowed","Vjezd zakázán":"Entry not allowed",
+  "např. Z garáže výtahem do přízemí, vyjdete přímo u recepce. Bez schodů.":"e.g. Take the lift from the garage to the ground floor, you come out right at reception. No stairs.",
+  "např. 1. Zadejte SPZ. 2. Zvolte dobu parkování. 3. Plaťte kartou nebo mincemi. 4. Lístek dejte za sklo.":"e.g. 1. Enter your plate number. 2. Choose the parking time. 3. Pay by card or coins. 4. Put the ticket behind the windscreen.",
+  "🔒 Kde leží vaše data a jak je chráníme →":"🔒 Where your data lives and how we protect it →",
+  "🛠 Helpdesk":"🛠 Helpdesk","Závady, úklid a přání hostů — stav, řešitel, historie":"Guest problems, cleaning and wishes — status, assignee, history",
+  "👍 Hodnocení odpovědí":"👍 Answer ratings","Jak hosté hodnotí odpovědi Alex a které jim nepomohly":"How guests rate Alex's answers and which ones did not help",
+  // ── Doporučené firmy ──
+  "Doporučené firmy":"Recommended businesses","Spřátelené firmy, jejichž letáky máte na recepci — Alex je hostům doporučí":"Partner businesses whose leaflets you have at reception — Alex will recommend them to guests",
+  "💡 Doporučte hostům firmy, se kterými spolupracujete":"💡 Recommend businesses you work with to your guests",
+  "Půjčovna kol, restaurace, průvodce, vyhlídkové lety… Firmu vyplňte ručně,":"Bike rental, restaurants, guides, sightseeing flights… Fill in the business by hand,",
+  "načtěte z jejího webu":"load it from its website",", nebo":", or","vyfoťte její leták":"take a photo of its leaflet",
+  "mobilem či naskenujte. Údaje vytáhne AI, vy je jen zkontrolujete a uložíte.":"with your phone or scan it. AI extracts the details, you just check and save them.",
+  "Alex firmu nabídne, když se host zeptá na něco, co firma dělá, a vždy řekne, že jde o doporučení hotelu. Fotky letáku neukládáme, uloží se jen údaje, které potvrdíte.":"Alex offers the business when a guest asks about something it does, and always says it is the hotel’s recommendation. Leaflet photos are not stored, only the details you confirm.",
+  "+ Přidat doporučenou firmu":"+ Add recommended business",
+  "Zatím žádná firma. Přidejte třeba půjčovnu kol nebo restauraci, jejíž leták máte na recepci.":"No business yet. Add e.g. a bike rental or a restaurant whose leaflet you have at reception.",
+  "Název firmy (např. Půjčovna kol Vltava)":"Business name (e.g. Vltava Bike Rental)","Obor (např. půjčovna kol)":"Type (e.g. bike rental)",
+  "Firmu doporučujeme hostům z vlastní vůle, abychom pomohli její propagaci. Souhlasíme, že SmartestGuide načte její veřejný web nebo leták a Alex ji bude hostům nabízet jako doporučení hotelu.":"We recommend this business to guests of our own free will to help promote it. We agree that SmartestGuide reads its public website or leaflet and Alex offers it to guests as the hotel’s recommendation.",
+  "Web firmy (např. www.kolavltava.cz)":"Business website (e.g. www.kolavltava.cz)","🌐 Načíst z webu":"🌐 Load from website","📷 Vyfotit leták":"📷 Photo of leaflet",
+  "Vyplněno ručně":"Filled in by hand","Načteno z webu — zkontrolujte":"Loaded from website — please check","Načteno z letáku — zkontrolujte":"Loaded from leaflet — please check",
+  "Leták: líc i rub najednou, nejvýše 4 fotky nebo PDF.":"Leaflet: front and back at once, at most 4 photos or a PDF.",
+  "Co firma nabízí":"What the business offers","Výhoda pro vaše hosty":"Perk for your guests","Otevírací doba / sezóna":"Opening hours / season",
+  "Ceny":"Prices","Další podrobnosti pro Alexe":"More details for Alex",
+  "např. Půjčovna kol a elektrokol, vydání do 10 minut, dětské sedačky.":"e.g. Bike and e-bike rental, ready in 10 minutes, child seats.",
+  "např. 10 % sleva s klíčem od pokoje":"e.g. 10% discount with your room key","např. Lannova 12, České Budějovice":"e.g. Lannova 12, České Budějovice",
+  "např. duben–říjen 9–19":"e.g. April–October 9 am–7 pm","např. kolo 350 Kč/den":"e.g. bike 350 CZK/day",
+  "např. Nutná rezervace den předem, helmy zdarma, mluví německy.":"e.g. Book a day ahead, free helmets, German spoken.",
+  "Nejvýše 20 doporučených firem.":"At most 20 recommended businesses.",
+  "U firmy chybí potvrzení doporučení — Alex ji hostům nenabídne.":"A business lacks the recommendation confirmation — Alex will not offer it to guests.",
+  "Nejdřív potvrďte, že firmu doporučujete z vlastní vůle.":"First confirm that you recommend the business of your own free will.",
+  "Zadejte web firmy.":"Enter the business website.","Načítám web firmy… (obvykle do 30 sekund)":"Loading the website… (usually under 30 seconds)",
+  "Čtu leták… (obvykle do minuty)":"Reading the leaflet… (usually under a minute)","Najednou nejvýše 4 fotky (líc, rub…).":"At most 4 photos at once (front, back…).",
+  "Hotovo. Údaje zkontrolujte a uložte.":"Done. Check the details and save.",
+  "Hotovo. Oranžová pole porovnejte s letákem — čísla se nepodařilo potvrdit. Pak uložte.":"Done. Compare the orange fields with the leaflet — the numbers could not be confirmed. Then save.",
+  "Načtení se nepovedlo. Zkuste to prosím znovu za chvíli.":"Loading failed. Please try again in a moment.",
+  "Soubor se nepodařilo přečíst. Pošlete fotku JPG/PNG nebo PDF.":"The file could not be read. Send a JPG/PNG photo or a PDF.",
+  "Soubor je příliš velký (nejvýše 8 MB).":"The file is too large (max 8 MB).",
+  "Zadejte platnou adresu webu firmy, např. www.firma.cz.":"Enter a valid business website, e.g. www.business.com.",
+  "Web firmy se nepodařilo načíst. Zkuste jinou adresu nebo leták vyfoťte.":"The website could not be loaded. Try another address or take a photo of the leaflet.",
+  "Vyberte fotku nebo PDF letáku.":"Choose a photo or PDF of the leaflet.","Soubor se nepodařilo přečíst.":"The file could not be read.",
+  "Podporujeme fotky JPG, PNG, WEBP a PDF.":"We support JPG, PNG, WEBP photos and PDF.",
+  "Z letáku se nepodařilo nic přečíst. Vyfoťte ho rovně, ostře a celý.":"Nothing could be read from the leaflet. Photograph it straight, sharp and whole.",
+  "Dnes už nelze načítat – denní limit je 30 načtení. Zkuste to zítra.":"No more loading today — the daily limit is 30. Please try tomorrow.",
+  "Načítání teď není k dispozici. Vyplňte firmu ručně.":"Loading is not available right now. Please fill in the business by hand.",
   "+ Přidat místo":"+ Add place","Název místa (např. Knihovna)":"Place name (e.g. Library)",
   "Popis cesty krok za krokem…":"Step-by-step directions…",
   // ── Služby ──
@@ -443,7 +578,7 @@ const EN_MAP = {
   "— aby Alex mohl hostům rovnou objednat služby a prodloužit pobyt, musí hotel udělit souhlas znovu (jedno kliknutí, nastavení zůstane).":"— so that Alex can book services and extend stays for your guests directly, the hotel has to grant consent again (one click, your settings stay).",
   "Udělit oprávnění →":"Grant permission →",
   "Objednávky v chatu":"Orders in chat",
-  "📊 Přehled":"📊 Overview","🏨 Profil hotelu":"🏨 Hotel profile","✦ Alex & objednávky":"✦ Alex & orders","🧾 Nasazení & účet":"🧾 Setup & account",
+  "📊 Přehled":"📊 Overview","📈 Analytika":"📈 Analytics","📚 Znalostní báze":"📚 Knowledge base","🎓 Alex se učí":"🎓 Alex learns","čeká na vaši odpověď":"waiting for your answer","čeká na reakci":"waiting for a response","Dotazy, na které Alex neznal odpověď — doplňte ji":"Questions Alex could not answer — add the answer","🏨 Profil hotelu":"🏨 Hotel profile","✦ Alex & objednávky":"✦ Alex & orders","🧾 Nasazení & účet":"🧾 Setup & account",
   "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem.":"Alex can book a service to the guest's room account or send a request to reception. Nothing is ordered until the guest confirms with a button.",
   "Alex přijme objednávku v chatu a pošle ji recepci e-mailem jako požadavek — host nemusí nikam volat. Recepce v e-mailu klikne Potvrdit nebo Nelze vyřídit (může připsat vzkaz) a host odpověď uvidí v chatu. Nic se nikam nezapisuje.":"Alex takes the order in chat and e-mails it to reception as a request — the guest doesn't have to call anyone. Reception clicks Confirm or Cannot arrange in the e-mail (optionally with a note) and the guest sees the answer in chat. Nothing is written anywhere.",
   "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem. U požadavku recepce v e-mailu klikne Potvrdit / Nelze vyřídit a host odpověď uvidí v chatu.":"Alex can book a service straight to the room account or send reception a request. Nothing is booked without the guest confirming with a button. For a request, reception clicks Confirm / Cannot arrange in the e-mail and the guest sees the answer in chat.",
@@ -600,6 +735,9 @@ function refreshStaticTexts(){
   if(co2) co2.textContent = tr('⊟ Sbalit vše');
   const sb = document.getElementById('save-btn');
   if(sb){ sb.innerHTML = hasChanges ? tr('💾 Uložit teď') : tr('✓ Uloženo'); sb.title = tr('Ukládá se automaticky — tlačítko je jen pojistka'); }
+  // Viditelná věta o automatickém ukládání (dřív jen v nápovědě pod kurzorem – nález testera 24. 11. 2026)
+  const ls = document.getElementById('last-saved');
+  if(ls && (!ls.textContent || ls.textContent==='Ukládá se automaticky' || ls.textContent==='Saves automatically')) ls.textContent = tr('Ukládá se automaticky');
 }
 function updateLangButtons(){
   document.querySelectorAll('.plang-btn').forEach(b => b.classList.toggle('active', b.id === 'plb-'+portalLang));
@@ -611,9 +749,10 @@ function setPortalLang(lang){
   localStorage.setItem('sg_portal_lang', lang);
   updateLangButtons();
   refreshStaticTexts();
+  sqLang(); _sqPortal=[]; _sqData=null;
   if(hotelData){
     renderPortal(); renderOnboarding(); loadCompleteness(); loadPaymentSection();
-    loadPmsSection(); loadOrdersSection(); loadRequestsSection(); loadGroupSection(); loadAddHotelSection(); loadInvoicesSection(); loadMonthlyReport();
+    loadPmsSection(); loadOrdersSection(); loadRequestsSection(); loadLearnSection(); loadHelpdeskSection(); loadRatingsSection(); loadGroupSection(); loadAddHotelSection(); loadInvoicesSection(); loadMonthlyReport();
     setTimeout(initEmbedCode, 100);
   }
 }
@@ -648,7 +787,7 @@ async function loadHotel() {
     renderOnboarding();
     loadCompleteness();
     loadPaymentSection();
-    loadPmsSection(); loadOrdersSection(); loadRequestsSection();
+    loadPmsSection(); loadOrdersSection(); loadRequestsSection(); loadLearnSection(); loadHelpdeskSection(); loadRatingsSection();
     loadGroupSection();
     loadAddHotelSection();
     loadInvoicesSection();
@@ -765,7 +904,8 @@ function renderPortal() {
     <div class="info-banner">
       <strong>Jak to funguje:</strong> Vyplňte informace o vašem hotelu co nejpřesněji.
       Tyto informace bude avatar sdělovat vašim hostům. Čím více vyplníte, tím lépe
-      bude avatar sloužit. Po každé úpravě klikněte na <strong>Uložit změny</strong>.
+      bude avatar sloužit. Změny se ukládají samy, nic nemusíte potvrzovat.
+      <div style="margin-top:6px"><a href="/data?lang=${portalLang==='en'?'en':'cs'}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700;text-decoration:none">🔒 ${portalLang==='en'?'Where your data lives and how we protect it':'Kde leží vaše data a jak je chráníme'} →</a></div>
     </div>
 
     <div id="group-section"></div>
@@ -773,6 +913,9 @@ function renderPortal() {
     <div id="pms-section"></div>
     <div id="orders-section"></div>
     <div id="requests-section"></div>
+    <div id="helpdesk-section"></div>
+    <div id="learn-section"></div>
+    <div id="ratings-section"></div>
 
     <div id="onboarding-wizard"></div>
 
@@ -803,6 +946,13 @@ function renderPortal() {
         ${row('Adresa', 'address', 'text', h.address, 'Václavské náměstí 1, Praha')}
         ${row('Kód země (CZ/SK/AT/DE...)', 'country', 'text', h.country, 'CZ')}
       </table>
+      <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px">Další kontakty</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:12px">Přidejte libovolný další kontakt a pojmenujte si ho po svém: Recepce 2, Masáže, Půjčovna kol… Do poznámky napište, co tam host vyřídí (například druhy masáží, ceny a jak se platí). Alex to hostům řekne.</div>
+        <datalist id="ct-presets">${CT_PRESETS.map(p => `<option value="${p}"></option>`).join('')}</datalist>
+        <div id="ct-list">${renderContacts(h.extra_contacts||[])}</div>
+        <button type="button" onclick="addContact()" class="btn btn-secondary" style="margin-top:4px;font-size:12px;padding:6px 14px">+ Přidat kontakt</button>
+      </div>
     `, ['phone','email','address'])}
 
     ${renderSection('🍽️', 'Restaurace', 'Restaurace hotelu, jídelníky a jak se k nim dostat', `
@@ -854,6 +1004,16 @@ function renderPortal() {
         </td></tr>
       </table>
     `, ['nav_pool','nav_wellness','nav_restaurant','nav_parking','nav_elevator'])}
+
+    ${renderSection('🅿️', 'Parkování a garáž', 'Vejde se auto hosta? Rozměry, ceny a další parkoviště v okolí', `
+      <div style="background:rgba(0,212,170,.06);border:1px solid rgba(0,212,170,.2);border-radius:10px;padding:16px;margin-bottom:16px;font-size:12px;color:var(--muted);line-height:1.7">
+        <div style="font-weight:700;color:#00d4aa;margin-bottom:8px;font-size:13px">💡 Alex hostovi řekne, jestli se jeho auto vejde</div>
+        <p style="margin-bottom:8px">Zadejte každé místo, kde hosté mohou parkovat: garáž, parkoviště u hotelu i parkoviště v okolí. U garáže vyplňte <strong style="color:var(--text)">největší auto, které se vejde</strong> (výška, šířka, délka).</p>
+        <p>Když se host zeptá, Alex se doptá na přesný model auta, porovná rozměry a rovnou nabídne i ostatní místa s cenou a cestou. Těsné případy pošle na recepci.</p>
+      </div>
+      <div id="pk-list">${renderParking(h.parking_places||[])}</div>
+      <button type="button" onclick="addParking()" class="btn btn-secondary" style="margin-top:4px;font-size:12px;padding:6px 14px">+ Přidat parkovací místo</button>
+    `)}
 
     ${renderSection('🏊', 'Služby hotelu & Wellness', 'Fitness, bazén, spa, doprava', `
       <table class="edit-table">
@@ -920,6 +1080,16 @@ function renderPortal() {
         Příklady: Hospoda U Chvojena (místní oblíbená, 10 min pěšky), Tajný park nad řekou (nikdo ho nezná), Ranní trh v úterý…
       </div>
     `, ['hidden_gems'])}
+
+    ${renderSection('🤝', 'Doporučené firmy', 'Spřátelené firmy, jejichž letáky máte na recepci — Alex je hostům doporučí', `
+      <div style="background:rgba(0,212,170,.06);border:1px solid rgba(0,212,170,.2);border-radius:10px;padding:16px;margin-bottom:16px;font-size:12px;color:var(--muted);line-height:1.7">
+        <div style="font-weight:700;color:#00d4aa;margin-bottom:8px;font-size:13px">💡 Doporučte hostům firmy, se kterými spolupracujete</div>
+        <p style="margin-bottom:8px">Půjčovna kol, restaurace, průvodce, vyhlídkové lety… Firmu vyplňte ručně, <strong style="color:var(--text)">načtěte z jejího webu</strong>, nebo <strong style="color:var(--text)">vyfoťte její leták</strong> mobilem či naskenujte. Údaje vytáhne AI, vy je jen zkontrolujete a uložíte.</p>
+        <p>Alex firmu nabídne, když se host zeptá na něco, co firma dělá, a vždy řekne, že jde o doporučení hotelu. Fotky letáku neukládáme, uloží se jen údaje, které potvrdíte.</p>
+      </div>
+      <div id="pt-list">${renderPartners(h.partner_tips||[])}</div>
+      <button type="button" onclick="addPartner()" class="btn btn-secondary" style="margin-top:4px;font-size:12px;padding:6px 14px">+ Přidat doporučenou firmu</button>
+    `)}
 
     ${renderSection('📝', 'Popis a další informace', 'Co byste chtěli hostům sdělit navíc', `
       <table class="edit-table">
@@ -988,6 +1158,8 @@ function renderPortal() {
 
   <div id="invoices-section" style="margin-top:0"></div>
   <div id="monthly-report-section"></div>
+  <div id="analytics-frame-section"></div>
+  <div id="kb-frame-section"></div>
   `;
 
   translateDom(document.getElementById('main-container'));
@@ -1016,7 +1188,7 @@ let _sectionFields = {}; // uložíme fields pro každou sekci, scoring spočít
 // Jedna dlouhá stránka → 4 záložky: Přehled (statistiky, stav), Profil hotelu (sekce k vyplnění),
 // Alex & objednávky (Apaleo, objednávky, aktivní nabídka, vyzkoušet), Nasazení & účet (QR/tisk,
 // widget, předplatné, faktury, skupina). Obsah se nemění, jen se přepíná; Uložit změny zůstává.
-const PORTAL_TABS = [['prehled','📊 Přehled'],['profil','🏨 Profil hotelu'],['alex','✦ Alex & objednávky'],['ucet','🧾 Nasazení & účet']];
+const PORTAL_TABS = [['prehled','📊 Přehled'],['analytika','📈 Analytika'],['profil','🏨 Profil hotelu'],['alex','✦ Alex & objednávky'],['znalosti','📚 Znalostní báze'],['ucet','🧾 Nasazení & účet']];
 const PORTAL_TAB_OF = {            // sekce z renderSection podle (českého) titulu; ostatní = profil
   'Vyzkoušet Alexe':'alex', 'Aktivní nabídka pro hosty':'alex',
   'Embed widget — vložit na web':'ucet', 'Tiskové materiály':'prehled'   // tisk = první na Přehledu (uživatel 11. 10.)
@@ -1024,18 +1196,19 @@ const PORTAL_TAB_OF = {            // sekce z renderSection podle (českého) ti
 const PORTAL_SOLO = {};            // tab -> id bloku otevřeného z dlaždice (ostatní bloky tabu skryté); undefined = všechny
 const PORTAL_FIXED = {             // pevné bloky podle id / třídy
   'completeness-banner':'profil', 'group-section':'ucet', 'add-hotel-section':'ucet', 'pms-section':'alex',
-  'orders-section':'alex', 'requests-section':'alex', 'onboarding-wizard':'prehled', 'payment-section':'ucet', 'invoices-section':'ucet',
-  'monthly-report-section':'prehled'
+  'orders-section':'alex', 'requests-section':'alex', 'helpdesk-section':'alex', 'learn-section':'alex', 'ratings-section':'alex', 'onboarding-wizard':'prehled', 'payment-section':'ucet', 'invoices-section':'ucet',
+  'monthly-report-section':'prehled', 'analytics-frame-section':'analytika', 'kb-frame-section':'znalosti'
 };
 // Štítky dlaždic pevných bloků (sekce z renderSection si berou ikonu a titulek z DOM)
 const PORTAL_FIXED_TILE = {
-  'pms-section':'🔌 Hotelový systém', 'orders-section':'🛎 Objednávky v chatu', 'requests-section':'📬 Požadavky hostů',
+  'pms-section':'🔌 Hotelový systém', 'orders-section':'🛎 Objednávky v chatu', 'requests-section':'📬 Požadavky hostů', 'helpdesk-section':'🛠 Helpdesk', 'learn-section':'🎓 Alex se učí', 'ratings-section':'👍 Hodnocení odpovědí',
   'group-section':'🏨 Vaše hotely', 'add-hotel-section':'➕ Přidat další hotel', 'payment-section':'💳 Předplatné', 'invoices-section':'🧾 Faktury',
   'onboarding-wizard':'🧭 Průvodce nastavením', 'monthly-report-section':'📈 Přehled & statistiky'
 };
 const PORTAL_FIXED_DESC = {
   'pms-section':'Propojení s Apaleem — pobyty hostů a zápis objednávek', 'orders-section':'Co smí Alex nabízet a objednat, ceny',
-  'requests-section':'Objednávky a žádosti hostů, odpovědi recepce', 'group-section':'Všechny hotely pod vaším účtem',
+  'requests-section':'Objednávky a žádosti hostů, odpovědi recepce', 'learn-section':'Dotazy, na které Alex neznal odpověď — doplňte ji',
+  'helpdesk-section':'Závady, úklid a přání hostů — stav, řešitel, historie', 'ratings-section':'Jak hosté hodnotí odpovědi Alex a které jim nepomohly', 'group-section':'Všechny hotely pod vaším účtem',
   'add-hotel-section':'Další hotel na stejné předplatné', 'payment-section':'Stav předplatného a platby', 'invoices-section':'Vystavené faktury ke stažení',
   'onboarding-wizard':'Co ještě doplnit, aby Alex odpovídal nejlépe', 'monthly-report-section':'Kolik hostů Alex obsloužil a na co se ptali'
 };
@@ -1059,6 +1232,51 @@ function applyPortalTab(tab){
   document.querySelectorAll('.ptab-btn').forEach(b=>b.setAttribute('aria-current', String(b.dataset.tab===tab)));
   document.querySelectorAll('.ptile').forEach(t=>t.setAttribute('aria-current', String(!!solo && t.dataset.sec===solo)));
   const prof=document.getElementById('sidebar-profile'); if(prof) prof.hidden=(tab!=='profil');
+  if(tab==='analytika') ensureAnalyticsFrame();
+  if(tab==='znalosti') ensureKbFrame();
+}
+// Záložka Znalostní báze: stránka /kb vložená do portálu (dokumenty hotelu, cloudové disky, asistent pro personál).
+function ensureKbFrame(){
+  const box = document.getElementById('kb-frame-section');
+  if(!box) return;
+  let f = box.querySelector('iframe');
+  if(f && f.dataset.lang === (portalLang||'')) return;
+  box.innerHTML = '';
+  f = document.createElement('iframe');
+  f.dataset.lang = portalLang||'';
+  f.title = tr('📚 Znalostní báze');
+  f.style.cssText = 'display:block;width:100%;border:0;min-height:70vh;border-radius:12px;background:transparent';
+  f.src = '/kb?embed=1&lang=' + encodeURIComponent(portalLang||'cs') + '&token=' + encodeURIComponent(token);
+  f.onload = () => {
+    try{
+      const d = f.contentDocument, fit = () => { f.style.height = Math.max(400, d.documentElement.scrollHeight) + 'px'; };
+      fit();
+      if(window.ResizeObserver) new ResizeObserver(fit).observe(d.body);
+    }catch(e){ f.style.height = '2400px'; }
+  };
+  box.appendChild(f);
+}
+// Záložka Analytika: stránka /prehled vložená do portálu (oddělená od údajů hotelu, uživatel 17. 11. 2026).
+// Stejný původ → výšku rámce řídíme podle obsahu, ať nemá vlastní posuvník.
+function ensureAnalyticsFrame(){
+  const box = document.getElementById('analytics-frame-section');
+  if(!box) return;
+  let f = box.querySelector('iframe');
+  if(f && f.dataset.lang === (portalLang||'')) return;
+  box.innerHTML = '';
+  f = document.createElement('iframe');
+  f.dataset.lang = portalLang||'';
+  f.title = tr('📈 Analytika');
+  f.style.cssText = 'display:block;width:100%;border:0;min-height:70vh;border-radius:12px;background:transparent';
+  f.src = '/prehled?embed=1&token=' + encodeURIComponent(token);
+  f.onload = () => {
+    try{
+      const d = f.contentDocument, fit = () => { f.style.height = Math.max(400, d.documentElement.scrollHeight) + 'px'; };
+      fit();
+      if(window.ResizeObserver) new ResizeObserver(fit).observe(d.body);
+    }catch(e){ f.style.height = '2400px'; }
+  };
+  box.appendChild(f);
 }
 // Dlaždice na KAŽDÉ záložce (uživatel 11. 10.: „sekce profilu dej jako dlaždice" → „dlaždice…" i na Přehledu,
 // Alexovi a Nasazení): mřížka nad bloky záložky; klepnutí ukáže jen ten blok, druhé klepnutí (nebo
@@ -1095,7 +1313,7 @@ function buildPortalTiles(){
     if (!grid) { grid = document.createElement('div'); grid.className = 'ptiles'; grid.dataset.tab = tab; }
     if (grid.nextElementSibling !== blocks[0]) blocks[0].parentNode.insertBefore(grid, blocks[0]);
     grid.innerHTML = blocks.map(el => {
-      let icon = '', title = '', desc = '', scoreHtml = '';
+      let icon = '', title = '', desc = '', scoreHtml = '', hot = false;
       if (el.classList.contains('section')) {
         icon = (el.querySelector('.section-icon')||{}).innerHTML || '';
         title = ((el.querySelector('.section-title')||{}).textContent || '').replace(/\(\d+\)/,'').trim();
@@ -1106,12 +1324,25 @@ function buildPortalTiles(){
         const m = lbl.match(/^(\S+)\s+(.*)$/); icon = m ? m[1] : '▪'; title = m ? m[2] : lbl;
         desc = tr(PORTAL_FIXED_DESC[el.id] || '');
         const pend = el.querySelector('.section-title span'); if (pend) scoreHtml = pend.outerHTML;   // (3) čekajících
+        // Alex se učí: počet dotazů bez odpovědi jako výrazný štítek, celá dlaždice zvýrazněná
+        const n = el.id === 'learn-section' && pend ? parseInt((pend.textContent||'').replace(/\D/g,'')) : 0;
+        if (n > 0) { hot = true; scoreHtml = `<span class="ptile-pill">${n} ${tr('čeká na vaši odpověď')}</span>`; }
+        // Helpdesk: nové požadavky hostů, na které ještě nikdo nereagoval
+        let hn = 0; try { if (el.id === 'helpdesk-section' && _hdData) hn = parseInt((_hdData.counts||{}).new) || 0; } catch(e) {}
+        if (hn > 0) { hot = true; scoreHtml = `<span class="ptile-pill">${hn} ${tr('čeká na reakci')}</span>`; }
       }
-      return `<button type="button" class="ptile" data-sec="${el.id}" onclick="openPortalBlock('${tab}','${el.id}')" aria-current="${String(PORTAL_SOLO[tab]===el.id)}">
+      return `<button type="button" class="ptile${hot?' ptile-hot':''}" data-sec="${el.id}" onclick="openPortalBlock('${tab}','${el.id}')" aria-current="${String(PORTAL_SOLO[tab]===el.id)}">
         <div class="ptile-ico">${icon}</div><div class="ptile-t">${title}</div><div class="ptile-d">${desc}</div><div class="ptile-s">${scoreHtml}</div></button>`;
     }).join('');
     translateDom(grid);
   });
+  // Počet dotazů bez odpovědi i v levém menu u „Alex & objednávky“ — je vidět z každé záložky
+  const lp = document.querySelector('#learn-section .section-title .cnt-pill'), ab = document.querySelector('.ptab-btn[data-tab="alex"]');
+  if (ab) {
+    let bd = ab.querySelector('.cnt-pill'); const n = lp ? lp.textContent.trim() : '';
+    if (n) { if (!bd) { bd = document.createElement('span'); bd.className = 'cnt-pill'; ab.appendChild(bd); } if (bd.textContent !== n) bd.textContent = n; bd.title = tr('Alex se učí') + ': ' + n + ' ' + tr('čeká na vaši odpověď'); }
+    else if (bd) bd.remove();
+  }
   applyPortalTab(currentPortalTab());
 }
 function buildProfileTiles(){ buildPortalTiles(); }
@@ -1464,6 +1695,338 @@ function getNavCustomItems() {
   return items;
 }
 
+// ── Parkování: místa a maximální rozměry vozu ──────────────────
+// Pole mají id „pk-…" (ne „f-…"), aby je obecný sběr v saveAll() neukládal jako samostatná pole hotelu.
+const PK_TYPES = [['garage','Garáž'],['lot','Parkoviště'],['street','Ulice / parkovací zóna'],['other','Jiné']];
+const PK_SEC = [['','Ostraha: nevyplněno'],['guarded','Hlídané obsluhou'],['camera','Pod kamerami'],['none','Bez ostrahy']];
+const PK_TEXT = ['name','price','distance','hours','address','directions','note','walk_to_hotel','pay_machine'];
+const PK_FUEL = [['','nevyplněno'],['yes','Vjezd povolen'],['no','Vjezd zakázán']];
+const PK_DIMS = ['max_height_cm','max_width_cm','max_length_cm'];
+const PK_IN = 'padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;width:100%;box-sizing:border-box';
+
+// Uložený rozměr je v centimetrech (číslo) → zobraz v metrech; rozepsaný text nech, jak je.
+function pkDim(v) { return typeof v === 'number' ? (v/100).toFixed(2).replace('.', ',') : String(v||''); }
+
+function renderParking(items) {
+  if (!items || !items.length) return '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Zatím žádné místo. Přidejte garáž nebo parkoviště.</div>';
+  const inp = (i, k, ph, val) => `<input type="text" id="pk-${k}-${i}" placeholder="${esc(ph)}" value="${esc(val)}" oninput="markChanged()" style="${PK_IN}"/>`;
+  const lab = t => `<div style="font-size:11px;color:var(--muted);margin-bottom:3px">${t}</div>`;
+  const opts = (list, cur) => list.map(([v, t]) => `<option value="${v}"${v === (cur||'') ? ' selected' : ''}>${t}</option>`).join('');
+  return items.map((p, i) => `
+    <div id="pk-row-${i}" style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2)">
+      <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:8px;margin-bottom:10px;align-items:center">
+        ${inp(i, 'name', 'Název (např. Garáž hotelu, Parkoviště na náměstí)', p.name||'')}
+        <select id="pk-type-${i}" onchange="markChanged()" style="${PK_IN}">${opts(PK_TYPES, p.type||'garage')}</select>
+        <button type="button" onclick="removeParking(${i})" title="Odebrat" style="background:rgba(255,80,80,.15);border:1px solid rgba(255,80,80,.3);color:#ff5050;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px">✕</button>
+      </div>
+      <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Největší auto, které se vejde (v metrech)</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
+        <div>${lab('Max. výška vozu')}${inp(i, 'max_height_cm', 'např. 1,90', pkDim(p.max_height_cm))}</div>
+        <div>${lab('Max. šířka vozu')}${inp(i, 'max_width_cm', 'např. 2,10', pkDim(p.max_width_cm))}</div>
+        <div>${lab('Max. délka vozu')}${inp(i, 'max_length_cm', 'např. 5,00', pkDim(p.max_length_cm))}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px">
+        <div>${lab('Cena')}${inp(i, 'price', 'např. 450 Kč/noc', p.price||'')}</div>
+        <div>${lab('Vzdálenost od hotelu')}${inp(i, 'distance', 'např. 300 m, 4 minuty pěšky', p.distance||'')}</div>
+        <div>${lab('Provozní doba')}${inp(i, 'hours', 'např. nonstop', p.hours||'')}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:8px">
+        <div>${lab('Adresa (pro navigaci)')}${inp(i, 'address', 'např. Senovážné náměstí, České Budějovice', p.address||'')}</div>
+        <div>${lab('Ostraha')}<select id="pk-security-${i}" onchange="markChanged()" style="${PK_IN}">${opts(PK_SEC, p.security)}</select></div>
+      </div>
+      <div style="margin-bottom:8px">${lab('Jak se tam dostat')}<textarea id="pk-directions-${i}" placeholder="např. Vjezd do garáže je z ulice Kněžská, zazvoňte u vrat na recepci." oninput="markChanged()" style="${PK_IN};resize:vertical;min-height:52px">${esc(p.directions||'')}</textarea></div>
+      <div style="margin-bottom:8px">${lab('Cesta z parkoviště do hotelu (pěšky, s kufry)')}<textarea id="pk-walk_to_hotel-${i}" maxlength="500" placeholder="např. Z garáže výtahem do přízemí, vyjdete přímo u recepce. Bez schodů." oninput="markChanged()" style="${PK_IN};resize:vertical;min-height:52px">${esc(p.walk_to_hotel||'')}</textarea></div>
+      <div style="margin-bottom:8px">${lab('Návod k parkovacímu automatu (Alex ho hostovi přeloží)')}<textarea id="pk-pay_machine-${i}" maxlength="700" placeholder="např. 1. Zadejte SPZ. 2. Zvolte dobu parkování. 3. Plaťte kartou nebo mincemi. 4. Lístek dejte za sklo." oninput="markChanged()" style="${PK_IN};resize:vertical;min-height:52px">${esc(p.pay_machine||'')}</textarea></div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px">
+        <div>${lab('Auta na LPG')}<select id="pk-lpg-${i}" onchange="markChanged()" style="${PK_IN}">${opts(PK_FUEL, p.lpg)}</select></div>
+        <div>${lab('Auta na CNG')}<select id="pk-cng-${i}" onchange="markChanged()" style="${PK_IN}">${opts(PK_FUEL, p.cng)}</select></div>
+      </div>
+      <div style="margin-bottom:8px">${lab('Poznámka')}${inp(i, 'note', 'např. Jen 6 míst, velká auta na místa č. 1 a 2', p.note||'')}</div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--text)">
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="pk-reservation-${i}" onchange="markChanged()"${p.reservation ? ' checked' : ''}/> <span>Nutná rezervace předem</span></label>
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="pk-ev-${i}" onchange="markChanged()"${p.ev ? ' checked' : ''}/> <span>Nabíječka pro elektromobily</span></label>
+      </div>
+    </div>`).join('');
+}
+
+function getParkingItems() {
+  const items = [];
+  for (let i = 0; document.getElementById('pk-name-'+i) !== null; i++) {
+    const p = { type: document.getElementById('pk-type-'+i).value, security: document.getElementById('pk-security-'+i).value,
+                lpg: document.getElementById('pk-lpg-'+i).value, cng: document.getElementById('pk-cng-'+i).value,
+                reservation: document.getElementById('pk-reservation-'+i).checked, ev: document.getElementById('pk-ev-'+i).checked };
+    PK_TEXT.concat(PK_DIMS).forEach(k => { p[k] = document.getElementById('pk-'+k+'-'+i).value.trim(); });
+    items.push(p);
+  }
+  return items;
+}
+
+function pkRerender(items) {
+  const list = document.getElementById('pk-list');
+  list.innerHTML = renderParking(items);
+  translateDom(list);
+  markChanged();
+}
+
+function addParking() {
+  const cur = getParkingItems();
+  if (cur.length >= 8) { toast(tr('Nejvýše 8 parkovacích míst.'), 'warn'); return; }
+  cur.push({type: cur.length ? 'lot' : 'garage'});
+  pkRerender(cur);
+  const el = document.getElementById('pk-name-'+(cur.length-1));
+  if (el) el.focus();
+}
+
+// ── Další kontakty hotelu (telefon / e-mail / WhatsApp s vlastním názvem a poznámkou) ──
+const CT_TYPES = [['phone','📞 Telefon'],['email','✉️ E-mail'],['whatsapp','💬 WhatsApp']];
+const CT_PRESETS = ['Recepce','Recepce 2','Wellness','Masáže','Restaurace','Bar','Room service','Rezervace','Sport','Půjčovna','Concierge','Údržba'];
+const CT_PH = {phone:'+420 123 456 789', email:'wellness@hotel.cz', whatsapp:'+420 123 456 789'};
+
+function renderContacts(items) {
+  if (!items || !items.length) return '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Zatím žádný další kontakt.</div>';
+  const lab = t => `<div style="font-size:11px;color:var(--muted);margin-bottom:3px">${t}</div>`;
+  return items.map((c, i) => {
+    const type = CT_PH[c.type] ? c.type : 'phone';
+    return `
+    <div id="ct-row-${i}" style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2)">
+      <div style="display:grid;grid-template-columns:150px 1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:end">
+        <div>${lab('Typ')}<select id="ct-type-${i}" onchange="ctTypeChanged(${i})" style="${PK_IN}">${CT_TYPES.map(([v, t]) => `<option value="${v}"${v === type ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
+        <div>${lab('Název (vyberte nebo napište vlastní)')}<input type="text" id="ct-label-${i}" list="ct-presets" maxlength="60" placeholder="např. Masáže" value="${esc(c.label||'')}" oninput="markChanged()" style="${PK_IN}"/></div>
+        <div>${lab('Číslo nebo adresa')}<input type="text" id="ct-value-${i}" maxlength="120" placeholder="${CT_PH[type]}" value="${esc(c.value||'')}" oninput="markChanged()" style="${PK_IN}"/></div>
+        <button type="button" onclick="removeContact(${i})" title="Odebrat" style="background:rgba(255,80,80,.15);border:1px solid rgba(255,80,80,.3);color:#ff5050;border-radius:6px;padding:8px 10px;cursor:pointer;font-size:14px">✕</button>
+      </div>
+      <div>${lab('Poznámka pro hosty (co tu vyřídí, ceny, způsob platby)')}<textarea id="ct-note-${i}" maxlength="600" placeholder="např. Klasická masáž 60 min 900 Kč, thajská 90 min 1 500 Kč. Platba kartou na místě nebo na hotelový účet." oninput="markChanged()" style="${PK_IN};resize:vertical;min-height:52px">${esc(c.note||'')}</textarea></div>
+    </div>`;
+  }).join('');
+}
+
+function getContactItems() {
+  const items = [];
+  for (let i = 0; document.getElementById('ct-type-'+i) !== null; i++) {
+    const g = k => document.getElementById('ct-'+k+'-'+i).value.trim();
+    items.push({type: g('type'), label: g('label'), value: g('value'), note: g('note')});
+  }
+  return items;
+}
+
+function ctRerender(items) {
+  const list = document.getElementById('ct-list');
+  list.innerHTML = renderContacts(items);
+  translateDom(list);
+  markChanged();
+}
+
+function ctTypeChanged(i) {
+  const el = document.getElementById('ct-value-'+i);
+  if (el) el.placeholder = CT_PH[document.getElementById('ct-type-'+i).value] || '';
+  markChanged();
+}
+
+function addContact() {
+  const cur = getContactItems();
+  if (cur.length >= 20) { toast(tr('Nejvýše 20 dalších kontaktů.'), 'warn'); return; }
+  cur.push({type: 'phone'});
+  ctRerender(cur);
+  const el = document.getElementById('ct-label-'+(cur.length-1));
+  if (el) el.focus();
+}
+
+function removeContact(i) {
+  const cur = getContactItems();
+  cur.splice(i, 1);
+  ctRerender(cur);
+}
+
+// Kontakty, které server neuloží (chybí číslo, e-mail bez zavináče…) — ať o ně hotel nepřijde mlčky.
+function ctInvalid(items) {
+  return items.filter(c => {
+    if (!c.value) return true;
+    if (c.type === 'email') return !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.value);
+    return !/^[+\d][\d\s\-()\/.]*$/.test(c.value) || c.value.replace(/\D/g, '').length < 5;
+  });
+}
+
+// ── Doporučené firmy: ručně, z webu nebo z vyfoceného letáku ──────────────────
+// Pole mají id „pt-…" (ne „f-…"), aby je obecný sběr v saveAll() neukládal jako samostatná pole hotelu.
+const PT_TEXT = ['name','category','web','description','offer','address','phone','email','hours','price','details'];
+const PT_SRC = {manual:'Vyplněno ručně', web:'Načteno z webu — zkontrolujte', leaflet:'Načteno z letáku — zkontrolujte'};
+const PT_MAX = 20;
+
+function renderPartners(items) {
+  if (!items || !items.length) return '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Zatím žádná firma. Přidejte třeba půjčovnu kol nebo restauraci, jejíž leták máte na recepci.</div>';
+  const inp = (i, k, ph, val) => `<input type="text" id="pt-${k}-${i}" placeholder="${esc(ph)}" value="${esc(val)}" oninput="markChanged()" style="${PK_IN}"/>`;
+  const area = (i, k, ph, val, h) => `<textarea id="pt-${k}-${i}" placeholder="${esc(ph)}" oninput="markChanged()" style="${PK_IN};resize:vertical;min-height:${h}px">${esc(val)}</textarea>`;
+  const lab = t => `<div style="font-size:11px;color:var(--muted);margin-bottom:3px">${t}</div>`;
+  return items.map((p, i) => `
+    <div id="pt-row-${i}" style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2)">
+      <input type="hidden" id="pt-source-${i}" value="${esc(p.source||'manual')}"/>
+      <input type="hidden" id="pt-consent_at-${i}" value="${esc(p.consent_at||'')}"/>
+      <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:8px;margin-bottom:8px;align-items:center">
+        ${inp(i, 'name', 'Název firmy (např. Půjčovna kol Vltava)', p.name||'')}
+        ${inp(i, 'category', 'Obor (např. půjčovna kol)', p.category||'')}
+        <button type="button" onclick="removePartner(${i})" title="Odebrat" style="background:rgba(255,80,80,.15);border:1px solid rgba(255,80,80,.3);color:#ff5050;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px">✕</button>
+      </div>
+      <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;font-size:12px;line-height:1.5;color:var(--text);background:rgba(255,170,51,.08);border:1px solid rgba(255,170,51,.3);border-radius:8px;padding:8px 10px;margin-bottom:10px">
+        <input type="checkbox" id="pt-consent-${i}" onchange="markChanged()"${p.consent ? ' checked' : ''} style="margin-top:3px"/>
+        <span>Firmu doporučujeme hostům z vlastní vůle, abychom pomohli její propagaci. Souhlasíme, že SmartestGuide načte její veřejný web nebo leták a Alex ji bude hostům nabízet jako doporučení hotelu.</span>
+      </label>
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;margin-bottom:6px;align-items:center">
+        ${inp(i, 'web', 'Web firmy (např. www.kolavltava.cz)', p.web||'')}
+        <button type="button" id="pt-btnweb-${i}" onclick="partnerFromWeb(${i})" class="btn btn-secondary" style="font-size:12px;padding:8px 12px;white-space:nowrap">🌐 Načíst z webu</button>
+        <button type="button" id="pt-btnfile-${i}" onclick="partnerPickLeaflet(${i})" class="btn btn-secondary" style="font-size:12px;padding:8px 12px;white-space:nowrap">📷 Vyfotit leták</button>
+      </div>
+      <input type="file" id="pt-file-${i}" accept="image/*,application/pdf" multiple hidden onchange="partnerFromLeaflet(${i}, this.files)"/>
+      <div id="pt-status-${i}" style="font-size:11.5px;color:var(--muted);margin-bottom:10px">${esc(tr(PT_SRC[p.source||'manual']||PT_SRC.manual))} · ${esc(tr('Leták: líc i rub najednou, nejvýše 4 fotky nebo PDF.'))}</div>
+      <div style="margin-bottom:8px">${lab('Co firma nabízí')}${area(i, 'description', 'např. Půjčovna kol a elektrokol, vydání do 10 minut, dětské sedačky.', p.description||'', 44)}</div>
+      <div style="margin-bottom:8px">${lab('Výhoda pro vaše hosty')}${inp(i, 'offer', 'např. 10 % sleva s klíčem od pokoje', p.offer||'')}</div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:8px">
+        <div>${lab('Adresa')}${inp(i, 'address', 'např. Lannova 12, České Budějovice', p.address||'')}</div>
+        <div>${lab('Otevírací doba / sezóna')}${inp(i, 'hours', 'např. duben–říjen 9–19', p.hours||'')}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px">
+        <div>${lab('Telefon')}${inp(i, 'phone', 'např. +420 777 123 456', p.phone||'')}</div>
+        <div>${lab('E-mail')}${inp(i, 'email', 'např. info@firma.cz', p.email||'')}</div>
+        <div>${lab('Ceny')}${inp(i, 'price', 'např. kolo 350 Kč/den', p.price||'')}</div>
+      </div>
+      <div>${lab('Další podrobnosti pro Alexe')}${area(i, 'details', 'např. Nutná rezervace den předem, helmy zdarma, mluví německy.', p.details||'', 52)}</div>
+    </div>`).join('');
+}
+
+function getPartnerItems() {
+  const items = [];
+  for (let i = 0; document.getElementById('pt-name-'+i) !== null; i++) {
+    const p = { consent: document.getElementById('pt-consent-'+i).checked,
+                source: document.getElementById('pt-source-'+i).value, consent_at: document.getElementById('pt-consent_at-'+i).value };
+    PT_TEXT.forEach(k => { p[k] = document.getElementById('pt-'+k+'-'+i).value.trim(); });
+    items.push(p);
+  }
+  return items;
+}
+
+function ptRerender(items) {
+  const list = document.getElementById('pt-list');
+  list.innerHTML = renderPartners(items);
+  translateDom(list);
+  markChanged();
+}
+
+function addPartner() {
+  const cur = getPartnerItems();
+  if (cur.length >= PT_MAX) { toast(tr('Nejvýše 20 doporučených firem.'), 'warn'); return; }
+  cur.push({source: 'manual'});
+  ptRerender(cur);
+  const el = document.getElementById('pt-name-'+(cur.length-1));
+  if (el) el.focus();
+}
+
+function removePartner(idx) {
+  const cur = getPartnerItems();
+  cur.splice(idx, 1);
+  ptRerender(cur);
+}
+
+function ptStatus(i, text, color) {
+  const el = document.getElementById('pt-status-'+i);
+  if (el) { el.textContent = text; el.style.color = color || 'var(--muted)'; }
+}
+
+function ptConsentOk(i) {
+  const c = document.getElementById('pt-consent-'+i);
+  if (c && c.checked) return true;
+  toast(tr('Nejdřív potvrďte, že firmu doporučujete z vlastní vůle.'), 'warn');
+  if (c) c.focus();
+  return false;
+}
+
+// Výsledek načtení vyplní kartu (prázdné hodnoty nic nepřepíšou); pole s nejistými čísly zvýrazní.
+function ptFill(i, p, check, source) {
+  PT_TEXT.forEach(k => {
+    const el = document.getElementById('pt-'+k+'-'+i);
+    if (!el) return;
+    el.style.borderColor = '';
+    if (p[k]) el.value = p[k];
+  });
+  document.getElementById('pt-source-'+i).value = source;
+  (check || []).forEach(k => { const el = document.getElementById('pt-'+k+'-'+i); if (el) el.style.borderColor = '#ffaa33'; });
+  markChanged();
+  const n = (check || []).length;
+  ptStatus(i, n ? tr('Hotovo. Oranžová pole porovnejte s letákem — čísla se nepodařilo potvrdit. Pak uložte.')
+                : tr('Hotovo. Údaje zkontrolujte a uložte.'), n ? '#ffaa33' : '#00d4aa');
+}
+
+async function ptPost(i, path, body, btnId) {
+  const btn = document.getElementById(btnId);
+  if (btn) btn.disabled = true;
+  try {
+    const r = await fetch(`${API}/api/hotel-portal/partners/${path}?token=${encodeURIComponent(token)}`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    let d = {}; try { d = await r.json(); } catch (e) {}
+    if (!r.ok) throw new Error(tr(typeof d.detail === 'string' ? d.detail : 'Načtení se nepovedlo. Zkuste to prosím znovu za chvíli.'));
+    return d;
+  } finally { if (btn) btn.disabled = false; }
+}
+
+async function partnerFromWeb(i) {
+  if (!ptConsentOk(i)) return;
+  const url = document.getElementById('pt-web-'+i).value.trim();
+  if (!url) { toast(tr('Zadejte web firmy.'), 'warn'); document.getElementById('pt-web-'+i).focus(); return; }
+  ptStatus(i, tr('Načítám web firmy… (obvykle do 30 sekund)'));
+  try {
+    const d = await ptPost(i, 'from-web', {url, consent: true}, 'pt-btnweb-'+i);
+    ptFill(i, d.partner || {}, d.check, 'web');
+  } catch (e) { ptStatus(i, e.message, '#ff5050'); }
+}
+
+function partnerPickLeaflet(i) {
+  if (!ptConsentOk(i)) return;
+  document.getElementById('pt-file-'+i).click();
+}
+
+// Fotka z mobilu má klidně 5–10 MB → zmenšit na nejvýše 2000 px (stačí na čtení textu), JPEG.
+function ptPrepFile(file) {
+  return new Promise((resolve, reject) => {
+    const bad = () => reject(new Error(tr('Soubor se nepodařilo přečíst. Pošlete fotku JPG/PNG nebo PDF.')));
+    if (file.type === 'application/pdf') {
+      if (file.size > 8*1024*1024) { reject(new Error(tr('Soubor je příliš velký (nejvýše 8 MB).'))); return; }
+      const fr = new FileReader();
+      fr.onload = () => resolve({media_type: 'application/pdf', data: String(fr.result).split(',')[1] || ''});
+      fr.onerror = bad; fr.readAsDataURL(file); return;
+    }
+    if (!/^image\//.test(file.type || '')) { bad(); return; }
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const s = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve({media_type: 'image/jpeg', data: c.toDataURL('image/jpeg', 0.85).split(',')[1] || ''});
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); bad(); };
+    img.src = url;
+  });
+}
+
+async function partnerFromLeaflet(i, fileList) {
+  const files = Array.from(fileList || []);
+  document.getElementById('pt-file-'+i).value = '';
+  if (!files.length) return;
+  if (files.length > 4) { toast(tr('Najednou nejvýše 4 fotky (líc, rub…).'), 'warn'); return; }
+  ptStatus(i, tr('Čtu leták… (obvykle do minuty)'));
+  try {
+    const prepared = [];
+    for (const f of files) prepared.push(await ptPrepFile(f));
+    const d = await ptPost(i, 'from-leaflet', {files: prepared, consent: true}, 'pt-btnfile-'+i);
+    ptFill(i, d.partner || {}, d.check, 'leaflet');
+  } catch (e) { ptStatus(i, e.message, '#ff5050'); }
+}
+
+function removeParking(idx) {
+  const cur = getParkingItems();
+  cur.splice(idx, 1);
+  pkRerender(cur);
+}
+
 function row(label, key, type, val, placeholder) {
   return `<tr>
     <td>${label}</td>
@@ -1741,6 +2304,22 @@ async function saveAll(auto) {
   // Vlastní navigační body
   data.nav_custom = getNavCustomItems().filter(i => i.name || i.desc);
 
+  // Parkování: místa a rozměry (server převede rozměry na centimetry a zahodí prázdná místa)
+  if (document.getElementById('pk-list')) data.parking_places = getParkingItems();
+
+  // Další kontakty (server zahodí řádky bez platného čísla / adresy — upozorni na ně)
+  if (document.getElementById('ct-list')) {
+    data.extra_contacts = getContactItems();
+    if (!auto && ctInvalid(data.extra_contacts).length) toast(tr('Kontakt bez platného čísla nebo e-mailu se neuloží — doplňte ho prosím.'), 'warn');
+  }
+
+  // Doporučené firmy (server zahodí prázdné; bez potvrzení „z vlastní vůle" je Alex nedoporučí)
+  if (document.getElementById('pt-list')) {
+    data.partner_tips = getPartnerItems();
+    const noConsent = data.partner_tips.filter(p => p.name && !p.consent).length;
+    if (noConsent) toast(tr('U firmy chybí potvrzení doporučení — Alex ji hostům nenabídne.'), 'warn');
+  }
+
   // Vlastní pole
   const customFields = [];
   let cfIdx = 0;
@@ -1768,7 +2347,7 @@ async function saveAll(auto) {
     hasChanges = false;
     document.getElementById('unsaved-dot').classList.remove('show');
     const now = new Date().toLocaleTimeString('cs-CZ', {hour:'2-digit',minute:'2-digit'});
-    document.getElementById('last-saved').textContent = `${tr('✓ Uloženo v')} ${now}`;
+    document.getElementById('last-saved').textContent = `${tr('✓ Automaticky uloženo v')} ${now}`;
     // Okamžitá aktualizace platební sekce a hlavičky bez refreshe
     await loadPaymentSection();
     // Přepočítej completeness skóre
@@ -1842,6 +2421,7 @@ async function loadInvoicesSection(){
 function openRoomCards(hid){
   const v=(document.getElementById('rc-rooms')||{}).value||'';
   if(!v.trim()){alert('Zadejte čísla pokojů — např. 101-110, 201');return;}
+  // jazyk kartiček = místní jazyk hotelu; na stránce kartiček jde přepnout na kterýkoli z jazyků tiskovin
   window.open('/api/hotels/'+hid+'/room-cards?rooms='+encodeURIComponent(v.trim()),'_blank');
 }
 async function loadGroupSection(){
@@ -2102,8 +2682,306 @@ async function loadRequestsSection(){
   translateDom(el);
   try{ buildPortalTiles(); }catch(e){}
 }
+// ── Alex se učí: recepce doplní odpověď na dotaz, který Alex neznal (17. 11. 2026) ─────────
+const LEARN_T = {
+  cs:{title:'Alex se učí', desc:'dotazy, na které Alex neznal odpověď — doplňte ji a příště odpoví sám',
+      pend:'Čeká na vaši odpověď', none:'Žádný dotaz bez odpovědi. 👍', ph:'Napište odpověď tak, jak byste ji řekli hostovi…',
+      save:'Uložit odpověď', skip:'Přeskočit', skipTip:'Dotaz zmizí ze seznamu a Alex se z něj nic nenaučí (test, nesmysl).',
+      times:n=>n+'× za 90 dní', learned:'Co už Alex umí od vás', learnedNone:'Zatím jste Alexovi žádnou odpověď nedoplnili.',
+      edit:'Upravit', del:'Smazat', delSure:'Opravdu smazat?', own:'Přidat vlastní otázku a odpověď',
+      ownQ:'Otázka hosta (např. Půjčujete kola?)', ownA:'Odpověď hotelu', add:'Přidat',
+      saved:'Uloženo — Alex už odpověď zná', removed:'Smazáno', skipped:'Dotaz odebrán ze seznamu', full:'Seznam je plný (max. {n} odpovědí). Smažte některou starší.',
+      empty:'Vyplňte otázku i odpověď.', err:'Uložení se nepovedlo, zkuste to znovu.',
+      note:'Odpověď uvidí hosté. Alex ji řekne vlastními slovy a v jazyce hosta — stačí ji napsat česky.'},
+  en:{title:'Alex learns', desc:'questions Alex could not answer — add the answer and next time he will know',
+      pend:'Waiting for your answer', none:'No unanswered questions. 👍', ph:'Write the answer the way you would tell a guest…',
+      save:'Save answer', skip:'Skip', skipTip:'Removes the question from the list; Alex learns nothing from it (test, nonsense).',
+      times:n=>n+'× in 90 days', learned:'What Alex already knows from you', learnedNone:'You have not added any answers yet.',
+      edit:'Edit', del:'Delete', delSure:'Really delete?', own:'Add your own question and answer',
+      ownQ:'Guest question (e.g. Do you rent bikes?)', ownA:'Hotel answer', add:'Add',
+      saved:'Saved — Alex now knows the answer', removed:'Deleted', skipped:'Question removed from the list', full:'The list is full (max. {n} answers). Delete an older one.',
+      empty:'Fill in both the question and the answer.', err:'Saving failed, please try again.',
+      note:'Guests will see the answer. Alex says it in his own words and in the guest\'s language — any language works.'}
+};
+let _learnData=null, _learnDrafts={}, _learnDeepLinkDone=false;
+function openLearnBlock(){ PORTAL_SOLO.alex=null; openPortalBlock('alex','learn-section'); }
+function openRatingsBlock(){ PORTAL_SOLO.alex=null; openPortalBlock('alex','ratings-section'); }
+async function learnPost(path, body, okMsg){
+  const L=LEARN_T[portalLang==='en'?'en':'cs'];
+  try{
+    const r=await fetch(`${API}/api/hotel-portal/${path}?token=${token}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok){ const e=await r.json().catch(()=>({})); toast(e.detail==='full'?L.full.replace('{n}',(_learnData&&_learnData.max)||150):(e.detail==='empty'?L.empty:L.err),'err'); return false; }
+    const d=await r.json(); toast(okMsg); await loadLearnSection(d); return true;
+  }catch(e){ toast(L.err,'err'); return false; }
+}
+function learnKeepDrafts(){
+  document.querySelectorAll('#learn-section textarea[data-q]').forEach(t=>{ if(t.value.trim()) _learnDrafts[t.dataset.q]=t.value; else delete _learnDrafts[t.dataset.q]; });
+}
+async function learnSave(i){
+  const p=_learnData.pending[i], t=document.getElementById('learn-a-'+i), L=LEARN_T[portalLang==='en'?'en':'cs'];
+  if(!t.value.trim()){ t.focus(); toast(L.empty,'err'); return; }
+  learnKeepDrafts(); delete _learnDrafts[p.q];
+  await learnPost('learn',{q:p.q,a:t.value,lang:p.lang||''},L.saved);
+}
+async function learnSkip(i){ learnKeepDrafts(); const q=_learnData.pending[i].q; delete _learnDrafts[q]; await learnPost('learn-dismiss',{q},LEARN_T[portalLang==='en'?'en':'cs'].skipped); }
+async function learnDelete(i,btn){
+  const L=LEARN_T[portalLang==='en'?'en':'cs'];
+  if(!btn.dataset.sure){ btn.dataset.sure='1'; btn.textContent=L.delSure; btn.style.color='#ff4f6a'; btn.style.borderColor='#ff4f6a'; setTimeout(()=>{ if(btn.isConnected){ delete btn.dataset.sure; btn.textContent=L.del; btn.style.color=''; btn.style.borderColor=''; } },4000); return; }
+  learnKeepDrafts(); await learnPost('learn-delete',{id:_learnData.learned[i].id},L.removed);
+}
+function learnEdit(i){
+  const x=_learnData.learned[i], q=document.getElementById('learn-own-q'), a=document.getElementById('learn-own-a');
+  q.value=x.q; a.value=x.a; a.focus(); a.scrollIntoView({behavior:'smooth',block:'center'});
+}
+async function learnAddOwn(){
+  const q=document.getElementById('learn-own-q'), a=document.getElementById('learn-own-a'), L=LEARN_T[portalLang==='en'?'en':'cs'];
+  if(!q.value.trim()||!a.value.trim()){ toast(L.empty,'err'); (q.value.trim()?a:q).focus(); return; }
+  learnKeepDrafts(); await learnPost('learn',{q:q.value,a:a.value},L.saved);
+}
+async function loadLearnSection(data){
+  const el=document.getElementById('learn-section');
+  if(!el||!hotelData) return;
+  let d=data;
+  if(!d){ try{ const r=await fetch(`${API}/api/hotel-portal/learn?token=${token}`); if(!r.ok) throw 0; d=await r.json(); }catch(e){ if(!_learnData) el.innerHTML=''; return; } }
+  _learnData=d;
+  const L=LEARN_T[portalLang==='en'?'en':'cs'];
+  const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const inp='width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;font-family:inherit';
+  const btnP='background:var(--accent);color:#0a0b0f;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer';
+  const btnS='background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);padding:7px 12px;font-size:12.5px;cursor:pointer';
+  const card='background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px';
+  const pend=(d.pending||[]).map((p,i)=>`<div style="${card}">
+      <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px"><div style="font-weight:700;font-size:14px;flex:1;min-width:0;overflow-wrap:anywhere">${esc(p.q)}</div>
+        <span style="font-size:11.5px;color:var(--muted);white-space:nowrap">${p.lang?esc(String(p.lang).toUpperCase())+' · ':''}${p.count>1?L.times(p.count)+' · ':''}${fmtReqTime(p.at)}</span></div>
+      <textarea id="learn-a-${i}" data-q="${esc(p.q)}" rows="2" maxlength="800" placeholder="${esc(L.ph)}" style="${inp};resize:vertical">${esc(_learnDrafts[p.q]||'')}</textarea>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button onclick="learnSave(${i})" style="${btnP}">${L.save}</button><button onclick="learnSkip(${i})" title="${esc(L.skipTip)}" style="${btnS}">${L.skip}</button></div>
+    </div>`).join('');
+  const known=(d.learned||[]).map((x,i)=>`<div style="${card}">
+      <div style="font-weight:700;font-size:13.5px;overflow-wrap:anywhere">${esc(x.q)}</div>
+      <div style="font-size:13px;color:var(--muted);margin:4px 0 8px;overflow-wrap:anywhere">${esc(x.a)}</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button onclick="learnEdit(${i})" style="${btnS}">${L.edit}</button><button onclick="learnDelete(${i},this)" style="${btnS}">${L.del}</button><span style="font-size:11.5px;color:var(--muted)">${fmtReqTime(x.at)}</span></div>
+    </div>`).join('');
+  const h4='font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin:0 0 10px';
+  const prevBody=el.querySelector('#sec-learn .section-body'); const openNow=prevBody?prevBody.classList.contains('open'):true; const oc=openNow?'open':'';
+  const ownQ=(document.getElementById('learn-own-q')||{}).value||'', ownA=(document.getElementById('learn-own-a')||{}).value||'';
+  const keepOwn=data?false:true;   // po uložení formulář vyprázdnit, při pouhém obnovení ponechat rozepsané
+  el.innerHTML=`<div class="section ${openNow?'section-open':''}" id="sec-learn" style="margin-bottom:24px">
+    <div class="section-head ${oc}" onclick="toggleSection('sec-learn')">
+      <div class="section-icon">🎓</div>
+      <div style="flex:1;min-width:0"><div class="section-title">${L.title}${(d.pending||[]).length?` <span class="cnt-pill">${d.pending.length}</span>`:''}</div>
+      <div class="section-desc">${L.desc}</div></div>
+      <span class="section-toggle-lbl">${tr(openNow?'Sbalit':'Rozbalit')}</span><div class="section-chevron ${oc}">▼</div>
+    </div>
+    <div class="section-body ${oc}">
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">${L.note}</div>
+      <div style="${h4}">${L.pend}</div>
+      ${pend||`<div style="font-size:13px;color:var(--muted);margin-bottom:10px">${L.none}</div>`}
+      <div style="${h4};margin-top:20px">${L.learned}${(d.learned||[]).length?` (${d.learned.length}/${d.max||150})`:''}</div>
+      ${known||`<div style="font-size:13px;color:var(--muted);margin-bottom:10px">${L.learnedNone}</div>`}
+      <div style="${h4};margin-top:20px">${L.own}</div>
+      <div style="${card}">
+        <input type="text" id="learn-own-q" maxlength="300" placeholder="${esc(L.ownQ)}" value="${keepOwn?esc(ownQ):''}" style="${inp};margin-bottom:8px">
+        <textarea id="learn-own-a" rows="2" maxlength="800" placeholder="${esc(L.ownA)}" style="${inp};resize:vertical">${keepOwn?esc(ownA):''}</textarea>
+        <div style="margin-top:8px"><button onclick="learnAddOwn()" style="${btnP}">${L.add}</button></div>
+      </div>
+    </div>
+  </div>`;
+  try{ buildPortalTiles(); }catch(e){}
+  // odkaz „Doplnit v portálu" z analytiky: /portal?token=…&blok=learn#alex
+  if(!_learnDeepLinkDone && new URLSearchParams(location.search).get('blok')==='learn'){ _learnDeepLinkDone=true; openLearnBlock(); }
+}
+// ── Helpdesk: závady, úklid a přání hostů se stavem, řešitelem a historií (23. 11. 2026) ───
+const HD_T = {
+  cs:{title:'Helpdesk', desc:'závady, úklid a přání hostů — stav, řešitel a historie',
+      on:'Hosté mohou hlásit závady, úklid a přání přímo v aplikaci (tlačítko 🛠)', off:'Helpdesk je vypnutý. Zapněte ho a hostům se v aplikaci objeví tlačítko 🛠.',
+      note:'Nový požadavek vám přijde i e-mailem. Stav a vaši zprávu host uvidí ve své aplikaci.',
+      none:'Zatím žádný požadavek.', room:'Pokoj', who:'Řešitel', whoPh:'např. Petr, údržba', msg:'Zpráva pro hosta', msgPh:'např. Technik přijde do 30 minut.',
+      save:'Uložit', hist:'Historie', saved:'Uloženo', err:'Uložení se nepovedlo, zkuste to znovu.', open:'Otevřené', done:'Vyřízené',
+      kind:{fault:'Závada',cleaning:'Úklid',wish:'Přání'}, st:{new:'Nový',in_progress:'Řeší se',done:'Vyřízeno'},
+      ev:{created:'Host požadavek odeslal',status:'Stav',assignee:'Řešitel',note:'Zpráva hostovi'}},
+  en:{title:'Helpdesk', desc:'guest problems, cleaning and wishes — status, assignee and history',
+      on:'Guests can report problems, cleaning and wishes right in the app (🛠 button)', off:'The helpdesk is off. Turn it on and guests will see the 🛠 button in the app.',
+      note:'A new request also arrives by e-mail. The guest sees the status and your message in their app.',
+      none:'No requests yet.', room:'Room', who:'Assignee', whoPh:'e.g. Peter, maintenance', msg:'Message for the guest', msgPh:'e.g. A technician will come within 30 minutes.',
+      save:'Save', hist:'History', saved:'Saved', err:'Saving failed, please try again.', open:'Open', done:'Done',
+      kind:{fault:'Problem',cleaning:'Cleaning',wish:'Wish'}, st:{new:'New',in_progress:'In progress',done:'Done'},
+      ev:{created:'Guest sent the request',status:'Status',assignee:'Assignee',note:'Message to guest'}}
+};
+const HD_COL = {new:'#ffaa33', in_progress:'#2fd0d8', done:'#2ecc87'};
+let _hdData=null, _hdDeepLinkDone=false;
+function hdEsc(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+async function hdToggle(cb){
+  const L=HD_T[portalLang==='en'?'en':'cs'];
+  try{
+    const r=await fetch(`${API}/api/hotel-portal/update?token=${token}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({helpdesk_enabled:cb.checked})});
+    if(!r.ok) throw 0;
+    hotelData.helpdesk_enabled=cb.checked; toast(L.saved); loadHelpdeskSection();
+  }catch(e){ cb.checked=!cb.checked; toast(L.err,'err'); }
+}
+async function hdSave(i){
+  const t=_hdData.tickets[i], L=HD_T[portalLang==='en'?'en':'cs'];
+  const body={id:t.id, status:document.getElementById('hd-st-'+i).value, assignee:document.getElementById('hd-who-'+i).value, note:document.getElementById('hd-msg-'+i).value};
+  try{
+    const r=await fetch(`${API}/api/hotel-portal/helpdesk-update?token=${token}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok) throw 0;
+    toast(L.saved); loadHelpdeskSection(await r.json());
+  }catch(e){ toast(L.err,'err'); }
+}
+async function loadHelpdeskSection(data){
+  const el=document.getElementById('helpdesk-section');
+  if(!el||!hotelData) return;
+  // rozepsaný text neztratit při automatické obnově
+  if(!data && el.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && document.activeElement.type!=='checkbox') return;
+  let d=data;
+  if(!d){ try{ const r=await fetch(`${API}/api/hotel-portal/helpdesk?token=${token}`); if(!r.ok) throw 0; d=await r.json(); }catch(e){ if(!_hdData) el.innerHTML=''; return; } }
+  _hdData=d;
+  const L=HD_T[portalLang==='en'?'en':'cs'], c=d.counts||{};
+  const inp='width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 10px;font-family:inherit';
+  const lab=t=>`<div style="font-size:11px;color:var(--muted);margin-bottom:3px">${t}</div>`;
+  const evTxt=e=>e.kind==='status'?L.ev.status+': '+(L.st[e.text]||hdEsc(e.text)):(e.kind==='created'?L.ev.created:(L.ev[e.kind]||hdEsc(e.kind))+': '+hdEsc(e.text));
+  const rows=(d.tickets||[]).map((t,i)=>{ const col=HD_COL[t.status]||'var(--muted)'; return `
+    <div style="background:var(--surface);border:1px solid var(--border);border-left:4px solid ${col};border-radius:10px;padding:12px 14px;margin-bottom:10px${t.status==='done'?';opacity:.75':''}">
+      <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px">
+        <span style="font-weight:800;font-size:13.5px">${L.kind[t.kind]||hdEsc(t.kind)}</span>
+        ${t.room?`<span style="font-size:12.5px;font-weight:700">${L.room} ${hdEsc(t.room)}</span>`:''}
+        ${t.guest?`<span style="font-size:12.5px;color:var(--muted)">${hdEsc(t.guest)}</span>`:''}
+        <span style="padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;color:${col};border:1px solid ${col}">${L.st[t.status]||hdEsc(t.status)}</span>
+        <span style="margin-left:auto;font-size:11.5px;color:var(--muted);white-space:nowrap">${t.lang?hdEsc(String(t.lang).toUpperCase())+' · ':''}${fmtReqTime(t.created)}</span>
+      </div>
+      <div style="font-size:13.5px;white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:10px">${hdEsc(t.text)}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:8px">
+        <div>${lab(L.ev.status)}<select id="hd-st-${i}" style="${inp}">${['new','in_progress','done'].map(s=>`<option value="${s}"${s===t.status?' selected':''}>${L.st[s]}</option>`).join('')}</select></div>
+        <div>${lab(L.who)}<input type="text" id="hd-who-${i}" maxlength="60" placeholder="${hdEsc(L.whoPh)}" value="${hdEsc(t.assignee)}" style="${inp}"></div>
+      </div>
+      <div style="margin-bottom:8px">${lab(L.msg)}<input type="text" id="hd-msg-${i}" maxlength="400" placeholder="${hdEsc(L.msgPh)}" value="${hdEsc(t.note)}" style="${inp}"></div>
+      <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+        <button onclick="hdSave(${i})" style="background:var(--accent);color:#0a0b0f;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">${L.save}</button>
+        <details style="flex:1;min-width:200px;font-size:12px;color:var(--muted)"><summary style="cursor:pointer;padding:8px 0">${L.hist} (${(t.events||[]).length})</summary>
+          ${(t.events||[]).map(e=>`<div style="padding:2px 0">${fmtReqTime(e.t)} — ${evTxt(e)}</div>`).join('')}</details>
+      </div>
+    </div>`; }).join('');
+  const chip=(label,n,color)=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;min-width:110px;text-align:center"><div style="font-size:22px;font-weight:800;color:${color}">${n||0}</div><div style="font-size:11px;color:var(--muted)">${label}</div></div>`;
+  const prevBody=el.querySelector('#sec-helpdesk .section-body'); const openNow=prevBody?prevBody.classList.contains('open'):true; const oc=openNow?'open':'';
+  el.innerHTML=`<div class="section ${openNow?'section-open':''}" id="sec-helpdesk" style="margin-bottom:24px">
+    <div class="section-head ${oc}" onclick="toggleSection('sec-helpdesk')">
+      <div class="section-icon">🛠</div>
+      <div style="flex:1;min-width:0"><div class="section-title">${L.title}${c.open?` <span style="color:#ffaa33">(${c.open})</span>`:''}</div>
+      <div class="section-desc">${L.desc}</div></div>
+      <span class="section-toggle-lbl">${tr(openNow?'Sbalit':'Rozbalit')}</span><div class="section-chevron ${oc}">▼</div>
+    </div>
+    <div class="section-body ${oc}">
+      <label style="display:flex;gap:10px;align-items:center;cursor:pointer;font-size:13.5px;font-weight:700;margin-bottom:6px"><input type="checkbox" onchange="hdToggle(this)"${d.enabled?' checked':''} style="width:18px;height:18px"/> <span>${d.enabled?L.on:L.off}</span></label>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">${L.note}</div>
+      ${(d.tickets||[]).length?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${chip(L.st.new,c.new,HD_COL.new)}${chip(L.st.in_progress,c.in_progress,HD_COL.in_progress)}${chip(L.st.done,c.done,HD_COL.done)}</div>${rows}`
+        :`<div style="font-size:13px;color:var(--muted)">${L.none}</div>`}
+    </div>
+  </div>`;
+  try{ buildPortalTiles(); }catch(e){}
+  // odkaz z e-mailu: /portal?token=…&blok=helpdesk#alex
+  if(!_hdDeepLinkDone && new URLSearchParams(location.search).get('blok')==='helpdesk'){ _hdDeepLinkDone=true; PORTAL_SOLO.alex=null; openPortalBlock('alex','helpdesk-section'); }
+}
+
+// ── Hodnocení odpovědí: palce hostů + posouzení hotelem (23. 11. 2026) ──────────────────────
+const RT_T = {
+  cs:{title:'Hodnocení odpovědí', desc:'jak hosté hodnotí odpovědi Alex — a které jim nepomohly',
+      up:'Palec nahoru', down:'Palec dolů', sat:'Spokojenost', wait:'Čeká na vás',
+      none:'Hosté zatím žádnou odpověď nehodnotili. Palce se ukazují pod každou odpovědí Alex.',
+      waitH:'Odpovědi, které hostům nepomohly', waitNone:'Žádná odpověď nečeká na posouzení. 👍',
+      q:'Host se ptal', a:'Alex odpověděl', ok:'Odpověď je v pořádku', bad:'Je špatně', fixPh:'Správná odpověď (nepovinné) — Alex ji příště použije',
+      okDone:'Označeno jako správná odpověď', badDone:'Uloženo — Alex už zná správnou odpověď', badNoFix:'Označeno jako špatná odpověď',
+      times:n=>n+'× palec dolů', full:'Seznam naučených odpovědí je plný. Smažte některou starší v bloku „Alex se učí“.', err:'Uložení se nepovedlo, zkuste to znovu.',
+      unans:'Dotazy bez odpovědi', fixed:'Vaše oprava', doneH:'Už posouzené odpovědi', doneNone:'Zatím jste žádnou odpověď neposoudili.',
+      upTip:'U kladně hodnocených odpovědí text neukládáme — není co opravovat.', downTip:'Ukázat odpovědi s palcem dolů — čekající i už posouzené',
+      satTip:'Ukázat odpovědi, které spokojenost snižují', waitTip:'Ukázat odpovědi, které čekají na vaše posouzení', unansTip:'Otevřít dotazy, na které Alex neznala odpověď',
+      waitSum:(a,v)=>`${a} ${a===1?'odpověď':(a<5?'odpovědi':'odpovědí')}, dohromady ${v}× palec dolů (stejnou odpověď může označit víc hostů)`,
+      you:(o,b)=>`Vy jste posoudili: ${o}× v pořádku, ${b}× špatně`},
+  en:{title:'Answer ratings', desc:'how guests rate Alex\'s answers — and which ones did not help',
+      up:'Thumbs up', down:'Thumbs down', sat:'Satisfaction', wait:'Waiting for you',
+      none:'Guests have not rated any answer yet. Thumbs appear under each of Alex\'s answers.',
+      waitH:'Answers that did not help guests', waitNone:'No answer is waiting for review. 👍',
+      q:'Guest asked', a:'Alex answered', ok:'The answer is fine', bad:'It is wrong', fixPh:'Correct answer (optional) — Alex will use it next time',
+      okDone:'Marked as a correct answer', badDone:'Saved — Alex now knows the correct answer', badNoFix:'Marked as a wrong answer',
+      times:n=>n+'× thumbs down', full:'The list of learned answers is full. Delete an older one in the “Alex learns” block.', err:'Saving failed, please try again.',
+      unans:'Unanswered questions', fixed:'Your correction', doneH:'Answers you already reviewed', doneNone:'You have not reviewed any answer yet.',
+      upTip:'We do not store the text of positively rated answers — there is nothing to fix.', downTip:'Show thumbs-down answers — waiting and already reviewed',
+      satTip:'Show the answers that lower satisfaction', waitTip:'Show answers waiting for your review', unansTip:'Open the questions Alex could not answer',
+      waitSum:(a,v)=>`${a} ${a===1?'answer':'answers'}, ${v} thumbs down in total (several guests can rate the same answer)`,
+      you:(o,b)=>`Your review: ${o}× fine, ${b}× wrong`}
+};
+let _rtData=null, _rtDeepLinkDone=false;
+// klik na dlaždici s číslem: sjede na příslušný seznam a krátce ho zvýrazní
+function rtGo(id){
+  const e=document.getElementById(id); if(!e) return;
+  e.scrollIntoView({behavior:'smooth',block:'start'});
+  const o=e.style.color; e.style.color='var(--accent)'; setTimeout(()=>{ e.style.color=o; },1600);
+}
+async function rtResolve(i, verdict){
+  const x=_rtData.down[i], L=RT_T[portalLang==='en'?'en':'cs'];
+  const fix=verdict==='bad'?(document.getElementById('rt-fix-'+i).value||'').trim():'';
+  try{
+    const r=await fetch(`${API}/api/hotel-portal/ratings-resolve?token=${token}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:x.id,verdict,answer:fix})});
+    if(!r.ok){ const e=await r.json().catch(()=>({})); toast(e.detail==='full'?L.full:L.err,'err'); return; }
+    toast(verdict==='ok'?L.okDone:(fix?L.badDone:L.badNoFix));
+    loadRatingsSection(await r.json());
+    if(fix) try{ loadLearnSection(); }catch(e){}
+  }catch(e){ toast(L.err,'err'); }
+}
+async function loadRatingsSection(data){
+  const el=document.getElementById('ratings-section');
+  if(!el||!hotelData) return;
+  if(!data && el.contains(document.activeElement) && document.activeElement.tagName==='TEXTAREA') return;
+  let d=data;
+  if(!d){ try{ const r=await fetch(`${API}/api/hotel-portal/ratings?token=${token}`); if(!r.ok) throw 0; d=await r.json(); }catch(e){ if(!_rtData) el.innerHTML=''; return; } }
+  _rtData=d;
+  // odkaz z analytiky: /portal?token=…&blok=ratings#alex
+  if(!_rtDeepLinkDone && new URLSearchParams(location.search).get('blok')==='ratings'){ _rtDeepLinkDone=true; setTimeout(()=>{ try{ openRatingsBlock(); }catch(e){} },0); }
+  const L=RT_T[portalLang==='en'?'en':'cs'], s=d.summary||{};
+  const waitVotes=(d.down||[]).reduce((t,x)=>t+(parseInt(x.n)||1),0);
+  const inp='width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 10px;font-family:inherit';
+  const btnS='background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text);padding:7px 12px;font-size:12.5px;cursor:pointer';
+  const chip=(label,n,color,go,tip)=>`<button type="button" onclick="${go}" title="${hdEsc(tip||'')}" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;min-width:110px;text-align:center;cursor:pointer;font-family:inherit"><div style="font-size:22px;font-weight:800;color:${color}">${n}</div><div style="font-size:11px;color:var(--muted)">${label} ›</div></button>`;
+  const unans=(_learnData&&_learnData.pending||[]).length;
+  const doneRows=(d.done||[]).map(x=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:8px">
+      <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><div style="font-weight:700;font-size:13.5px;overflow-wrap:anywhere">${hdEsc(x.q)}</div>
+        <span style="margin-left:auto;font-size:11.5px;font-weight:700;color:${x.verdict==='bad'?'#ff4f6a':'#2ecc87'};white-space:nowrap">${x.verdict==='bad'?'👎 '+L.bad:'👍 '+L.ok}</span></div>
+      <div style="font-size:12.5px;color:var(--muted);overflow-wrap:anywhere;margin-top:4px">${L.a}: ${hdEsc(x.a)}</div>
+      ${x.fix?`<div style="font-size:12.5px;overflow-wrap:anywhere;margin-top:4px">${L.fixed}: ${hdEsc(x.fix)}</div>`:''}
+    </div>`).join('');
+  const rows=(d.down||[]).map((x,i)=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">${L.q}</div>
+        <span style="margin-left:auto;font-size:11.5px;color:var(--muted);white-space:nowrap">${x.lang?hdEsc(String(x.lang).toUpperCase())+' · ':''}${x.n>1?`<b style="color:#ff4f6a">${L.times(x.n)}</b> · `:''}${fmtReqTime(x.at)}</span></div>
+      <div style="font-weight:700;font-size:14px;overflow-wrap:anywhere;margin-bottom:8px">${hdEsc(x.q)}</div>
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">${L.a}</div>
+      <div style="font-size:13px;color:var(--muted);overflow-wrap:anywhere;margin-bottom:10px">${hdEsc(x.a)}</div>
+      <textarea id="rt-fix-${i}" rows="2" maxlength="800" placeholder="${hdEsc(L.fixPh)}" style="${inp};resize:vertical"></textarea>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <button onclick="rtResolve(${i},'bad')" style="background:var(--accent);color:#0a0b0f;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">👎 ${L.bad}</button>
+        <button onclick="rtResolve(${i},'ok')" style="${btnS}">👍 ${L.ok}</button>
+      </div>
+    </div>`).join('');
+  const h4='font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin:0 0 10px';
+  const prevBody=el.querySelector('#sec-ratings .section-body'); const openNow=prevBody?prevBody.classList.contains('open'):true; const oc=openNow?'open':'';
+  el.innerHTML=`<div class="section ${openNow?'section-open':''}" id="sec-ratings" style="margin-bottom:24px">
+    <div class="section-head ${oc}" onclick="toggleSection('sec-ratings')">
+      <div class="section-icon">👍</div>
+      <div style="flex:1;min-width:0"><div class="section-title">${L.title}${s.waiting?` <span style="color:#ffaa33">(${s.waiting})</span>`:''}</div>
+      <div class="section-desc">${L.desc}</div></div>
+      <span class="section-toggle-lbl">${tr(openNow?'Sbalit':'Rozbalit')}</span><div class="section-chevron ${oc}">▼</div>
+    </div>
+    <div class="section-body ${oc}">
+      ${s.total?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">${chip('👍 '+L.up,s.up||0,'#2ecc87',"toast(RT_T[portalLang==='en'?'en':'cs'].upTip)",L.upTip)}${chip('👎 '+L.down,s.down||0,'#ff4f6a',"rtGo('rt-wait')",L.downTip)}${chip(L.sat,(s.satisfied_pct==null?'–':s.satisfied_pct+' %'),'var(--accent)',"rtGo('rt-wait')",L.satTip)}${chip(L.wait,s.waiting||0,'#ffaa33',"rtGo('rt-wait')",L.waitTip)}${chip('🎓 '+L.unans,unans,'#ffaa33',"openLearnBlock()",L.unansTip)}</div>
+        ${(s.hotel_ok||s.hotel_bad)?`<div style="font-size:12px;color:var(--muted);margin-bottom:14px">${L.you(s.hotel_ok||0,s.hotel_bad||0)}</div>`:'<div style="margin-bottom:14px"></div>'}
+        <div id="rt-wait" style="${h4};scroll-margin-top:80px">${L.waitH}${(d.down||[]).length?` <span style="text-transform:none;letter-spacing:0;font-weight:600">— ${L.waitSum((d.down||[]).length,waitVotes)}</span>`:''}</div>
+        ${rows||`<div style="font-size:13px;color:var(--muted)">${L.waitNone}</div>`}
+        <div id="rt-done" style="${h4};margin-top:18px;scroll-margin-top:80px">${L.doneH}</div>
+        ${doneRows||`<div style="font-size:13px;color:var(--muted)">${L.doneNone}</div>`}`
+        :`<div style="font-size:13px;color:var(--muted)">${L.none}</div>`}
+    </div>
+  </div>`;
+  try{ buildPortalTiles(); }catch(e){}
+}
 // obnova seznamu při návratu na záložku a každou minutu, dokud je záložka otevřená
-setInterval(()=>{ if(currentPortalTab()==='alex' && document.visibilityState==='visible') loadRequestsSection(); }, 60000);
+setInterval(()=>{ if(currentPortalTab()==='alex' && document.visibilityState==='visible'){ loadRequestsSection(); loadHelpdeskSection(); } }, 60000);
 
 // ── Objednávky v chatu (zápis do rezervace, APALEO_ZAPIS_DO_REZERVACE_NAVRH.md) ─────────
 // Sekce se ukazuje jen tam, kde je zápis zapnutý na serveru (pms_write_available = gate).
@@ -2444,119 +3322,44 @@ function dismissOnboarding(){
 }
 
 async function loadMonthlyReport(){
+  // V portálu jen tři čísla za rozjetý měsíc; podrobná analytika je na samostatné stránce /prehled.
   try{
-    const [rr, ra] = await Promise.all([
-      fetch(`${API}/api/hotel-portal/monthly-report?token=${token}`).catch(()=>null),
-      fetch(`${API}/api/hotel-portal/analytics?token=${token}`).catch(()=>null)
-    ]);
     const el = document.getElementById('monthly-report-section');
     if(!el) return;
+    const rr = await fetch(`${API}/api/hotel-portal/monthly-report?token=${token}`).catch(()=>null);
     const d = (rr && rr.ok) ? await rr.json() : {};
-    const ad = (ra && ra.ok) ? await ra.json() : {};
-    const a = (ad && ad.analytics) || {total:0, topics:{}, last_chat:null, flagged_count:0};
     const cs = (portalLang !== 'en') && (d.lang !== 'en');
-    const rep = d.report || {}, cur = d.current || {};
+    const cur = d.current || {};
     const L = cs ? {
       title:'Přehled & statistiky', desc:'Jak Alex sloužil vašim hostům',
-      conv:'konverzací s hosty', trendPrefix:'oproti minulému měsíci',
-      langs:'Nejčastější jazyky', saved:'Ušetřeno recepci', thisMonth:'Tento měsíc zatím',
-      total:'Celkem dotazů', last:'Poslední chat', topics:'Nejčastější témata',
-      flagged:'× Alex neměl dost informací — doplňte profil výše, ať hosté dostanou odpověď vždy.',
-      profile:'% vyplněný profil — doplnění zvýší kvalitu odpovědí.',
-      empty:'Zatím žádná aktivita tento měsíc. Souhrn se objeví po prvních dotazech hostů.',
-      visitors:'hostů si otevřelo průvodce', totalVisits:'Otevření průvodce celkem'
+      q:n=>n===1?'dotaz hosta':(n>=2&&n<=4?'dotazy hostů':'dotazů hostů'), saved:'ušetřeno recepci', flagged:n=>n===1?'dotaz bez odpovědi':(n>=2&&n<=4?'dotazy bez odpovědi':'dotazů bez odpovědi'),
+      link:'Otevřít podrobný přehled →', hint:'Úspora, vývoj, jazyky, témata, mezery ve znalostech a objednávky.'
     } : {
       title:'Overview & stats', desc:'How Alex served your guests',
-      conv:'guest conversations', trendPrefix:'vs. last month',
-      langs:'Top languages', saved:'Reception time saved', thisMonth:'This month so far',
-      total:'Total questions', last:'Last chat', topics:'Top topics',
-      flagged:'× Alex lacked enough info — complete your profile above so guests always get an answer.',
-      profile:'% profile complete — filling the gaps improves answers.',
-      empty:'No activity yet this month. The summary appears after your first guest questions.',
-      visitors:'guests opened the guide', totalVisits:'Total guide opens'
+      q:n=>n===1?'guest question':'guest questions', saved:'reception time saved', flagged:n=>n===1?'unanswered question':'unanswered questions',
+      link:'Open the detailed overview →', hint:'Savings, trends, languages, topics, knowledge gaps and orders.'
     };
-    const TOPIC_LABELS = { checkin:'Check-in/out', checkout:'Check-in/out', breakfast:'Snídaně', parking:'Parkování', wellness:'Wellness/Spa', restaurant:'Restaurace', weather:'Počasí', nearby:'Okolí', contact:'Kontakt' };
-    const topics = Object.entries(a.topics||{}).sort((x,y)=>y[1]-x[1]).slice(0,6);
-    const topicHtml = topics.map(([k,v])=>{
-      const pct = a.total ? Math.round((v/a.total)*100) : 0;
-      return `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span>${TOPIC_LABELS[k]||k}</span><span style="color:var(--accent2);font-weight:600">${v}x</span></div><div style="background:var(--border);border-radius:4px;height:6px"><div style="background:var(--accent);border-radius:4px;height:6px;width:${pct}%"></div></div></div>`;
-    }).join('');
-    const lastChat = a.last_chat ? new Date(a.last_chat).toLocaleDateString(cs?'cs-CZ':'en-GB') : '–';
-    const totalVisits = d.total_visits||0;
-    // Požadavky hostů z chatu (objednávky) — stejná data jako sekce Požadavky hostů v záložce Alex
-    let reqHtml = '';
-    try{
-      const rq = (hotelData && hotelData.pms_write_available) ? (_requestsCache || await fetchRequests()) : null;
-      const tm = rq && rq.stats && rq.stats.this_month;
-      if(tm && (tm.total || (rq.stats.all_time||{}).total)){
-        const n = tm.total||0;
-        const lblReq = cs ? (n===1?'požadavek tento měsíc':(n>=2&&n<=4)?'požadavky tento měsíc':'požadavků tento měsíc') : (n===1?'request this month':'requests this month');
-        const lblWait = cs ? 'z toho čeká na odpověď' : 'waiting for a reply';
-        reqHtml = `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;cursor:pointer" onclick="showPortalTab('alex')" title="${cs?'Požadavky hostů v chatu':'Guest requests in chat'}"><div style="font-size:32px;font-weight:700;color:#ffaa33">${tm.total||0}</div><div style="font-size:12px;color:var(--muted)">🛎 ${lblReq}${tm.pending?`<br><span style="color:#ffaa33;font-weight:700">${tm.pending}</span> ${lblWait}`:''}</div></div>`;
-      }
-    }catch(e){}
-    const allTimeHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:14px 0">
-      ${totalVisits?`<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:32px;font-weight:700;color:var(--accent2)">${totalVisits}</div><div style="font-size:12px;color:var(--muted)">${L.totalVisits}</div></div>`:''}
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:32px;font-weight:700;color:var(--accent)">${a.total||0}</div><div style="font-size:12px;color:var(--muted)">${L.total}</div></div>
-      ${reqHtml}
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:18px;font-weight:700;color:var(--accent2)">${lastChat}</div><div style="font-size:12px;color:var(--muted)">${L.last}</div></div>
-    </div>${topics.length?`<div style="font-size:12px;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">${L.topics}</div>${topicHtml}`:''}`;
-    const hasMonthly = (rep.count || 0) > 0;
-    const curCount = cur.count || 0;
-    const trendHtml = (rep.trend_pct !== null && rep.trend_pct !== undefined && rep.prev_count > 0)
-      ? `<div style="font-size:13px;font-weight:600;margin-top:4px;color:${rep.trend_pct>=0?'var(--success)':'var(--warn)'}">${rep.trend_pct>=0?'+':''}${rep.trend_pct}% ${L.trendPrefix}</div>` : '';
-    const langsHtml = (rep.top_langs && rep.top_langs.length)
-      ? rep.top_langs.map(x=>`${x.name} (${x.count})`).join(', ') : '–';
-    const flaggedHtml = (rep.flagged>0)
-      ? `<div style="margin-top:12px;padding:10px 12px;border:1px solid rgba(255,79,106,.3);background:rgba(255,79,106,.06);border-radius:8px;font-size:13px;color:var(--text)"><strong style="color:#ff4f6a">${rep.flagged}${L.flagged}</strong></div>` : '';
-    const profileHtml = (d.profile_score < 100)
-      ? `<div style="margin-top:8px;padding:10px 12px;border:1px solid var(--border);background:var(--card);border-radius:8px;font-size:13px;color:var(--muted)"><strong style="color:var(--text)">${d.profile_score}</strong>${L.profile}</div>` : '';
-
+    const box = (v,l,c) => `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center"><div style="font-size:30px;font-weight:700;color:${c};line-height:1.15">${v}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">${l}</div></div>`;
+    const cnt = cur.count || 0;
     el.innerHTML = `
       <div class="section">
         <div class="section-head">
           <div class="section-icon">📈</div>
-          <div><div class="section-title">${L.title}${hasMonthly?` · ${rep.month_label||''}`:''}</div>
+          <div><div class="section-title">${L.title}${cur.month_label?` · ${cur.month_label}`:''}</div>
           <div class="section-desc">${L.desc}</div></div>
         </div>
-        ${hasMonthly ? `
-        <div style="background:linear-gradient(135deg,#1a1a1a,#2a2a2a);color:#fff;border-radius:12px;padding:22px;text-align:center;margin-bottom:14px">
-          <div style="font-size:44px;font-weight:800;color:#ff8a3d;line-height:1">${rep.count}</div>
-          <div style="font-size:13px;opacity:.85;margin-top:2px">${L.conv}${rep.month_label?` · ${rep.month_label}`:''}</div>
-          ${trendHtml}
-          ${(rep.visitors>0)?`<div style="font-size:13px;opacity:.85;margin-top:6px">👀 <strong>${rep.visitors}</strong> ${L.visitors}</div>`:''}
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px">
-            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${L.langs}</div>
-            <div style="font-size:14px;font-weight:600;color:var(--text)">${langsHtml}</div>
+        <div style="padding:16px 18px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px">
+            ${box(cnt, L.q(cnt), 'var(--accent)')}
+            ${box(cnt ? (cur.saved_label||'–') : '–', L.saved, 'var(--accent2)')}
+            ${box(cur.flagged||0, L.flagged(cur.flagged||0), (cur.flagged>0)?'#ff4f6a':'var(--text)')}
           </div>
-          <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px">
-            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${L.saved}</div>
-            <div style="font-size:14px;font-weight:600;color:var(--text)">${rep.saved_label||'–'}</div>
+          <div style="margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <a href="#analytika" onclick="showPortalTab('analytika');return false" style="background:var(--accent);color:#fff;text-decoration:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;white-space:nowrap">${L.link}</a>
+            <span style="font-size:12px;color:var(--muted)">${L.hint}</span>
           </div>
         </div>
-        ${flaggedHtml}
-        ${profileHtml}
-        ${curCount>0?`<div style="margin-top:12px;font-size:12px;color:var(--muted);text-align:center">${L.thisMonth}: <strong style="color:var(--text)">${curCount}</strong> ${L.conv}</div>`:''}
-        ` : (curCount>0 ? `
-        <div style="background:linear-gradient(135deg,#1a1a1a,#2a2a2a);color:#fff;border-radius:12px;padding:22px;text-align:center;margin-bottom:14px">
-          <div style="font-size:44px;font-weight:800;color:#ff8a3d;line-height:1">${curCount}</div>
-          <div style="font-size:13px;opacity:.85;margin-top:2px">${L.conv} · ${(L.thisMonth||'').toLowerCase()}</div>
-        </div>
-        ${flaggedHtml}
-        ${profileHtml}
-        ` : ((cur.visitors||0)>0 ? `
-        <div style="background:linear-gradient(135deg,#1a1a1a,#2a2a2a);color:#fff;border-radius:12px;padding:22px;text-align:center;margin-bottom:14px">
-          <div style="font-size:44px;font-weight:800;color:#ff8a3d;line-height:1">${cur.visitors}</div>
-          <div style="font-size:13px;opacity:.85;margin-top:2px">${L.visitors} · ${(L.thisMonth||'').toLowerCase()}</div>
-        </div>
-        ${profileHtml}
-        ` : `
-        <div style="text-align:center;padding:20px 10px;color:var(--muted);font-size:13px">📈 ${L.empty}</div>`))}
-        ${allTimeHtml}
       </div>`;
-    translateDom(el);
   }catch(e){}
 }
 
@@ -2685,6 +3488,276 @@ function blockEditing(){
   const btn=document.getElementById('save-btn');
   if(btn){btn.disabled=true;btn.textContent=tr('⚠️ Uhraďte doplatek');}
 }
+
+// ── Chytré hledání v portálu (server: smart_search.py) ─────────────────
+// Při psaní hledá hned a zdarma (jen podle slov), po Enteru i významově a přidá krátkou odpověď se zdroji.
+// Učí se: pamatuje si dotazy (našeptávání), kliknutí (příště výš) a co se nenašlo posílá do „Alex se učí“.
+const SQ_T = {
+  cs:{ph:'Zeptejte se nebo hledejte v dokumentech hotelu a v portálu…', go:'Hledat', often:'Často hledané', docs:'V dokumentech hotelu',
+      learned:'Odpovědi recepce', portal:'V portálu', answer:'Odpověď', thinking:'Hledám odpověď v dokumentech…', src:'Zdroje',
+      helpful:'Pomohlo to?', thanks:'Díky, budeme to nabízet dál.', noted:'Dotaz jsme zařadili do „Alex se učí“ – doplňte tam správnou odpověď.',
+      fixed:'Hledám', instead:'místo', orig:'Hledat přesně', none:'Nic jsme nenašli.',
+      noneNoted:'Nic jsme nenašli. Dotaz jsme uložili do „Alex se učí“, ať víte, co v podkladech chybí.',
+      teachT:'Znáte odpověď? Napište ji – příště ji najde hledání i Alex.', teachPh:'Odpověď, jak byste ji řekli hostovi nebo kolegovi…', teachSave:'Uložit odpověď',
+      teachOk:'Odpověď uložena. Příště ji najde hledání i Alex.', nodocs:'Zatím nemáte nahrané žádné dokumenty. Hledání umí prohledat provozní řády, ceníky a manuály – ',
+      nodocsLink:'přidat je ve Znalostní bázi', hint:'Enter = prohledat i podle významu a odpovědět · ↑↓ výběr · Esc zavřít', open:'Otevřít zdroj ↗',
+      guest:'pro hosty', staff:'interní', setting:'nastavení', tab:'záložka', more:'Celý úryvek', err:'Hledání teď neodpovídá. Zkuste to za chvíli.',
+      learnLink:'Otevřít „Alex se učí“', pressEnter:'Stiskněte Enter – prohledám dokumenty i podle významu.', cached:'z paměti, bez AI', partial:'Přesnou shodu jsme nenašli – ukazuji nejbližší.',
+      propBtn:'✨ Doplnit další otázky a odpovědi k tématu', propBtn0:'✨ Navrhnout otázky a odpovědi s AI', propLoading:'Připravuji otázky, na které se hosté k tématu ptají…',
+      propT:'Na co se hosté ptají dál', propNote:'Klikněte na odpověď, která u vás platí, případně ji upravte a uložte. Návrhy jsou jen předlohy – hostům se dostane jen to, co uložíte.',
+      propPh:'Vyberte odpověď výše nebo napište vlastní…', propSave:'Uložit', propSkip:'Přeskočit', propSaved:'Uloženo', propNone:'K tomuhle tématu už další otázky nenapadají. Zkuste jiné téma.',
+      propErr:'Návrhy se teď nepodařilo připravit. Zkuste to za chvíli.', propBlank:'Doplňte údaj místo ___ a uložte znovu.', propMore:'Navrhnout další', propDone:'Vše vyřízeno. Uložené odpovědi najde hledání i Alex.'},
+  en:{ph:'Ask a question or search the hotel documents and the portal…', go:'Search', often:'Popular searches', docs:'In hotel documents',
+      learned:'Front desk answers', portal:'In the portal', answer:'Answer', thinking:'Looking for the answer in your documents…', src:'Sources',
+      helpful:'Was this helpful?', thanks:'Thanks, we will keep offering it.', noted:'We added the question to “Alex learns” – please add the right answer there.',
+      fixed:'Searching for', instead:'instead of', orig:'Search exactly', none:'Nothing found.',
+      noneNoted:'Nothing found. We saved the question to “Alex learns” so you can see what is missing.',
+      teachT:'Do you know the answer? Write it down – next time both search and Alex will find it.', teachPh:'The answer as you would tell a guest or a colleague…', teachSave:'Save answer',
+      teachOk:'Answer saved. Next time both search and Alex will find it.', nodocs:'You have no documents yet. Search can go through house rules, price lists and manuals – ',
+      nodocsLink:'add them in the Knowledge base', hint:'Enter = search by meaning and answer · ↑↓ select · Esc close', open:'Open source ↗',
+      guest:'for guests', staff:'internal', setting:'setting', tab:'tab', more:'Full excerpt', err:'Search is not responding. Please try again in a moment.',
+      learnLink:'Open “Alex learns”', pressEnter:'Press Enter – I will also search the documents by meaning.', cached:'from memory, no AI', partial:'No exact match – showing the closest results.',
+      propBtn:'✨ Add more questions and answers on this topic', propBtn0:'✨ Suggest questions and answers with AI', propLoading:'Preparing the questions guests ask about this topic…',
+      propT:'What guests ask next', propNote:'Click the answer that applies to you, edit it if needed and save. Suggestions are only templates – guests get only what you save.',
+      propPh:'Pick an answer above or write your own…', propSave:'Save', propSkip:'Skip', propSaved:'Saved', propNone:'No more questions come to mind for this topic. Try another one.',
+      propErr:'Suggestions could not be prepared right now. Please try again in a moment.', propBlank:'Fill in the value instead of ___ and save again.', propMore:'Suggest more', propDone:'All done. Search and Alex will find the saved answers.'}
+};
+const sqL = () => SQ_T[portalLang==='en'?'en':'cs'];
+let _sqSeq=0, _sqTimer=null, _sqData=null, _sqAnswer=null, _sqExact=false, _sqPortal=[], _sqFullQ='', _sqProp=null;
+const sqFold = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+const sqKey = w => w.length>=5 ? w.slice(0,5) : w;
+
+function sqMark(text, terms){
+  const keys = new Set((terms||[]).map(sqKey));
+  if(!keys.size) return esc(text);
+  return String(text||'').split(/([\p{L}\p{N}]+)/u).map((part,i)=>{
+    if(i%2===0) return esc(part);
+    const f = sqFold(part);
+    return (keys.has(sqKey(f)) || keys.has(f)) ? '<mark>'+esc(part)+'</mark>' : esc(part);
+  }).join('');
+}
+
+// Index nastavení portálu: záložky, bloky, sekce a jednotlivá pole (bere se z toho, co je na stránce)
+function sqPortalIndex(){
+  const out=[];
+  PORTAL_TABS.forEach(([tab,label])=>out.push({kind:'tab', tab, label:tr(label), where:''}));
+  Object.keys(PORTAL_FIXED_TILE).forEach(id=>{
+    if(document.getElementById(id)) out.push({kind:'block', tab:PORTAL_FIXED[id], id, label:tr(PORTAL_FIXED_TILE[id]), where:tr(PORTAL_FIXED_DESC[id]||'')});
+  });
+  document.querySelectorAll('.section[data-ptab]').forEach(sec=>{
+    const t=(sec.querySelector('.section-title')||{}).textContent||'', d=(sec.querySelector('.section-desc')||{}).textContent||'';
+    const ico=(sec.querySelector('.section-icon')||{}).textContent||'';
+    if(t.trim()) out.push({kind:'block', tab:sec.dataset.ptab, id:sec.id, label:(ico+' '+t).trim(), where:d.trim()});
+    sec.querySelectorAll('.edit-table tr').forEach((row,i)=>{
+      const c=row.querySelector('td:first-child'); const lbl=c?c.textContent.replace(/\s+/g,' ').trim():'';
+      if(lbl && lbl.length<=80 && row.querySelector('input,textarea,select')){
+        if(!row.id) row.id='sqrow-'+sec.id+'-'+i;
+        out.push({kind:'field', tab:sec.dataset.ptab, id:sec.id, row:row.id, label:lbl, where:t.trim()});
+      }
+    });
+  });
+  return out.map(x=>Object.assign(x,{f:sqFold(x.label+' '+x.where).split(/[^a-z0-9]+/).filter(Boolean)}));
+}
+function sqPortalHits(q){
+  const qw = sqFold(q).split(/[^a-z0-9]+/).filter(w=>w.length>=2);
+  if(!qw.length) return [];
+  const sc=[];
+  _sqPortal.forEach(x=>{
+    let s=0;
+    for(const w of qw){
+      const k = w.length>=6 ? w.slice(0,5) : w;
+      const m = x.f.some(t=>t.startsWith(k));
+      if(!m){ s=0; break; }
+      s += sqFold(x.label).includes(k) ? 2 : 1;
+    }
+    if(s) sc.push([s + (x.kind==='field'?0:0.5), x]);
+  });
+  return sc.sort((a,b)=>b[0]-a[0]).slice(0,5).map(r=>r[1]);
+}
+function sqGoPortal(i){
+  const x=_sqItemsPortal[i]; if(!x) return;
+  sqClose();
+  if(x.kind==='tab'){ showPortalTab(x.tab); return; }
+  PORTAL_SOLO[x.tab]=null; openPortalBlock(x.tab, x.id);
+  if(x.row) setTimeout(()=>{ const r=document.getElementById(x.row); if(r){ r.scrollIntoView({behavior:'smooth',block:'center'}); r.classList.remove('sq-flash'); void r.offsetWidth; r.classList.add('sq-flash'); const inp=r.querySelector('input,textarea,select'); if(inp) try{inp.focus({preventScroll:true});}catch(e){} } }, 350);
+}
+let _sqItemsPortal=[];
+
+async function sqPost(path, body){
+  const r = await fetch(`${API}/api/hotel-portal/${path}?token=${encodeURIComponent(token)}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(Object.assign({lang:portalLang==='en'?'en':'cs'}, body))});
+  if(!r.ok) throw new Error('http '+r.status);
+  return r.json();
+}
+function sqOpen(){ const p=document.getElementById('sq-panel'); p.hidden=false; document.getElementById('sq-input').setAttribute('aria-expanded','true'); }
+function sqClose(){ const p=document.getElementById('sq-panel'); if(p) p.hidden=true; const i=document.getElementById('sq-input'); if(i) i.setAttribute('aria-expanded','false'); }
+
+async function sqRun(full){
+  const inp=document.getElementById('sq-input'), q=inp.value.trim(), seq=++_sqSeq;
+  document.getElementById('sq-clear').hidden=!inp.value;
+  if(!_sqPortal.length) _sqPortal=sqPortalIndex();
+  if(_sqProp && _sqProp.q!==q) _sqProp=null;
+  if(full){ _sqAnswer = q.length>=3 ? {loading:true} : null; _sqFullQ=q; } else if(q!==_sqFullQ){ _sqAnswer=null; _sqFullQ=''; }
+  let d;
+  try{ d = await sqPost('search', {q, mode: full?'full':'instant', exact:_sqExact, local:sqPortalHits(q).length}); }
+  catch(e){ if(seq===_sqSeq){ _sqData={q, hits:[], learned:[], suggest:[], fixes:[], terms:[], docs:-1, error:true}; _sqAnswer=null; sqRender(full); } return; }
+  if(seq!==_sqSeq) return;                         // mezitím uživatel psal dál
+  _sqData=d; d.full=full;
+  if(full && !(d.hits.length || d.learned.length)) _sqAnswer=null;
+  sqRender(full);
+  if(full && _sqAnswer && _sqAnswer.loading){
+    try{ const a=await sqPost('search/answer', {q:d.used||q}); if(seq===_sqSeq){ _sqAnswer=a; sqRender(true); } }
+    catch(e){ if(seq===_sqSeq){ _sqAnswer=null; sqRender(true); } }
+  }
+}
+function sqAnswerHtml(a){
+  let t = esc(a.reply||'').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\[(\d+)\]/g,'<sup>[$1]</sup>').replace(/\n/g,'<br>');
+  return t;
+}
+function sqRender(full){
+  const L=sqL(), d=_sqData||{}, p=document.getElementById('sq-panel'), q=(d.q||'').trim();
+  let h='', n=0; _sqItemsPortal=[];
+  const item = (attrs, inner) => `<button type="button" class="sq-item" data-i="${n++}" ${attrs}>${inner}</button>`;
+  if(d.error){ p.innerHTML=`<div class="sq-note">${esc(L.err)}</div>`; sqOpen(); return; }
+  if(q.length<2){
+    if((d.suggest||[]).length) h+=`<div class="sq-h">${esc(L.often)}</div><div class="sq-chips">`+d.suggest.map(s=>`<button type="button" class="sq-chip sq-item" data-i="${n++}" data-sq="${esc(s)}">${esc(s)}</button>`).join('')+'</div>';
+    if(d.docs===0) h+=`<div class="sq-note">${esc(L.nodocs)}<a onclick="sqClose();showPortalTab('znalosti')">${esc(L.nodocsLink)}</a>.</div>`;
+    h+=`<div class="sq-note" style="font-size:12px">${esc(L.hint)}</div>`;
+    p.innerHTML=h; sqOpen(); return;
+  }
+  if((d.fixes||[]).length && d.used && sqFold(d.used)!==sqFold(q))
+    h+=`<div class="sq-fix">${esc(L.fixed)} <b>${esc(d.used)}</b> · <a onclick="sqExactSearch()">${esc(L.orig)} „${esc(q)}“</a></div>`;
+  if(d.partial) h+=`<div class="sq-note">${esc(L.partial)}</div>`;
+  if(_sqAnswer){
+    if(_sqAnswer.loading) h+=`<div class="sq-ans"><span class="loader" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:8px"></span>${esc(L.thinking)}</div>`;
+    else if(_sqAnswer.found) h+=`<div class="sq-ans"><div class="sq-h" style="padding:0 0 6px">${esc(L.answer)}${_sqAnswer.cached?`<span style="text-transform:none;letter-spacing:0;font-weight:400">${esc(L.cached)}</span>`:''}</div>${sqAnswerHtml(_sqAnswer)}
+      <div class="sq-ans-foot"><span>${(_sqAnswer.sources||[]).length?esc(L.src)+': '+_sqAnswer.sources.map(s=>`[${s.n}] `+(s.url?`<a href="${esc(s.url)}" target="_blank" rel="noopener" onclick="sqClick('${esc(s.doc_id||'')}')">${esc(s.title)}</a>`:esc(s.title))).join(' · '):''}</span>
+      <span class="sq-fb" id="sq-fb">${esc(L.helpful)} <button type="button" onclick="sqFeedback(true)" title="👍">👍</button><button type="button" onclick="sqFeedback(false)" title="👎">👎</button></span></div></div>`;
+  }
+  const ph = sqPortalHits(q);
+  if((d.learned||[]).length){
+    h+=`<div class="sq-h">${esc(L.learned)}</div>`+d.learned.map(x=>item('data-learn="1"', `<div class="sq-t">${sqMark(x.q,d.terms)}</div><div class="sq-s" style="color:var(--text)">${sqMark(x.a,d.terms)}</div>`)).join('');
+  }
+  if((d.hits||[]).length){
+    h+=`<div class="sq-h">${esc(L.docs)}</div>`+d.hits.map((x,i)=>item(`data-hit="${i}"`,
+      `<div class="sq-t">📄 ${esc(x.title)}${x.section?' <span style="font-weight:400;color:var(--muted)">› '+esc(x.section)+'</span>':''}<span class="sq-tag">${esc(x.audience==='guest'?L.guest:L.staff)}</span></div><div class="sq-s">${sqMark(x.snippet,d.terms)}</div><div class="sq-full" id="sq-full-${i}" hidden></div>`)).join('');
+  }
+  if(ph.length){
+    h+=`<div class="sq-h">${esc(L.portal)}</div>`+ph.map((x,i)=>{ _sqItemsPortal.push(x);
+      return item(`data-portal="${i}"`, `<div class="sq-t">${x.kind==='field'?'✏️ ':''}${sqMark(x.label,sqFold(q).split(/[^a-z0-9]+/))}<span class="sq-tag">${esc(x.kind==='tab'?L.tab:(x.kind==='field'?L.setting:tr((PORTAL_TABS.find(t=>t[0]===x.tab)||['',''])[1])))}</span></div>${x.where?`<div class="sq-s">${esc(x.where)}</div>`:''}`); }).join('');
+  }
+  const found = (d.hits||[]).length + (d.learned||[]).length;
+  if(!found){
+    if(d.full){
+      h+=`<div class="sq-note">${esc(d.noted?L.noneNoted:L.none)}${d.noted?` <a onclick="sqClose();openLearnBlock()">${esc(L.learnLink)}</a>`:''}</div>`;
+      h+=`<div class="sq-teach"><div style="font-size:13px;font-weight:600">${esc(L.teachT)}</div><textarea id="sq-teach-a" rows="2" maxlength="800" placeholder="${esc(L.teachPh)}"></textarea><button type="button" class="btn btn-primary" style="font-size:12px;padding:7px 14px" onclick="sqTeach()">${esc(L.teachSave)}</button></div>`;
+      if(d.docs===0) h+=`<div class="sq-note">${esc(L.nodocs)}<a onclick="sqClose();showPortalTab('znalosti')">${esc(L.nodocsLink)}</a>.</div>`;
+    } else if(!ph.length || d.docs!==0) h+=`<div class="sq-note">${esc(L.pressEnter)}</div>`;
+  } else if(!d.full) h+=`<div class="sq-note" style="font-size:12px">${esc(L.hint)}</div>`;
+  if(d.full && q.length>=3) h+=sqPropHtml(q, !found);
+  const sug=(d.suggest||[]).filter(s=>sqFold(s)!==sqFold(q)).slice(0,4);
+  if(sug.length) h+=`<div class="sq-h">${esc(L.often)}</div><div class="sq-chips">`+sug.map(s=>`<button type="button" class="sq-chip sq-item" data-i="${n++}" data-sq="${esc(s)}">${esc(s)}</button>`).join('')+'</div>';
+  p.innerHTML=h; sqOpen();
+}
+// Návrhy AI: další otázky k tématu + hotové odpovědi na kliknutí. Ukládá se až to, co hotel potvrdí.
+function sqPropHtml(q, nothing){
+  const L=sqL(), P=_sqProp;
+  if(!P) return `<div style="padding:8px 18px 4px"><button type="button" class="sq-prop-btn" onclick="sqExpand(${nothing?1:0})">${esc(nothing?L.propBtn0:L.propBtn)}</button></div>`;
+  if(P.loading) return `<div class="sq-note"><span class="loader" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:8px"></span>${esc(L.propLoading)}</div>`;
+  if(P.error) return `<div class="sq-note">${esc(L.propErr)} <a onclick="sqExpand(${P.self?1:0})">↻</a></div>`;
+  if(!P.items.length) return `<div class="sq-note">${esc(L.propNone)}</div>`;
+  const open=P.items.filter(x=>!x.done&&!x.skip).length;
+  let h=`<div class="sq-h">${esc(L.propT)}</div><div class="sq-note" style="padding-top:0">${esc(L.propNote)}</div>`;
+  P.items.forEach((x,i)=>{
+    if(x.skip) return;
+    if(x.done){ h+=`<div class="sq-prop sq-prop-done"><b>✓ ${esc(L.propSaved)}:</b> ${esc(x.q)}<div class="sq-s" style="color:var(--text)">${esc(x.a)}</div></div>`; return; }
+    h+=`<div class="sq-prop"><div class="sq-prop-q">${esc(x.q)}</div><div class="sq-prop-opts">`
+      + x.options.map((o,j)=>`<button type="button" class="sq-chip${x.a===o?' sq-on':''}" onclick="sqPropPick(${i},${j})">${esc(o)}</button>`).join('')
+      + `</div><textarea id="sq-prop-a-${i}" rows="2" maxlength="800" placeholder="${esc(L.propPh)}" oninput="sqPropDraft(${i},this.value)">${esc(x.a||'')}</textarea>`
+      + `<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn btn-primary" style="font-size:12px;padding:7px 14px" onclick="sqPropSave(${i})">${esc(L.propSave)}</button>`
+      + `<button type="button" class="btn" style="font-size:12px;padding:7px 14px" onclick="sqPropSkip(${i})">${esc(L.propSkip)}</button></div></div>`;
+  });
+  if(!open) h+=`<div class="sq-note">${esc(L.propDone)} <a onclick="sqExpand(0)">${esc(L.propMore)}</a></div>`;
+  return h;
+}
+async function sqExpand(self){
+  const q=((_sqData||{}).q||'').trim(); if(q.length<3) return;
+  const kept=(_sqProp&&_sqProp.q===q&&_sqProp.items)?_sqProp.items.filter(x=>x.done):[];
+  _sqProp={q, loading:true, self:!!self, items:[]}; sqRender(true);
+  try{
+    const d=await sqPost('search/expand', {q, self:!!self});
+    if(!_sqProp || _sqProp.q!==q) return;
+    _sqProp={q, self:!!self, items:kept.concat((d.items||[]).filter(x=>!kept.some(k=>k.q===x.q)).map(x=>({q:x.q, options:x.options||[], a:''})))};
+  }catch(e){ if(!_sqProp || _sqProp.q!==q) return; _sqProp={q, self:!!self, error:true, items:kept}; }
+  if(((_sqData||{}).q||'').trim()===q) sqRender(true);
+}
+function sqPropDraft(i,v){ if(_sqProp&&_sqProp.items[i]) _sqProp.items[i].a=v; }
+function sqPropPick(i,j){
+  const x=_sqProp.items[i]; x.a=x.options[j]; sqRender(true);
+  const t=document.getElementById('sq-prop-a-'+i); if(!t) return;
+  t.focus(); const k=t.value.indexOf('___');
+  if(k>=0) t.setSelectionRange(k,k+3); else t.setSelectionRange(t.value.length,t.value.length);
+}
+async function sqPropSave(i){
+  const L=sqL(), x=_sqProp.items[i], t=document.getElementById('sq-prop-a-'+i), a=(x.a||'').trim();
+  if(!a){ if(t) t.focus(); return; }
+  if(a.indexOf('___')>=0){ toast(L.propBlank,'err'); if(t){ t.focus(); const k=t.value.indexOf('___'); t.setSelectionRange(k,k+3); } return; }
+  if(await learnPost('learn', {q:x.q, a, lang:portalLang==='en'?'en':'cs'}, L.teachOk)){ x.a=a; x.done=true; sqRender(true); }
+}
+function sqPropSkip(i){ _sqProp.items[i].skip=true; sqRender(true); }
+function sqExactSearch(){ _sqExact=true; sqRun(true).finally(()=>{ _sqExact=false; }); }
+function sqClick(doc){ const d=_sqData||{}; if(doc && d.q) sqPost('search/click', {q:d.used||d.q, doc}).catch(()=>{}); }
+function sqActivate(el){
+  if(el.dataset.sq!==undefined){ const i=document.getElementById('sq-input'); i.value=el.dataset.sq; i.focus(); sqRun(true); return; }
+  if(el.dataset.portal!==undefined){ sqGoPortal(+el.dataset.portal); return; }
+  if(el.dataset.hit!==undefined){
+    const i=+el.dataset.hit, x=_sqData.hits[i], box=document.getElementById('sq-full-'+i);
+    if(box.hidden){ sqClick(x.doc_id); box.innerHTML=sqMark(x.text,_sqData.terms)+(x.url?`<div style="margin-top:8px"><a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">${esc(sqL().open)}</a></div>`:''); box.hidden=false; }
+    else box.hidden=true;
+  }
+}
+async function sqFeedback(ok){
+  const L=sqL(), d=_sqData||{}, box=document.getElementById('sq-fb');
+  try{ await sqPost('search/feedback', {q:d.q, ok}); }catch(e){}
+  if(box) box.innerHTML = ok ? esc(L.thanks) : `${esc(L.noted)} <a onclick="sqClose();openLearnBlock()">${esc(L.learnLink)}</a>`;
+  if(!ok && typeof loadLearnSection==='function') try{ loadLearnSection(); }catch(e){}
+}
+async function sqTeach(){
+  const L=sqL(), t=document.getElementById('sq-teach-a'), q=(_sqData||{}).q||'';
+  if(!t || !t.value.trim()){ if(t) t.focus(); return; }
+  if(await learnPost('learn', {q, a:t.value.trim(), lang:portalLang==='en'?'en':'cs'}, L.teachOk)) sqRun(true);
+}
+function sqLang(){ const L=sqL(), i=document.getElementById('sq-input'); if(i){ i.placeholder=L.ph; document.getElementById('sq-go').textContent=L.go; } }
+function sqInit(){
+  const inp=document.getElementById('sq-input'), wrap=document.getElementById('sq-wrap');
+  if(!inp) return;
+  if(!token){ wrap.hidden=true; return; }
+  sqLang();
+  if(/Mac|iPhone|iPad/.test(navigator.platform||'')) document.getElementById('sq-kbd').textContent='⌘K';
+  inp.addEventListener('input', ()=>{ clearTimeout(_sqTimer); _sqTimer=setTimeout(()=>sqRun(false), 220); });
+  inp.addEventListener('focus', ()=>{ _sqPortal=sqPortalIndex(); if(_sqData && (_sqData.q||'')===inp.value.trim()) sqRender(_sqData.full); else sqRun(false); });
+  document.getElementById('sq-go').addEventListener('click', ()=>{ clearTimeout(_sqTimer); inp.focus(); sqRun(true); });
+  document.getElementById('sq-clear').addEventListener('click', ()=>{ inp.value=''; inp.focus(); sqRun(false); });
+  document.getElementById('sq-panel').addEventListener('click', e=>{ const el=e.target.closest('.sq-item'); if(el && !e.target.closest('a')) sqActivate(el); });
+  inp.addEventListener('keydown', e=>{
+    const items=[...document.querySelectorAll('#sq-panel .sq-item')], cur=items.findIndex(x=>x.classList.contains('sq-on'));
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+      if(!items.length) return; e.preventDefault();
+      const nx = e.key==='ArrowDown' ? (cur+1)%items.length : (cur<=0?items.length-1:cur-1);
+      items.forEach(x=>x.classList.remove('sq-on')); items[nx].classList.add('sq-on'); items[nx].scrollIntoView({block:'nearest'});
+    } else if(e.key==='Enter'){
+      e.preventDefault(); clearTimeout(_sqTimer);
+      if(cur>=0) sqActivate(items[cur]); else sqRun(true);
+    } else if(e.key==='Escape'){ if(!document.getElementById('sq-panel').hidden) sqClose(); else inp.blur(); }
+  });
+  document.addEventListener('keydown', e=>{
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target||{}).tagName||'') || (e.target||{}).isContentEditable;
+    if(((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k') || (e.key==='/' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey)){
+      e.preventDefault(); wrap.scrollIntoView({block:'start'}); window.scrollTo({top:0}); inp.focus(); inp.select();
+    }
+  });
+  document.addEventListener('mousedown', e=>{ if(!wrap.contains(e.target)) sqClose(); });
+}
+sqInit();
 
 // ── Utils ─────────────────────────────────────
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}

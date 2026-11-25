@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SmartestGuide API</title>
+<meta name="description" content="AI concierge and hotel knowledge base as an API. Get a sandbox key in two minutes."/>
+<link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
+<style>
+:root{--bg:#faf9f5;--card:#fff;--ink:#1a1a1a;--muted:#6b6b6b;--border:#e8e4dc;--accent:#FF6B00;--teal:#0aa88a;--bad:#d93d42;--soft:#f1efe9;--code:#16181d;
+  --head:'Syne','Segoe UI',system-ui,sans-serif;--body:'Inter','Segoe UI',system-ui,sans-serif;--mono:ui-monospace,'Cascadia Code',Consolas,Menlo,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+html[lang=cs] [lang=en],html[lang=en] [lang=cs]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6}
+a{color:#c85200}
+.top{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--card);position:sticky;top:0;z-index:5}
+.logo{font-family:var(--head);font-weight:700;font-size:16px;text-decoration:none;color:var(--ink)}.logo span{color:var(--accent)}
+.top nav{margin-left:auto;display:flex;gap:16px;align-items:center;font-size:13.5px}
+.top nav a{color:var(--muted);text-decoration:none}.top nav a:hover{color:var(--ink)}
+.lang{border:1px solid var(--border);background:var(--card);border-radius:99px;padding:5px 12px;font:600 12.5px var(--body);cursor:pointer;color:var(--ink)}
+.wrap{max-width:980px;margin:0 auto;padding:0 20px 80px}
+.hero{padding:56px 0 34px;display:grid;grid-template-columns:1.1fr .9fr;gap:36px;align-items:start}
+h1{font-family:var(--head);font-size:40px;line-height:1.12;letter-spacing:-.5px}
+h1 em{font-style:normal;color:var(--accent)}
+.lead{color:var(--muted);font-size:17px;margin:16px 0 22px;max-width:520px}
+.steps{list-style:none;display:grid;gap:10px;counter-reset:s}
+.steps li{counter-increment:s;display:flex;gap:12px;align-items:flex-start;font-size:14.5px}
+.steps li::before{content:counter(s);flex:none;width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;font:700 13px var(--body);display:grid;place-items:center;margin-top:1px}
+.steps li.done::before{content:"✓";background:var(--teal)}
+.hero>*,.grid3>*{min-width:0}
+html,body{overflow-x:hidden}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px}
+.card h2{font-family:var(--head);font-size:19px;margin-bottom:4px}
+.hint{color:var(--muted);font-size:13px}
+label{display:block;font-size:12.5px;font-weight:600;margin:14px 0 5px}
+input[type=text],input[type=email],textarea{width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font:inherit;font-size:14.5px;background:#fff;color:var(--ink)}
+textarea{min-height:68px;resize:vertical}
+input:focus,textarea:focus{outline:2px solid #ffb37a;border-color:var(--accent)}
+.check{display:flex;gap:9px;align-items:flex-start;margin:14px 0 4px;font-size:13px;font-weight:400}
+.check input{margin-top:4px}
+.btn{display:inline-block;border:0;border-radius:99px;background:var(--accent);color:#fff;font:700 14.5px var(--body);padding:12px 22px;cursor:pointer;margin-top:14px}
+.btn:disabled{opacity:.55;cursor:default}
+.btn.ghost{background:var(--soft);color:var(--ink);margin-top:0;padding:8px 14px;font-size:13px}
+.msg{margin-top:12px;font-size:13.5px;border-radius:10px;padding:10px 12px;display:none}
+.msg.err{display:block;background:#fdeeee;color:#9c2227}.msg.ok{display:block;background:#e7f6f2;color:#0a6b58}
+.keybox{display:flex;gap:8px;align-items:center;background:var(--code);color:#f4f1e9;border-radius:12px;padding:12px 14px;font:13.5px var(--mono);margin:12px 0;word-break:break-all}
+.keybox span{flex:1}
+section{margin-top:54px}
+section>h2{font-family:var(--head);font-size:26px;margin-bottom:6px}
+section>p{color:var(--muted);max-width:720px}
+.tabs{display:flex;gap:6px;margin:16px 0 0}
+.tab{border:1px solid var(--border);border-bottom:0;background:var(--soft);border-radius:10px 10px 0 0;padding:7px 14px;font:600 13px var(--body);cursor:pointer;color:var(--muted)}
+.tab.on{background:var(--code);color:#fff;border-color:var(--code)}
+pre{background:var(--code);color:#e9e6dc;border-radius:0 12px 12px 12px;padding:16px 18px;font:13px/1.6 var(--mono);overflow:auto;white-space:pre;position:relative}
+pre.solo{border-radius:12px;margin-top:12px}
+table{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px;background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);background:var(--soft)}
+tr:last-child td{border-bottom:0}
+code{font:13px var(--mono);background:var(--soft);border-radius:5px;padding:1px 6px}
+td code{white-space:nowrap}
+.m{font:700 11px var(--mono);border-radius:5px;padding:2px 6px;color:#fff;background:#3b82f6;margin-right:6px}
+.m.post{background:var(--teal)}.m.del{background:var(--bad)}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px}
+.grid3 .card h3{font-family:var(--head);font-size:16px;margin-bottom:4px}
+.grid3 .card p{font-size:13.5px;color:var(--muted)}
+ul.plain{margin:10px 0 0 18px;color:var(--muted);max-width:720px}ul.plain li{margin:4px 0}
+footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--border);color:var(--muted);font-size:13px}
+@media(max-width:800px){.hero{grid-template-columns:1fr;padding-top:34px}h1{font-size:30px}.grid3{grid-template-columns:1fr}.top nav a{display:none}
+  table,thead,tbody,tr,td{display:block}thead{display:none}td{border-bottom:0;padding:4px 14px}tr{border-bottom:1px solid var(--border);padding:8px 0}td code{white-space:normal}}
+</style>
+</head>
+<body>
+<div class="top">
+  <a class="logo" href="/">Smartest<span>Guide</span> API</a>
+  <nav>
+    <a href="#quickstart"><span lang="en">Quick start</span><span lang="cs">Rychlý start</span></a>
+    <a href="#reference"><span lang="en">Reference</span><span lang="cs">Přehled volání</span></a>
+    <a href="#pricing"><span lang="en">Pricing</span><span lang="cs">Cena</span></a>
+    <a href="#live"><span lang="en">Going live</span><span lang="cs">Ostrý provoz</span></a>
+    <a href="/api/v1/openapi.json">OpenAPI</a>
+    <button class="lang" id="lang-btn" type="button"></button>
+  </nav>
+</div>
+
+<div class="wrap">
+  <div class="hero">
+    <div>
+      <h1><span lang="en">Put a hotel concierge <em>inside your product</em></span><span lang="cs">Hotelový concierge <em>ve vašem produktu</em></span></h1>
+      <p class="lead">
+        <span lang="en">One API for answering guest questions and searching a hotel's own documents. Built for PMS vendors, kiosk and TV systems, chatbots and hotel IT teams.</span>
+        <span lang="cs">Jedno API pro odpovědi na dotazy hostů a hledání ve vlastních dokumentech hotelu. Pro dodavatele PMS, kiosky a hotelové TV, chatboty i IT oddělení hotelů.</span>
+      </p>
+      <ol class="steps" id="steps">
+        <li id="st1"><span><span lang="en"><b>Tell us who you are.</b> Name and e-mail are enough.</span><span lang="cs"><b>Řekněte nám, kdo jste.</b> Stačí jméno a e-mail.</span></span></li>
+        <li id="st2"><span><span lang="en"><b>Confirm your e-mail.</b> The link shows your sandbox key.</span><span lang="cs"><b>Potvrďte e-mail.</b> Odkaz vám ukáže zkušební klíč.</span></span></li>
+        <li id="st3"><span><span lang="en"><b>Make your first call.</b> The sandbox is a demo hotel with real answers.</span><span lang="cs"><b>Zavolejte poprvé.</b> Zkoušíte na ukázkovém hotelu se skutečnými odpověďmi.</span></span></li>
+        <li id="st4"><span><span lang="en"><b>Go live.</b> The hotel issues you a key in its portal – no contract with us needed.</span><span lang="cs"><b>Přejděte do ostrého provozu.</b> Klíč vám vydá hotel ve svém portálu, s námi nic podepisovat nemusíte.</span></span></li>
+      </ol>
+    </div>
+
+    <div class="card" id="box-form">
+      <h2><span lang="en">Get a sandbox key</span><span lang="cs">Získat zkušební klíč</span></h2>
+      <div class="hint"><span lang="en">Free. 100 calls a day, chat and search.</span><span lang="cs">Zdarma. 100 volání denně, chat a hledání.</span></div>
+      <form id="reg" novalidate>
+        <label for="f-name"><span lang="en">Your name</span><span lang="cs">Vaše jméno</span></label>
+        <input type="text" id="f-name" maxlength="120" autocomplete="name" required/>
+        <label for="f-email"><span lang="en">Work e-mail</span><span lang="cs">Pracovní e-mail</span></label>
+        <input type="email" id="f-email" maxlength="254" autocomplete="email" required/>
+        <label for="f-company"><span lang="en">Company (optional)</span><span lang="cs">Firma (nepovinné)</span></label>
+        <input type="text" id="f-company" maxlength="160" autocomplete="organization"/>
+        <label for="f-purpose"><span lang="en">What are you building? (optional)</span><span lang="cs">Co stavíte? (nepovinné)</span></label>
+        <textarea id="f-purpose" maxlength="1000"></textarea>
+        <label class="check"><input type="checkbox" id="f-terms"/>
+          <span><span lang="en">I agree with the <a href="#terms">terms of use</a>.</span><span lang="cs">Souhlasím s <a href="#terms">podmínkami použití</a>.</span></span></label>
+        <button class="btn" id="f-go" type="submit"><span lang="en">Send me the link</span><span lang="cs">Poslat odkaz</span></button>
+        <div class="msg" id="f-msg" role="status"></div>
+      </form>
+    </div>
+
+    <div class="card" id="box-key" style="display:none">
+      <h2><span lang="en">Your sandbox key</span><span lang="cs">Váš zkušební klíč</span></h2>
+      <div class="hint"><span lang="en">Save it now – we store only its fingerprint and cannot show it again.</span><span lang="cs">Uložte si ho hned – u nás zůstává jen jeho otisk a znovu ho zobrazit neumíme.</span></div>
+      <div class="keybox"><span id="k-val"></span><button class="btn ghost" id="k-copy" type="button"><span lang="en">Copy</span><span lang="cs">Kopírovat</span></button></div>
+      <div class="hint" id="k-info"></div>
+      <p class="hint" style="margin-top:10px"><span lang="en">The examples below already contain your key.</span><span lang="cs">Příklady níže už váš klíč obsahují.</span></p>
+    </div>
+
+    <div class="card" id="box-wait" style="display:none">
+      <h2><span lang="en">Checking your link…</span><span lang="cs">Ověřujeme odkaz…</span></h2>
+      <div class="msg" id="w-msg" role="status"></div>
+    </div>
+  </div>
+
+  <section id="quickstart">
+    <h2><span lang="en">Quick start</span><span lang="cs">Rychlý start</span></h2>
+    <p><span lang="en">Send the key in the <code>Authorization</code> header. Everything is JSON over HTTPS.</span><span lang="cs">Klíč posílejte v hlavičce <code>Authorization</code>. Vše je JSON přes HTTPS.</span></p>
+    <div class="tabs" id="tabs"><button class="tab on" data-t="curl" type="button">curl</button><button class="tab" data-t="js" type="button">JavaScript</button><button class="tab" data-t="py" type="button">Python</button></div>
+    <pre id="code"></pre>
+    <p style="margin-top:14px"><span lang="en">The answer:</span><span lang="cs">Odpověď:</span></p>
+    <pre class="solo">{
+  "reply": "Breakfast is served from 7:00 to 10:30 in the restaurant on the ground floor…",
+  "language": "en"
+}</pre>
+  </section>
+
+  <section>
+    <h2><span lang="en">What you can build</span><span lang="cs">Co se na tom dá postavit</span></h2>
+    <div class="grid3">
+      <div class="card"><h3><span lang="en">Guest chat anywhere</span><span lang="cs">Chat pro hosty kdekoli</span></h3>
+        <p><span lang="en">Room TV, kiosk, WhatsApp bot or your own app. The same concierge the hotel already uses, in the guest's language.</span><span lang="cs">Pokojová TV, kiosek, WhatsApp bot nebo vlastní aplikace. Stejný concierge, jakého hotel už používá, v jazyce hosta.</span></p></div>
+      <div class="card"><h3><span lang="en">Search hotel documents</span><span lang="cs">Hledání v dokumentech hotelu</span></h3>
+        <p><span lang="en">Ask a question, get the few passages that answer it – ready to drop into your own AI prompt without sending whole documents.</span><span lang="cs">Položíte otázku a dostanete těch pár úryvků, které na ni odpovídají. Do vlastního AI tak neposíláte celé dokumenty.</span></p></div>
+      <div class="card"><h3><span lang="en">Keep knowledge in sync</span><span lang="cs">Znalosti vždy aktuální</span></h3>
+        <p><span lang="en">Push price lists, menus or procedures from your system. Sending the same id again replaces the old version.</span><span lang="cs">Posílejte ceníky, jídelní lístky nebo postupy ze svého systému. Stejné id příště nahradí starou verzi.</span></p></div>
+    </div>
+  </section>
+
+  <section id="reference">
+    <h2><span lang="en">Reference</span><span lang="cs">Přehled volání</span></h2>
+    <p><span lang="en">Base address: <code class="base"></code>. Machine-readable description: <a href="/api/v1/openapi.json">openapi.json</a> (import it into Postman or a client generator).</span>
+       <span lang="cs">Základní adresa: <code class="base"></code>. Strojově čitelný popis: <a href="/api/v1/openapi.json">openapi.json</a> (dá se nahrát do Postmanu nebo generátoru klienta).</span></p>
+    <table>
+      <thead><tr><th><span lang="en">Call</span><span lang="cs">Volání</span></th><th><span lang="en">What it does</span><span lang="cs">Co dělá</span></th><th><span lang="en">Permission</span><span lang="cs">Oprávnění</span></th></tr></thead>
+      <tbody>
+        <tr><td><span class="m">GET</span><code>/me</code></td><td><span lang="en">Your key, its hotel and today's usage. Good first call.</span><span lang="cs">Váš klíč, jeho hotel a dnešní spotřeba. Hodí se jako první volání.</span></td><td>–</td></tr>
+        <tr><td><span class="m">GET</span><code>/hotel</code></td><td><span lang="en">Hotel name, city and the link to its guest app.</span><span lang="cs">Název hotelu, město a odkaz na aplikaci pro hosty.</span></td><td>–</td></tr>
+        <tr><td><span class="m post">POST</span><code>/chat</code></td><td><span lang="en">Concierge answer. Body: <code>message</code>, optional <code>language</code>, <code>history</code> (last turns as <code>role</code>/<code>content</code>) and <code>session</code>.</span><span lang="cs">Odpověď concierge. Tělo: <code>message</code>, volitelně <code>language</code>, <code>history</code> (poslední výměny jako <code>role</code>/<code>content</code>) a <code>session</code>.</span></td><td><code>chat</code></td></tr>
+        <tr><td><span class="m post">POST</span><code>/knowledge/search</code></td><td><span lang="en">Best passages for a <code>query</code>. Optional <code>audience</code> (<code>guest</code> or <code>staff</code>) and <code>limit</code> (1–10). Returns <code>results</code> and a ready-made <code>context</code> text.</span><span lang="cs">Nejlepší úryvky k dotazu <code>query</code>. Volitelně <code>audience</code> (<code>guest</code> nebo <code>staff</code>) a <code>limit</code> (1–10). Vrací <code>results</code> a hotový text <code>context</code>.</span></td><td><code>knowledge:read</code></td></tr>
+        <tr><td><span class="m">GET</span><code>/knowledge/documents</code></td><td><span lang="en">List of documents in the knowledge base.</span><span lang="cs">Seznam dokumentů ve znalostní bázi.</span></td><td><code>knowledge:read</code></td></tr>
+        <tr><td><span class="m post">POST</span><code>/knowledge/documents</code></td><td><span lang="en">Add or replace a text document: <code>title</code>, <code>text</code>, optional <code>audience</code> and your own <code>id</code>.</span><span lang="cs">Přidá nebo nahradí textový dokument: <code>title</code>, <code>text</code>, volitelně <code>audience</code> a vlastní <code>id</code>.</span></td><td><code>knowledge:write</code></td></tr>
+        <tr><td><span class="m del">DELETE</span><code>/knowledge/documents/{id}</code></td><td><span lang="en">Delete a document.</span><span lang="cs">Smaže dokument.</span></td><td><code>knowledge:write</code></td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-family:var(--head);font-size:18px;margin-top:30px"><span lang="en">Limits</span><span lang="cs">Limity</span></h3>
+    <ul class="plain">
+      <li><span lang="en">Sandbox key: 100 calls a day, free.</span><span lang="cs">Zkušební klíč: 100 volání denně, zdarma.</span></li>
+      <li><span lang="en">Hotel key: the hotel's subscription includes 3,000 <code>/chat</code> calls per calendar month, counted across all of the hotel's keys. Knowledge search and document calls are not counted.</span><span lang="cs">Klíč hotelu: v předplatném hotelu je 3 000 volání <code>/chat</code> za kalendářní měsíc, počítáno za všechny klíče hotelu dohromady. Hledání v bázi a práce s dokumenty se nepočítají.</span></li>
+      <li><span lang="en">When the monthly quota runs out, <code>/chat</code> answers 429 <code>monthly_limit</code> until the 1st of the next month (UTC). Everything else keeps working, and so does Alex in the hotel's own guest app. Show the guest a fallback, e.g. the reception phone number.</span><span lang="cs">Po vyčerpání měsíčního počtu vrací <code>/chat</code> chybu 429 <code>monthly_limit</code> až do 1. dne dalšího měsíce (UTC). Vše ostatní běží dál, stejně jako Alex v aplikaci hotelu pro hosty. Hostovi ukažte náhradu, třeba telefon na recepci.</span></li>
+      <li><span lang="en">Safety caps per key: 60 calls a minute and 2,000 calls a day.</span><span lang="cs">Ochranné stropy na klíč: 60 volání za minutu a 2 000 volání denně.</span></li>
+      <li><span lang="en">Every answer carries <code>X-RateLimit-Limit</code> and <code>X-RateLimit-Remaining</code>. The daily counter resets at 00:00 UTC. Hotel keys also get <code>X-Quota-Limit</code>, <code>X-Quota-Remaining</code> and <code>X-Quota-Reset</code> for the monthly chat quota.</span><span lang="cs">Každá odpověď nese hlavičky <code>X-RateLimit-Limit</code> a <code>X-RateLimit-Remaining</code>. Denní počítadlo se nuluje v 00:00 UTC. U klíčů hotelu navíc <code>X-Quota-Limit</code>, <code>X-Quota-Remaining</code> a <code>X-Quota-Reset</code> pro měsíční počet volání chatu.</span></li>
+      <li><span lang="en">Need more? The hotel can ask us for a higher monthly quota.</span><span lang="cs">Potřebujete víc? Hotel si u nás může říct o vyšší měsíční počet.</span></li>
+    </ul>
+
+    <h3 style="font-family:var(--head);font-size:18px;margin-top:30px"><span lang="en">Errors</span><span lang="cs">Chyby</span></h3>
+    <p style="color:var(--muted);max-width:720px"><span lang="en">Errors always look the same; decide by <code>code</code>, show <code>message</code> to a developer, not to a guest.</span><span lang="cs">Chyby mají vždy stejný tvar; rozhodujte se podle <code>code</code>, <code>message</code> je pro vývojáře, ne pro hosta.</span></p>
+    <pre class="solo">{ "error": { "code": "missing_scope", "message": "This key does not have the 'knowledge:write' scope." } }</pre>
+    <table>
+      <thead><tr><th>HTTP</th><th>code</th><th><span lang="en">Meaning</span><span lang="cs">Význam</span></th></tr></thead>
+      <tbody>
+        <tr><td>400</td><td><code>invalid_json</code>, <code>missing_message</code>, <code>missing_query</code>…</td><td><span lang="en">Something is wrong with the request body.</span><span lang="cs">Chyba v těle požadavku.</span></td></tr>
+        <tr><td>401</td><td><code>missing_key</code>, <code>invalid_key</code>, <code>revoked_key</code></td><td><span lang="en">Key missing, unknown or cancelled.</span><span lang="cs">Klíč chybí, není známý nebo byl zrušen.</span></td></tr>
+        <tr><td>403</td><td><code>missing_scope</code>, <code>sandbox_restricted</code></td><td><span lang="en">The key is not allowed to do this.</span><span lang="cs">Klíč k tomu nemá oprávnění.</span></td></tr>
+        <tr><td>429</td><td><code>rate_limit</code>, <code>daily_limit</code></td><td><span lang="en">Too many calls. Wait and retry.</span><span lang="cs">Příliš mnoho volání. Počkejte a zkuste znovu.</span></td></tr>
+        <tr><td>429</td><td><code>monthly_limit</code></td><td><span lang="en">The hotel's monthly chat quota is used up. Do not retry; show a fallback until the date in <code>X-Quota-Reset</code>.</span><span lang="cs">Měsíční počet volání chatu je vyčerpaný. Neopakujte; do data v <code>X-Quota-Reset</code> ukazujte náhradu.</span></td></tr>
+        <tr><td>502</td><td><code>chat_unavailable</code></td><td><span lang="en">The concierge could not answer. Retry later.</span><span lang="cs">Concierge teď nedokázal odpovědět. Zkuste později.</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="pricing">
+    <h2><span lang="en">Pricing</span><span lang="cs">Cena</span></h2>
+    <table>
+      <thead><tr><th></th><th><span lang="en">Price</span><span lang="cs">Cena</span></th><th><span lang="en">What you get</span><span lang="cs">Co je v ceně</span></th></tr></thead>
+      <tbody>
+        <tr><td><b><span lang="en">Sandbox</span><span lang="cs">Zkoušení</span></b></td><td><span lang="en">Free</span><span lang="cs">Zdarma</span></td><td><span lang="en">Sandbox key for the demo hotel, 100 calls a day. No card, no contract.</span><span lang="cs">Zkušební klíč k ukázkovému hotelu, 100 volání denně. Bez karty a bez smlouvy.</span></td></tr>
+        <tr><td><b><span lang="en">Live hotel</span><span lang="cs">Ostrý hotel</span></b></td><td><span lang="en">Included in the hotel's SmartestGuide subscription</span><span lang="cs">V ceně předplatného SmartestGuide, které platí hotel</span></td><td><span lang="en">3,000 <code>/chat</code> calls a month per hotel. Knowledge search and document calls are not counted.</span><span lang="cs">3 000 volání <code>/chat</code> měsíčně na hotel. Hledání v bázi a práce s dokumenty se nepočítají.</span></td></tr>
+        <tr><td><b><span lang="en">Higher volume</span><span lang="cs">Větší provoz</span></b></td><td><span lang="en">By agreement</span><span lang="cs">Po domluvě</span></td><td><span lang="en">The hotel asks us for a higher monthly quota.</span><span lang="cs">Hotel si u nás řekne o vyšší měsíční počet.</span></td></tr>
+      </tbody>
+    </table>
+    <p style="color:var(--muted);max-width:720px"><span lang="en">Developers and suppliers pay us nothing: the API is part of what the hotel already has.</span><span lang="cs">Vývojáři a dodavatelé nám neplatí nic: API je součást toho, co hotel už má.</span></p>
+  </section>
+
+  <section id="live">
+    <h2><span lang="en">Going live</span><span lang="cs">Ostrý provoz</span></h2>
+    <p><span lang="en">A sandbox key only sees the demo hotel. To work with a real hotel you need a key from that hotel:</span><span lang="cs">Zkušební klíč vidí jen ukázkový hotel. Pro skutečný hotel potřebujete klíč od něj:</span></p>
+    <ul class="plain">
+      <li><span lang="en">The hotel opens its SmartestGuide portal → <b>Knowledge base</b> → <b>Connect other systems</b> and creates a key for you.</span><span lang="cs">Hotel otevře svůj portál SmartestGuide → <b>Znalostní báze</b> → <b>Napojení jiných systémů</b> a vytvoří vám klíč.</span></li>
+      <li><span lang="en">It chooses what the key may do (chat, reading, writing) and can cancel it at any time.</span><span lang="cs">Sám určí, co klíč smí (chat, čtení, zápis), a může ho kdykoli zrušit.</span></li>
+      <li><span lang="en">In your code you only swap <code>sg_test_…</code> for <code>sg_live_…</code>. Nothing else changes.</span><span lang="cs">Ve svém kódu jen vyměníte <code>sg_test_…</code> za <code>sg_live_…</code>. Nic dalšího se nemění.</span></li>
+      <li><span lang="en">Keep the key on your server. Never put it into a web page or a mobile app.</span><span lang="cs">Klíč držte na svém serveru. Nikdy ho nedávejte do webové stránky ani mobilní aplikace.</span></li>
+    </ul>
+  </section>
+
+  <section id="terms">
+    <h2><span lang="en">Terms of use</span><span lang="cs">Podmínky použití</span></h2>
+    <ul class="plain">
+      <li><span lang="en">Use the API to serve hotel guests and staff. Do not resell raw access or use it to train models.</span><span lang="cs">API používejte ke službě hostům a personálu hotelů. Nepřeprodávejte samotný přístup a nepoužívejte ho k trénování modelů.</span></li>
+      <li><span lang="en">Hotel data belongs to the hotel. Work with it only as the hotel agreed and delete it when the hotel asks.</span><span lang="cs">Data hotelu patří hotelu. Pracujte s nimi jen tak, jak hotel odsouhlasil, a na požádání je smažte.</span></li>
+      <li><span lang="en">Do not send us personal data of guests unless the question needs it.</span><span lang="cs">Neposílejte nám osobní údaje hostů, pokud to dotaz nevyžaduje.</span></li>
+      <li><span lang="en">Answers are generated by AI. Tell guests so, and do not use them for safety or medical decisions.</span><span lang="cs">Odpovědi vytváří umělá inteligence. Hosty na to upozorněte a nepoužívejte je pro rozhodnutí o bezpečnosti nebo zdraví.</span></li>
+      <li><span lang="en">The sandbox comes without guarantees. We may limit or cancel a key that is misused.</span><span lang="cs">Zkušební prostředí je bez záruk. Zneužívaný klíč můžeme omezit nebo zrušit.</span></li>
+    </ul>
+  </section>
+
+  <footer>SmartestGuide · <a href="mailto:admin@smartestguide.com">admin@smartestguide.com</a></footer>
+</div>
+
+<script>
+const qs = new URLSearchParams(location.search);
+const $ = id => document.getElementById(id);
+const BASE = location.origin + '/api/v1';
+let KEY = 'sg_test_YOUR_KEY', TAB = 'curl';
+let LANG = 'en';
+try { LANG = qs.get('lang') || localStorage.getItem('sg_dev_lang') || ((navigator.language || '').toLowerCase().startsWith('cs') ? 'cs' : 'en'); } catch (e) {}
+if (LANG !== 'cs') LANG = 'en';
+const T = (en, cs) => LANG === 'cs' ? cs : en;
+
+function setLang(l) {
+  LANG = l;
+  document.documentElement.lang = l;
+  $('lang-btn').textContent = l === 'cs' ? 'English' : 'Česky';
+  try { localStorage.setItem('sg_dev_lang', l); } catch (e) {}
+  render();
+}
+$('lang-btn').onclick = () => setLang(LANG === 'cs' ? 'en' : 'cs');
+
+function sample() {
+  const q = T('What time is breakfast?', 'V kolik je snídaně?'), l = LANG;
+  if (TAB === 'curl') return `curl ${BASE}/chat \\\n  -H "Authorization: Bearer ${KEY}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"message": "${q}", "language": "${l}"}'`;
+  if (TAB === 'js') return `const r = await fetch("${BASE}/chat", {\n  method: "POST",\n  headers: {\n    "Authorization": "Bearer ${KEY}",\n    "Content-Type": "application/json"\n  },\n  body: JSON.stringify({ message: "${q}", language: "${l}" })\n});\nconst data = await r.json();\nconsole.log(data.reply);`;
+  return `import requests\n\nr = requests.post(\n    "${BASE}/chat",\n    headers={"Authorization": "Bearer ${KEY}"},\n    json={"message": "${q}", "language": "${l}"},\n)\nprint(r.json()["reply"])`;
+}
+function render() {
+  $('code').textContent = sample();
+  document.querySelectorAll('.base').forEach(e => e.textContent = BASE);
+}
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
+  TAB = b.dataset.t;
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
+  render();
+});
+
+function msg(el, text, ok) { el.textContent = text; el.className = 'msg ' + (ok ? 'ok' : 'err'); }
+async function post(path, body) {
+  const r = await fetch('/api/developers/' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  let j = {};
+  try { j = await r.json(); } catch (e) {}
+  if (!r.ok) throw new Error(j.detail || T('Something went wrong. Please try again.', 'Něco se nepovedlo. Zkuste to prosím znovu.'));
+  return j;
+}
+
+$('reg').onsubmit = async ev => {
+  ev.preventDefault();
+  const m = $('f-msg'), b = $('f-go');
+  const body = { name: $('f-name').value.trim(), email: $('f-email').value.trim(), company: $('f-company').value.trim(),
+                 purpose: $('f-purpose').value.trim(), terms: $('f-terms').checked, lang: LANG };
+  if (!body.name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.email)) return msg(m, T('Please fill in your name and a valid e-mail.', 'Vyplňte jméno a platný e-mail.'));
+  if (!body.terms) return msg(m, T('Please accept the terms of use first.', 'Nejdřív prosím potvrďte podmínky použití.'));
+  b.disabled = true;
+  try {
+    await post('register', body);
+    $('st1').classList.add('done');
+    msg(m, T('Done. Check your inbox – the link in the e-mail shows your key. It is valid for 48 hours.',
+             'Hotovo. Podívejte se do pošty – odkaz v e-mailu vám ukáže klíč. Platí 48 hodin.'), true);
+  } catch (e) { msg(m, e.message); b.disabled = false; }
+};
+
+$('k-copy').onclick = async () => {
+  try { await navigator.clipboard.writeText(KEY); $('k-copy').textContent = T('Copied', 'Zkopírováno'); }
+  catch (e) { const r = document.createRange(); r.selectNodeContents($('k-val')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+};
+
+async function verify(token) {
+  $('box-form').style.display = 'none';
+  $('box-wait').style.display = '';
+  history.replaceState(null, '', location.pathname);   // klíč ani odkaz nemá zůstat v historii a v adrese
+  try {
+    const j = await post('verify', { token, lang: LANG });
+    KEY = j.key;
+    $('k-val').textContent = j.key;
+    $('k-info').textContent = T(`Demo hotel: ${j.hotel}. ${j.per_day} calls a day, ${j.per_minute} a minute.`,
+                                `Ukázkový hotel: ${j.hotel}. ${j.per_day} volání denně, ${j.per_minute} za minutu.`);
+    $('box-wait').style.display = 'none';
+    $('box-key').style.display = '';
+    ['st1', 'st2'].forEach(i => $(i).classList.add('done'));
+    render();
+  } catch (e) {
+    msg($('w-msg'), e.message);
+    $('box-form').style.display = '';
+  }
+}
+
+setLang(LANG);
+if (qs.get('verify')) verify(qs.get('verify'));
+</script>
+</body>
+</html>

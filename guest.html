@@ -271,7 +271,33 @@
       display:flex;align-items:center;justify-content:center;font-size:17px;
       flex-shrink:0;transition:all .2s;
     }
-    #voice-btn{background:var(--card);border:1px solid var(--border);color:var(--muted)}
+    #voice-btn{background:rgba(255,107,0,.16);border:1.5px solid var(--accent);color:var(--accent)}
+    .nav-chip{display:inline-flex;align-items:center;gap:4px;background:var(--teal);color:#04241d;border-radius:14px;padding:4px 10px;margin:2px 0;font-size:12px;line-height:1.2;text-decoration:none;font-weight:700;vertical-align:middle;white-space:nowrap;box-shadow:0 1px 4px rgba(0,212,170,.35)}
+    .nav-chip:active{transform:scale(.96)}
+    /* Volba mapy, hodnocení odpovědí, helpdesk */
+    #x-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60;display:none;backdrop-filter:blur(4px)}
+    #x-overlay.show{display:flex;align-items:flex-end}
+    .x-opt{display:flex;align-items:center;gap:10px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:8px;color:var(--text);font-size:15px;font-weight:600;text-decoration:none;cursor:pointer;font-family:inherit;text-align:left}
+    .x-opt:active{transform:scale(.99)}
+    .x-opt span.i{font-size:20px;width:26px;text-align:center}
+    .x-map{width:100%;height:300px;border:0;border-radius:12px;margin-top:4px;background:var(--surface)}
+    .x-sub{font-size:13px;color:var(--muted);margin:-8px 0 14px}
+    .rate-btn{background:none;border:none;font-size:14px;cursor:pointer;opacity:.45;padding:2px 4px;border-radius:6px;transition:all .15s;filter:grayscale(1)}
+    .rate-btn:hover{opacity:.8}
+    .rate-btn.on{opacity:1;filter:none;background:rgba(0,212,170,.14)}
+    .rate-btn.on.down{background:rgba(255,79,106,.16)}
+    .hd-kinds{display:flex;gap:8px;margin-bottom:10px}
+    .hd-kind{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 4px;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;text-align:center}
+    .hd-kind.on{border-color:var(--accent);background:rgba(255,107,0,.14);color:var(--accent)}
+    .hd-in{width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:15px;padding:11px 12px;margin-bottom:10px;font-family:inherit}
+    .hd-send{width:100%;background:var(--accent);border:none;border-radius:10px;padding:13px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+    .hd-send:disabled{opacity:.5}
+    .hd-msg{font-size:13px;margin-top:8px;min-height:18px;color:var(--accent2)}
+    .hd-item{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-top:8px;font-size:13.5px}
+    .hd-item .top{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:4px;font-size:12px;color:var(--muted)}
+    .hd-st{border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap}
+    .hd-st.new{background:rgba(255,170,51,.18);color:#ffaa33}.hd-st.in_progress{background:rgba(74,158,255,.18);color:#6db3ff}.hd-st.done{background:rgba(0,212,170,.16);color:var(--teal)}
+    .hd-note{margin-top:6px;padding-top:6px;border-top:1px solid var(--border);color:var(--accent2)}
     #voice-btn.listening{background:var(--danger);border-color:var(--danger);color:#fff;animation:voicePulse 1s infinite}
     @keyframes voicePulse{0%,100%{box-shadow:0 0 0 0 rgba(255,79,106,.4)}70%{box-shadow:0 0 0 8px rgba(255,79,106,0)}}
     #send-btn{background:var(--accent);color:#ffffff;order:2}
@@ -373,6 +399,7 @@
       <div class="hdr-sub" style="font-size:11px;color:var(--accent2)">AI Concierge · SMARTEST GUIDE</div>
     </div>
     <button class="hdr-btn" id="wa-hdr-btn" onclick="openWhatsAppMenu()" title="WhatsApp" style="display:none;background:rgba(37,211,102,.15);border-color:rgba(37,211,102,.3);color:#25d366">💬</button>
+    <button class="hdr-btn" id="hd-hdr-btn" onclick="openHelpdesk()" title="Nahlásit závadu nebo přání" style="display:none">🛠</button>
     <button class="hdr-btn" id="weather-btn" onclick="fetchWeather()" title="Počasí">🌤</button>
     <button class="hdr-btn" id="info-btn" onclick="showInfo()" title="Info o hotelu">ℹ</button>
   </div>
@@ -400,6 +427,16 @@
     <div class="sheet-title" id="sheet-title">Informace o hotelu</div>
     <div id="sheet-content"></div>
     <button class="close-sheet" onclick="hideInfo()">Zavřít</button>
+  </div>
+</div>
+
+<!-- LIST: volba mapy / helpdesk -->
+<div id="x-overlay" onclick="hideX(event)">
+  <div class="info-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="x-title"></div>
+    <div id="x-content"></div>
+    <button class="close-sheet" id="x-close" onclick="hideX()">Zavřít</button>
   </div>
 </div>
 
@@ -670,12 +707,129 @@ function _ttsPlain(text){
 function _ttsReset(btn){ if(btn){btn.classList.remove('speaking');btn.textContent='🔊';} }
 
 let _ttsAudio=null;  // právě přehrávané serverové MP3
+let _ttsSeq=0;       // roste při každém zastavení — rozběhnuté čtení podle toho pozná, že má skončit
+let _ttsWake=null;   // probudí čekání na konec právě čtené části
 
 function _ttsStopAll(){
+  _ttsSeq++;
   if(_ttsAudio){ try{_ttsAudio.pause();}catch(e){} _ttsAudio=null; }
+  if(_ttsWake){ const w=_ttsWake; _ttsWake=null; try{w();}catch(e){} }
+  _bargeStop();
   if(TTS_OK && (speechSynthesis.speaking||speechSynthesis.pending)) speechSynthesis.cancel();
   _ttsReset(_ttsBtn); _ttsBtn=null;
 }
+
+// ČTENÍ CELÉ ODPOVĚDI PO ČÁSTECH (24. 11. 2026).
+// MĚNÍ ROZHODNUTÍ ZE 7. 8. 2026: tehdy se dlouhá odpověď na hlasový dotaz četla jen jako
+// krátký úvod. Tester 24. 11. třikrát nahlásil „hlas přečte jen první větu“ a Martin
+// rozhodl: číst celé, dokud host čtení nepřeruší (hlasem, mikrofonem, tlačítkem ⏹ nebo
+// další zprávou). Text se dělí na věty a posílá po částech — první část je krátká, aby
+// hlas začal rychle, další se načítá, zatímco předchozí hraje.
+// Dělení je ruční smyčkou schválně: regex „lookbehind“ starší Safari neumí.
+const TTS_FIRST=220, TTS_PART=480;   // server bere nejvýš 700 znaků na jedno volání
+function _ttsChunks(say){
+  const sent=[]; let cur='';
+  for(let i=0;i<say.length;i++){
+    const ch=say[i]; cur+=ch;
+    if('.!?…'.indexOf(ch)<0) continue;
+    const next=say[i+1]||'', prev=say[i-1]||'';
+    if(next && next!==' ') continue;                 // „7.30“, „www.hotel.cz“
+    if(ch==='.' && prev>='0' && prev<='9') continue; // „3. patro“, „24. 11.“
+    sent.push(cur); cur='';
+  }
+  if(cur.trim()) sent.push(cur);
+  const parts=[];
+  sent.forEach(s=>{
+    s=s.trim();
+    while(s.length>TTS_PART){                        // přerostlá věta → dělit u čárky / mezery
+      let cut=s.lastIndexOf(', ',TTS_PART);
+      if(cut<TTS_PART*0.4) cut=s.lastIndexOf(' ',TTS_PART);
+      if(cut<=0) cut=TTS_PART-1;
+      parts.push(s.slice(0,cut+1).trim()); s=s.slice(cut+1).trim();
+    }
+    if(s) parts.push(s);
+  });
+  const out=[]; let buf='';
+  parts.forEach(p=>{
+    const lim=out.length?TTS_PART:TTS_FIRST;
+    if(buf && buf.length+1+p.length>lim){ out.push(buf); buf=p; }
+    else buf=buf?buf+' '+p:p;
+  });
+  if(buf) out.push(buf);
+  return out;
+}
+
+// PŘERUŠENÍ HLASEM (24. 11. 2026): když Alex čte odpověď na HLASOVÝ dotaz, mikrofon
+// potichu poslouchá. Jakmile host začne mluvit, čtení se zastaví a rovnou se nahrává
+// další dotaz. Hlasitost se porovnává s tím, co mikrofon slyší z reproduktoru (práh se
+// nastaví podle prvních 600 ms čtení), aby Alex nepřerušila sama sebe.
+// Na iPhonu vypnuto — Safari při zapnutém mikrofonu ztlumí přehrávání; tam přeruší
+// klepnutí na mikrofon nebo ⏹. ⚠️ Na telefonech zatím neověřeno poslechem.
+const _IS_IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+let _barge=null;
+async function _bargeStart(seq){
+  const AC=window.AudioContext||window.webkitAudioContext;
+  if(_IS_IOS||!AC||!navigator.mediaDevices||!window.MediaRecorder) return;
+  let stream;
+  try{ stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:false}}); }
+  catch(e){ return; }
+  const drop=()=>{ try{stream.getTracks().forEach(t=>t.stop());}catch(e){} };
+  if(seq!==_ttsSeq){ drop(); return; }
+  let ac,an;
+  try{ ac=new AC(); an=ac.createAnalyser(); an.fftSize=512; ac.createMediaStreamSource(stream).connect(an); }
+  catch(e){ drop(); return; }
+  const st={stream:stream,ac:ac,iv:null};
+  _barge=st;
+  const buf=new Uint8Array(an.fftSize);
+  const t0=Date.now(); let prev=t0, loud=0, floor=0;
+  st.iv=setInterval(()=>{
+    if(_barge!==st) return;
+    an.getByteTimeDomainData(buf);
+    let peak=0;
+    for(let i=0;i<buf.length;i++){ const d=Math.abs(buf[i]-128); if(d>peak)peak=d; }
+    const now=Date.now(), dt=now-prev; prev=now;
+    if(now-t0<600){ if(peak>floor)floor=peak; return; }   // rozjezd: změř ozvěnu reproduktoru
+    if(peak>Math.max(38,floor*2+10)) loud+=dt; else loud=0;
+    if(loud>=350){                                         // host mluví souvisle ≥ 0,35 s
+      clearInterval(st.iv); try{ac.close();}catch(e){}
+      _barge=null;                                         // mikrofon si necháme pro nahrávání
+      _ttsStopAll();
+      whisperVoice({stream:stream,barge:true});
+    }
+  },70);
+}
+function _bargeStop(){
+  const st=_barge; if(!st) return;
+  _barge=null;
+  clearInterval(st.iv);
+  try{st.ac.close();}catch(e){}
+  try{st.stream.getTracks().forEach(t=>t.stop());}catch(e){}
+}
+
+// DISPLEJ NEZHASÍNÁ (24. 11. 2026, tester: „telefon při řeči zhasne“).
+// Displej držíme rozsvícený po celou dobu čtení a poslechu a ještě 5 minut po poslední
+// aktivitě hosta. Technický strop není (drží, dokud je stránka vidět) — 5 minut šetří baterii.
+const WAKE_IDLE_MS=5*60*1000;
+let _wakeLock=null,_wakeTimer=null,_wakePending=false;
+function _wakeIdle(){
+  if(_ttsBtn||_rec||isListening){ _wakeTimer=setTimeout(_wakeIdle,30000); return; }
+  if(_wakeLock){ try{_wakeLock.release();}catch(e){} _wakeLock=null; }
+}
+async function wakeTouch(){
+  clearTimeout(_wakeTimer);
+  _wakeTimer=setTimeout(_wakeIdle,WAKE_IDLE_MS);
+  if(_wakeLock||_wakePending||!('wakeLock' in navigator)||document.visibilityState!=='visible') return;
+  _wakePending=true;
+  try{
+    const l=await navigator.wakeLock.request('screen');
+    _wakeLock=l;
+    l.addEventListener('release',()=>{ if(_wakeLock===l)_wakeLock=null; });
+  }catch(e){}
+  _wakePending=false;
+}
+document.addEventListener('pointerdown',wakeTouch,{passive:true});
+document.addEventListener('keydown',wakeTouch,{passive:true});
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') wakeTouch(); });
 
 // Fallback: systémový hlas prohlížeče (když serverové TTS není dostupné)
 function _speakLocal(say, btn){
@@ -690,34 +844,54 @@ function _speakLocal(say, btn){
   speechSynthesis.speak(u);
 }
 
-async function speakText(text, btn){
-  const wasPlaying = !!_ttsAudio || (TTS_OK && (speechSynthesis.speaking||speechSynthesis.pending));
+// opts.barge=true → při čtení poslouchat, jestli host nezačal mluvit (jen po hlasovém dotazu)
+async function speakText(text, btn, opts){
+  const wasPlaying = !!_ttsBtn || !!_ttsAudio || (TTS_OK && (speechSynthesis.speaking||speechSynthesis.pending));
   const sameBtn = (_ttsBtn===btn);
   _ttsStopAll();
   if(wasPlaying && sameBtn) return;  // klik na totéž tlačítko = jen zastavit (toggle)
-  const say=_ttsPlain(text);
-  if(!say) return;
+  const parts=_ttsChunks(_ttsPlain(text));
+  if(!parts.length) return;
   btn.classList.add('speaking'); btn.textContent='⏹';
   _ttsBtn=btn;
-  // 1) Serverové TTS (lidský hlas Coral) → 2) fallback na hlas prohlížeče
-  try{
-    const r=await fetch(`${API}/api/guest/tts`,{
+  wakeTouch();
+  const seq=_ttsSeq, live=()=>seq===_ttsSeq;
+  const fetchPart=i=>fetch(`${API}/api/guest/tts`,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({text:say,language:guestLang,hotel_id:hotelId,device_id:deviceId})
-    });
-    if(!r.ok) throw new Error('tts '+r.status);
-    const blob=await r.blob();
-    if(_ttsBtn!==btn) return;  // mezitím kliknuto jinam/zastaveno
-    const a=new Audio(URL.createObjectURL(blob));
-    _ttsAudio=a;
-    a.onended=()=>{ URL.revokeObjectURL(a.src); if(_ttsAudio===a)_ttsAudio=null; _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null; };
-    a.onerror=()=>{ URL.revokeObjectURL(a.src); if(_ttsAudio===a)_ttsAudio=null; _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null; };
-    await a.play();
+      body:JSON.stringify({text:parts[i],language:guestLang,hotel_id:hotelId,device_id:deviceId})
+    }).then(r=>{ if(!r.ok) throw new Error('tts '+r.status); return r.blob(); });
+  // Jeden přehrávač na všechny části — telefon pak dovolí pustit další část bez klepnutí.
+  const a=new Audio();
+  _ttsAudio=a;
+  let url=null;
+  try{
+    let next=fetchPart(0);
+    if(opts && opts.barge) _bargeStart(seq);
+    for(let i=0;i<parts.length;i++){
+      const blob=await next;
+      if(!live()) return;                 // mezitím zastaveno / kliknuto jinam
+      next=(i+1<parts.length)?fetchPart(i+1):null;   // další část se načítá, zatímco tahle hraje
+      if(next) next.catch(()=>{});
+      if(url) URL.revokeObjectURL(url);
+      url=URL.createObjectURL(blob);
+      a.src=url;
+      const done=new Promise(res=>{ _ttsWake=res; a.onended=res; a.onerror=res; });
+      await a.play();
+      await done;
+      _ttsWake=null;
+      if(!live()) return;
+      wakeTouch();
+    }
   }catch(e){
     // Server TTS selhal → NEpadat na robotický hlas prohlížeče (tester 4. 8.:
     // „hlas je děsnej" — plechový fallback škodí víc než ticho). Jen reset tlačítka.
-    if(_ttsBtn!==btn) return;
-    _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null;
+  }finally{
+    if(url){ try{URL.revokeObjectURL(url);}catch(e){} }
+    if(live()){
+      if(_ttsAudio===a)_ttsAudio=null;
+      _bargeStop();
+      _ttsReset(btn); if(_ttsBtn===btn)_ttsBtn=null;
+    }
   }
 }
 
@@ -795,6 +969,7 @@ async function loadHotel(){
     // (nález Martina 7. 8. 2026). startChat() ho pak u nového hosta nastaví znovu (neškodí).
     const _hdrName=document.getElementById('hdr-hotel-name');
     if(_hdrName) _hdrName.textContent=hotelData.name||'Hotel';
+    showHdrButtons();
 
     // Pokud host byl tu dříve — přeskoč onboarding
     if(_savedName || _onboarded || guestName !== ''){
@@ -1126,6 +1301,8 @@ Object.assign(UI_T.uk,{order_persons:'Осіб',order_nights:'Ночей',order_
   room_saved:'✅ Записано — номер {room}. Замовлення й запити тепер ідуть прямо на рецепцію з номером вашої кімнати.',
   room_forgotten:'🔓 Номер кімнати видалено. Назвіть його знову, коли захочете щось замовити.',cancel_title:'Скасування',cancel_btn:'Скасувати послугу',cancel_note:'Послугу буде вилучено з вашого бронювання та рахунку номера.',cancel_this:'Скасувати це замовлення'});
 function uiT(k){ const d=UI_T[guestLang]||UI_T.en; return (d[k]!==undefined)?d[k]:UI_T.en[k]; }
+const NAV_T={cs:'Navigovat',sk:'Navigovať',en:'Navigate',de:'Route',fr:'Itinéraire',it:'Indicazioni',es:'Cómo llegar',pl:'Nawiguj',ru:'Маршрут',uk:'Маршрут'};
+function navLabel(){ return NAV_T[guestLang]||NAV_T.en; }
 function applyGuestLangUI(){
   const set=(id,html)=>{const e=document.getElementById(id); if(e) e.innerHTML=html;};
   set('ob-title',uiT('ob_title'));
@@ -1144,6 +1321,18 @@ function applyGuestLangUI(){
 }
 function showInstallTip(){
   if(!isPwaInstalled()) addBot(INSTALL_TIP[guestLang] || INSTALL_TIP['en']);
+}
+
+// Tlačítka v hlavičce podle nastavení hotelu. Volá se u nového i vracejícího se hosta —
+// dřív jen ve startChat(), takže vracející se host helpdesk ani WhatsApp neviděl (nález 25. 11. 2026).
+function showHdrButtons(){
+  if(!hotelData) return;
+  const waNum = hotelData.whatsapp_number || hotelData.whatsapp_wellness || hotelData.whatsapp_restaurant || hotelData.whatsapp_sport || hotelData.phone || '';
+  const waHdrBtn = document.getElementById('wa-hdr-btn');
+  if(waHdrBtn && waNum) waHdrBtn.style.display='';
+  // Helpdesk (závada / úklid / přání) — jen když ho hotel zapnul
+  const hdBtn = document.getElementById('hd-hdr-btn');
+  if(hdBtn && hotelData.helpdesk_enabled){ hdBtn.style.display=''; hdBtn.title=xT('hd_title'); }
 }
 
 function startChat(){
@@ -1165,10 +1354,7 @@ function startChat(){
   },300);
 
   document.getElementById('hdr-hotel-name').textContent=hotelData.name||'Hotel';
-  // WhatsApp tlačítko v headeru — zobraz jen pokud hotel má číslo
-  const waNum = hotelData.whatsapp_number || hotelData.whatsapp_wellness || hotelData.whatsapp_restaurant || hotelData.whatsapp_sport || hotelData.phone || '';
-  const waHdrBtn = document.getElementById('wa-hdr-btn');
-  if(waHdrBtn && waNum) waHdrBtn.style.display='';
+  showHdrButtons();
 
   // Přidej WhatsApp tlačítko do quick replies pokud je nastaveno
   if(hotelData.whatsapp_reception || hotelData.whatsapp_number){
@@ -1567,7 +1753,7 @@ function formatBotText(text){
         const city = hotelData.address ? hotelData.address.split(',').slice(-1)[0].trim() : '';
         const q = encodeURIComponent(name + (city ? ', ' + city : ''));
         const navUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + q;
-        h = h.replace(regex, `$1 <a href="${navUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:3px;background:rgba(0,212,170,.12);color:var(--teal);border:1px solid rgba(0,212,170,.25);border-radius:12px;padding:1px 7px;font-size:11px;text-decoration:none;font-weight:600;vertical-align:middle">🧭</a>`);
+        h = h.replace(regex, `$1 <a class="nav-chip" href="${navUrl}" target="_blank" rel="noopener" data-nav="${q}" onclick="return openNav(this)">🧭 ${navLabel()} ›</a>`);
       }
     });
   }
@@ -1603,45 +1789,23 @@ function addBot(text, opts){
   btn.title=TTS_LABEL[guestLang]||TTS_LABEL.en;
   btn.onclick=()=>speakText(text,btn);
   meta.appendChild(btn);
+  // Hodnocení odpovědi palcem — jen u čerstvé odpovědi Alex, ke které server poslal podpis
+  if(opts.rate && !opts.reception){
+    ['up','down'].forEach(v=>{
+      const rb=document.createElement('button');
+      rb.type='button'; rb.className='rate-btn '+v; rb.textContent=(v==='up'?'👍':'👎');
+      rb.title=xT(v==='up'?'rate_up':'rate_down'); rb.setAttribute('aria-label',rb.title);
+      rb.onclick=()=>rateAnswer(meta,rb,v,opts.q||'',text,opts.rate);
+      meta.appendChild(rb);
+    });
+  }
   msgs.appendChild(d);
   msgs.scrollTop=msgs.scrollHeight;
   return btn;
 }
 
-// Má smysl odpověď číst nahlas? Krátká konverzační ANO; menu / ceník / dlouhý výčet NE.
-function ttsWorthSpeaking(text){
-  const t=String(text||'').trim();
-  if(!t) return false;
-  if(t.length>900) return false;                              // dlouhé = spíš výčet/menu/návod
-  const lines=t.split('\n').filter(x=>x.trim());
-  if(lines.length>8) return false;                            // hodně řádků = seznam/jídelní lístek
-  const bullets=(t.match(/^\s*(?:[-•*]|\d+[\.\)])\s+/gm)||[]).length;
-  if(bullets>=4) return false;                                // odrážkový/číslovaný seznam
-  const prices=(t.match(/(?:€|Kč|CZK|EUR|USD|\$)\s?\d|\d+\s?(?:€|Kč|CZK|EUR)/gi)||[]).length;
-  if(prices>=4) return false;                                 // ceník / menu s cenami
-  return true;
-}
-
-// Host se zeptal HLASEM a odpověď je dlouhý výčet (ttsWorthSpeaking=false) →
-// nečteme celý seznam, ale krátký MLUVENÝ ÚVOD: text před prvním výčtem
-// (typicky uvítací věta + „Hlavní atrakce:"), detaily zůstanou napsané.
-// Rozhodnutí Martina 7. 8. 2026 („zeptám hlasem, jen napíše"). Čistě klientské.
-function ttsSpokenIntro(text){
-  const raw=String(text||'');
-  const bulletRe=/^\s*(?:[-•*]|\d+[\.\)])\s+/;
-  const intro=[];
-  for(const ln of raw.split('\n')){
-    if(bulletRe.test(ln)) break;      // narazili jsme na výčet → konec úvodu
-    intro.push(ln);
-  }
-  let s=intro.join('\n').trim();
-  if(!s) s=raw.trim();                 // odpověď začíná rovnou výčtem → vezmi začátek
-  if(s.length>320){                    // strop: opravdu krátký úvod (max ~2 věty)
-    const m=s.slice(0,320).match(/^[\s\S]*?[.!?](?=\s|$)/);
-    s=(m?m[0]:s.slice(0,320)).trim();
-  }
-  return s;
-}
+// (Funkce ttsWorthSpeaking a ttsSpokenIntro byly 24. 11. 2026 odstraněny: dlouhá odpověď
+// se už nezkracuje na úvod, čte se celá po částech — viz _ttsChunks a speakText.)
 
 function addUser(text){
   const msgs=document.getElementById('messages');
@@ -1703,6 +1867,7 @@ async function sendMsg(){
   const inp=document.getElementById('msg-input');
   const text=inp.value.trim();
   if(!text||isTyping)return;
+  _ttsStopAll(); wakeTouch();   // nová zpráva = Alex přestane číst tu předchozí
   inp.value='';inp.style.height='auto';
   if(REPLY_ORDER){ await sendReplyToReception(text); return; }   // zpráva recepci, ne Alexovi
   document.getElementById('send-btn').disabled=true;
@@ -1745,7 +1910,7 @@ async function sendMsg(){
         try{ localStorage.setItem('sg_lang_'+hotelId, guestLang); }catch(e){}
         applyGuestLangUI();
       }
-      const botBtn=addBot(d.reply);
+      const botBtn=addBot(d.reply,{rate:d.rate,q:text});
       // Zápis do rezervace: server poslal konkrétní nabídky k potvrzení → karty s tlačítkem
       if(d.actions && d.actions.length) showOrderCards(d.actions);
       // Host napsal číslo pokoje do chatu (hotel bez PMS nemá „Propojit pobyt") → zapamatovat
@@ -1755,17 +1920,9 @@ async function sendMsg(){
         try{ localStorage.setItem('sg_stay_'+hotelId, JSON.stringify({room:roomNumber, mode:'typed'})); sessionStorage.setItem('sg_room', roomNumber); }catch(e){}
         setQuickReplies();
       }
-      // Host mluvil → Alex odpoví taky hlasem. Krátká odpověď se přečte celá;
-      // u dlouhého výčtu (menu/ceník/tipy) se přečte jen krátký úvod, detaily zůstanou
-      // napsané (rozhodnutí Martina 7. 8. 2026). Tlačítko 🔊 pak přehraje celou odpověď.
-      if(viaVoice && botBtn){
-        if(ttsWorthSpeaking(d.reply)){
-          speakText(d.reply, botBtn);
-        } else {
-          const intro=ttsSpokenIntro(d.reply);
-          if(intro) speakText(intro, botBtn);
-        }
-      }
+      // Host mluvil → Alex odpoví taky hlasem a přečte CELOU odpověď, dokud ji host
+      // nepřeruší (rozhodnutí Martina 24. 11. 2026; do té doby se dlouhá četla jen jako úvod).
+      if(viaVoice && botBtn) speakText(d.reply, botBtn, {barge:true});
       history.push({role:'assistant',content:d.reply});
       saveHistory();
     } else {
@@ -1980,12 +2137,17 @@ function toggleVoice(){
 
 const SVG_MIC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>', SVG_STOP='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor"/></svg>';
 let _rec=null,_recChunks=[],_recTimer=null;
-async function whisperVoice(){
+// opts.stream + opts.barge: host skočil Alex do řeči — mikrofon už běží a host už mluví.
+async function whisperVoice(opts){
+  opts=opts||{};
   const b=document.getElementById('voice-btn');
-  if(_rec){ try{_rec.stop();}catch(e){} return; }   // druhé ťuknutí = stop
-  let stream;
-  try{ stream=await navigator.mediaDevices.getUserMedia({audio:true}); }
-  catch(e){ browserVoice(); return; }               // mikrofon zamítnut → fallback
+  if(_rec){ try{_rec.stop();}catch(e){} if(opts.stream){ try{opts.stream.getTracks().forEach(t=>t.stop());}catch(e){} } return; }   // druhé ťuknutí = stop
+  _ttsStopAll(); wakeTouch();                       // klepnutí na mikrofon přeruší čtení
+  let stream=opts.stream;
+  if(!stream){
+    try{ stream=await navigator.mediaDevices.getUserMedia({audio:true}); }
+    catch(e){ browserVoice(); return; }             // mikrofon zamítnut → fallback
+  }
   const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
              : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '';
   const fmt = mime==='audio/mp4' ? 'mp4' : 'webm';
@@ -2009,7 +2171,11 @@ async function whisperVoice(){
       if(!r.ok) throw new Error('stt '+r.status);
       const d=await r.json();
       const text=(d.text||'').trim();
-      if(!text){ addBot(uiT('stt_retry')||'Nerozuměla jsem ti — zkus to prosím říct znovu, klidně pomaleji. 🎤'); return; }
+      if(!text){
+        // Při skočení do řeči mohl mikrofon zachytit jen hluk — tehdy mlčíme, nic nevyčítáme.
+        if(!opts.barge) addBot(uiT('stt_retry')||'Nerozuměla jsem ti — zkus to prosím říct znovu, klidně pomaleji. 🎤');
+        return;
+      }
       // Jazyk z Whisperu se ZÁMĚRNĚ neukládá. Dřív stačil jeden špatný odhad ze šumu
       // a host měl napořád uložený třeba portugalský jazyk (tester 7. 8. 2026).
       // Jazyk mění jen výslovná volba hosta nebo jednoznačný důkaz z textu (server).
@@ -2018,7 +2184,7 @@ async function whisperVoice(){
       _lastInputVoice=true; sendMsg();
     }catch(e){
       console.warn('whisper stt failed → browser fallback', e&&(e.message||e));
-      browserVoice();                                 // server nedostupný → aspoň prohlížeč
+      if(!opts.barge) browserVoice();                 // server nedostupný → aspoň prohlížeč
     }finally{ b.innerHTML=SVG_MIC; b.disabled=false; }
   };
   _rec.start();
@@ -2031,7 +2197,7 @@ async function whisperVoice(){
     const an=ac.createAnalyser(); an.fftSize=512;
     src.connect(an);
     const buf=new Uint8Array(an.fftSize);
-    let spoke=false, quietMs=0, prev=Date.now();
+    let spoke=!!opts.barge, quietMs=0, prev=Date.now();
     const iv=setInterval(()=>{
       if(!_rec){ clearInterval(iv); try{ac.close();}catch(e){} return; }
       an.getByteTimeDomainData(buf);
@@ -2065,6 +2231,7 @@ function browserVoice(){
     return;
   }
   if(isListening){recognition?.stop();return;}
+  _ttsStopAll(); wakeTouch();
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   recognition=new SR();
   recognition.lang=LANG_SR[guestLang]||'cs-CZ';
@@ -2119,8 +2286,8 @@ function showInfo(){
         return '<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;gap:8px">'
           +'<span style="font-size:13px;color:var(--text)">📍 '+esc(p)+'</span>'
           +'<div style="display:flex;gap:6px;flex-shrink:0">'
-          +'<a href="'+searchUrl+'" target="_blank" style="background:rgba(255,107,0,.15);color:var(--accent);border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🔍 Mapa</a>'
-          +'<a href="'+navUrl+'" target="_blank" style="background:rgba(0,212,170,.15);color:var(--teal);border:1px solid rgba(0,212,170,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🧭 Navigovat</a>'
+          +'<a href="'+searchUrl+'" target="_blank" data-nav="'+q+'" onclick="return openNav(this,true)" style="background:rgba(255,107,0,.15);color:var(--accent);border:1px solid rgba(255,107,0,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🔍 '+xT('map')+'</a>'
+          +'<a href="'+navUrl+'" target="_blank" data-nav="'+q+'" onclick="return openNav(this)" style="background:rgba(0,212,170,.15);color:var(--teal);border:1px solid rgba(0,212,170,.3);border-radius:8px;padding:4px 10px;font-size:11px;text-decoration:none;font-weight:600">🧭 '+navLabel()+'</a>'
           +'</div></div>';
       }).join('')}</div></div></div>`;
   }
@@ -2132,6 +2299,129 @@ function showInfo(){
 function hideInfo(e){
   if(!e||e.target===document.getElementById('info-overlay'))
     document.getElementById('info-overlay').classList.remove('show');
+}
+
+// ══ VOLBA MAPY · HODNOCENÍ ODPOVĚDÍ · HELPDESK ══════════════════════
+const X_T={
+cs:{map:'Mapa',nav_title:'Otevřít v mapách',nav_sub:'Vyberte aplikaci, kterou máte nejraději.',g:'Google Mapy',a:'Apple Mapy',m:'Mapy.cz',here:'Zobrazit mapu tady',close:'Zavřít',
+  rate_up:'Odpověď pomohla',rate_down:'Odpověď nepomohla',
+  hd_title:'Nahlásit závadu nebo přání',hd_sub:'Pošleme to rovnou hotelu. Stav uvidíte tady.',k_fault:'🔧 Závada',k_cleaning:'🧹 Úklid',k_wish:'✨ Přání',hd_room:'Číslo pokoje',hd_text:'Co potřebujete? (např. nesvítí lampa u postele)',hd_send:'Odeslat hotelu',hd_ok:'✅ Odesláno. Hotel už o tom ví.',hd_err:'Odeslání se nepovedlo. Zkuste to prosím znovu.',hd_need:'Napište prosím, co potřebujete.',hd_mine:'Moje požadavky',s_new:'Přijato',s_in_progress:'Řeší se',s_done:'Vyřízeno',hd_chat:'Předal jsem to hotelu'},
+sk:{map:'Mapa',nav_title:'Otvoriť v mapách',nav_sub:'Vyberte aplikáciu, ktorú máte najradšej.',g:'Google Mapy',a:'Apple Mapy',m:'Mapy.cz',here:'Zobraziť mapu tu',close:'Zavrieť',
+  rate_up:'Odpoveď pomohla',rate_down:'Odpoveď nepomohla',
+  hd_title:'Nahlásiť poruchu alebo želanie',hd_sub:'Pošleme to priamo hotelu. Stav uvidíte tu.',k_fault:'🔧 Porucha',k_cleaning:'🧹 Upratovanie',k_wish:'✨ Želanie',hd_room:'Číslo izby',hd_text:'Čo potrebujete? (napr. nesvieti lampa pri posteli)',hd_send:'Odoslať hotelu',hd_ok:'✅ Odoslané. Hotel už o tom vie.',hd_err:'Odoslanie sa nepodarilo. Skúste to prosím znova.',hd_need:'Napíšte prosím, čo potrebujete.',hd_mine:'Moje požiadavky',s_new:'Prijaté',s_in_progress:'Rieši sa',s_done:'Vybavené',hd_chat:'Odovzdal som to hotelu'},
+en:{map:'Map',nav_title:'Open in maps',nav_sub:'Choose the app you prefer.',g:'Google Maps',a:'Apple Maps',m:'Mapy.com',here:'Show the map here',close:'Close',
+  rate_up:'This answer helped',rate_down:'This answer did not help',
+  hd_title:'Report a problem or a wish',hd_sub:'We send it straight to the hotel. You will see the status here.',k_fault:'🔧 Problem',k_cleaning:'🧹 Cleaning',k_wish:'✨ Wish',hd_room:'Room number',hd_text:'What do you need? (e.g. the bedside lamp does not work)',hd_send:'Send to the hotel',hd_ok:'✅ Sent. The hotel knows about it.',hd_err:'Sending failed. Please try again.',hd_need:'Please describe what you need.',hd_mine:'My requests',s_new:'Received',s_in_progress:'In progress',s_done:'Done',hd_chat:'I passed this on to the hotel'},
+de:{map:'Karte',nav_title:'In Karten öffnen',nav_sub:'Wählen Sie Ihre bevorzugte App.',g:'Google Maps',a:'Apple Karten',m:'Mapy.com',here:'Karte hier anzeigen',close:'Schließen',
+  rate_up:'Die Antwort hat geholfen',rate_down:'Die Antwort hat nicht geholfen',
+  hd_title:'Mangel oder Wunsch melden',hd_sub:'Wir leiten es direkt an das Hotel weiter. Den Status sehen Sie hier.',k_fault:'🔧 Mangel',k_cleaning:'🧹 Reinigung',k_wish:'✨ Wunsch',hd_room:'Zimmernummer',hd_text:'Was brauchen Sie? (z. B. die Nachttischlampe funktioniert nicht)',hd_send:'An das Hotel senden',hd_ok:'✅ Gesendet. Das Hotel weiß Bescheid.',hd_err:'Senden fehlgeschlagen. Bitte versuchen Sie es erneut.',hd_need:'Bitte beschreiben Sie, was Sie brauchen.',hd_mine:'Meine Anfragen',s_new:'Eingegangen',s_in_progress:'In Bearbeitung',s_done:'Erledigt',hd_chat:'Ich habe es an das Hotel weitergegeben'},
+fr:{map:'Carte',nav_title:'Ouvrir dans les cartes',nav_sub:"Choisissez l'application que vous préférez.",g:'Google Maps',a:'Plans (Apple)',m:'Mapy.com',here:'Afficher la carte ici',close:'Fermer',
+  rate_up:'Cette réponse a aidé',rate_down:"Cette réponse n'a pas aidé",
+  hd_title:'Signaler un problème ou un souhait',hd_sub:"Nous le transmettons directement à l'hôtel. Vous verrez le statut ici.",k_fault:'🔧 Problème',k_cleaning:'🧹 Ménage',k_wish:'✨ Souhait',hd_room:'Numéro de chambre',hd_text:'De quoi avez-vous besoin ? (ex. la lampe de chevet ne fonctionne pas)',hd_send:"Envoyer à l'hôtel",hd_ok:"✅ Envoyé. L'hôtel est informé.",hd_err:"L'envoi a échoué. Veuillez réessayer.",hd_need:'Veuillez décrire ce dont vous avez besoin.',hd_mine:'Mes demandes',s_new:'Reçu',s_in_progress:'En cours',s_done:'Terminé',hd_chat:"J'ai transmis cela à l'hôtel"},
+it:{map:'Mappa',nav_title:'Apri nelle mappe',nav_sub:"Scelga l'app che preferisce.",g:'Google Maps',a:'Mappe di Apple',m:'Mapy.com',here:'Mostra la mappa qui',close:'Chiudi',
+  rate_up:'La risposta è stata utile',rate_down:'La risposta non è stata utile',
+  hd_title:'Segnalare un guasto o un desiderio',hd_sub:"Lo inviamo direttamente all'hotel. Qui vedrà lo stato.",k_fault:'🔧 Guasto',k_cleaning:'🧹 Pulizia',k_wish:'✨ Desiderio',hd_room:'Numero di camera',hd_text:'Di cosa ha bisogno? (es. la lampada del comodino non funziona)',hd_send:"Invia all'hotel",hd_ok:"✅ Inviato. L'hotel è informato.",hd_err:'Invio non riuscito. Riprovi per favore.',hd_need:'Descriva per favore di cosa ha bisogno.',hd_mine:'Le mie richieste',s_new:'Ricevuto',s_in_progress:'In corso',s_done:'Risolto',hd_chat:"L'ho inoltrato all'hotel"},
+es:{map:'Mapa',nav_title:'Abrir en mapas',nav_sub:'Elija la aplicación que prefiera.',g:'Google Maps',a:'Mapas de Apple',m:'Mapy.com',here:'Mostrar el mapa aquí',close:'Cerrar',
+  rate_up:'La respuesta ayudó',rate_down:'La respuesta no ayudó',
+  hd_title:'Informar de una avería o un deseo',hd_sub:'Lo enviamos directamente al hotel. Aquí verá el estado.',k_fault:'🔧 Avería',k_cleaning:'🧹 Limpieza',k_wish:'✨ Deseo',hd_room:'Número de habitación',hd_text:'¿Qué necesita? (p. ej. la lámpara de la mesilla no funciona)',hd_send:'Enviar al hotel',hd_ok:'✅ Enviado. El hotel ya lo sabe.',hd_err:'No se pudo enviar. Inténtelo de nuevo.',hd_need:'Describa por favor lo que necesita.',hd_mine:'Mis solicitudes',s_new:'Recibido',s_in_progress:'En curso',s_done:'Resuelto',hd_chat:'Lo he pasado al hotel'},
+pl:{map:'Mapa',nav_title:'Otwórz w mapach',nav_sub:'Wybierz aplikację, którą wolisz.',g:'Mapy Google',a:'Mapy Apple',m:'Mapy.com',here:'Pokaż mapę tutaj',close:'Zamknij',
+  rate_up:'Odpowiedź pomogła',rate_down:'Odpowiedź nie pomogła',
+  hd_title:'Zgłoś usterkę lub życzenie',hd_sub:'Przekażemy to prosto do hotelu. Status zobaczysz tutaj.',k_fault:'🔧 Usterka',k_cleaning:'🧹 Sprzątanie',k_wish:'✨ Życzenie',hd_room:'Numer pokoju',hd_text:'Czego potrzebujesz? (np. nie działa lampka przy łóżku)',hd_send:'Wyślij do hotelu',hd_ok:'✅ Wysłano. Hotel już o tym wie.',hd_err:'Nie udało się wysłać. Spróbuj ponownie.',hd_need:'Opisz proszę, czego potrzebujesz.',hd_mine:'Moje zgłoszenia',s_new:'Przyjęte',s_in_progress:'W realizacji',s_done:'Załatwione',hd_chat:'Przekazałem to hotelowi'},
+ru:{map:'Карта',nav_title:'Открыть в картах',nav_sub:'Выберите удобное приложение.',g:'Google Карты',a:'Apple Карты',m:'Mapy.com',here:'Показать карту здесь',close:'Закрыть',
+  rate_up:'Ответ помог',rate_down:'Ответ не помог',
+  hd_title:'Сообщить о неисправности или пожелании',hd_sub:'Мы сразу передадим это отелю. Статус вы увидите здесь.',k_fault:'🔧 Неисправность',k_cleaning:'🧹 Уборка',k_wish:'✨ Пожелание',hd_room:'Номер комнаты',hd_text:'Что вам нужно? (например, не работает лампа у кровати)',hd_send:'Отправить отелю',hd_ok:'✅ Отправлено. Отель уже знает.',hd_err:'Не удалось отправить. Попробуйте ещё раз.',hd_need:'Пожалуйста, опишите, что вам нужно.',hd_mine:'Мои запросы',s_new:'Принято',s_in_progress:'В работе',s_done:'Выполнено',hd_chat:'Я передал это отелю'},
+uk:{map:'Карта',nav_title:'Відкрити в картах',nav_sub:'Оберіть зручний застосунок.',g:'Google Карти',a:'Apple Карти',m:'Mapy.com',here:'Показати карту тут',close:'Закрити',
+  rate_up:'Відповідь допомогла',rate_down:'Відповідь не допомогла',
+  hd_title:'Повідомити про несправність або побажання',hd_sub:'Ми одразу передамо це готелю. Статус ви побачите тут.',k_fault:'🔧 Несправність',k_cleaning:'🧹 Прибирання',k_wish:'✨ Побажання',hd_room:'Номер кімнати',hd_text:'Що вам потрібно? (наприклад, не працює лампа біля ліжка)',hd_send:'Надіслати готелю',hd_ok:'✅ Надіслано. Готель уже знає.',hd_err:'Не вдалося надіслати. Спробуйте ще раз.',hd_need:'Будь ласка, опишіть, що вам потрібно.',hd_mine:'Мої запити',s_new:'Прийнято',s_in_progress:'В роботі',s_done:'Виконано',hd_chat:'Я передав це готелю'}
+};
+function xT(k){ const d=X_T[guestLang]||X_T.en; return (d[k]!==undefined)?d[k]:X_T.en[k]; }
+function showX(title, html){
+  document.getElementById('x-title').textContent=title;
+  document.getElementById('x-content').innerHTML=html;
+  document.getElementById('x-close').textContent=xT('close');
+  document.getElementById('x-overlay').classList.add('show');
+}
+function hideX(e){
+  if(!e||e.target===document.getElementById('x-overlay')){
+    document.getElementById('x-overlay').classList.remove('show');
+    document.getElementById('x-content').innerHTML='';   // zahodí i vloženou mapu
+  }
+}
+
+// — Volba mapy: Google / Apple / Mapy.cz, nebo mapa přímo v aplikaci —
+function openNav(el, mapFirst){
+  try{
+    const q=el.getAttribute('data-nav')||''; if(!q) return true;
+    let name=''; try{ name=decodeURIComponent(q); }catch(e){ name=q; }
+    const opt=(href,icon,label)=>`<a class="x-opt" href="${href}" target="_blank" rel="noopener" onclick="hideX()"><span class="i">${icon}</span>${label}</a>`;
+    const html=`<div class="x-sub">📍 ${esc(name)}<br>${xT('nav_sub')}</div>`
+      +opt('https://www.google.com/maps/dir/?api=1&destination='+q,'🧭',xT('g'))
+      +opt('https://maps.apple.com/?daddr='+q+'&dirflg=w','🍎',xT('a'))
+      +opt('https://mapy.com/fnc/v1/search?query='+q,'🗺',xT('m'))
+      +`<button type="button" class="x-opt" id="x-here" onclick="showMapHere('${q.replace(/'/g,'%27')}')"><span class="i">👁</span>${xT('here')}</button><div id="x-map-box"></div>`;
+    showX(xT('nav_title'), html);
+    if(mapFirst) showMapHere(q);
+    return false;   // odkaz se neotevře, host si vybere
+  }catch(e){ return true; }   // cokoli selže → původní odkaz na Google Mapy
+}
+function showMapHere(q){
+  const box=document.getElementById('x-map-box'); if(!box) return;
+  box.innerHTML=`<iframe class="x-map" loading="lazy" referrerpolicy="no-referrer" src="https://www.google.com/maps?q=${q}&output=embed" title="map"></iframe>`;
+  const b=document.getElementById('x-here'); if(b) b.style.display='none';
+}
+
+// — Hodnocení odpovědi palcem —
+async function rateAnswer(meta, btn, value, q, a, sig){
+  const was=btn.classList.contains('on');
+  meta.querySelectorAll('.rate-btn').forEach(b=>b.classList.remove('on'));
+  if(was) return;   // druhé klepnutí jen zruší zvýraznění
+  btn.classList.add('on');
+  try{
+    await fetch(`${API}/api/guest/chat/rate`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({hotel_id:hotelId,device_id:deviceId,value:value,q:q,a:a,sig:sig,language:guestLang})});
+  }catch(e){}
+}
+
+// — Helpdesk: závada / úklid / přání —
+let hdKind='fault';
+function hdSetKind(k){ hdKind=k; document.querySelectorAll('.hd-kind').forEach(b=>b.classList.toggle('on', b.dataset.k===k)); }
+function openHelpdesk(){
+  const kinds=['fault','cleaning','wish'].map(k=>`<button type="button" class="hd-kind${k===hdKind?' on':''}" data-k="${k}" onclick="hdSetKind('${k}')">${xT('k_'+k)}</button>`).join('');
+  showX(xT('hd_title'),
+    `<div class="x-sub">${xT('hd_sub')}</div><div class="hd-kinds">${kinds}</div>`
+    +`<input class="hd-in" id="hd-room" maxlength="12" placeholder="${xT('hd_room')}" value="${esc(roomNumber||'')}">`
+    +`<textarea class="hd-in" id="hd-text" rows="3" maxlength="600" placeholder="${xT('hd_text')}"></textarea>`
+    +`<button type="button" class="hd-send" id="hd-send" onclick="sendHelpdesk()">${xT('hd_send')}</button><div class="hd-msg" id="hd-msg"></div>`
+    +`<div id="hd-list"></div>`);
+  loadHelpdesk();
+}
+async function sendHelpdesk(){
+  const t=document.getElementById('hd-text'), r=document.getElementById('hd-room'), m=document.getElementById('hd-msg'), b=document.getElementById('hd-send');
+  const text=(t.value||'').trim();
+  if(text.length<3){ m.textContent=xT('hd_need'); return; }
+  b.disabled=true; m.textContent='';
+  try{
+    const res=await fetch(`${API}/api/guest/helpdesk/new`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({hotel_id:hotelId,device_id:deviceId,kind:hdKind,room:(r.value||'').trim(),text:text,language:guestLang,guest_name:guestName||''})});
+    if(!res.ok) throw new Error(res.status);
+    t.value=''; m.textContent=xT('hd_ok');
+    addBot(`🛠 ${xT('hd_chat')}: ${xT('k_'+hdKind).replace(/^\S+\s/,'')} — ${text}`);
+    loadHelpdesk();
+  }catch(e){ m.textContent=xT('hd_err'); }
+  b.disabled=false;
+}
+async function loadHelpdesk(){
+  const box=document.getElementById('hd-list'); if(!box) return;
+  try{
+    const res=await fetch(`${API}/api/guest/helpdesk/list?hotel_id=${encodeURIComponent(hotelId)}&device_id=${encodeURIComponent(deviceId)}`,{cache:'no-store'});
+    if(!res.ok) return;
+    const items=(await res.json()).tickets||[];
+    if(!items.length){ box.innerHTML=''; return; }
+    box.innerHTML=`<div class="info-label" style="margin-top:18px">${xT('hd_mine')}</div>`+items.map(x=>{
+      const when=x.created?new Date(x.created+'Z').toLocaleString([], {day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+      return `<div class="hd-item"><div class="top"><span>${xT('k_'+x.kind)||''} · ${esc(when)}</span><span class="hd-st ${esc(x.status)}">${xT('s_'+x.status)||esc(x.status)}</span></div>${esc(x.text)}${x.note?`<div class="hd-note">💬 ${esc(x.note)}</div>`:''}</div>`;
+    }).join('');
+  }catch(e){}
 }
 
 // ══ PŘEKLAD MENU (FOTO) ══════════════════════

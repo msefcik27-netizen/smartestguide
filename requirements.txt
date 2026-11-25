@@ -7,3 +7,6 @@ python-dotenv
 pydantic
 reportlab
 psycopg2-binary
+pypdf
+numpy
+cryptography

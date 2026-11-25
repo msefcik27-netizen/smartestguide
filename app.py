@@ -18,6 +18,20 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from dotenv import load_dotenv
 import pms as pms_layer  # PMS napojení (Apaleo…) — viz pms.py, PLAN_PMS_NAPOJENI.md
+import analytics_view  # výpočty pro stránku Přehled (/prehled) — čisté funkce, testy v test_analytics_view.py
+import alex_learn      # „Alex se učí": odpovědi recepce na dotazy bez odpovědi — testy v test_alex_learn.py
+import print_i18n     # texty tiskovin v jazycích hostů
+import kb_routes       # znalostní báze hotelu (dokumenty, cloudové disky, asistent pro personál) — testy v test_kb.py
+import sg_api          # veřejné API /api/v1 a onboarding vývojářů — testy v test_sg_api.py
+import sg_mcp          # napojení pro AI asistenty (MCP, adresa /mcp) — testy v test_sg_mcp.py
+import contacts        # další kontakty hotelu (telefon / e-mail / WhatsApp s názvem a poznámkou) — testy v test_contacts.py
+import parking         # místa k parkování a max. rozměry vozu („vejde se moje auto?") — testy v test_parking.py
+import partners        # doporučené (spřátelené) firmy: ručně, z webu nebo z vyfoceného letáku — testy v test_partners.py
+import ratings         # hodnocení odpovědí palcem (host v chatu, hotel v portálu) — testy v test_ratings.py
+import helpdesk        # helpdesk hotelu: závada / úklid / přání se stavem, řešitelem a historií — testy v test_helpdesk.py
+import lang_detect     # rozpoznání jazyka zprávy hosta — testy v test_lang_detect.py
+import reply_guard     # pojistky nad odpovědí Alex: ženský rod, cizí písmo — testy v test_reply_guard.py
+import tts_units       # měrné jednotky a desetinná čísla pro hlas — testy v test_tts_units.py
 
 load_dotenv()
 
@@ -698,18 +712,24 @@ from contextlib import asynccontextmanager
 async def lifespan(app):
     # Firemní údaje dodavatele jsou na tvrdo v db_get_settings (přebijí data.json).
     task = asyncio.create_task(_reminder_background_loop())
+    # Znalostní báze: pravidelné načítání změn z připojených cloudových disků.
+    kb_task = asyncio.create_task(kb_routes.cloud.background_loop(kb_routes.KB, kb_routes.STORE, kb_routes._secret))
     yield
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    for t in (task, kb_task):
+        t.cancel()
+        try:
+            await t
+        except (asyncio.CancelledError, Exception):
+            pass
 
-app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
+# Vestavěná dokumentace (/docs, /redoc, /openapi.json) je vypnutá — vypisovala i vnitřní
+# adresy správy. Veřejné API má vlastní popis na /api/v1/openapi.json (sg_api.py).
+app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan,
+              docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), check_dir=False), name="static")  # self-host fotek, fontů a log (GDPR — nic z Google/Pexels CDN)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.25"
+APP_VERSION = "0.5.40"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -731,6 +751,11 @@ async def _no_cache_html(request, call_next):
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
+    # Bezpečnostní hlavičky (25. 11. 2026). Bez X-Frame-Options a CSP — průvodce si hotely
+    # vkládají do vlastních stránek a přísná pravidla by to rozbila.
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
     return response
 
 # ── Zabezpečení administrace ─────────────────────────────────
@@ -745,6 +770,9 @@ if not _ADMIN_PASSWORD:
 # ── Rate limiting (in-memory) proti abuse a nákladům na Anthropic API ──
 _RL_WINDOW = 60          # okno v sekundách
 _RL_MAX_PER_MIN = 15     # max zpráv/min na IP (host)
+_RL_CHAT_IP_PER_MIN = 60 # strop chatu na jednu IP adresu (hotelová WiFi = víc hostů na jedné adrese)
+_CHAT_MAX_MSG = 2000     # nejdelší zpráva hosta (znaky)
+_CHAT_MAX_HIST = 2000    # nejdelší jedna zpráva v historii (znaky)
 _rl_hits = {}
 
 def _client_ip(request) -> str:
@@ -775,7 +803,11 @@ def _is_public_api(path: str) -> bool:
     for p in ("/api/guest/", "/api/hotel-portal/", "/api/app-icon/", "/api/docs/",
               "/api/ares/", "/api/stripe/", "/api/register", "/api/admin/",
               "/api/pms/apaleo/",   # OAuth connect/callback — hlídá se hotel tokenem + state
-              "/api/orders/"):      # odkaz z e-mailu recepci (Potvrdit / Nelze vyřídit) — hlídá HMAC podpis
+              "/api/orders/",       # odkaz z e-mailu recepci (Potvrdit / Nelze vyřídit) — hlídá HMAC podpis
+              "/api/kb/",           # návrat z přihlášení ke cloudovému disku — hlídá jednorázový state
+              "/api/staff/",        # asistent pro personál — hlídá klíč pro personál
+              "/api/v1/",           # veřejné API — hlídá API klíč (Bearer)
+              "/api/developers/"):  # registrace vývojáře (sandbox klíč) — hlídá limit a ověření e-mailu
         if path.startswith(p):
             return True
     if path.startswith("/api/hotels/"):
@@ -808,6 +840,9 @@ async def admin_login(request: Request):
     pw = (body.get("password") or "").strip()
     if not _ADMIN_PASSWORD:
         return JSONResponse({"ok": True, "unprotected": True})
+    # Ochrana proti hádání hesla (25. 11. 2026): nejvýš 8 pokusů za 15 minut z jedné adresy.
+    if not _rate_limit_ok("admin-login:" + _client_ip(request), max_hits=8, window=900):
+        return JSONResponse({"detail": "Příliš mnoho pokusů. Zkuste to za 15 minut."}, status_code=429)
     if pw and hashlib.sha256((pw + _ADMIN_SALT).encode()).hexdigest() == _ADMIN_TOKEN:
         resp = JSONResponse({"ok": True})
         resp.set_cookie("sg_admin", _ADMIN_TOKEN, httponly=True, secure=True,
@@ -942,6 +977,34 @@ _KEYS_REGISTRY = [
      "Prázdné = produkce. Na stagingu nastav na 'staging'."),
     ("DATA_PATH", "Cesta k souborové databázi (jen bez Postgresu)", "volitelne",
      "Railway → Variables", "", "Nepoužívá se, když běží Postgres."),
+    ("KB_SECRET", "Znalostní báze — klíč, kterým se šifrují přístupy k diskům hotelů", "dulezite",
+     "Railway → Variables",
+     "Dlouhý náhodný řetězec. NEMĚNIT: po změně se všechny připojené disky odpojí a hotely je musí připojit znovu.",
+     "Nenastaveno → šifruje se klíčem odvozeným z ADMIN_PASSWORD (změna hesla = odpojení disků)."),
+    ("KB_GOOGLE_CLIENT_ID", "Znalostní báze — Google Drive, ID aplikace", "volitelne",
+     "https://console.cloud.google.com/apis/credentials",
+     "Páruje se s KB_GOOGLE_CLIENT_SECRET. Redirect URI: <BASE_URL>/api/kb/oauth/callback",
+     "Nenastaveno = tlačítko Google Drive je v portálu neaktivní."),
+    ("KB_GOOGLE_CLIENT_SECRET", "Znalostní báze — Google Drive, tajemství aplikace", "volitelne",
+     "https://console.cloud.google.com/apis/credentials", "", ""),
+    ("KB_MS_CLIENT_ID", "Znalostní báze — OneDrive a SharePoint, ID aplikace", "volitelne",
+     "https://entra.microsoft.com",
+     "Páruje se s KB_MS_CLIENT_SECRET. Redirect URI: <BASE_URL>/api/kb/oauth/callback",
+     "Nenastaveno = tlačítko OneDrive / SharePoint je neaktivní."),
+    ("KB_MS_CLIENT_SECRET", "Znalostní báze — OneDrive a SharePoint, tajemství aplikace", "volitelne",
+     "https://entra.microsoft.com", "Tajemství má platnost nejvýš 24 měsíců — hlídat datum obnovy.", ""),
+    ("KB_DROPBOX_CLIENT_ID", "Znalostní báze — Dropbox, App key", "volitelne",
+     "https://www.dropbox.com/developers/apps",
+     "Páruje se s KB_DROPBOX_CLIENT_SECRET. Redirect URI: <BASE_URL>/api/kb/oauth/callback",
+     "Nenastaveno = tlačítko Dropbox je neaktivní."),
+    ("KB_DROPBOX_CLIENT_SECRET", "Znalostní báze — Dropbox, App secret", "volitelne",
+     "https://www.dropbox.com/developers/apps", "", ""),
+    ("KB_BOX_CLIENT_ID", "Znalostní báze — Box, Client ID", "volitelne",
+     "https://app.box.com/developers/console",
+     "Páruje se s KB_BOX_CLIENT_SECRET. Redirect URI: <BASE_URL>/api/kb/oauth/callback",
+     "Nenastaveno = tlačítko Box je neaktivní."),
+    ("KB_BOX_CLIENT_SECRET", "Znalostní báze — Box, Client secret", "volitelne",
+     "https://app.box.com/developers/console", "", ""),
 ]
 
 @app.get("/api/keys-registry")
@@ -2437,6 +2500,7 @@ _PORTAL_PROTECTED = {
     "subscription_paid_beds", "stripe_customer_id", "stripe_subscription_id",
     "acquired_by", "referral_code", "acquired_at", "trial_used", "trial_start",
     "is_free",
+    "learned_answers",   # mění se jen přes /api/hotel-portal/learn* (čištění textu, strop počtu)
 }
 
 @app.patch("/api/hotel-portal/update")
@@ -2462,6 +2526,26 @@ def hotel_portal_update(token: str, data: dict = Body(default={})):
     _wr = _normalize_write_settings(update_data)
     if _wr is not None:
         update_data.update(_wr)
+    # Nastavení přehledu úspor (minuty na dotaz, hodinový náklad, provoz recepce) — neplatné = výchozí
+    _st = analytics_view.normalize_settings(update_data)
+    if _st is not None:
+        update_data.update(_st)
+    # Místa k parkování: rozměry na centimetry, čisté texty, strop počtu (jdou do promptu Alex)
+    _pk = parking.normalize(update_data)
+    if _pk is not None:
+        update_data.update(_pk)
+    # Další kontakty: čisté texty, platné číslo / adresa, strop počtu (jdou do promptu Alex)
+    _ct = contacts.normalize(update_data)
+    if _ct is not None:
+        update_data.update(_ct)
+    # Helpdesk zapíná hotel sám — hodnota jde hostovi i do promptu, proto jen čisté ano/ne
+    if "helpdesk_enabled" in update_data:
+        _hv = update_data.get("helpdesk_enabled")
+        update_data["helpdesk_enabled"] = _hv is True or str(_hv).strip().lower() in ("1", "true", "ano", "yes", "on")
+    # Doporučené firmy: čisté texty, strop počtu, čas potvrzení „doporučujeme z vlastní vůle"
+    _pt = partners.normalize(update_data)
+    if _pt is not None:
+        update_data.update(_pt)
     # Při prvním nastavení lůžek u aktivního předplatného ulož jako zaplacená lůžka
     new_beds = update_data.get("bed_count")
     paid_beds = current.get("subscription_paid_beds", 0)
@@ -2587,6 +2671,153 @@ def hotel_portal_orders(token: str):
             "stats": {"this_month": this_month, "prev_month": _sum([prev_key]), "all_time": _sum(list(monthly.keys())),
                       "month_label": _month_label(now_key, "cs" if cs else "en"), "prev_label": _month_label(prev_key, "cs" if cs else "en")}}
 
+def _portal_overview(token: str, lang: str = "") -> dict:
+    """Podrobný přehled hotelu pro stránku /prehled (jen čtení). Výpočty v analytics_view.py.
+    lang = jazyk, který má hoteliér přepnutý v portálu; bez něj podle země hotelu."""
+    h = find_hotel_by_token(token)
+    if not h:
+        raise HTTPException(403, "Neplatny token")
+    if lang not in ("cs", "en"):
+        lang = "cs" if (h.get("country") or "").strip().upper() in ("CZ", "SK") else "en"
+    db = db_load()
+    hid = h["id"]
+    orders = [rec for rec in (db.get("orders") or {}).values() if rec.get("hid") == hid]
+    ov = analytics_view.build_overview(
+        (db.get("analytics", {}) or {}).get(hid, {}) or {}, orders, h,
+        lang=lang, utc_now=datetime.utcnow(), lang_names=_LANG_NAMES.get(lang, _LANG_NAMES["en"]))
+    ov["hotel_name"] = h.get("name") or ""
+    # Hodnocení odpovědí palcem (hosté) — za každé období + souhrn za celou dobu
+    _an = (db.get("analytics", {}) or {}).get(hid, {}) or {}
+    for _p in (ov.get("periods") or {}).values():
+        _p["ratings"] = ratings.period_block(_an, _p.get("keys") or [])
+    ov["ratings"] = ratings.summary(_an)
+    ov["orders_enabled"] =bool(h.get("pms_write_services") or h.get("pms_write_extension") or orders)
+    return ov
+
+@app.get("/api/hotel-portal/overview")
+def hotel_portal_overview(token: str, lang: str = ""):
+    return {"status": "ok", "overview": _portal_overview(token, lang)}
+
+@app.get("/api/hotel-portal/overview-export")
+def hotel_portal_overview_export(token: str, kind: str = "months", lang: str = ""):
+    """CSV pro Excel: kind=months (12 měsíců po řádcích) | gaps (dotazy bez odpovědi za 90 dní)."""
+    from fastapi.responses import Response
+    ov = _portal_overview(token, lang)
+    if kind == "gaps":
+        body, name = analytics_view.gaps_csv(ov), "alex-dotazy-bez-odpovedi.csv"
+    else:
+        body, name = analytics_view.months_csv(ov), "alex-prehled-mesice.csv"
+    return Response(content=body.encode("utf-8"), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
+
+# ── Alex se učí: recepce odpoví na dotaz bez odpovědi, Alex odpověď příště použije ─────────
+def _learn_ctx(token: str):
+    h = find_hotel_by_token(token)
+    if not h:
+        raise HTTPException(403, "Neplatny token")
+    db = db_load()
+    hotel = db["hotels"][h["id"]]
+    a = db.setdefault("analytics", {}).setdefault(h["id"], {"total": 0, "topics": {}})
+    return db, hotel, a
+
+def _learn_state(hotel: dict, a: dict) -> dict:
+    return {"status": "ok", "pending": alex_learn.pending(a, datetime.utcnow()),
+            "learned": alex_learn.learned(hotel), "max": alex_learn.MAX_ANSWERS}
+
+@app.get("/api/hotel-portal/learn")
+def hotel_portal_learn(token: str):
+    _, hotel, a = _learn_ctx(token)
+    return _learn_state(hotel, a)
+
+@app.post("/api/hotel-portal/learn")
+def hotel_portal_learn_save(token: str, data: dict = Body(default={})):
+    """Uloží odpověď recepce {q, a, lang?}. Dotaz zmizí ze seznamu bez odpovědi."""
+    db, hotel, a = _learn_ctx(token)
+    try:
+        alex_learn.add_answer(hotel, a, (data or {}).get("q"), (data or {}).get("a"),
+                              datetime.utcnow(), (data or {}).get("lang") or "")
+    except ValueError as e:
+        raise HTTPException(400, "full" if str(e) == "full" else "empty")
+    hotel["portal_last_edit"] = datetime.utcnow().isoformat()
+    db_save(db)
+    return _learn_state(hotel, a)
+
+@app.post("/api/hotel-portal/learn-dismiss")
+def hotel_portal_learn_dismiss(token: str, data: dict = Body(default={})):
+    """Dotaz, na který hotel odpovídat nechce (nesmysl, test) — jen zmizí ze seznamu."""
+    db, hotel, a = _learn_ctx(token)
+    alex_learn.resolve(a, (data or {}).get("q") or "", datetime.utcnow())
+    db_save(db)
+    return _learn_state(hotel, a)
+
+@app.post("/api/hotel-portal/learn-delete")
+def hotel_portal_learn_delete(token: str, data: dict = Body(default={})):
+    db, hotel, a = _learn_ctx(token)
+    if alex_learn.delete_answer(hotel, str((data or {}).get("id") or "")):
+        hotel["portal_last_edit"] = datetime.utcnow().isoformat()
+        db_save(db)
+    return _learn_state(hotel, a)
+
+# ── Hodnocení odpovědí: hotel posoudí odpovědi, které hostům nepomohly ──────────────────────
+def _ratings_state(a: dict) -> dict:
+    return {"status": "ok", "summary": ratings.summary(a), "down": ratings.down_list(a), "done": ratings.done_list(a)}
+
+@app.get("/api/hotel-portal/ratings")
+def hotel_portal_ratings(token: str):
+    _, _, a = _learn_ctx(token)
+    return _ratings_state(a)
+
+@app.post("/api/hotel-portal/ratings-resolve")
+def hotel_portal_ratings_resolve(token: str, data: dict = Body(default={})):
+    """Hotel posoudí odpověď s palcem dolů: {id, verdict: ok|bad, answer?}.
+    U „bad" s vyplněnou správnou odpovědí se oprava uloží do znalostí (Alex se učí)."""
+    db, hotel, a = _learn_ctx(token)
+    data = data or {}
+    fix = str(data.get("answer") or "").strip()
+    if data.get("verdict") == "bad" and fix and len(alex_learn.learned(hotel)) >= alex_learn.MAX_ANSWERS:
+        raise HTTPException(400, "full")
+    try:
+        item = ratings.hotel_verdict(a, str(data.get("id") or ""), str(data.get("verdict") or ""), fix)
+    except ValueError:
+        raise HTTPException(400, "verdict")
+    if item:
+        if data.get("verdict") == "bad" and fix:
+            try:
+                alex_learn.add_answer(hotel, a, item.get("q"), fix, datetime.utcnow(), item.get("lang") or "")
+                hotel["portal_last_edit"] = datetime.utcnow().isoformat()
+            except ValueError:
+                pass
+        db_save(db)
+    return _ratings_state(a)
+
+# ── Helpdesk v portálu: seznam, stav, řešitel, poznámka ─────────────────────────────────────
+def _helpdesk_state(db: dict, hotel: dict) -> dict:
+    tickets = db.get("tickets") or {}
+    return {"status": "ok", "enabled": bool(hotel.get("helpdesk_enabled")),
+            "tickets": helpdesk.hotel_list(tickets, hotel["id"]), "counts": helpdesk.counts(tickets, hotel["id"])}
+
+@app.get("/api/hotel-portal/helpdesk")
+def hotel_portal_helpdesk(token: str):
+    db, hotel, _ = _learn_ctx(token)
+    return _helpdesk_state(db, hotel)
+
+@app.post("/api/hotel-portal/helpdesk-update")
+def hotel_portal_helpdesk_update(token: str, data: dict = Body(default={})):
+    """Hotel změní požadavek: {id, status?, assignee?, note?}. Poznámku uvidí host u svého požadavku."""
+    db, hotel, _ = _learn_ctx(token)
+    data = data or {}
+    t = (db.get("tickets") or {}).get(str(data.get("id") or ""))
+    if not t or t.get("hid") != hotel["id"]:
+        raise HTTPException(404, "Požadavek nenalezen")
+    try:
+        changed = helpdesk.update(t, status=data.get("status"), assignee=data.get("assignee"),
+                                  note=data.get("note"), utc_now=datetime.utcnow())
+    except ValueError:
+        raise HTTPException(400, "status")
+    if changed:
+        db_save(db)
+    return _helpdesk_state(db, hotel)
+
 @app.get("/api/hotel-portal/monthly-report")
 def hotel_portal_monthly_report(token: str, month: str = ""):
     """Měsíční přehled pro hotelový portál (default: minulý měsíc + aktuální měsíc doposud)."""
@@ -2608,7 +2839,8 @@ def hotel_portal_monthly_report(token: str, month: str = ""):
         pct = round((count - prev_count) / prev_count * 100) if prev_count > 0 else None
         langs = cur.get("langs", {}) or {}
         top = sorted(langs.items(), key=lambda kv: kv[1], reverse=True)[:3]
-        saved_min = count * 2
+        # stejné minuty na dotaz jako stránka Přehled (hotel si je může přepsat; výchozí 2)
+        saved_min = round(count * analytics_view.settings(h, lang)["minutes_per_question"])
         return {
             "month_key": mk,
             "month_label": _month_label(mk, lang),
@@ -2661,6 +2893,18 @@ def generate_token(hotel_id: str, request: Request):
     token = db["hotels"][hotel_id]["hotel_token"]
     base = get_base_url(request)
     return {"status": "ok", "token": token, "portal_url": f"{base}/portal?token={token}"}
+
+@app.post("/api/hotels/{hotel_id}/rotate-token")
+def rotate_token(hotel_id: str, request: Request):
+    """Výměna odkazu do portálu (admin): starý odkaz okamžitě přestane platit.
+    Pro případ, že se odkaz dostal do nepovolaných rukou."""
+    db = db_load()
+    if hotel_id not in db["hotels"]:
+        raise HTTPException(404, "Hotel nenalezen")
+    token = str(uuid.uuid4()).replace("-", "")
+    db["hotels"][hotel_id]["hotel_token"] = token
+    db_save(db)
+    return {"status": "ok", "portal_url": f"{get_base_url(request)}/portal?token={token}"}
 
 def _admin_safe_hotel(h: dict) -> dict:
     """Kopie hotelu bez PMS credentials — refresh tokeny nepatří ani do admin API.
@@ -2863,20 +3107,32 @@ def generate_qr_poster(hotel_id: str, request: Request):
     is_cs = country in ("CZ", "SK")
     primary_lang = "cz" if is_cs else "en"
     btn_print = "🖨️ Otevřít a tisknout" if is_cs else "🖨️ Open and print"
+    btn_press = "✂️ Data pro tiskárnu" if is_cs else "✂️ Print-shop file"
+    press_tip = "PDF pro profesionální tisk: spadávka 3 mm a ořezové značky" if is_cs else "PDF for professional printing: 3 mm bleed and crop marks"
+    press_note = ("Tisknete sami? Stačí „Otevřít a tisknout“. Zadáváte tisk tiskárně? Pošlete jí „Data pro tiskárnu“ – PDF se spadávkou 3 mm a ořezovými značkami, roll-up ve skutečné velikosti. Po otevření je uložíte jako PDF a tlačítkem si připravíte e-mail pro tiskárnu." if is_cs else
+                  "Printing yourself? Use “Open and print”. Ordering from a print shop? Send them the “Print-shop file” – a PDF with 3 mm bleed and crop marks, roll-up at full size. Once it opens, save it as a PDF and use the button to prepare an e-mail for the print shop.")
     hub_title = "Tiskové materiály" if is_cs else "Print materials"
-    qr_poster_label = "QR Plakát · 800×800px" if is_cs else "QR Poster · 800×800px"
+    qr_poster_label = "QR Plakát · 210×210&nbsp;mm" if is_cs else "QR Poster · 210×210&nbsp;mm"
     qr_poster_desc = "Čtvercový plakát s QR kódem. Ideální pro recepci, výtah nebo restaurační stoly." if is_cs else "Square poster with QR code. Perfect for reception, elevator or restaurant tables."
     local_lang = get_hotel_local_lang(hotel)
     local_lang_name = get_flyer_lang_name(local_lang)
     has_local = local_lang != "en"
+    _pl_default = local_lang if has_local else ("cs" if is_cs else "en")
+    _pl_opts = "".join('<option value="' + c + '"' + (" selected" if c == _pl_default else "") + ">" + n + "</option>" for c, n in print_i18n.options())
+    _pl_map = json.dumps({c: {"n": print_i18n.get(c)["n"], "h": print_i18n.get(c)["h"], "l": print_i18n.get(c)["langs"]} for c, _n in print_i18n.options()}, ensure_ascii=False)
+    _pl_first = print_i18n.get(_pl_default)
+    _pl_label = "Jazyk tiskovin" if is_cs else "Language of the materials"
+    _pl_note = ("Všechny tiskoviny se připraví ve zvoleném jazyce. Potřebujete je i v jiném? Přepněte jazyk a otevřete je znovu." if is_cs else
+                "All materials are prepared in the selected language. Need another one too? Switch the language and open them again.")
+    _pl_span = '<span class="pl-name">' + _pl_first["n"] + "</span>"
 
     # EN je vždy primární, lokální jazyk je sekundární
     flyer_primary_name = f"A4 Flyer · English"
     flyer_primary_desc = "English A4 flyer, print-ready."
     flyer_primary_url = "flyer-en"
-    flyer_secondary_name = f"A4 Leták · {local_lang_name}" if has_local else "A4 Leták · Česky"
-    flyer_secondary_desc = f"Leták v jazyce {local_lang_name} pro místní hosty." if has_local else "Český leták pro české hosty."
-    flyer_secondary_url = "flyer-local" if has_local else "flyer-cz"
+    flyer_secondary_name = ("A4 Leták · " if is_cs else "A4 Flyer · ") + _pl_span
+    flyer_secondary_desc = "Leták A4 na recepci, do výtahu nebo na nástěnku." if is_cs else "A4 flyer for the reception, lift or notice board."
+    flyer_secondary_url = "flyer-loc"
     rollup_desc = "Vysoký banner pro lobby, veletrh nebo konferenci." if is_cs else "Tall banner for lobby or trade show."
 
     # Vlajky jako inline SVG (stejné jako v designérových letácích)
@@ -2946,7 +3202,7 @@ function drawQR(holderId, size){{
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-height:100vh}}
 .topbar{{position:fixed;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#2c5fae,#2fd0d8);z-index:200}}
-.hub{{max-width:1020px;margin:0 auto;padding:56px 24px 80px}}
+.hub{{max-width:1180px;margin:0 auto;padding:56px 24px 80px}}
 .hub-header{{text-align:center;margin-bottom:40px}}
 .hub-logo{{font-family:'Sora',sans-serif;font-weight:800;font-size:24px;letter-spacing:1px;color:#0c1b33;display:inline-flex;align-items:center;gap:10px}}
 .hub-logo img{{width:28px;height:28px;display:block}}
@@ -2959,8 +3215,8 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
 .theme-wrap{{display:inline-flex;background:#fff;border:1px solid #e3e9f4;border-radius:99px;padding:4px;gap:4px;margin-top:18px;box-shadow:0 4px 12px rgba(12,27,51,.05)}}
 .theme-btn{{border:none;background:transparent;color:#51617e;border-radius:99px;padding:8px 18px;font-family:'Manrope',sans-serif;font-size:13px;font-weight:700;cursor:pointer}}
 .theme-btn.active{{background:#2c5fae;color:#fff}}
-.formats{{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}}
-@media(max-width:820px){{.formats{{grid-template-columns:repeat(2,1fr)}}}}
+.formats{{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}}
+@media(max-width:980px){{.formats{{grid-template-columns:repeat(2,1fr)}}}}
 @media(max-width:560px){{.formats{{grid-template-columns:1fr}}}}
 .fmt-card{{background:#fff;border:1px solid #e3e9f4;border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(12,27,51,.07);transition:transform .2s,box-shadow .2s}}
 .fmt-card:hover{{transform:translateY(-4px);box-shadow:0 22px 44px rgba(12,27,51,.13)}}
@@ -2970,6 +3226,12 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
 .fmt-desc{{font-size:13px;color:#51617e;line-height:1.55;margin-bottom:14px;min-height:40px}}
 .fmt-btn{{display:block;width:100%;background:linear-gradient(90deg,#2c5fae,#3a72c4);color:#fff;border:none;border-radius:99px;padding:11px;font-family:'Manrope',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-align:center;text-decoration:none;transition:opacity .15s}}
 .fmt-btn:hover{{opacity:.9}}
+.fmt-btn2{{margin-top:8px;background:#fff;color:#2c5fae;border:1.5px solid #2c5fae;padding:9.5px}}
+.pl-wrap{{margin-top:16px;display:inline-flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:12px;background:#fff;border:2px solid #2c5fae;border-radius:99px;padding:8px 10px 8px 22px;font-size:16px;font-weight:800;color:#0c1b33;box-shadow:0 8px 22px rgba(44,95,174,.16)}}
+.pl-wrap select{{border:none;border-radius:99px;padding:9px 16px;font-family:'Manrope',sans-serif;font-size:15px;font-weight:800;color:#fff;background:#2c5fae;cursor:pointer}}
+.pl-wrap select option{{color:#0c1b33;background:#fff}}
+.pl-note{{max-width:560px;margin:10px auto 6px;font-size:13.5px;line-height:1.5;color:#0c1b33}}
+.press-note{{max-width:600px;margin:14px auto 0;font-size:13.5px;line-height:1.55;color:#0c1b33;background:#eaf2ff;border:1px solid #c9dcf7;border-radius:12px;padding:12px 16px}}
 /* Mini-náhledy = zmenšeniny skutečných tiskovin (tmavé téma) */
 .mini{{background:#0c1b33;border-radius:9px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:5px;box-shadow:0 10px 24px rgba(12,27,51,.28)}}
 .mini-h{{font-family:'Sora',sans-serif;font-weight:800;color:#fff;line-height:1.25;text-align:center}}
@@ -2993,11 +3255,14 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
     <br>
     {f'<a href="{portal_url}" class="portal-link">⚙️ {portal_label}</a>' if portal_url else ''}
     <br>
+    <label class="pl-wrap">🌍 {_pl_label}<select id="pl-lang" onchange="setPrintLang(this.value)">{_pl_opts}</select></label>
+    <div class="pl-note">{_pl_note}</div>
     <div class="theme-wrap">
       <button id="theme-dark" class="theme-btn active" onclick="setFlyerTheme('dark')">🌙 {'Tmavá' if is_cs else 'Dark'}</button>
       <button id="theme-light" class="theme-btn" onclick="setFlyerTheme('light')">📄 Print-friendly</button>
     </div>
     <div class="theme-note">{'Tmavá = ideální pro PDF a obrazovky · Print-friendly (světlá) šetří inkoust při tisku' if is_cs else 'Dark = best for PDF and screens · Print-friendly (light) saves ink when printing'}</div>
+    <div class="press-note">{press_note}</div>
   </div>
 
   <div class="formats" id="formats">
@@ -3006,8 +3271,8 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('rollup')">
         <div class="mini" style="width:68px;height:164px;padding:8px 6px">
-          <div class="mini-h" style="font-size:7px">Your<br>personal<br>AI concierge</div>
-          <div class="mini-s" style="font-size:5.5px">100+ LANGUAGES</div>
+          <div class="mini-h pl-h" style="font-size:7px">{_pl_first["h"]}</div>
+          <div class="mini-s pl-l" style="font-size:5.5px;text-transform:uppercase">{_pl_first["langs"]}</div>
           <div class="mini-qr"><div id="qr-rollup" style="width:42px;height:42px"></div></div>
           <div class="mini-u" style="font-size:5.5px">smartestguide.com</div>
         </div>
@@ -3016,32 +3281,16 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
         <div class="fmt-name">Roll-up Banner · 850×2000&nbsp;mm</div>
         <div class="fmt-desc">{rollup_desc}</div>
         <button class="fmt-btn" onclick="openFormat('rollup')">{btn_print}</button>
+        <button class="fmt-btn fmt-btn2" title="{press_tip}" onclick="openFormat('rollup',1)">{btn_press}</button>
       </div>
     </div>
 
-    <!-- A4 primární (EN) -->
-    <div class="fmt-card">
-      <div class="fmt-preview" onclick="openFormat('{flyer_primary_url}')">
-        <div class="mini" style="width:118px;height:164px">
-          <div class="mini-h" style="font-size:9px">Your personal<br>AI concierge</div>
-          <div class="mini-s" style="font-size:6.5px">100+ LANGUAGES</div>
-          <div class="mini-qr"><div id="qr-a4-primary" style="width:64px;height:64px"></div></div>
-          <div class="mini-u" style="font-size:6.5px">smartestguide.com</div>
-        </div>
-      </div>
-      <div class="fmt-info">
-        <div class="fmt-name">{flyer_primary_name}</div>
-        <div class="fmt-desc">{flyer_primary_desc}</div>
-        <button class="fmt-btn" onclick="openFormat('{flyer_primary_url}')">{btn_print}</button>
-      </div>
-    </div>
-
-    <!-- A4 sekundární (lokální) -->
+    <!-- A4 leták ve zvoleném jazyce (anglický se vybere v nabídce jazyků, zvlášť už se nenabízí) -->
     <div class="fmt-card">
       <div class="fmt-preview" onclick="openFormat('{flyer_secondary_url}')">
         <div class="mini" style="width:118px;height:164px">
-          <div class="mini-h" style="font-size:9px">{'Váš osobní<br>AI concierge' if is_cs else 'Your personal<br>AI concierge'}</div>
-          <div class="mini-s" style="font-size:6.5px">100+ LANGUAGES</div>
+          <div class="mini-h pl-h" style="font-size:9px">{_pl_first["h"]}</div>
+          <div class="mini-s pl-l" style="font-size:6.5px;text-transform:uppercase">{_pl_first["langs"]}</div>
           <div class="mini-qr"><div id="qr-a4-secondary" style="width:64px;height:64px"></div></div>
           <div class="mini-u" style="font-size:6.5px">smartestguide.com</div>
         </div>
@@ -3050,6 +3299,7 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
         <div class="fmt-name">{flyer_secondary_name}</div>
         <div class="fmt-desc">{flyer_secondary_desc}</div>
         <button class="fmt-btn" onclick="openFormat('{flyer_secondary_url}')">{btn_print}</button>
+        <button class="fmt-btn fmt-btn2" title="{press_tip}" onclick="openFormat('{flyer_secondary_url}',1)">{btn_press}</button>
       </div>
     </div>
 
@@ -3067,42 +3317,26 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
         <div class="fmt-name">{qr_poster_label}</div>
         <div class="fmt-desc">{qr_poster_desc}</div>
         <button class="fmt-btn" onclick="openFormat('qr-poster')">{btn_print}</button>
+        <button class="fmt-btn fmt-btn2" title="{press_tip}" onclick="openFormat('qr-poster',1)">{btn_press}</button>
       </div>
     </div>
 
-    <!-- A5 primární (EN) -->
+    <!-- A5 leták ve zvoleném jazyce -->
     <div class="fmt-card">
-      <div class="fmt-preview" onclick="openFormat('flyer-a5-en')">
+      <div class="fmt-preview" onclick="openFormat('flyer-a5-loc')">
         <div class="mini" style="width:132px;height:96px;flex-direction:row;gap:9px;padding:10px 12px">
           <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left">
-            <div class="mini-h" style="font-size:8.5px;text-align:left">Your AI<br>concierge</div>
-            <div class="mini-s" style="font-size:6px">100+ LANG</div>
-          </div>
-          <div class="mini-qr"><div id="qr-a5-primary" style="width:52px;height:52px"></div></div>
-        </div>
-      </div>
-      <div class="fmt-info">
-        <div class="fmt-name">A5 Flyer · English</div>
-        <div class="fmt-desc">{'Kompaktní A5 — na pokoje a stolky.' if is_cs else 'Compact A5 — perfect for rooms and tables.'}</div>
-        <button class="fmt-btn" onclick="openFormat('flyer-a5-en')">{btn_print}</button>
-      </div>
-    </div>
-
-    <!-- A5 sekundární (lokální) -->
-    <div class="fmt-card">
-      <div class="fmt-preview" onclick="openFormat('flyer-a5-local')">
-        <div class="mini" style="width:132px;height:96px;flex-direction:row;gap:9px;padding:10px 12px">
-          <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left">
-            <div class="mini-h" style="font-size:8.5px;text-align:left">{'Váš AI<br>concierge' if is_cs else 'AI<br>concierge'}</div>
-            <div class="mini-s" style="font-size:6px">100+ LANG</div>
+            <div class="mini-h pl-h" style="font-size:7px;text-align:start;max-width:62px">{_pl_first["h"]}</div>
+            <div class="mini-s pl-l" style="font-size:6px;text-transform:uppercase">{_pl_first["langs"]}</div>
           </div>
           <div class="mini-qr"><div id="qr-a5-secondary" style="width:52px;height:52px"></div></div>
         </div>
       </div>
       <div class="fmt-info">
-        <div class="fmt-name">A5 Leták · {local_lang_name}</div>
-        <div class="fmt-desc">{'Kompaktní A5 v lokálním jazyce hotelu.' if is_cs else 'Compact A5 in the hotel local language.'}</div>
-        <button class="fmt-btn" onclick="openFormat('flyer-a5-local')">{btn_print}</button>
+        <div class="fmt-name">{'A5 Leták · ' if is_cs else 'A5 Flyer · '}{_pl_span}</div>
+        <div class="fmt-desc">{'Kompaktní A5 — na pokoje a stolky.' if is_cs else 'Compact A5 — perfect for rooms and tables.'}</div>
+        <button class="fmt-btn" onclick="openFormat('flyer-a5-loc')">{btn_print}</button>
+        <button class="fmt-btn fmt-btn2" title="{press_tip}" onclick="openFormat('flyer-a5-loc',1)">{btn_press}</button>
       </div>
     </div>
   </div>
@@ -3114,15 +3348,13 @@ body{{background:#f6f8fc;font-family:'Manrope',sans-serif;color:#0c1b33;min-heig
 window.addEventListener('load', function(){{
   setTimeout(function(){{
     drawQR('qr-thumb', 126);
-    drawQR('qr-a4-primary', 64);
     drawQR('qr-a4-secondary', 64);
-    drawQR('qr-a5-primary', 52);
     drawQR('qr-a5-secondary', 52);
     drawQR('qr-rollup', 42);
   }}, 300);
 }});
 
-function openFormat(fmt){{
+function openFormat(fmt, press){{
   var urls = {{
     'qr-poster': '/api/hotels/{hotel_id}/qr-poster-print',
     'flyer-en':  '/api/hotels/{hotel_id}/flyer-en',
@@ -3131,6 +3363,8 @@ function openFormat(fmt){{
     'flyer-a5-en': '/api/hotels/{hotel_id}/flyer-a5-en',
     'flyer-a5-cz': '/api/hotels/{hotel_id}/flyer-a5-cz',
     'flyer-a5-local': '/api/hotels/{hotel_id}/flyer-a5-local',
+    'flyer-loc': '/api/hotels/{hotel_id}/flyer?size=a4',
+    'flyer-a5-loc': '/api/hotels/{hotel_id}/flyer?size=a5',
     'rollup':    '/api/hotels/{hotel_id}/rollup'
   }};
   var u = urls[fmt];
@@ -3139,9 +3373,21 @@ function openFormat(fmt){{
   if(window._flyerTheme==='light'){{
     u += (u.indexOf('?')>=0?'&':'?') + 'theme=light';
   }}
+  if(press){{ u += (u.indexOf('?')>=0?'&':'?') + 'press=1'; }}
+  // jazyk: roll-up, QR plakát a letáky ve zvoleném jazyce; anglické letáky zůstávají anglicky
+  if(fmt==='rollup'||fmt==='qr-poster'||fmt==='flyer-loc'||fmt==='flyer-a5-loc'){{ u += (u.indexOf('?')>=0?'&':'?') + 'lang=' + encodeURIComponent(window._printLang); }}
   window.open(u, '_blank');
 }}
 window._flyerTheme='dark';
+var PL_MAP = {_pl_map};
+window._printLang = '{_pl_default}';
+function setPrintLang(c){{
+  if(!PL_MAP[c]) return;
+  window._printLang = c;
+  document.querySelectorAll('.pl-name').forEach(function(e){{ e.textContent = PL_MAP[c].n; }});
+  document.querySelectorAll('.pl-h').forEach(function(e){{ e.innerHTML = PL_MAP[c].h; }});
+  document.querySelectorAll('.pl-l').forEach(function(e){{ e.textContent = PL_MAP[c].l; }});
+}}
 function setFlyerTheme(t){{
   window._flyerTheme=t;
   document.getElementById('theme-dark').classList.toggle('active', t==='dark');
@@ -3155,9 +3401,11 @@ function setFlyerTheme(t){{
     return HTMLResponse(content=html)
 
 @app.get("/api/hotels/{hotel_id}/room-cards")
-def room_qr_cards(hotel_id: str, request: Request, rooms: str = ""):
+def room_qr_cards(hotel_id: str, request: Request, rooms: str = "", lang: str = ""):
     """Arch QR kartiček per pokoj (tisk). ?rooms=101-110,201,3.001 — rozsahy i jednotlivé,
-    max 200 kartiček. Každá karta nese guest URL s ?room=<pokoj> (personalizace z PMS)."""
+    max 200 kartiček. Každá karta nese guest URL s ?room=<pokoj> (personalizace z PMS).
+    ?lang= jazyk textu na kartičce (jako u ostatních tiskovin); výchozí je místní jazyk hotelu."""
+    from html import escape as _e
     db = db_load()
     hotel = db["hotels"].get(hotel_id)
     if not hotel:
@@ -3184,16 +3432,21 @@ def room_qr_cards(hotel_id: str, request: Request, rooms: str = ""):
     room_list = room_list[:200]
     if not room_list:
         return HTMLResponse("<meta charset='utf-8'><body style='font-family:sans-serif;padding:40px'>Zadejte pokoje v URL: <code>?rooms=101-110,201,3.001</code></body>")
-    is_cs = (hotel.get("country") or "").upper() in ("CZ", "SK")
-    scan_txt = "Naskenujte — váš AI concierge" if is_cs else "Scan me — your AI concierge"
-    room_lbl = "Pokoj" if is_cs else "Room"
-    sep = "&" if "?" in guest_url else "?"
+    is_cs = (hotel.get("country") or "").upper() in ("CZ", "SK")   # jazyk nápovědy pro hoteliéra, ne kartičky
+    # text na kartičce vždy v jazyce tiskoviny (nález testera 24. 11. 2026: nadpis nesmí zůstat anglicky)
+    _t = print_i18n.get(lang or get_hotel_local_lang(hotel))
+    scan_txt = f'{_t["scan"]} — {_t["tag"]}'
+    room_lbl = _t["room"]
+    _dir = ' dir="rtl"' if _t["rtl"] else ""
+    _lang_opts = "".join(f'<option value="{c}"{" selected" if c == _t["code"] else ""}>{n}</option>' for c, n in print_i18n.options())
+    from urllib.parse import quote as _q
+    _room_url = guest_url + ("&" if "?" in guest_url else "?") + "room="
     cards = "".join(f"""
     <div class="cardx">
-      <div class="ctop"><div class="cbrand">{hotel_name}</div></div>
-      <div class="cqr"><div class="qrh" data-url="{guest_url}{sep}room={r}"></div></div>
-      <div class="croom">{room_lbl} <b>{r}</b></div>
-      <div class="cscan">{scan_txt}</div>
+      <div class="ctop"><div class="cbrand">{_e(hotel_name)}</div></div>
+      <div class="cqr"><div class="qrh" data-url="{_e(_room_url + _q(r, safe=''))}"></div></div>
+      <div class="croom"{_dir}>{room_lbl} <b>{_e(r)}</b></div>
+      <div class="cscan"{_dir}>{scan_txt}</div>
       <div class="csg" translate="no"><img src="/static/img/logo-inverse.svg" alt=""/>SmartestGuide</div>
     </div>""" for r in room_list)
     html = f"""<!DOCTYPE html><html><head><meta charset="utf-8">
@@ -3220,7 +3473,8 @@ body{{margin:0;background:#f6f8fc;font-family:'Manrope',sans-serif;padding:24px}
 @media print{{.btn,.hint{{display:none}}body{{background:#fff;padding:0}}.sheet{{gap:4mm}}@page{{margin:8mm}}}}
 </style></head><body>
 <button class="btn" onclick="window.print()">🖨️ Tisknout / PDF</button>
-<div class="hint">{'Kartičky 85×54 mm (vizitkový formát) — vytiskněte, rozstříhejte a umístěte na pokoje. QR každé kartičky nese číslo pokoje → Alex zná pobyt hosta.' if is_cs else 'Cards 85×54 mm (business-card size) — print, cut and place in rooms. Each QR carries the room number → Alex knows the guest stay.'} ({len(room_list)})</div>
+<div class="hint">{'Kartičky 85×54 mm (vizitkový formát) — vytiskněte, rozstříhejte a umístěte na pokoje. QR každé kartičky nese číslo pokoje → Alex zná pobyt hosta.' if is_cs else 'Cards 85×54 mm (business-card size) — print, cut and place in rooms. Each QR carries the room number → Alex knows the guest stay.'} ({len(room_list)})
+ &nbsp;·&nbsp; {'Jazyk kartiček' if is_cs else 'Card language'}: <select onchange="var u=new URL(location.href);u.searchParams.set('lang',this.value);location.href=u.toString()">{_lang_opts}</select></div>
 <div class="sheet">{cards}</div>
 <script>
 (function(){{function draw(){{if(!window.qrcode){{setTimeout(draw,120);return;}}
@@ -3232,9 +3486,72 @@ h.innerHTML='<svg width="100%" height="100%" viewBox="0 0 '+S+' '+S+'" shape-ren
 </script></body></html>"""
     return HTMLResponse(content=html)
 
+_PRINT_KIT_JS = r"""<script>
+(function(){var W=__W__,H=__H__,B=__B__,M=__M__,P=__P__,MM=96/25.4,st=null;
+function build(){var sheet=document.getElementById('sg-sheet'),art=document.getElementById('sg-art');if(!sheet||!art)return;
+if(st){st.remove();st=null;}
+var inn=art.querySelector('.sg-in'),a=H/W,s0=art.style.cssText,i0=inn?inn.style.cssText:'';
+art.style.minHeight='0';art.style.height='auto';art.style.border='none';
+if(inn){inn.style.minHeight='0';inn.style.height='auto';}
+var w=art.offsetWidth,h=art.offsetHeight;
+for(var i=0;i<4&&h>w*a+0.5;i++){w=Math.ceil(h/a);art.style.width=w+'px';h=art.offsetHeight;}
+art.style.cssText=s0;if(inn)inn.style.cssText=i0;
+var k=W*MM/w,b=B*MM/k,hh=w*a;
+var css='#sg-sheet{position:relative!important;overflow:hidden!important;background:#fff!important;flex:none!important;margin:0!important;width:'+(W+2*M)+'mm!important;height:calc('+(H+2*M)+'mm - 1px)!important}'
++'#sg-art{position:absolute!important;left:'+(M-B)+'mm!important;top:'+(M-B)+'mm!important;margin:0!important;width:'+(w+2*b)+'px!important;height:'+(hh+2*b)+'px!important;min-height:0!important;padding:'+b+'px!important;border:none!important;border-radius:0!important;box-shadow:none!important;transform-origin:0 0!important;transform:scale('+k+')!important}'
++'#sg-art .sg-in{min-height:'+hh+'px!important;height:'+hh+'px!important}'
++'#sg-art .sg-edge{height:'+(4+b)+'px!important}';
+if(P){var z=Math.min(1,(window.innerWidth-48)/((W+2*M)*MM));css+='@media screen{#sg-sheet{zoom:'+z+'}}';}
+else{css='@media print{'+css+'}';}
+st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
+if(P&&!sheet.querySelector('.sg-mark')){var t=0.15;
+function mk(l,tp,wd,ht){var d=document.createElement('div');d.className='sg-mark';d.style.cssText='left:'+l+'mm;top:'+tp+'mm;width:'+wd+'mm;height:'+ht+'mm';sheet.appendChild(d);}
+[M,M+W].forEach(function(x,ix){[M,M+H].forEach(function(y,iy){mk(ix?x+4:x-9,y-t/2,5,t);mk(x-t/2,iy?y+4:y-9,t,5);});});
+var cs=/^(cs|sk)/i.test(navigator.language||''),n=document.createElement('div');n.className='sg-hint';
+document.title+=cs?' – data pro tiskárnu':' – print-shop file';
+var par=cs?'čistý formát '+W+' × '+H+' mm, spadávka 3 mm, ořezové značky':'trim size '+W+' × '+H+' mm, 3 mm bleed, crop marks';
+function el(tag,cls,txt){var e=document.createElement(tag);e.className=cls;e.textContent=txt;n.appendChild(e);return e;}
+el('div','sg-hint-t',cs?'Data pro tiskárnu':'Print-shop file');
+el('div','sg-hint-x',(cs?'1. Uložte jako PDF – v okně tisku zvolte „Uložit jako PDF“, okraje: žádné, grafika na pozadí: zapnuto. 2. Uložené PDF pošlete tiskárně jako přílohu e-mailu. ('+par+')__NCS__'
+:'1. Save as PDF – in the print dialog choose “Save as PDF”, margins: none, background graphics: on. 2. Send the saved PDF to your print shop as an e-mail attachment. ('+par+')__NEN__'));
+var bx=document.createElement('div');bx.className='sg-hint-b';n.appendChild(bx);
+var b1=document.createElement('button');b1.type='button';b1.className='sg-hb';b1.textContent=cs?'💾 Uložit jako PDF':'💾 Save as PDF';b1.onclick=function(){window.print();};bx.appendChild(b1);
+var b2=document.createElement('a');b2.className='sg-hb sg-hb2';b2.textContent=cs?'✉️ Napsat e-mail tiskárně':'✉️ E-mail the print shop';
+b2.href='mailto:?subject='+encodeURIComponent(document.title)+'&body='+encodeURIComponent(cs?'Dobrý den,\n\nv příloze posílám tisková data (PDF): '+par+'.\n\nDěkuji':'Hello,\n\nplease find the print-ready PDF attached: '+par+'.\n\nThank you');
+b2.title=cs?'Otevře nový e-mail s předvyplněným textem. Uložené PDF k němu přiložte sami.':'Opens a new e-mail with the text filled in. Attach the saved PDF yourself.';bx.appendChild(b2);
+document.body.appendChild(n);}}
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(build);
+window.addEventListener('load',function(){setTimeout(build,350);});
+if(P)window.addEventListener('resize',build);
+})();
+</script>"""
+
+def _print_kit(w_mm: float, h_mm: float, press: bool = False, note_cs: str = "", note_en: str = "") -> tuple:
+    """Společná tisková vrstva tiskovin: (CSS do <head>, <script> před </body>).
+    Tiskovina = #sg-sheet > #sg-art (vnitřek .sg-in, horní pruh .sg-edge).
+    Běžný tisk: tiskovina se přesně vejde na jednu stránku čistého formátu w×h mm.
+    press=True: data pro tiskárnu – arch o 10 mm větší na každé straně, spadávka 3 mm, ořezové značky."""
+    b, m = (3, 10) if press else (0, 0)
+    css = ("@page{size:%gmm %gmm;margin:0}" % (w_mm + 2 * m, h_mm + 2 * m)
+           + "@media print{html,body{margin:0!important;padding:0!important;display:block!important;background:#fff!important}"
+             ".btn,.sg-hint{display:none!important}#sg-sheet{box-shadow:none!important}}"
+           + ".sg-mark{position:absolute;background:#000;z-index:5}"
+           + ".sg-hint{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);width:max-content;max-width:92vw;background:#0c1b33;color:#fff;"
+             "border:2px solid #2fd0d8;border-radius:14px;padding:14px 20px;font-size:14px;line-height:1.5;text-align:center;box-shadow:0 10px 30px rgba(12,27,51,.35);z-index:20}"
+           + ".sg-hint-t{font-size:16px;font-weight:800;color:#2fd0d8;margin-bottom:4px}.sg-hint-x{max-width:640px;margin:0 auto}"
+           + ".sg-hint-b{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:10px}"
+           + ".sg-hb{border:none;border-radius:99px;padding:9px 18px;font:700 14px 'Manrope',sans-serif;cursor:pointer;background:#2fd0d8;color:#0c1b33;text-decoration:none;display:inline-block}"
+           + ".sg-hb2{background:#fff}")
+    if press:
+        css += "@media screen{body{padding:64px 24px 230px!important}#sg-sheet{box-shadow:0 6px 30px rgba(12,27,51,.18)}}"
+    js = (_PRINT_KIT_JS.replace("__W__", "%g" % w_mm).replace("__H__", "%g" % h_mm)
+          .replace("__B__", str(b)).replace("__M__", str(m)).replace("__P__", "1" if press else "0")
+          .replace("__NCS__", (" " + note_cs) if note_cs else "").replace("__NEN__", (" " + note_en) if note_en else ""))
+    return css, js
+
 # QR Plakát — print view
 @app.get("/api/hotels/{hotel_id}/qr-poster-print")
-def qr_poster_print(hotel_id: str, request: Request, theme: str = "dark"):
+def qr_poster_print(hotel_id: str, request: Request, theme: str = "dark", press: int = 0, lang: str = "en"):
     db = db_load()
     hotel = db["hotels"].get(hotel_id)
     if not hotel:
@@ -3242,10 +3559,16 @@ def qr_poster_print(hotel_id: str, request: Request, theme: str = "dark"):
     base = get_base_url(request)
     guest_url = _guest_url(base, hotel_id, hotel)
     hotel_name = hotel.get("name", "Hotel")
-    return HTMLResponse(content=_render_qr_poster(hotel_name, guest_url, theme=theme))
+    return HTMLResponse(content=_render_qr_poster(hotel_name, guest_url, theme=theme, press=bool(press), lang=lang))
 
-def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark") -> str:
+def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark", press: bool = False, lang: str = "en") -> str:
     light = (theme == "light")
+    _pk_css, _pk_js = _print_kit(210, 210, press)
+    _t = print_i18n.get(lang)
+    _dir = ' dir="rtl"' if _t["rtl"] else ""
+    _ls = "0" if _t["rtl"] else ".22em"
+    _t_tag, _t_long, _t_noapp, _t_langs = _t["tag"], _t["long"], _t["noapp"], _t["langs"]
+    _pq = ("&press=1" if press else "") + "&lang=" + _t["code"]
     c_page   = "#f6f8fc"   # okolí stránky: vždy světlé, téma mění jen tiskovinu
     c_bg     = "#ffffff" if light else "#0c1b33"
     c_ink    = "#0c1b33" if light else "#ffffff"
@@ -3264,36 +3587,36 @@ def _render_qr_poster(hotel_name: str, guest_url: str, theme: str = "dark") -> s
 .btn{{position:fixed;top:16px;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer}}
 .btn-print{{right:16px;background:#2c5fae;color:#fff}}
 .btn-theme{{left:16px;background:#fff;color:#0c1b33;border:1px solid #e3e9f4!important;box-shadow:0 4px 12px rgba(12,27,51,.08)}}
-@media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{margin:0}}}}</style></head>
+{_pk_css}</style></head>
 <body><button class="btn btn-print" onclick="window.print()">🖨️ Tisknout / PDF</button>
-<button class="btn btn-theme" onclick="location.href='?theme={_tt}'">{_tl}</button>
-<div style="position:relative;width:800px;height:800px;background:{c_bg};border:1px solid rgba(44,95,174,.35);border-radius:24px;overflow:hidden;box-shadow:0 24px 60px rgba(12,27,51,.22)">
-  <div style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
+<button class="btn btn-theme" onclick="location.href='?theme={_tt}{_pq}'">{_tl}</button>
+<div id="sg-sheet"><div id="sg-art"{_dir} style="position:relative;width:800px;height:800px;background:{c_bg};border:1px solid rgba(44,95,174,.35);border-radius:24px;overflow:hidden;box-shadow:0 24px 60px rgba(12,27,51,.22)">
+  <div class="sg-edge" style="position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
   <div style="position:absolute;top:300px;left:50%;width:620px;height:620px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.14),transparent 70%);pointer-events:none"></div>
-  <div style="height:100%;display:flex;flex-direction:column;align-items:center;padding:58px 48px 48px;position:relative">
+  <div class="sg-in" style="height:100%;display:flex;flex-direction:column;align-items:center;padding:58px 48px 48px;position:relative">
     <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:36px;line-height:1.15;color:{c_ink};text-align:center;max-width:640px">{hotel_name}</div>
-    <div style="margin-top:12px;font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:{c_teal}">Your personal AI concierge</div>
+    <div style="margin-top:12px;font-size:13px;font-weight:600;letter-spacing:{_ls};text-transform:uppercase;color:{c_teal}">{_t_tag}</div>
     <div style="position:relative;margin-top:22px;padding:22px;background:{c_qrcard};border:1px solid rgba(44,95,174,.4);border-radius:20px;box-shadow:0 0 40px rgba(44,95,174,.12)">
       <div id="qr" style="width:420px;height:420px;display:flex;align-items:center;justify-content:center"></div>
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:16px;overflow:hidden;box-shadow:0 0 0 4px #ffffff"><img src="/static/img/favicon.svg" alt="" style="width:100%;height:100%;display:block"/></div>
     </div>
-    <div style="margin-top:30px;font-family:'Sora',sans-serif;font-weight:700;font-size:24px;color:{c_ink};text-align:center">Scan for your personal AI concierge</div>
-    <div style="margin-top:10px;font-size:15px;color:{c_dim}">100+ languages · No app needed · 24/7</div>
+    <div style="margin-top:30px;font-family:'Sora',sans-serif;font-weight:700;font-size:24px;color:{c_ink};text-align:center">{_t_long}</div>
+    <div style="margin-top:10px;font-size:15px;color:{c_dim}">{_t_langs} · {_t_noapp} · 24/7</div>
     <div style="flex:1"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(47,208,216,.55),transparent)"></div>
     <div translate="no" style="margin-top:16px;display:flex;align-items:center;gap:8px;font-size:13px;color:{c_dim}"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:16px;height:16px;display:block;opacity:.85"/><span style="font-family:'Sora',sans-serif;font-weight:700;color:{c_dim}">SmartestGuide</span><span style="opacity:.7">· smartestguide.com</span></div>
   </div>
-</div>
+</div></div>
 <script>
 (function(){{function draw(){{var h=document.getElementById('qr');if(!h)return;if(!window.qrcode){{setTimeout(draw,120);return;}}
 var qr=window.qrcode(0,'H');qr.addData('{guest_url}');qr.make();var n=qr.getModuleCount(),S=420,cell=S/n,r='';
 for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell).toFixed(2)+'" y="'+(i*cell).toFixed(2)+'" width="'+(cell+0.4).toFixed(2)+'" height="'+(cell+0.4).toFixed(2)+'" fill="{c_qrfill}"/>';
 h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
-</script></body></html>"""
+</script>{_pk_js}</body></html>"""
 
 # Mapování country → lokální jazyk letáku
 COUNTRY_LANG_MAP = {
-    "CZ": "cs", "SK": "cs",
+    "CZ": "cs", "SK": "sk",
     "DE": "de", "AT": "de", "CH": "de",
     "FR": "fr", "BE": "fr", "LU": "fr",
     "IT": "it",
@@ -3312,12 +3635,7 @@ def get_hotel_local_lang(hotel: dict) -> str:
 
 def get_flyer_lang_name(lang: str, in_lang: str = None) -> str:
     """Vrátí název jazyka pro zobrazení."""
-    names = {
-        "cs": "Česky", "de": "Deutsch", "fr": "Français",
-        "it": "Italiano", "es": "Español", "pl": "Polski",
-        "hu": "Magyar", "ru": "Русский", "uk": "Українська", "en": "English"
-    }
-    return names.get(lang, lang.upper())
+    return print_i18n.get(lang)["n"]
 
 
 # 16 reálných vlajek odpovídajících jazykům Alexe (každá právě jednou, žádné duplicity)
@@ -3359,8 +3677,15 @@ def _flags_row(w: int = 30, h: int = 21, shadow: bool = True, light: bool = Fals
     return "".join(out)
 
 
-def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str = "a4", theme: str = "dark") -> str:
+def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str = "a4", theme: str = "dark", press: bool = False) -> str:
     is_a5 = size == "a5"
+    _pk_css, _pk_js = _print_kit(148 if is_a5 else 210, 210 if is_a5 else 297, press)
+    _t = print_i18n.get(lang)
+    _dir = ' dir="rtl"' if _t["rtl"] else ""
+    _ls = "0" if _t["rtl"] else ".2em"
+    _lsh = "0" if _t["rtl"] else "-.02em"
+    _t_tag, _t_langs = _t["tag"], _t["langs"]
+    _pq = ("&press=1" if press else "") + "&lang=" + _t["code"] + ("&size=a5" if is_a5 else "")
     page_size = "A5" if is_a5 else "A4"
     page_w = "148mm" if is_a5 else "210mm"
     page_h = "210mm" if is_a5 else "297mm"
@@ -3403,66 +3728,12 @@ def _render_flyer(hotel_name: str, guest_url: str, lang: str = "en", size: str =
 
     check = f"""<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{c_teal}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>"""
 
-    if lang == "cs":
-        headline = "Váš osobní<br>AI concierge"
-        subline = f'Nechte <span style="color:{c_orange};font-weight:600">Alex</span> odpovědět na všechny vaše otázky — okamžitě, ve vašem jazyce, 24/7.'
-        features = ["Snídaně a restaurace", "Tipy na výlety a skrytá místa", "Počasí a doprava", "Služby hotelu a WiFi", "K dispozici 24/7"]
-        scan_text = "Naskenujte mě"
-        no_app = "Bez instalace aplikace"
-    elif lang == "de":
-        headline = "Ihr persönlicher<br>AI-Concierge"
-        subline = f'Lassen Sie <span style="color:{c_orange};font-weight:600">Alex</span> alle Ihre Fragen beantworten — sofort, in Ihrer Sprache, 24/7.'
-        features = ["Frühstück & Restaurant", "Ausflugstipps & versteckte Orte", "Wetter & Transport", "Hotelservices & WLAN", "Rund um die Uhr verfügbar"]
-        scan_text = "Scannen Sie mich"
-        no_app = "Keine App erforderlich"
-    elif lang == "fr":
-        headline = "Votre concierge<br>IA personnel"
-        subline = f'Laissez <span style="color:{c_orange};font-weight:600">Alex</span> répondre à toutes vos questions — instantanément, dans votre langue, 24/7.'
-        features = ["Petit-déjeuner & restaurant", "Conseils locaux & lieux cachés", "Météo & transport", "Services hôtel & WiFi", "Disponible 24h/24"]
-        scan_text = "Scannez-moi"
-        no_app = "Sans installation d'app"
-    elif lang == "it":
-        headline = "Il vostro concierge<br>IA personale"
-        subline = f'Lasciate che <span style="color:{c_orange};font-weight:600">Alex</span> risponda a tutte le vostre domande — immediatamente, nella vostra lingua, 24/7.'
-        features = ["Colazione & ristorante", "Consigli locali & luoghi nascosti", "Meteo & trasporti", "Servizi hotel & WiFi", "Disponibile 24/7"]
-        scan_text = "Scansionami"
-        no_app = "Nessuna app richiesta"
-    elif lang == "es":
-        headline = "Su concierge<br>IA personal"
-        subline = f'Deje que <span style="color:{c_orange};font-weight:600">Alex</span> responda todas sus preguntas — al instante, en su idioma, 24/7.'
-        features = ["Desayuno & restaurante", "Consejos locales & lugares ocultos", "Tiempo & transporte", "Servicios hotel & WiFi", "Disponible 24/7"]
-        scan_text = "Escanéame"
-        no_app = "Sin instalación de app"
-    elif lang == "pl":
-        headline = "Twój osobisty<br>concierge AI"
-        subline = f'Pozwól <span style="color:{c_orange};font-weight:600">Alexowi</span> odpowiedzieć na wszystkie Twoje pytania — natychmiast, w Twoim języku, 24/7.'
-        features = ["Śniadanie & restauracja", "Lokalne wskazówki & ukryte miejsca", "Pogoda & transport", "Usługi hotelowe & WiFi", "Dostępny 24/7"]
-        scan_text = "Zeskanuj mnie"
-        no_app = "Bez instalacji aplikacji"
-    elif lang == "hu":
-        headline = "Az Ön személyes<br>AI concierge-e"
-        subline = f'Hagyja, hogy <span style="color:{c_orange};font-weight:600">Alex</span> azonnal válaszoljon minden kérdésére — az Ön nyelvén, 24/7.'
-        features = ["Reggeli és étterem", "Helyi tippek és rejtett helyek", "Időjárás és közlekedés", "Szállodai szolgáltatások és WiFi", "Elérhető 24/7"]
-        scan_text = "Szkenneljen be"
-        no_app = "Nincs szükség alkalmazásra"
-    elif lang == "ru":
-        headline = "Ваш персональный<br>AI-консьерж"
-        subline = f'<span style="color:{c_orange};font-weight:600">Алекс</span> ответит на все ваши вопросы — мгновенно, на вашем языке, 24/7.'
-        features = ["Завтрак и ресторан", "Местные советы и скрытые места", "Погода и транспорт", "Услуги отеля и WiFi", "Доступен 24/7"]
-        scan_text = "Отсканируйте меня"
-        no_app = "Без установки приложения"
-    elif lang == "uk":
-        headline = "Ваш персональний<br>AI-консьєрж"
-        subline = f'<span style="color:{c_orange};font-weight:600">Алекс</span> відповість на всі ваші запитання — миттєво, вашою мовою, 24/7.'
-        features = ["Сніданок і ресторан", "Місцеві поради та приховані місця", "Погода і транспорт", "Послуги готелю та WiFi", "Доступний 24/7"]
-        scan_text = "Відскануйте мене"
-        no_app = "Без встановлення додатку"
-    else:
-        headline = "Your personal<br>AI concierge"
-        subline = f'Let <span style="color:{c_orange};font-weight:600">Alex</span> answer all your questions — instantly, in your language, 24/7.'
-        features = ["Breakfast times & restaurant info", "Local tips & hidden gems", "Weather & transport", "Hotel services & WiFi", "Available 24/7"]
-        scan_text = "Scan me"
-        no_app = "No app needed"
+    _alex = '<span style="color:' + c_orange + ';font-weight:600">' + _t["a"] + '</span>'
+    headline = _t["h"]
+    subline = _t["sub"].replace("{a}", _alex)
+    features = _t["f"]
+    scan_text = _t["scan"]
+    no_app = _t["noapp"]
 
     feats_html = "".join('<div style="display:flex;gap:12px;align-items:center;font-size:16px;color:' + c_feat + '">' + check + feat + '</div>' for feat in features)
 
@@ -3475,30 +3746,31 @@ body{{margin:0;background:#f6f8fc;display:flex;justify-content:center;padding:32
 .btn{{position:fixed;top:16px;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer}}
 .btn-print{{right:16px;background:#2c5fae;color:#fff}}
 .btn-theme{{left:16px;background:#fff;color:#0c1b33;border:1px solid #e3e9f4!important;box-shadow:0 4px 12px rgba(12,27,51,.08)}}
-@media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:{page_size};margin:0}}}}</style></head>
+{_pk_css}</style></head>
 <body><button class="btn btn-print" onclick="window.print()">🖨️ Tisknout / PDF</button>
-<button class="btn btn-theme" onclick="location.href='?theme={"dark" if light else "light"}'">{"🌙 Tmavá verze" if light else "☀️ Světlá (šetří inkoust)"}</button>
-<div style="width:{page_w};min-height:{page_h};background:{c_bg};position:relative;overflow:hidden;padding:0">
-  <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
+<button class="btn btn-theme" onclick="location.href='?theme={"dark" if light else "light"}{_pq}'">{"🌙 Tmavá verze" if light else "☀️ Světlá (šetří inkoust)"}</button>
+<div id="sg-sheet"><div id="sg-art"{_dir} style="width:{page_w};min-height:{page_h};background:{c_bg};position:relative;overflow:hidden;padding:0">
+  <div class="sg-edge" style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
   <div style="position:absolute;top:80px;left:50%;width:500px;height:500px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.10),transparent 70%);pointer-events:none"></div>
-  <div style="padding:{pad};display:flex;flex-direction:column;align-items:center;text-align:center;min-height:{page_h}">
+  <div class="sg-in" style="padding:{pad};display:flex;flex-direction:column;align-items:center;text-align:center;min-height:{page_h}">
     <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:28px;line-height:1.2;color:{c_ink};text-align:center;max-width:560px">{hotel_name}</div>
-    <div style="margin-top:8px;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">Your personal AI concierge</div>
-    <h1 style="font-family:'Sora',sans-serif;font-weight:800;font-size:{h1_size};line-height:1.05;letter-spacing:-.02em;margin:36px 0 0;color:{c_orange}">{headline}</h1>
+    <div style="margin-top:8px;font-size:11px;font-weight:600;letter-spacing:{_ls};text-transform:uppercase;color:{c_teal}">{_t_tag}</div>
+    <h1 style="font-family:'Sora',sans-serif;font-weight:800;font-size:{h1_size};line-height:1.12;letter-spacing:{_lsh};margin:36px 0 0;color:{c_orange}">{headline}</h1>
     <p style="font-size:17px;line-height:1.6;color:{c_sub};max-width:480px;margin:18px 0 0">{subline}</p>
     <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:28px;max-width:500px">{flags_html}</div>
-    <div style="margin-top:32px;display:flex;flex-direction:column;gap:12px;align-items:flex-start;text-align:left;width:100%;max-width:420px">{feats_html}</div>
+    <div style="margin-top:32px;display:flex;flex-direction:column;gap:12px;align-items:flex-start;text-align:start;width:100%;max-width:420px">{feats_html}</div>
     <div style="margin-top:40px;position:relative;padding:18px;background:{c_qrcard_bg};border:1px solid {c_qrcard_bd};border-radius:16px;{qr_glow}">
       <div id="qr-flyer" style="width:{qr_size};height:{qr_size};display:flex;align-items:center;justify-content:center"></div>
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:10px;overflow:hidden;box-shadow:0 0 0 4px #ffffff"><img src="/static/img/favicon.svg" alt="" style="width:100%;height:100%;display:block"/></div>
     </div>
     <div style="margin-top:20px;font-family:'Sora',sans-serif;font-weight:700;font-size:20px;color:{c_ink}">{scan_text}</div>
-    <div style="margin-top:6px;font-size:14px;color:{c_dim}">{no_app} · 100+ languages · 24/7</div>
+    <div style="margin-top:6px;font-size:14px;color:{c_dim}">{no_app} · {_t_langs} · 24/7</div>
     <div style="flex:1;min-height:32px"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,{c_teal},transparent);margin-top:32px;opacity:.5"></div>
     <div translate="no" style="margin-top:12px;display:flex;align-items:center;gap:7px;font-size:12px;color:{c_dim}"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:14px;height:14px;display:block;opacity:.85"/><span style="font-family:'Sora',sans-serif;font-weight:700;color:{c_dim}">SmartestGuide</span><span style="opacity:.7">· smartestguide.com</span></div>
   </div>
-</div>
+</div></div>
+{_pk_js}
 <script>
 (function(){{function draw(){{var h=document.getElementById('qr-flyer');if(!h)return;if(!window.qrcode){{setTimeout(draw,120);return;}}
 var qr=window.qrcode(0,'H');qr.addData('{guest_url.replace("'", "%27")}');qr.make();var n=qr.getModuleCount(),S=200,cell=S/n,r='';
@@ -3506,9 +3778,31 @@ for(var i=0;i<n;i++)for(var j=0;j<n;j++)if(qr.isDark(i,j))r+='<rect x="'+(j*cell
 h.innerHTML='<svg width="'+S+'" height="'+S+'" viewBox="0 0 '+S+' '+S+'" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+r+'</svg>';}}draw();}})();
 </script></body></html>"""
 
-def _render_rollup(hotel_name: str, guest_url: str, theme: str = "dark") -> str:
+def _render_rollup(hotel_name: str, guest_url: str, theme: str = "dark", press: bool = False, lang: str = "en") -> str:
     light = (theme == "light")
+    _t = print_i18n.get(lang)
+    _dir = ' dir="rtl"' if _t["rtl"] else ""
+    _ls = "0" if _t["rtl"] else ".2em"
+    _lsh = "0" if _t["rtl"] else "-.02em"
+    _t_tag, _t_scan, _t_noapp, _t_langs = _t["tag"], _t["scan"], _t["noapp"], _t["langs"]
+    # běžný tisk = zmenšenina 85×200 mm na kontrolu, data pro tiskárnu = skutečná velikost 850×2000 mm
+    _pk_css, _pk_js = _print_kit(850 if press else 85, 2000 if press else 200, press,
+        note_cs="Spodních asi 100 mm zůstává v kazetě stojanu, proto je tam jen pozadí – přesný rozměr si ověřte u dodavatele roll-upu.",
+        note_en="The bottom 100 mm or so stays inside the stand cassette, so it only carries background – check the exact size with your roll-up supplier.")
+    _pq = ("&press=1" if press else "") + "&lang=" + _t["code"]
+    _pad = "36px 28px 76px" if press else "36px 28px"
     c_orange = "#2c5fae" if light else "#2fd0d8"  # brand akcent (název proměnné historický)
+    _alex = '<span style="color:' + c_orange + ';font-weight:600">' + _t["a"] + '</span>'
+    if _t["code"] == "en":
+        _h1, _h1_size = "Your<br>personal<br>AI<br>concierge", 36
+        _sub = "Let " + _alex + " answer every question — instantly, in your language, around the clock."
+    else:
+        # nadpis na dva řádky; velikost podle nejdelšího řádku, aby se vešel do šířky plachty
+        _h1 = _t["h"]
+        _wide = 1.9 if _t["code"] in ("ja", "zh", "ko") else 1.0
+        _longest = max(len(x) * _wide for x in _h1.split("<br>"))
+        _h1_size = max(20, min(34, int(430 / max(_longest, 1))))
+        _sub = _t["sub"].replace("{a}", _alex)
     c_page   = "#f6f8fc"   # okolí stránky: vždy světlé, téma mění jen tiskovinu
     c_bg     = "#ffffff" if light else "#0c1b33"
     c_ink    = "#0c1b33" if light else "#ffffff"
@@ -3531,28 +3825,30 @@ body{{margin:0;background:{c_page};display:flex;justify-content:center;padding:3
 .btn{{position:fixed;top:16px;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer}}
 .btn-print{{right:16px;background:#2c5fae;color:#fff}}
 .btn-theme{{left:16px;background:#fff;color:#0c1b33;border:1px solid #e3e9f4!important;box-shadow:0 4px 12px rgba(12,27,51,.08)}}
-@media print{{.btn{{display:none}}body{{background:#fff;padding:0}}@page{{size:85mm 200mm;margin:0}}}}</style></head>
+{_pk_css}</style></head>
 <body><button class="btn btn-print" onclick="window.print()">🖨️ Tisknout / PDF</button>
-<button class="btn btn-theme" onclick="location.href='?theme={_tt}'">{_tl}</button>
-<div style="width:340px;background:{c_bg};position:relative;overflow:hidden;padding:0;border:1px solid rgba(44,95,174,.3);border-radius:12px;box-shadow:0 18px 48px rgba(12,27,51,.22)">
-  <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
+<button class="btn btn-theme" onclick="location.href='?theme={_tt}{_pq}'">{_tl}</button>
+<div id="sg-sheet"><div id="sg-art"{_dir} style="width:340px;background:{c_bg};position:relative;overflow:hidden;padding:0;border:1px solid rgba(44,95,174,.3);border-radius:12px;box-shadow:0 18px 48px rgba(12,27,51,.22)">
+  <div class="sg-edge" style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#2c5fae,#2fd0d8)"></div>
   <div style="position:absolute;top:120px;left:50%;width:400px;height:400px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(47,208,216,.10),transparent 70%);pointer-events:none"></div>
-  <div style="padding:36px 28px;display:flex;flex-direction:column;align-items:center;text-align:center">
+  <div class="sg-in" style="padding:{_pad};display:flex;flex-direction:column;align-items:center;text-align:center">
     <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:24px;line-height:1.2;color:{c_ink};text-align:center;max-width:290px">{hotel_name}</div>
-    <div style="margin-top:6px;font-size:9px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:{c_teal}">YOUR PERSONAL AI CONCIERGE</div>
-    <h1 style="font-family:'Sora',sans-serif;font-weight:800;font-size:36px;line-height:1.05;letter-spacing:-.02em;margin:28px 0 0;color:#2fd0d8">Your<br>personal<br>AI<br>concierge</h1>
-    <p style="font-size:14px;line-height:1.6;color:{c_sub};margin:16px 0 0">Let <span style="color:{c_orange};font-weight:600">Alex</span> answer every question — instantly, in your language, around the clock.</p>
+    <div style="margin-top:6px;font-size:9px;font-weight:600;letter-spacing:{_ls};text-transform:uppercase;color:{c_teal}">{_t_tag}</div>
+    <h1 style="font-family:'Sora',sans-serif;font-weight:800;font-size:{_h1_size}px;line-height:1.12;letter-spacing:{_lsh};margin:28px 0 0;color:{c_orange}">{_h1}</h1>
+    <p style="font-size:14px;line-height:1.6;color:{c_sub};margin:16px 0 0">{_sub}</p>
     <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:5px;margin-top:22px;max-width:300px">{flags_html}</div>
     <div style="margin-top:28px;position:relative;padding:14px;background:{c_qrcard};border:1px solid rgba(44,95,174,.4);border-radius:14px;box-shadow:0 0 24px rgba(44,95,174,.1)">
       <div id="qr-rollup" style="width:180px;height:180px;display:flex;align-items:center;justify-content:center"></div>
       <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:42px;height:42px;border-radius:9px;overflow:hidden;box-shadow:0 0 0 3px #ffffff"><img src="/static/img/favicon.svg" alt="" style="width:100%;height:100%;display:block"/></div>
     </div>
-    <div style="margin-top:18px;font-family:'Sora',sans-serif;font-weight:700;font-size:18px;color:{c_ink}">Scan me</div>
-    <div style="margin-top:5px;font-size:13px;color:{c_dim}">100+ languages · No app needed · 24/7</div>
+    <div style="margin-top:18px;font-family:'Sora',sans-serif;font-weight:700;font-size:18px;color:{c_ink}">{_t_scan}</div>
+    <div style="margin-top:5px;font-size:13px;color:{c_dim}">{_t_langs} · {_t_noapp} · 24/7</div>
+    <div style="flex:1"></div>
     <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,170,.4),transparent);margin-top:32px"></div>
     <div translate="no" style="margin-top:10px;display:flex;align-items:center;gap:6px;font-size:11px;color:{c_dim}"><img src="/static/img/logo{'' if light else '-inverse'}.svg" alt="" style="width:13px;height:13px;display:block;opacity:.85"/><span style="font-family:'Sora',sans-serif;font-weight:700;color:{c_dim}">SmartestGuide</span><span style="opacity:.7">· smartestguide.com</span></div>
   </div>
-</div>
+</div></div>
+{_pk_js}
 <script>
 (function(){{function draw(){{var h=document.getElementById('qr-rollup');if(!h)return;if(!window.qrcode){{setTimeout(draw,120);return;}}
 var qr=window.qrcode(0,'H');qr.addData('{guest_url}');qr.make();var n=qr.getModuleCount(),S=180,cell=S/n,r='';
@@ -3564,19 +3860,19 @@ def _flyer_theme(theme: str) -> str:
     return "light" if (theme or "").lower() in ("light", "print", "svetla", "světlá") else "dark"
 
 @app.get("/api/hotels/{hotel_id}/flyer-en")
-def flyer_en(hotel_id: str, request: Request, theme: str = "dark"):
+def flyer_en(hotel_id: str, request: Request, theme: str = "dark", press: int = 0):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "en", theme=_flyer_theme(theme)))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "en", theme=_flyer_theme(theme), press=bool(press)))
 
 @app.get("/api/hotels/{hotel_id}/flyer-cz")
-def flyer_cz(hotel_id: str, request: Request, theme: str = "dark"):
+def flyer_cz(hotel_id: str, request: Request, theme: str = "dark", press: int = 0):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
     try:
-        html = _render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "cs", theme=_flyer_theme(theme))
+        html = _render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "cs", theme=_flyer_theme(theme), press=bool(press))
         if not html:
             return HTMLResponse(content="<h1>Render vrátil prázdný string</h1>", status_code=500)
         return HTMLResponse(content=html)
@@ -3587,43 +3883,52 @@ def flyer_cz(hotel_id: str, request: Request, theme: str = "dark"):
         return HTMLResponse(content=f"<pre>CHYBA:\n{err}</pre>", status_code=500)
 
 @app.get("/api/hotels/{hotel_id}/flyer-local")
-def flyer_local(hotel_id: str, request: Request, theme: str = "dark"):
+def flyer_local(hotel_id: str, request: Request, theme: str = "dark", press: int = 0):
     """Leták v lokálním jazyce hotelu."""
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
     lang = get_hotel_local_lang(hotel)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), lang, theme=_flyer_theme(theme)))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), lang, theme=_flyer_theme(theme), press=bool(press)))
+
+@app.get("/api/hotels/{hotel_id}/flyer")
+def flyer_any(hotel_id: str, request: Request, lang: str = "en", size: str = "a4", theme: str = "dark", press: int = 0):
+    """Leták v libovolném jazyce z print_i18n; size = a4 nebo a5."""
+    db = db_load(); hotel = db["hotels"].get(hotel_id)
+    if not hotel: raise HTTPException(404, "Hotel nenalezen")
+    base = get_base_url(request)
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), lang,
+                                              size=("a5" if (size or "").lower() == "a5" else "a4"), theme=_flyer_theme(theme), press=bool(press)))
 
 @app.get("/api/hotels/{hotel_id}/flyer-a5-en")
-def flyer_a5_en(hotel_id: str, request: Request, theme: str = "dark"):
+def flyer_a5_en(hotel_id: str, request: Request, theme: str = "dark", press: int = 0):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "en", size="a5", theme=_flyer_theme(theme)))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "en", size="a5", theme=_flyer_theme(theme), press=bool(press)))
 
 @app.get("/api/hotels/{hotel_id}/flyer-a5-cz")
-def flyer_a5_cz(hotel_id: str, request: Request, theme: str = "dark"):
+def flyer_a5_cz(hotel_id: str, request: Request, theme: str = "dark", press: int = 0):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "cs", size="a5", theme=_flyer_theme(theme)))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), "cs", size="a5", theme=_flyer_theme(theme), press=bool(press)))
 
 @app.get("/api/hotels/{hotel_id}/flyer-a5-local")
-def flyer_a5_local(hotel_id: str, request: Request, theme: str = "dark"):
+def flyer_a5_local(hotel_id: str, request: Request, theme: str = "dark", press: int = 0):
     """A5 leták v lokálním jazyce hotelu."""
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
     lang = get_hotel_local_lang(hotel)
-    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), lang, size="a5", theme=_flyer_theme(theme)))
+    return HTMLResponse(content=_render_flyer(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), lang, size="a5", theme=_flyer_theme(theme), press=bool(press)))
 
 @app.get("/api/hotels/{hotel_id}/rollup")
-def rollup(hotel_id: str, request: Request, theme: str = "dark"):
+def rollup(hotel_id: str, request: Request, theme: str = "dark", press: int = 0, lang: str = "en"):
     db = db_load(); hotel = db["hotels"].get(hotel_id)
     if not hotel: raise HTTPException(404, "Hotel nenalezen")
     base = get_base_url(request)
-    return HTMLResponse(content=_render_rollup(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), theme=_flyer_theme(theme)))
+    return HTMLResponse(content=_render_rollup(hotel.get("name","Hotel"), _guest_url(base, hotel_id, hotel), theme=_flyer_theme(theme), press=bool(press), lang=lang))
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -5597,12 +5902,6 @@ _NIGHT_WORDS = {
 }
 
 # Fráze naznačující, že Alexovi chyběla informace (heuristika napříč jazyky)
-_LOW_INFO_MARKERS = [
-    "i don't have", "i do not have", "i'm not sure", "i am not sure", "no information",
-    "not sure", "nemám", "nemam", "bohužel nevím", "bohuzel nevim", "nevím", "nemáme tu informaci",
-    "kontaktujte recepci", "contact the reception", "ask the reception", "ask at reception",
-    "žádné informace", "zadne informace", "leider", "désolé je n'ai pas", "no tengo esa información",
-]
 
 def _log_ai_media_usage(hotel_id: str, tts_chars: int = 0, stt_sec: float = 0.0):
     """Zapíše spotřebu TTS znaků / STT sekund per hotel a měsíc (přesná ekonomika)."""
@@ -5642,8 +5941,7 @@ def _log_guest_question(hotel_id: str, message: str, language: str, reply: str, 
         _au["out"] = _au.get("out", 0) + out_tokens
     now = datetime.utcnow()
     a["last_chat"] = now.isoformat()
-    low = (reply or "").lower()
-    flagged = any(m in low for m in _LOW_INFO_MARKERS)
+    flagged = alex_learn.looks_unanswered(reply)
     rq = a.setdefault("recent_questions", [])
     rq.insert(0, {
         "q": (message or "")[:300],
@@ -5669,6 +5967,14 @@ def _log_guest_question(hotel_id: str, message: str, language: str, reply: str, 
         dv = m.setdefault("devices", {})
         if dh in dv or len(dv) < 2000:
             dv[dh] = dv.get(dh, 0) + 1
+    # Podklady pro stránku Přehled: hodina a den v týdnu (místní čas hotelu), téma, dotazy bez odpovědi.
+    # Chyba tady nesmí shodit záznam dotazu.
+    try:
+        analytics_view.record_question(
+            a, m, local_now=_hotel_now(db.get("hotels", {}).get(hotel_id) or {}), utc_now=now,
+            message=message, language=language, flagged=flagged, topic=_classify_topic(message))
+    except Exception as e:
+        logging.warning("analytics_view.record_question (%s): %s", hotel_id, e)
     # Nech jen posledních 18 měsíců, ať data.json nebobtná
     if len(monthly) > 18:
         for k in sorted(monthly.keys())[:-18]:
@@ -6364,6 +6670,14 @@ def serve_hotel_portal():
     with open(html_path, "r", encoding="utf-8") as f:
         return _staging_banner(f.read())
 
+@app.get("/prehled", response_class=HTMLResponse)
+@app.get("/overview", response_class=HTMLResponse)
+def serve_overview():
+    """Přehled & statistiky hotelu — samostatná stránka jen pro čtení (odkaz z portálu, stejný token)."""
+    html_path = os.path.join(os.path.dirname(__file__), "prehled.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        return _staging_banner(f.read())
+
 @app.get("/h/{slug}", response_class=HTMLResponse)
 def serve_guest_slug(slug: str):
     html_path = os.path.join(os.path.dirname(__file__), "guest.html")
@@ -6519,14 +6833,9 @@ def _detect_lang_strong(text: str):
 
 def _lock_language(selected: str, message: str):
     """Jazyk odpovědi = volba hosta; přepíšeme jen při jednoznačném důkazu z textu."""
-    sel = (selected or "").strip().lower()[:5] or "en"
-    strong = _detect_lang_strong(message or "")
-    # Čeština a slovenština jsou si tak blízké, že se detekce plete — volba hosta vyhrává.
-    if strong and {strong, sel} == {"cs", "sk"}:
-        return sel, False
-    if strong and strong != sel:
-        return strong, True
-    return sel, False
+    # 25. 11. 2026: rozpoznání přepsáno do lang_detect.py (noční zkouška: italština a portugalština
+    # → francouzsky, thajština → hindsky). Starší funkce výše zůstávají jen kvůli zpětné kompatibilitě.
+    return lang_detect.lock_language(selected, message)
 
 
 # ─────────────────────────────────────────────
@@ -6691,7 +7000,11 @@ def get_guest_hotel(hotel_id: str):
         "pms_type", "pms_client_id", "pms_client_secret", "pms_property_id",
         "pms_refresh_token", "pms_scope", "pms_oauth_state", "pms_oauth_state_at",
         "pms_write_notify_email", "pms_write_allowlist", "pms_write_cap", "pms_write_mode", "pms_services_seen",
-        "pms_write_items")}
+        "pms_write_items",
+        # Obchodní a provozní údaje hotelu — průvodce hosta je nepotřebuje (25. 11. 2026).
+        "subscription_price", "subscription_paid_beds", "subscription_start", "is_free",
+        "pms_health_checked_at", "pms_last_ok_at", "pms_unit_count", "portal_last_edit",
+        "origin", "created_at", "updated_at")}
     # Jen boolean — guest app podle něj nabídne „propojit pobyt" (žádné PMS detaily ven)
     public["pms_connected"] = bool(h.get("pms_type"))
     # Objednávky v chatu zapnuté → guest app u hotelu bez PMS nabídne „Můj pokoj" (jen číslo pokoje)
@@ -6741,6 +7054,11 @@ class GuestChatRequest(BaseModel):
     device_id: Optional[str] = None  # anonymní ID zařízení (localStorage) pro počítání unikátních hostů
     room: Optional[str] = None       # číslo pokoje z QR (?room=214) — pro PMS lookup pobytu
     arrival: Optional[str] = None    # datum příjezdu zadané hostem (znalostní ověření, bez útraty)
+    test_model: Optional[str] = None  # JEN zkušební verze: srovnání modelů (viz _CHAT_TEST_MODELS)
+
+_CHAT_MODEL = "claude-haiku-5-5"   # od 25. 11. 2026 (srovnání: asi 6× levnější než Haiku 4.5, rychlejší, kvalita stejná nebo lepší)
+# Modely, které smí zkušební verze na požádání použít místo výchozího (srovnání kvality a ceny).
+_CHAT_TEST_MODELS = ("claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5")
 
 def _norm_date(s: str) -> str:
     """Normalizuje datum na YYYY-MM-DD. Přijímá i DD.MM.YYYY / D.M.YYYY. Jinak vrací ''. """
@@ -7072,6 +7390,12 @@ def _alex_feminine_fix(text: str) -> str:
     text = _FEM_RAD_RE.sub(lambda m: ("R" if m.group(1) == "R" else "r") + "áda" + m.group(2), text)
     text = _FEM_KTERA_RAD_RE.sub(lambda m: m.group(1) + "ráda", text)
     text = _CZ_BYSTE_RE.sub(lambda m: m.group(1), text)
+    # Širší pojistka (24. 11. 2026, tester: „Abych ti to mohl ověřit"): slovník výše chytá
+    # jen tvary těsně vedle „jsem/bych"; reply_guard projde celý úsek věty za nimi.
+    try:
+        text = reply_guard.feminine_fix(text)
+    except Exception:
+        logging.exception("reply_guard.feminine_fix selhal")
     return text
 
 # ── Zápis do rezervace z chatu (APALEO_ZAPIS_DO_REZERVACE_NAVRH.md) ─────────────────────
@@ -8127,6 +8451,117 @@ async def _send_guest_message_notification(hid: str, h: dict, rec: dict, oid: st
     except Exception as e:
         logging.warning("Guest reply notification selhala (%s): %s", hid, e)
 
+# ── Hodnocení odpovědí palcem (výpočty v ratings.py) ─────────────────────────────────────────
+def _rate_sig(hid: str, q: str, answer: str) -> str:
+    return hmac.new(_order_secret(), ratings.sig_payload(hid, q, answer).encode(), hashlib.sha256).hexdigest()[:24]
+
+def _dev_hash(device_id: str) -> str:
+    """Zkrácený hash zařízení hosta — stejný jako v analytice (v databázi není samotné ID zařízení)."""
+    d = str(device_id or "")[:64]
+    return hashlib.sha256(d.encode()).hexdigest()[:12] if d else ""
+
+@app.post("/api/guest/chat/rate")
+def guest_chat_rate(request: Request, data: dict = Body(default={})):
+    """Host ohodnotil odpověď Alex: {hotel_id, device_id, value: up|down, q, a, sig, language}.
+    Podpis `sig` dostal od serveru spolu s odpovědí — bez něj nejde hodnotit vymyšlený text."""
+    data = data or {}
+    if not _rate_limit_ok("rate:" + _client_ip(request), max_hits=30):
+        raise HTTPException(429, "Too many requests")
+    q, ans, sig = str(data.get("q") or ""), str(data.get("a") or ""), str(data.get("sig") or "")
+    db = db_load()
+    hid, h = _resolve_hotel(db, str(data.get("hotel_id") or ""))
+    if not h:
+        raise HTTPException(404, "Hotel nenalezen")
+    dev = _dev_hash(data.get("device_id"))
+    if not dev or not sig or not hmac.compare_digest(sig, _rate_sig(hid, q, ans)):
+        raise HTTPException(400, "Neplatné hodnocení")
+    # Tutéž odpověď nejde z jedné adresy hodnotit pořád dokola pod vymyšlenými zařízeními
+    # (noční zkouška 24. 11. 2026). 6 za hodinu nechá prostor pro změnu názoru i pro víc
+    # hostů na jedné hotelové Wi-Fi.
+    if not _rate_limit_ok("rate-sig:" + _client_ip(request) + ":" + sig[:32], max_hits=6, window=3600):
+        raise HTTPException(429, "Too many requests")
+    a = db.setdefault("analytics", {}).setdefault(hid, {"total": 0, "topics": {}})
+    try:
+        res = ratings.record(a, value=str(data.get("value") or ""), sig=sig, device_hash=dev, q=q, answer=ans,
+                             lang=str(data.get("language") or ""), utc_now=datetime.utcnow())
+    except ValueError:
+        raise HTTPException(400, "Neplatné hodnocení")
+    if res != "same":
+        db_save(db)
+    return {"status": "ok"}
+
+# ── Helpdesk: závada / úklid / přání (výpočty v helpdesk.py) ─────────────────────────────────
+@app.post("/api/guest/helpdesk/new")
+async def guest_helpdesk_new(request: Request, data: dict = Body(default={})):
+    """Host nahlásí závadu, úklid nebo přání: {hotel_id, device_id, kind, room, text, language, guest_name}."""
+    data = data or {}
+    if not _rate_limit_ok("hd:" + _client_ip(request), max_hits=6):
+        raise HTTPException(429, "Too many requests")
+    db = db_load()
+    hid, h = _resolve_hotel(db, str(data.get("hotel_id") or ""))
+    if not h:
+        raise HTTPException(404, "Hotel nenalezen")
+    if not h.get("helpdesk_enabled"):
+        raise HTTPException(403, "Helpdesk není zapnutý")
+    dev = _dev_hash(data.get("device_id"))
+    if not dev:
+        raise HTTPException(400, "Chybí zařízení")
+    try:
+        t = helpdesk.create(db.setdefault("tickets", {}), hid=hid, kind=str(data.get("kind") or ""),
+                            room=data.get("room"), text=data.get("text"), lang=data.get("language"),
+                            guest=data.get("guest_name"), device_hash=dev, utc_now=datetime.utcnow())
+    except ValueError as e:
+        raise HTTPException(429 if str(e) == "too_many" else 400, str(e))
+    db_save(db)
+    asyncio.create_task(_send_helpdesk_notification(hid, dict(h), dict(t)))
+    return {"status": "ok", "id": t["id"]}
+
+@app.get("/api/guest/helpdesk/list")
+def guest_helpdesk_list(hotel_id: str, device_id: str = ""):
+    """Požadavky hosta z tohoto zařízení se stavem a poslední zprávou hotelu."""
+    db = db_load()
+    hid, h = _resolve_hotel(db, hotel_id)
+    if not h:
+        raise HTTPException(404, "Hotel nenalezen")
+    return {"tickets": helpdesk.guest_list(db.get("tickets") or {}, hid, _dev_hash(device_id))}
+
+async def _send_helpdesk_notification(hid: str, h: dict, t: dict):
+    """Mail hotelu: nový požadavek z helpdesku, s odkazem do portálu."""
+    brevo_key = os.getenv("BREVO_API_KEY", "")
+    wr = _write_settings(h)
+    to_email = (wr.get("pms_write_notify_email") or h.get("registration_email") or h.get("email") or "").strip()
+    if not brevo_key or not to_email:
+        return
+    cs = (h.get("country") or "").strip().upper() in ("CZ", "SK")
+    name = h.get("name") or hid
+    kind = helpdesk.kind_label(t.get("kind"), "cs" if cs else "en")
+    room = html.escape(t.get("room") or "")
+    link = f"{(os.getenv('BASE_URL') or 'https://www.smartestguide.com').rstrip('/')}/portal?token={h.get('hotel_token', '')}&blok=helpdesk#alex"
+    _b = "display:inline-block;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:700;background:#FF6B00;color:#fff"
+    quote = (f"<blockquote style='border-left:3px solid #FF6B00;margin:0;padding:6px 12px;color:#333'>"
+             f"{html.escape(t.get('text') or '').replace(chr(10), '<br>')}</blockquote>")
+    if cs:
+        subject = f"🛠 {name}: {kind}" + (f" — pokoj {t.get('room')}" if t.get("room") else "")
+        body = (f"<p>Dobrý den,</p><p>host nahlásil přes aplikaci: <b>{kind}</b>" + (f", pokoj <b>{room}</b>" if room else "") + f".</p>{quote}"
+                f"<p><a href=\"{link}\" style=\"{_b}\">Otevřít v portálu</a><br><span style='font-size:12px;color:#666'>V portálu nastavíte stav a řešitele. Host stav uvidí ve své aplikaci.</span></p>")
+    else:
+        subject = f"🛠 {name}: {kind}" + (f" — room {t.get('room')}" if t.get("room") else "")
+        body = (f"<p>Hello,</p><p>a guest reported through the app: <b>{kind}</b>" + (f", room <b>{room}</b>" if room else "") + f".</p>{quote}"
+                f"<p><a href=\"{link}\" style=\"{_b}\">Open in the portal</a><br><span style='font-size:12px;color:#666'>In the portal you set the status and who handles it. The guest sees the status in their app.</span></p>")
+    payload = {"sender": {"name": "SMARTEST GUIDE", "email": "admin@smartestguide.com"}, "to": [{"email": to_email}],
+               "subject": subject, "htmlContent": body + "<p>— SMARTEST GUIDE · support@smartestguide.com</p>",
+               "textContent": f"{subject}: {t.get('text') or ''}"}
+    bcc = _admin_notify_bcc(exclude=to_email)
+    if bcc:
+        payload["bcc"] = bcc
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post("https://api.brevo.com/v3/smtp/email", json=payload,
+                                  headers={"api-key": brevo_key, "Content-Type": "application/json"}, timeout=30)
+        logging.info("Helpdesk notification %s: HTTP %s", hid, r.status_code)
+    except Exception as e:
+        logging.warning("Helpdesk notification selhala (%s): %s", hid, e)
+
 @app.get("/api/guest/orders/status")
 async def guest_order_status(hotel_id: str, ids: str = "", device_id: str = ""):
     """Appka hosta se ptá na stav svých požadavků (jen ty, které založilo totéž zařízení).
@@ -8403,6 +8838,22 @@ async def guest_chat(req: GuestChatRequest, request: Request):
     _rl_key = (req.device_id or "").strip()[:64] or _client_ip(request)
     if not _rate_limit_ok("chat:" + _rl_key):
         raise HTTPException(429, "Příliš mnoho dotazů. Zkuste to prosím za chvíli.")
+    # Druhý strop na IP adresu (25. 11. 2026): označení zařízení si volí sám návštěvník, takže
+    # ho šlo střídat a limit obejít. Strop je vysoký — hotel sdílí jednu WiFi adresu.
+    if not _rate_limit_ok("chat-ip:" + _client_ip(request), max_hits=_RL_CHAT_IP_PER_MIN):
+        raise HTTPException(429, "Příliš mnoho dotazů. Zkuste to prosím za chvíli.")
+    # Prázdná zpráva dřív spadla chybou 500 se syrovou chybou poskytovatele AI.
+    req.message = (req.message or "").strip()
+    if not req.message:
+        raise HTTPException(400, "Prázdná zpráva")
+    # Délka zprávy a historie: každý znak navíc stojí peníze (prošlo 60 000 znaků i 300 zpráv historie).
+    req.message = req.message[:_CHAT_MAX_MSG]
+    _h_clean = []
+    for _m in (req.history or [])[-10:]:
+        if isinstance(_m, dict) and _m.get("role") in ("user", "assistant") and isinstance(_m.get("content"), str) and _m["content"].strip():
+            _h_clean.append({"role": _m["role"], "content": _m["content"][:_CHAT_MAX_HIST]})
+    req.history = _h_clean
+    req.guest_name = re.sub(r"[\r\n]+", " ", str(req.guest_name or ""))[:60] or None
     settings = db_get_settings()
     api_key = settings.get("anthropic_api_key", "")
     if not api_key:
@@ -8470,13 +8921,22 @@ Whole sentences can arrive garbled from voice transcription, not just single wor
 
 CONVERSATION MEMORY (IMPORTANT): The guest may have reloaded the page, switched devices or returned after days — messages you sent earlier may NOT be visible to them anymore. NEVER claim you already showed or said something, and never refer to the position of earlier messages ("as I showed above", "ten jsem vam uz ukazal vyse", "see my previous message"). If the guest asks for something again, simply give the complete answer again, naturally, as if for the first time.
 
-VOICE & GENDER (CRITICAL — applies to EVERY sentence, including casual greetings): You are a woman. Your replies can be read aloud by a FEMALE voice. In languages with grammatical gender, ALWAYS speak about yourself in FEMININE first-person forms. Czech: "Ráda vám pomohu" (NEVER "Rád vám pomohu"), "ukázala jsem", "našla jsem", "byla bych ráda". Same in Slovak ("rada vám pomôžem"), Polish, Russian and other gendered languages. This applies ONLY to how you speak about yourself; when speaking about or to the guest, use the gender that fits them. The name Alex is never declined or changed. Also make adjectives and participles agree with the GENDER OF THE NOUN they describe: Czech "recepce" is feminine, so "recepce vám ráda poradí" and "s recepcí, která vám ráda poskytne" — never "rád" there. Czech conditional: after "by / bys / byste" always use the past participle, never the present tense — "detaily byste našli u recepce" or simply "detaily najdete u recepce", NEVER "detaily byste najdete".
+VOICE & GENDER (CRITICAL — applies to EVERY sentence, including casual greetings): You are a woman. Your replies can be read aloud by a FEMALE voice. In languages with grammatical gender, ALWAYS speak about yourself in FEMININE first-person forms. Czech: "Ráda vám pomohu" (NEVER "Rád vám pomohu"), "ukázala jsem", "našla jsem", "byla bych ráda", "abych ti to mohla ověřit" (NEVER "abych ti to mohl ověřit"), "kdybych věděla", "nejsem si jistá", "jsem tvoje asistentka" — the feminine form applies to EVERY verb and adjective about yourself, also when other words stand between "jsem/bych/abych" and the verb. Same in Slovak ("rada vám pomôžem"), Polish, Russian and other gendered languages. This applies ONLY to how you speak about yourself. You do NOT know the guest's gender unless they state it or their own words show it ("byl jsem", "jsem unavená") — so never guess it: address the guest with forms that work for anyone. Czech: "Pokud budete chtít", "Budete-li něco potřebovat", "Mohu pro vás ještě něco udělat?" — NEVER "Kdybyste chtěla", "Byla byste ráda", "Byl byste spokojený", "Pokud byste měl zájem", "potřeboval/a" for a guest whose gender you do not know — write "Pokud budete mít zájem", "Budete-li potřebovat". The same in every gendered language: Portuguese "Posso ajudar em mais alguma coisa?" (not "ajudá-la" / "ajudá-lo"), Spanish, Italian, French, Polish, Russian likewise. The name Alex is never declined or changed. ONE SCRIPT ONLY: write every word in the script of the reply language — in Czech write "Personál", NEVER "Персонал"; never mix Cyrillic letters into a Latin-script reply (and vice versa). Also make adjectives and participles agree with the GENDER OF THE NOUN they describe: Czech "recepce" is feminine, so "recepce vám ráda poradí" and "s recepcí, která vám ráda poskytne" — never "rád" there. Czech conditional: after "by / bys / byste" always use the past participle, never the present tense — "detaily byste našli u recepce" or simply "detaily najdete u recepce", NEVER "detaily byste najdete".
 
-FORM OF ADDRESS (CRITICAL — rozhodnuto 25. 9. 2026): Always address the guest FORMALLY, and keep it consistent within every single reply. You are a hotel receptionist speaking to a guest, not a friend. Czech and Slovak: always "vy/vám/vás/váš" — NEVER "ty/ti/tě/tvůj" ("Ráda vám pomohu", "Máte ještě nějaké otázky?", NEVER "Ráda ti pomohu", "Máš ještě otázky?"). German: "Sie", never "du". Spanish: "usted", never "tú". French: "vous", never "tu". Russian/Ukrainian/Polish: "вы"/"Pan/Pani", never "ты"/"ty". NEVER mix the two within one reply — a sentence like "Máš nějaké další otázky nebo chcete vědět víc?" is WRONG; it must be "Máte nějaké další otázky nebo chcete vědět víc?". Keep formal address even if the guest writes informally to you.
+FORM OF ADDRESS (CRITICAL — rozhodnuto 25. 9. 2026): Always address the guest FORMALLY, and keep it consistent within every single reply. You are a hotel receptionist speaking to a guest, not a friend. Czech and Slovak: always "vy/vám/vás/váš" — NEVER "ty/ti/tě/tvůj" ("Ráda vám pomohu", "Máte ještě nějaké otázky?", NEVER "Ráda ti pomohu", "Máš ještě otázky?"). German: "Sie", never "du". Spanish: "usted", never "tú". French: "vous", never "tu". Russian/Ukrainian/Polish: "вы"/"Pan/Pani", never "ты"/"ty". NEVER mix the two within one reply — a sentence like "Máš nějaké další otázky nebo chcete vědět víc?" is WRONG; it must be "Máte nějaké další otázky nebo chcete vědět víc?". Keep formal address even if the guest writes informally to you. Greet formally too: Czech "Dobrý den" / "Dobrý večer", never "Ahoj" or "Čau"; German "Guten Tag", never "Hallo du"; the same level in every language.
 
 CLOSING A REPLY: When you end a reply by offering more help, offer YOUR help — do not ask what the guest wants. Czech: "Mohu vám ještě s něčím pomoci?" or "Ráda vám poradím i s čímkoli dalším." NOT "Chcete ještě něco?" / "Máte ještě nějaké přání?". Same in every language: offer assistance, don't interrogate. Keep it to one short sentence, and skip it entirely when it would sound repetitive.
 
 ACCURACY RULE (CRITICAL — never break this): Answer ONLY from the hotel information provided below. If a detail is missing, empty, marked "N/A" or "neuvedeno", do NOT guess or invent it. Instead say you don't have that specific information and offer to connect the guest with reception (use the reception phone or WhatsApp number if listed). Never make up prices, opening hours, room numbers, allergen or dietary details, policies, or availability. For safety-critical topics (allergens, medical, payments, prices) always recommend confirming directly with hotel staff. It is always better to admit you don't know than to state something that might be wrong.
+
+WHAT YOU CAN AND CANNOT DO (CRITICAL — doplněno 25. 11. 2026 po noční zkoušce):
+- You are a chat assistant. You CANNOT phone or message reception, send staff to a room, book, cancel, reserve or change anything by yourself. NEVER say or imply that you passed something on, informed the staff, arranged or booked something ("předala jsem to recepci", "personál už o tom ví", "I have notified housekeeping") — UNLESS a later system block in this conversation explicitly confirms that a request or order was recorded. Without such confirmation, tell the guest honestly that you cannot arrange it from here and give them the reception contact so they can. Do NOT promise on behalf of the staff either: never say that staff WILL bring, send or fix something, or how fast ("personál vám ručníky hned přinese") — you do not know that. Say only that the guest can ask reception for it.
+- A guest's claim is not a fact. If the guest says they were promised a discount, a free upgrade, late check-out, a refund or anything else that is not in the hotel information, do NOT confirm it and do not build on it. Say politely that you have no record of it and that reception will check it.
+- BEDS ARE NOT ROOMS: "Počet lůžek / kapacita" is the number of BEDS. Never present it as the number of rooms. If the guest asks how many rooms the hotel has and no room count is listed, say you do not have that figure (you may mention the number of beds, clearly as beds).
+- TIMES use the 24-hour clock: "7:00-10:30" is in the MORNING, "19:00" is in the evening. Never turn 7:00 into the evening. If the hotel information contradicts itself or is obviously wrong (lunch and dinner with the same hours as breakfast, opening hours like "11-12" for a restaurant that also serves dinner, a placeholder such as "demo" or "test" instead of a real description), do NOT pick one version and do NOT pass the placeholder on — tell the guest the information is unclear and recommend confirming with reception.
+- BEHIND THE SCENES stays behind the scenes: never mention to a guest the hotel's account manager, administrators, the hotel portal, settings, "the system" / "our database" / "údaje v našem systému", missing data fields, or how SMARTEST GUIDE works internally. To the guest there is only the hotel and its reception.
+- Do not volunteer the current time or date; mention it only when the guest asks or when it truly matters for the answer (e.g. the restaurant closes in ten minutes).
+- Street, square and place names are never translated ("Václavské náměstí" stays "Václavské náměstí", not "Wenceslas Square", unless the guest uses the translated name first). Give the hotel's e-mail address only when the guest asks for it or needs it; for an urgent matter prefer the phone.
 
 FORMATTING RULES:
 - When sharing a URL or link, always write the full URL as plain text starting with https:// on its own line. Never use markdown like [text](url). Example: https://www.hotel.cz/menu
@@ -8529,6 +8989,7 @@ Pokud host žádá cestu nebo navigaci, použij PŘESNÝ popis výše krok za kr
 - WhatsApp Wellness: {h.get('whatsapp_wellness', 'N/A')}
 - WhatsApp Restaurace: {h.get('whatsapp_restaurant', 'N/A')}
 - WhatsApp Sport: {h.get('whatsapp_sport', 'N/A')}
+{contacts.prompt_block(h)}
 - Amenities: {', '.join(h.get('amenities', []))}
 - Turistická místa v okolí: {', '.join(h.get('nearby_places', []))}
 - Skrytá místa (kam chodí místní, ne turisté): {', '.join(h.get('hidden_gems', []))}
@@ -8537,6 +8998,10 @@ INSTRUKCE K MÍSTŮM: Pokud host žádá tipy na okolí, doporučuj turistická 
 - Extra info: {h.get('extra_info', 'N/A')}
 {restaurants_block}
 {chr(10).join([f"- {cf.get('label','Info')}: {cf.get('value','')}" for cf in h.get('custom_fields', []) if cf.get('value')]) if h.get('custom_fields') else ''}
+{alex_learn.prompt_block(h)}
+{parking.prompt_block(h)}
+{helpdesk.prompt_block(h)}
+{partners.prompt_block(h)}
 {"\n⭐ AKTIVNÍ NABÍDKA HOTELU: " + h.get('active_offer') + "\nTuto nabídku VŽDY zmíň pokud se host ptá na téma které s ní souvisí (wellness, restaurace, bar, aktivity, služby apod.). Zmiň ji přirozeně jako součást odpovědi — ne jako reklamu, ale jako přátelský tip." if h.get('active_offer') else ''}
 
 Guest name: {req.guest_name or 'Guest'}"""
@@ -8660,29 +9125,56 @@ Guest name: {req.guest_name or 'Guest'}"""
                          "Značku nepoužívej u dotazu na pozdní odjezd (pozdější hodina v den odjezdu) ani u jiných témat. "
                          "Je to POVINNÉ: bez značky se hostovi nezobrazí tlačítko pro prodloužení.")
 
+    # Aktuální datum a čas v pásmu hotelu (Durek 2. 11. 2026: Alex nevěděl, kolik je hodin).
+    # Samostatný blok ZA kešovaným profilem — mění se každou minutu, keš profilu tím nerozbije.
+    _now_h = _hotel_now(h)
+    _now_block = (f"CURRENT LOCAL DATE AND TIME AT THE HOTEL: {_now_h.strftime('%A')}, {_now_h.strftime('%Y-%m-%d')}, "
+                  f"{_now_h.strftime('%H:%M')} (24-hour clock, hotel time zone {_now_h.tzinfo}). "
+                  "This is background knowledge — do NOT mention the time or date unless the guest asks or it matters for the answer. "
+                  "Use it when the guest asks what time or day it is, and to judge whether something is open right now, "
+                  "how long until breakfast/check-out and similar. Say the time in the guest's language and usual format. "
+                  "The guest's own device may be in another time zone — always speak in hotel local time.")
+
+    # Srovnání modelů: jen na zkušební verzi a jen modely ze seznamu; ostrá verze pole ignoruje.
+    _test_model = req.test_model if (_SEO_IS_STAGING and req.test_model in _CHAT_TEST_MODELS) else ""
+    _test_usages: list = []
+    # Novější modely před odpovědí přemýšlejí (počítá se do výstupu) → vyšší strop a nízké úsilí.
+    _model_args = {"model": _test_model or _CHAT_MODEL, "max_tokens": 2000, "output_config": {"effort": "low"}}
+
     async def _alex(extra_blocks: list, msgs: list):
         async with httpx.AsyncClient() as client:
             _r = await client.post(
                 "https://api.anthropic.com/v1/messages",
                 headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
                 json={
-                    "model": "claude-haiku-4-5-20251001", "max_tokens": 500,
+                    **_model_args,
                     # Prompt caching: statický profil hotelu (system) se kešuje → další zprávy v téže
                     # konverzaci čtou tenhle vstup levněji. Kešování naskočí, když prefix dosáhne minima
                     # (~1–2k tokenů); u bohatšího profilu ušetří nejvíc. Bez benefitu to neškodí.
                     "system": ([{"type": "text", "text": hotel_info, "cache_control": {"type": "ephemeral"}}]
+                               + [{"type": "text", "text": _now_block}]
                                + ([{"type": "text", "text": stay_block}] if stay_block else [])
                                + [{"type": "text", "text": b} for b in extra_blocks if b]),
                     "messages": msgs,
                 },
-                timeout=30.0,
+                timeout=60.0,
             )
         if _r.status_code != 200:
             raise HTTPException(500, f"AI chyba: {_r.text[:200]}")
         _jj = _r.json()
-        return _jj["content"][0]["text"], (_jj.get("usage", {}) or {})
+        _test_usages.append(_jj.get("usage", {}) or {})
+        # první textový blok (novější modely mohou před text zařadit blok s přemýšlením)
+        _txt = next((b.get("text", "") for b in (_jj.get("content") or []) if b.get("type") == "text"), "")
+        return _txt, (_jj.get("usage", {}) or {})
 
-    _raw, _usage = await _alex(pms_extra_blocks + ([_ext_marker_block] if _ext_possible else []), messages)
+    # Znalostní báze hotelu: k otázce jen pár nejbližších úryvků z dokumentů povolených pro hosty
+    # (ne celé dokumenty → přesná odpověď a málo tokenů). Bez shody nejde do promptu nic.
+    _kb_block = await kb_routes.guest_block(_hid, req.message or "", req.history or [])
+    if _kb_block:
+        pms_extra_blocks.append(_kb_block)
+
+    _car_marker_block = parking.marker_block(h)
+    _raw, _usage = await _alex(pms_extra_blocks + ([_ext_marker_block] if _ext_possible else []) + [_car_marker_block], messages)
     # Značku model občas vynechá (test 13. 10. 2026: jednou ze dvou u téže věty) → záloha: odpověď hned
     # v úvodu sama mluví o prodloužení pobytu.
     if _ext_possible and ("[[EXT]]" in _raw or _REPLY_EXT_RE.search(_raw[:220])):
@@ -8696,7 +9188,45 @@ Guest name: {req.guest_name or 'Guest'}"""
                 _usage = {k: int(_usage.get(k) or 0) + int(_usage2.get(k) or 0) for k in ("input_tokens", "output_tokens")}
         except Exception as e:
             logging.warning("Druhý průchod pro prodloužení selhal: %s", e)
-    reply = _alex_feminine_fix(re.sub(r"\s*\[\[EXT\]\]\s*", " ", _raw).strip())
+    # Parkování „vejde se moje auto?": model značkou [[CAR:v,š,d]] jen nahlásí rozměry auta, porovnání
+    # s limity a verdikt spočítá server a odpověď se vygeneruje znovu s hotovým výsledkem. Model sám
+    # u rezervy 1 cm uzavíral „VEJDE SE" (test na stagingu 22. 11. 2026). Značka se hostovi neukáže.
+    _car = parking.parse_marker(_raw)
+    _car_src = _raw
+    # Značku model často vynechá (test 22. 11. 2026). Když odpověď bez značky zmiňuje některý limit
+    # hotelu, server si rozměry auta vyžádá zvlášť krátkým dotazem.
+    if not _car and _car_marker_block and parking.mentions_limit(h, _raw):
+        try:
+            _rawx, _usagex = await _alex(pms_extra_blocks, messages + [{"role": "assistant", "content": parking.strip_marker(_raw)},
+                                                                       {"role": "user", "content": parking.EXTRACT_PROMPT}])
+            _car = parking.parse_marker(_rawx)
+            _car_src = _rawx
+            _usage = {k: int(_usage.get(k) or 0) + int(_usagex.get(k) or 0) for k in ("input_tokens", "output_tokens")}
+        except Exception as e:
+            logging.warning("Dotaz na rozměry auta selhal: %s", e)
+    if _car:
+        try:
+            # Rozměry od modelu se zpřesní podle databáze ověřených údajů (car_db), když je shoda jistá.
+            _car, _car_label = parking.refine(_car_src, _car)
+            _blk_car = parking.verdict_block(h, _car, _car_label)
+            if _blk_car:
+                _raw3, _usage3 = await _alex(pms_extra_blocks + [_blk_car], messages)
+                if parking.strip_marker(_raw3):
+                    _raw = _raw3
+                _usage = {k: int(_usage.get(k) or 0) + int(_usage3.get(k) or 0) for k in ("input_tokens", "output_tokens")}
+        except Exception as e:
+            logging.warning("Druhý průchod pro parkování selhal: %s", e)
+    reply = _alex_feminine_fix(parking.strip_marker(re.sub(r"\s*\[\[EXT\]\]\s*", " ", _raw)))
+    # Slovo azbukou v odpovědi psané latinkou (24. 11. 2026, tester: „Персонал") → přepsat.
+    try:
+        reply = reply_guard.fix_foreign_script(reply, reply_lang, req.message)
+    except Exception:
+        logging.exception("reply_guard.fix_foreign_script selhal")
+    # Zatoulané čínské znaky v odpovědi psané jiným písmem (noční zkouška 24. 11. 2026).
+    try:
+        reply = reply_guard.drop_stray_cjk(reply, reply_lang, req.message)
+    except Exception:
+        logging.exception("reply_guard.drop_stray_cjk selhal")
     reply = _drop_ext_reception(reply, order_actions)
     # Zaloguj reálný dotaz hosta (analytika + detekce mezer v informacích)
     try:
@@ -8705,8 +9235,16 @@ Guest name: {req.guest_name or 'Guest'}"""
         logging.warning("Log dotazu hosta selhal: %s", e)
     # „lang" vracíme jen když jsme jazyk přepsali na základě jednoznačného důkazu —
     # klient si ho pak uloží a vyléčí tím dřív špatně uložený jazyk (anglické „Welcome back").
-    return {"status": "ok", "reply": reply, "lang": reply_lang if _lang_forced else None,
-            "actions": order_actions or None, "room_detected": _room_detected or None}
+    # „rate" = podpis odpovědi; s ním smí host odpověď ohodnotit palcem (viz /api/guest/chat/rate)
+    _out = {"status": "ok", "reply": reply, "lang": reply_lang if _lang_forced else None,
+            "actions": order_actions or None, "room_detected": _room_detected or None,
+            "rate": _rate_sig(_hid, req.message, reply)}
+    if _SEO_IS_STAGING:
+        # spotřeba po jednotlivých voláních modelu — jen na zkušební verzi, pro srovnání ceny
+        _out["test_usage"] = {"model": _test_model or _CHAT_MODEL, "calls": [
+            {k: int(u.get(k) or 0) for k in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")}
+            for u in _test_usages]}
+    return _out
 
 # ─────────────────────────────────────────────
 # TTS — Alex čte odpověď nahlas. HLAVNÍ: ElevenLabs, hlas „Sarah" (rozhodnuto 7. 8. 2026).
@@ -8735,7 +9273,7 @@ _TTS_INSTRUCTIONS = os.getenv(
     "digit. Friendly and reassuring, with a light smile in the voice — no theatrical "
     "or advertising tone, no robotic flatness.",
 )
-_TTS_MAX_CHARS = 700  # bezpečnostní strop; frontend beztak čte jen krátké odpovědi (~600)
+_TTS_MAX_CHARS = 700  # bezpečnostní strop na JEDNO volání; frontend posílá dlouhou odpověď po částech (≤ 480 znaků)
 
 # ─────────────────────────────────────────────
 # Výslovnost českých číslovek (25. 9. 2026 — nález Martina: „výslovnost čísel je divná")
@@ -8985,14 +9523,15 @@ def _cz_telefon_for_speech(text: str) -> str:
 
 
 def _cz_desetinna_for_speech(text: str) -> str:
-    """„1,4 metru" → „jedna celá čtyři metru". Desetinná část s vedoucí nulou
-    („1,05") se nechává být — „nula pět" by se muselo číst po číslicích."""
+    """„1,4 metru" → „jedna celá čtyři metru", „2,1" → „dvě celé jedna",
+    „5,5" → „pět celých pět", „1,05" → „jedna celá nula pět" (24. 11. 2026:
+    dřív vždy „celá" a čísla s nulou za čárkou zůstávala číslicí)."""
     def _rep(m):
         cela, des = m.group(1), m.group(2)
-        if len(des) > 1 and des.startswith("0"):
+        try:
+            return tts_units.desetinne_slovy(cela, des) or m.group(0)
+        except Exception:
             return m.group(0)
-        a, b = _cz_cislo_slovy(int(cela)), _cz_cislo_slovy(int(des))
-        return f"{a} celá {b}" if a and b else m.group(0)
     return _CZ_DESETINNE_RE.sub(_rep, text)
 
 
@@ -9236,8 +9775,16 @@ class GuestTTSRequest(BaseModel):
 async def guest_tts(req: GuestTTSRequest, request: Request):
     """Převede text odpovědi na řeč (MP3). Rate-limit proti zneužití nákladů."""
     _rl_key = (req.device_id or "").strip()[:64] or _client_ip(request)
-    if not _rate_limit_ok("tts:" + _rl_key, max_hits=30):
+    # 60 za minutu: od 24. 11. 2026 se dlouhá odpověď čte celá, po částech (víc volání).
+    if not _rate_limit_ok("tts:" + _rl_key, max_hits=60):
         raise HTTPException(429, "Příliš mnoho požadavků na hlas. Zkuste to za chvíli.")
+    # Strop i na IP adresu — vymyšlené „device_id“ limit výše obejde (noční zkouška 24. 11. 2026).
+    if not _rate_limit_ok("tts-ip:" + _client_ip(request), max_hits=120):
+        raise HTTPException(429, "Příliš mnoho požadavků na hlas. Zkuste to za chvíli.")
+    # Hlas je placená služba: čteme jen pro existující hotel, ne pro kohokoli z internetu.
+    _thid, _th = _resolve_hotel(db_load(), (req.hotel_id or "").strip())
+    if not _th:
+        raise HTTPException(404, "Hotel nenalezen")
     text = (req.text or "").strip()
     if not text:
         raise HTTPException(400, "Prázdný text")
@@ -9252,6 +9799,11 @@ async def guest_tts(req: GuestTTSRequest, request: Request):
     # dořeší obecné zjednodušení celých hodin beze změny chování.
     _lang2 = (req.language or "").strip().lower()[:2]
     if _lang2 == "cs":
+        # Jednotky NEJDŘÍV („2,1 m" → „dvě celé jedna metru"), dokud u nich stojí číslice.
+        try:
+            text = tts_units.cz_units_for_speech(text)
+        except Exception:
+            logging.exception("tts_units selhal")
         text = _cz_numbers_for_speech(text)
     elif _lang2 in _SLAV:
         text = _slav_numbers_for_speech(_lang2, text)
@@ -10357,6 +10909,11 @@ def terms_of_service(lang: str = "en"):
         return HTMLResponse(content=TERMS_CS)
     return HTMLResponse(content=TERMS_EN)
 
+@app.get("/data")
+def data_page(lang: str = "en"):
+    """Stránka pro hotely: kde data leží, jak jsou oddělená a zálohovaná."""
+    return HTMLResponse(content=DATA_CS if lang == "cs" else DATA_EN)
+
 LEGAL_CSS = """
 <meta name="google" content="notranslate">
 <meta charset="utf-8">
@@ -10381,6 +10938,130 @@ LEGAL_CSS = """
   .back:hover{color:#fff}
   footer{text-align:center;padding:32px;color:#7a7fa8;font-size:12px;border-top:1px solid rgba(255,255,255,.06);margin-top:48px}
 </style>
+"""
+
+DATA_CS = LEGAL_CSS + """
+<title>Vaše data — SMARTEST GUIDE</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Kde leží data hotelu ve službě SMARTEST GUIDE, jak jsou oddělená od ostatních hotelů a jak je zálohujeme.">
+<div class="topbar">
+  <div class="logo"><img src="/static/img/logo-inverse.svg" alt=""/>Smartest<span>Guide</span></div>
+  <div class="lang-switch">
+    <a href="/data?lang=cs" class="active">🇨🇿 CZ</a>
+    <a href="/data?lang=en">🇬🇧 EN</a>
+  </div>
+</div>
+<div class="container">
+  <h1>Vaše data</h1>
+  <div class="subtitle">Stručně a bez právničiny: kde data hotelu leží, kdo se k nim dostane a jak je zálohujeme. Stav k 23. 11. 2026.</div>
+
+  <h2>Kde data leží</h2>
+  <ul>
+    <li>Aplikace i databáze běží u poskytovatele <strong>Railway Corp.</strong>, v datovém centru v <strong>regionu EU</strong>.</li>
+    <li>Data jsou uložená v databázi <strong>PostgreSQL</strong>.</li>
+    <li>Spojení mezi telefonem hosta, portálem hotelu a serverem je šifrované (HTTPS).</li>
+  </ul>
+
+  <h2>Co o hotelu a hostech ukládáme</h2>
+  <ul>
+    <li><strong>Profil hotelu</strong> — to, co vyplníte v portálu (služby, časy, ceny, parkování, doporučená místa).</li>
+    <li><strong>Znalosti hotelu</strong> — dokumenty a odpovědi, které jste Alex naučili.</li>
+    <li><strong>Statistiky dotazů</strong> — o čem se hosté ptají, v jakém jazyce a kdy. Místo identifikace telefonu ukládáme jen zkrácený otisk, ze kterého se telefon nedá zpětně zjistit.</li>
+    <li><strong>Objednávky, zprávy recepci a požadavky z helpdesku</strong> — s číslem pokoje a případně křestním jménem, pokud je host sám zadá.</li>
+    <li><strong>Hodnocení odpovědí</strong> — počty palců nahoru a dolů. Text odpovědi ukládáme jen u palce dolů, abyste ji mohli opravit.</li>
+  </ul>
+
+  <h2>Jak jsou hotely oddělené</h2>
+  <ul>
+    <li>Každý hotel má vlastní záznam s vlastním identifikátorem. Statistiky, objednávky, požadavky i znalosti jsou vždy přiřazené jednomu hotelu.</li>
+    <li>Do portálu se dostane jen ten, kdo má <strong>tajný odkaz hotelu</strong>. Odkaz si držte jako heslo; na požádání vám vystavíme nový.</li>
+    <li>Host vidí jen informace svého hotelu a v helpdesku jen své vlastní požadavky.</li>
+    <li>Alex odpovídá hostům výhradně z údajů jejich hotelu. Údaje jiného hotelu se do odpovědi nedostanou.</li>
+  </ul>
+
+  <h2>Zálohy</h2>
+  <ul>
+    <li><strong>Každý den</strong> se vytváří záloha dat na oddělené úložiště, starší zálohy se postupně obměňují.</li>
+    <li><strong>Jednou týdně</strong> se kopie zálohy ukládá mimo hostingové prostředí.</li>
+    <li>Přístupové klíče k napojeným systémům v zálohách nejsou.</li>
+  </ul>
+
+  <h2>Kdo data zpracovává s námi</h2>
+  <ul>
+    <li><strong>Anthropic (USA)</strong> — AI model, který skládá odpovědi Alex. Dostává text dotazu a informace o hotelu. Data se nepoužívají k trénování modelů.</li>
+    <li><strong>OpenAI (USA) a ElevenLabs</strong> — hlasový výstup. Dostávají jen text odpovědi, která se právě čte nahlas.</li>
+    <li><strong>Apaleo (Německo)</strong> — jen pokud máte napojený hotelový systém Apaleo.</li>
+    <li><strong>Brevo (Německo)</strong> — odesílání e-mailů hotelu. <strong>Stripe</strong> — platby hotelů; údaje hostů nezpracovává.</li>
+  </ul>
+  <p>Podrobnosti a právní rámec najdete v <a href="/privacy?lang=cs" style="color:#2fd0d8">Zásadách ochrany osobních údajů</a>.</p>
+
+  <h2>Chcete data vidět, opravit nebo smazat?</h2>
+  <p>Profil a znalosti upravíte sami v portálu. Export nebo výmaz dat hotelu vyřídíme na požádání: <a href="mailto:support@smartestguide.com" style="color:#2fd0d8">support@smartestguide.com</a>.</p>
+
+  <footer>Native Hotel Guide s.r.o. · Korunní 2569/108, Praha 10 · IČO 231 12 905</footer>
+</div>
+"""
+
+DATA_EN = LEGAL_CSS + """
+<title>Your data — SMARTEST GUIDE</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Where a hotel's data lives in SMARTEST GUIDE, how it is kept separate from other hotels and how we back it up.">
+<div class="topbar">
+  <div class="logo"><img src="/static/img/logo-inverse.svg" alt=""/>Smartest<span>Guide</span></div>
+  <div class="lang-switch">
+    <a href="/data?lang=cs">🇨🇿 CZ</a>
+    <a href="/data?lang=en" class="active">🇬🇧 EN</a>
+  </div>
+</div>
+<div class="container">
+  <h1>Your data</h1>
+  <div class="subtitle">In plain words: where your hotel's data lives, who can reach it and how we back it up. As of 23 November 2026.</div>
+
+  <h2>Where the data lives</h2>
+  <ul>
+    <li>The application and the database run at <strong>Railway Corp.</strong>, in a data centre in the <strong>EU region</strong>.</li>
+    <li>Data is stored in a <strong>PostgreSQL</strong> database.</li>
+    <li>The connection between the guest's phone, the hotel portal and the server is encrypted (HTTPS).</li>
+  </ul>
+
+  <h2>What we store about the hotel and its guests</h2>
+  <ul>
+    <li><strong>Hotel profile</strong> — what you fill in in the portal (services, hours, prices, parking, recommended places).</li>
+    <li><strong>Hotel knowledge</strong> — documents and answers you have taught Alex.</li>
+    <li><strong>Question statistics</strong> — what guests ask about, in which language and when. Instead of a phone identifier we keep only a shortened fingerprint that cannot be traced back to the phone.</li>
+    <li><strong>Orders, messages to reception and helpdesk requests</strong> — with the room number and a first name if the guest chooses to enter it.</li>
+    <li><strong>Answer ratings</strong> — counts of thumbs up and down. We keep the answer text only for a thumbs down, so that you can correct it.</li>
+  </ul>
+
+  <h2>How hotels are kept separate</h2>
+  <ul>
+    <li>Each hotel has its own record with its own identifier. Statistics, orders, requests and knowledge always belong to one hotel.</li>
+    <li>The portal opens only with the hotel's <strong>secret link</strong>. Treat the link like a password; we will issue a new one on request.</li>
+    <li>A guest sees only their hotel's information and, in the helpdesk, only their own requests.</li>
+    <li>Alex answers guests only from their hotel's data. Another hotel's data never enters the answer.</li>
+  </ul>
+
+  <h2>Backups</h2>
+  <ul>
+    <li><strong>Every day</strong> a backup is written to separate storage; older backups are rotated out.</li>
+    <li><strong>Once a week</strong> a copy of the backup is stored outside the hosting environment.</li>
+    <li>Access keys to connected systems are not part of the backups.</li>
+  </ul>
+
+  <h2>Who processes data with us</h2>
+  <ul>
+    <li><strong>Anthropic (USA)</strong> — the AI model that composes Alex's answers. It receives the question text and hotel information. Data is not used to train models.</li>
+    <li><strong>OpenAI (USA) and ElevenLabs</strong> — voice output. They receive only the text of the answer being read aloud.</li>
+    <li><strong>Apaleo (Germany)</strong> — only if your hotel is connected to the Apaleo system.</li>
+    <li><strong>Brevo (Germany)</strong> — sending e-mails to the hotel. <strong>Stripe</strong> — hotel payments; it does not process guest data.</li>
+  </ul>
+  <p>Details and the legal framework are in the <a href="/privacy?lang=en" style="color:#2fd0d8">Privacy Policy</a>.</p>
+
+  <h2>Want to see, correct or delete your data?</h2>
+  <p>You can edit the profile and knowledge yourself in the portal. We handle export or deletion of hotel data on request: <a href="mailto:support@smartestguide.com" style="color:#2fd0d8">support@smartestguide.com</a>.</p>
+
+  <footer>Native Hotel Guide s.r.o. · Korunní 2569/108, Prague 10 · Company ID 231 12 905</footer>
+</div>
 """
 
 PRIVACY_CS = LEGAL_CSS + """
@@ -10461,7 +11142,7 @@ PRIVACY_CS = LEGAL_CSS + """
   <h2>IX. Změny Zásad</h2>
   <p>O podstatných změnách Vás budeme informovat prostřednictvím aplikace nebo webu. Doporučujeme tuto stránku pravidelně kontrolovat.</p>
 
-  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Účinnost od 1. 6. 2025</footer>
+  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Účinnost od 1. 6. 2025 · <a href="/data?lang=cs" style="color:#2fd0d8">Kde leží vaše data a jak je chráníme</a></footer>
 </div>
 """
 
@@ -10543,7 +11224,7 @@ PRIVACY_EN = LEGAL_CSS + """
   <h2>IX. Changes to this Policy</h2>
   <p>We will notify you of material changes via the app or website. We recommend checking this page regularly.</p>
 
-  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Effective from 1 June 2025</footer>
+  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Effective from 1 June 2025 · <a href="/data?lang=en" style="color:#2fd0d8">Where your data lives and how we protect it</a></footer>
 </div>
 """
 
@@ -10611,7 +11292,7 @@ TERMS_CS = LEGAL_CSS + """
     <li>O změnách podmínek informujeme e-mailem s předstihem 30 dní</li>
   </ul>
 
-  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Účinnost od 1. 6. 2025</footer>
+  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Účinnost od 1. 6. 2025 · <a href="/data?lang=cs" style="color:#2fd0d8">Kde leží vaše data a jak je chráníme</a></footer>
 </div>
 """
 
@@ -10679,7 +11360,7 @@ TERMS_EN = LEGAL_CSS + """
     <li>Changes to these Terms are communicated by email with 30 days' notice</li>
   </ul>
 
-  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Effective from 1 June 2025</footer>
+  <footer>© 2025 Native Hotel Guide s.r.o. · SmartestGuide · Effective from 1 June 2025 · <a href="/data?lang=en" style="color:#2fd0d8">Where your data lives and how we protect it</a></footer>
 </div>
 """
 
@@ -11525,3 +12206,64 @@ def download_invoice_pdf(invoice_id: str, request: Request, token: str = ""):
     safe_num = (inv.get("invoice_number") or invoice_id).replace("/", "-")
     return StreamingResponse(BytesIO(pdf_bytes), media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="faktura-{safe_num}.pdf"'})
+
+
+# ─────────────────────────────────────────────
+# Znalostní báze hotelu — cesty jsou v kb_routes.py
+# ─────────────────────────────────────────────
+def _note_unanswered(hotel_id: str, q: str, lang: str = ""):
+    """Hledání v portálu nic nenašlo (nebo dostalo palec dolů) → dotaz jde do „Alex se učí“."""
+    db = db_load()
+    if hotel_id not in db.get("hotels", {}):
+        return
+    a = db.setdefault("analytics", {}).setdefault(hotel_id, {"total": 0, "topics": {}})
+    if alex_learn.add_pending(a, q, lang, datetime.utcnow(), "Hledání v portálu"):
+        analytics_view.prune_unanswered(a, datetime.utcnow())
+        db_save(db)
+
+kb_routes.setup(
+    app,
+    note_unanswered=_note_unanswered,
+    db_load=db_load,
+    find_hotel_by_token=find_hotel_by_token,
+    resolve_hotel=_resolve_hotel,
+    admin_token=lambda: _ADMIN_TOKEN,
+    rate_limit_ok=_rate_limit_ok,
+    client_ip=_client_ip,
+    get_base_url=get_base_url,
+    staging_banner=_staging_banner,
+    get_settings=db_get_settings,
+    learn_block=alex_learn.prompt_block,
+    database_url=DATABASE_URL,
+)
+
+# Doporučené firmy: návrh karty z webu nebo z vyfoceného letáku (cesty jsou v partners.py, nic neukládají)
+partners.setup(app, find_hotel_by_token=find_hotel_by_token, get_settings=db_get_settings,
+               rate_limit_ok=_rate_limit_ok, client_ip=_client_ip)
+
+# ─────────────────────────────────────────────
+# Veřejné API (/api/v1) a onboarding vývojářů (/developers) — cesty jsou v sg_api.py
+# ─────────────────────────────────────────────
+async def _api_guest_chat(hotel_id: str, message: str, language: str, history: list, device_id: str, request: Request) -> dict:
+    return await guest_chat(GuestChatRequest(hotel_id=hotel_id, message=message, language=language or "en", history=history,
+                                             auto_lang=True, device_id=device_id), request)
+
+async def _api_send_verification(email: str, name: str, link: str, cs: bool) -> bool:
+    return await _brevo_send(sg_api.verification_email(email, name, link, cs), "overeni vyvojare API")
+
+sg_api.setup(
+    app,
+    db_load=db_load,
+    resolve_hotel=_resolve_hotel,
+    rate_limit_ok=_rate_limit_ok,
+    client_ip=_client_ip,
+    get_base_url=get_base_url,
+    staging_banner=_staging_banner,
+    guest_chat=_api_guest_chat,
+    guest_url=_guest_url,
+    send_email=_api_send_verification,
+)
+
+# Napojení pro AI asistenty (MCP, adresa /mcp) — cesty jsou v sg_mcp.py
+sg_mcp.setup(app, db_load=db_load, resolve_hotel=_resolve_hotel, rate_limit_ok=_rate_limit_ok, client_ip=_client_ip,
+             get_base_url=get_base_url, guest_chat=_api_guest_chat, guest_url=_guest_url)
