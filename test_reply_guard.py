@@ -95,6 +95,24 @@ def test_azbuka_se_nechava(lang, zprava):
     assert rg.fix_foreign_script(text, lang, zprava) == text
 
 
+def test_azbuka_souvisly_kus_ve_slove():
+    # noční zkouška 24. 11. 2026: dřív „ictopií“ a „mectní“
+    assert rg.fix_foreign_script("seznámení se s историí", "cs", "") == "seznámení se s istorií"
+    assert rg.fix_foreign_script("местní tipy", "cs", "") == "mestní tipy"
+
+
+def test_cinske_znaky_v_ceske_vete():
+    vysl = rg.drop_stray_cjk("přímo recepce —联系 je můžete:", "cs", "kde je recepce")
+    assert vysl == "přímo recepce — je můžete:"
+    assert rg.drop_stray_cjk("e-mail a check-in", "cs", "") == "e-mail a check-in"
+
+
+@pytest.mark.parametrize("lang,zprava", [("zh", ""), ("ja", ""), ("cs", "co znamená 联系?")])
+def test_cinske_znaky_se_nechavaji(lang, zprava):
+    text = "早餐 7:00"
+    assert rg.drop_stray_cjk(text, lang, zprava) == text
+
+
 def test_bez_azbuky_beze_zmeny():
     text = "Snídaně je od 7:00 do 10:00."
     assert rg.fix_foreign_script(text, "cs", "") is text

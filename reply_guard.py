@@ -316,14 +316,46 @@ def fix_foreign_script(text: str, lang: str, user_message: str = "") -> str:
         w = m.group(0)
         cyr = [c for c in w if _CYR_RE.match(c)]
         if len(cyr) < len(w):
-            # Smíšené slovo: latinka s pár zatoulanými písmeny azbuky.
-            return "".join(
-                (_STEJNE.get(c.lower(), _TRANSLIT.get(c.lower(), c)).upper() if c.isupper()
-                 else _STEJNE.get(c.lower(), _TRANSLIT.get(c.lower(), c)))
-                if _CYR_RE.match(c) else c for c in w)
+            # Smíšené slovo. Dva případy (noční zkouška 24. 11. 2026):
+            #  - osamocené písmeno azbuky mezi latinkou („reсepсe“) = záměna za podobně
+            #    vypadající písmeno → с je „c“;
+            #  - souvislý kus azbuky („историí“, „местní“) = kus ruského slova → přepis
+            #    podle výslovnosti, с je „s“. Dřív z toho vznikalo „ictopií“, „mectní“.
+            out = []
+            for i, c in enumerate(w):
+                if not _CYR_RE.match(c):
+                    out.append(c)
+                    continue
+                soused = ((i > 0 and _CYR_RE.match(w[i - 1]))
+                          or (i + 1 < len(w) and _CYR_RE.match(w[i + 1])))
+                if soused:
+                    out.append(_prepis(c, lang2))
+                else:
+                    lat = _STEJNE.get(c.lower(), _TRANSLIT.get(c.lower(), c))
+                    out.append(lat.upper() if c.isupper() else lat)
+            return "".join(out)
         hotove = slovnik.get(w.lower())
         if hotove:
             return _velikost(w, hotove)
         return _prepis(w, lang2)
 
     return _CYR_WORD_RE.sub(_rep, text)
+
+
+# ── 3) Čínské / japonské / korejské znaky v odpovědi psané jiným písmem ─────
+# Noční zkouška 24. 11. 2026: v české větě „přímo recepce —联系 je můžete:“.
+_CJK_LANGS = {"zh", "ja", "ko"}
+_CJK_RE = re.compile(r"[⺀-鿿가-힯＀-￯]+")
+
+
+def drop_stray_cjk(text: str, lang: str, user_message: str = "") -> str:
+    """Zatoulané východoasijské znaky z odpovědi vyhodí. Když jimi host sám psal
+    nebo se jimi odpovídá, nechává vše být."""
+    if not text or not _CJK_RE.search(text):
+        return text
+    lang2 = (lang or "").strip().lower()[:2]
+    if lang2 in _CJK_LANGS or _CJK_RE.search(user_message or ""):
+        return text
+    out = _CJK_RE.sub("", text)
+    out = re.sub(r"[ \t]{2,}", " ", out)
+    return re.sub(r"([—–])(?=\w)", r"\1 ", out)

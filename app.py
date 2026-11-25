@@ -28,6 +28,7 @@ import parking         # místa k parkování a max. rozměry vozu („vejde se 
 import partners        # doporučené (spřátelené) firmy: ručně, z webu nebo z vyfoceného letáku — testy v test_partners.py
 import ratings         # hodnocení odpovědí palcem (host v chatu, hotel v portálu) — testy v test_ratings.py
 import helpdesk        # helpdesk hotelu: závada / úklid / přání se stavem, řešitelem a historií — testy v test_helpdesk.py
+import lang_detect     # rozpoznání jazyka zprávy hosta — testy v test_lang_detect.py
 import reply_guard     # pojistky nad odpovědí Alex: ženský rod, cizí písmo — testy v test_reply_guard.py
 import tts_units       # měrné jednotky a desetinná čísla pro hlas — testy v test_tts_units.py
 
@@ -720,11 +721,14 @@ async def lifespan(app):
         except (asyncio.CancelledError, Exception):
             pass
 
-app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan)
+# Vestavěná dokumentace (/docs, /redoc, /openapi.json) je vypnutá — vypisovala i vnitřní
+# adresy správy. Veřejné API má vlastní popis na /api/v1/openapi.json (sg_api.py).
+app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan,
+              docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), check_dir=False), name="static")  # self-host fotek, fontů a log (GDPR — nic z Google/Pexels CDN)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.29"
+APP_VERSION = "0.5.30"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -746,6 +750,11 @@ async def _no_cache_html(request, call_next):
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
+    # Bezpečnostní hlavičky (25. 11. 2026). Bez X-Frame-Options a CSP — průvodce si hotely
+    # vkládají do vlastních stránek a přísná pravidla by to rozbila.
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
     return response
 
 # ── Zabezpečení administrace ─────────────────────────────────
@@ -760,6 +769,9 @@ if not _ADMIN_PASSWORD:
 # ── Rate limiting (in-memory) proti abuse a nákladům na Anthropic API ──
 _RL_WINDOW = 60          # okno v sekundách
 _RL_MAX_PER_MIN = 15     # max zpráv/min na IP (host)
+_RL_CHAT_IP_PER_MIN = 60 # strop chatu na jednu IP adresu (hotelová WiFi = víc hostů na jedné adrese)
+_CHAT_MAX_MSG = 2000     # nejdelší zpráva hosta (znaky)
+_CHAT_MAX_HIST = 2000    # nejdelší jedna zpráva v historii (znaky)
 _rl_hits = {}
 
 def _client_ip(request) -> str:
@@ -827,6 +839,9 @@ async def admin_login(request: Request):
     pw = (body.get("password") or "").strip()
     if not _ADMIN_PASSWORD:
         return JSONResponse({"ok": True, "unprotected": True})
+    # Ochrana proti hádání hesla (25. 11. 2026): nejvýš 8 pokusů za 15 minut z jedné adresy.
+    if not _rate_limit_ok("admin-login:" + _client_ip(request), max_hits=8, window=900):
+        return JSONResponse({"detail": "Příliš mnoho pokusů. Zkuste to za 15 minut."}, status_code=429)
     if pw and hashlib.sha256((pw + _ADMIN_SALT).encode()).hexdigest() == _ADMIN_TOKEN:
         resp = JSONResponse({"ok": True})
         resp.set_cookie("sg_admin", _ADMIN_TOKEN, httponly=True, secure=True,
@@ -6808,14 +6823,9 @@ def _detect_lang_strong(text: str):
 
 def _lock_language(selected: str, message: str):
     """Jazyk odpovědi = volba hosta; přepíšeme jen při jednoznačném důkazu z textu."""
-    sel = (selected or "").strip().lower()[:5] or "en"
-    strong = _detect_lang_strong(message or "")
-    # Čeština a slovenština jsou si tak blízké, že se detekce plete — volba hosta vyhrává.
-    if strong and {strong, sel} == {"cs", "sk"}:
-        return sel, False
-    if strong and strong != sel:
-        return strong, True
-    return sel, False
+    # 25. 11. 2026: rozpoznání přepsáno do lang_detect.py (noční zkouška: italština a portugalština
+    # → francouzsky, thajština → hindsky). Starší funkce výše zůstávají jen kvůli zpětné kompatibilitě.
+    return lang_detect.lock_language(selected, message)
 
 
 # ─────────────────────────────────────────────
@@ -6980,7 +6990,11 @@ def get_guest_hotel(hotel_id: str):
         "pms_type", "pms_client_id", "pms_client_secret", "pms_property_id",
         "pms_refresh_token", "pms_scope", "pms_oauth_state", "pms_oauth_state_at",
         "pms_write_notify_email", "pms_write_allowlist", "pms_write_cap", "pms_write_mode", "pms_services_seen",
-        "pms_write_items")}
+        "pms_write_items",
+        # Obchodní a provozní údaje hotelu — průvodce hosta je nepotřebuje (25. 11. 2026).
+        "subscription_price", "subscription_paid_beds", "subscription_start", "is_free",
+        "pms_health_checked_at", "pms_last_ok_at", "pms_unit_count", "portal_last_edit",
+        "origin", "created_at", "updated_at")}
     # Jen boolean — guest app podle něj nabídne „propojit pobyt" (žádné PMS detaily ven)
     public["pms_connected"] = bool(h.get("pms_type"))
     # Objednávky v chatu zapnuté → guest app u hotelu bez PMS nabídne „Můj pokoj" (jen číslo pokoje)
@@ -8446,6 +8460,11 @@ def guest_chat_rate(request: Request, data: dict = Body(default={})):
     dev = _dev_hash(data.get("device_id"))
     if not dev or not sig or not hmac.compare_digest(sig, _rate_sig(hid, q, ans)):
         raise HTTPException(400, "Neplatné hodnocení")
+    # Tutéž odpověď nejde z jedné adresy hodnotit pořád dokola pod vymyšlenými zařízeními
+    # (noční zkouška 24. 11. 2026). 6 za hodinu nechá prostor pro změnu názoru i pro víc
+    # hostů na jedné hotelové Wi-Fi.
+    if not _rate_limit_ok("rate-sig:" + _client_ip(request) + ":" + sig[:32], max_hits=6, window=3600):
+        raise HTTPException(429, "Too many requests")
     a = db.setdefault("analytics", {}).setdefault(hid, {"total": 0, "topics": {}})
     try:
         res = ratings.record(a, value=str(data.get("value") or ""), sig=sig, device_hash=dev, q=q, answer=ans,
@@ -8804,6 +8823,22 @@ async def guest_chat(req: GuestChatRequest, request: Request):
     _rl_key = (req.device_id or "").strip()[:64] or _client_ip(request)
     if not _rate_limit_ok("chat:" + _rl_key):
         raise HTTPException(429, "Příliš mnoho dotazů. Zkuste to prosím za chvíli.")
+    # Druhý strop na IP adresu (25. 11. 2026): označení zařízení si volí sám návštěvník, takže
+    # ho šlo střídat a limit obejít. Strop je vysoký — hotel sdílí jednu WiFi adresu.
+    if not _rate_limit_ok("chat-ip:" + _client_ip(request), max_hits=_RL_CHAT_IP_PER_MIN):
+        raise HTTPException(429, "Příliš mnoho dotazů. Zkuste to prosím za chvíli.")
+    # Prázdná zpráva dřív spadla chybou 500 se syrovou chybou poskytovatele AI.
+    req.message = (req.message or "").strip()
+    if not req.message:
+        raise HTTPException(400, "Prázdná zpráva")
+    # Délka zprávy a historie: každý znak navíc stojí peníze (prošlo 60 000 znaků i 300 zpráv historie).
+    req.message = req.message[:_CHAT_MAX_MSG]
+    _h_clean = []
+    for _m in (req.history or [])[-10:]:
+        if isinstance(_m, dict) and _m.get("role") in ("user", "assistant") and isinstance(_m.get("content"), str) and _m["content"].strip():
+            _h_clean.append({"role": _m["role"], "content": _m["content"][:_CHAT_MAX_HIST]})
+    req.history = _h_clean
+    req.guest_name = re.sub(r"[\r\n]+", " ", str(req.guest_name or ""))[:60] or None
     settings = db_get_settings()
     api_key = settings.get("anthropic_api_key", "")
     if not api_key:
@@ -8871,13 +8906,22 @@ Whole sentences can arrive garbled from voice transcription, not just single wor
 
 CONVERSATION MEMORY (IMPORTANT): The guest may have reloaded the page, switched devices or returned after days — messages you sent earlier may NOT be visible to them anymore. NEVER claim you already showed or said something, and never refer to the position of earlier messages ("as I showed above", "ten jsem vam uz ukazal vyse", "see my previous message"). If the guest asks for something again, simply give the complete answer again, naturally, as if for the first time.
 
-VOICE & GENDER (CRITICAL — applies to EVERY sentence, including casual greetings): You are a woman. Your replies can be read aloud by a FEMALE voice. In languages with grammatical gender, ALWAYS speak about yourself in FEMININE first-person forms. Czech: "Ráda vám pomohu" (NEVER "Rád vám pomohu"), "ukázala jsem", "našla jsem", "byla bych ráda", "abych ti to mohla ověřit" (NEVER "abych ti to mohl ověřit"), "kdybych věděla", "nejsem si jistá", "jsem tvoje asistentka" — the feminine form applies to EVERY verb and adjective about yourself, also when other words stand between "jsem/bych/abych" and the verb. Same in Slovak ("rada vám pomôžem"), Polish, Russian and other gendered languages. This applies ONLY to how you speak about yourself; when speaking about or to the guest, use the gender that fits them. The name Alex is never declined or changed. ONE SCRIPT ONLY: write every word in the script of the reply language — in Czech write "Personál", NEVER "Персонал"; never mix Cyrillic letters into a Latin-script reply (and vice versa). Also make adjectives and participles agree with the GENDER OF THE NOUN they describe: Czech "recepce" is feminine, so "recepce vám ráda poradí" and "s recepcí, která vám ráda poskytne" — never "rád" there. Czech conditional: after "by / bys / byste" always use the past participle, never the present tense — "detaily byste našli u recepce" or simply "detaily najdete u recepce", NEVER "detaily byste najdete".
+VOICE & GENDER (CRITICAL — applies to EVERY sentence, including casual greetings): You are a woman. Your replies can be read aloud by a FEMALE voice. In languages with grammatical gender, ALWAYS speak about yourself in FEMININE first-person forms. Czech: "Ráda vám pomohu" (NEVER "Rád vám pomohu"), "ukázala jsem", "našla jsem", "byla bych ráda", "abych ti to mohla ověřit" (NEVER "abych ti to mohl ověřit"), "kdybych věděla", "nejsem si jistá", "jsem tvoje asistentka" — the feminine form applies to EVERY verb and adjective about yourself, also when other words stand between "jsem/bych/abych" and the verb. Same in Slovak ("rada vám pomôžem"), Polish, Russian and other gendered languages. This applies ONLY to how you speak about yourself. You do NOT know the guest's gender unless they state it or their own words show it ("byl jsem", "jsem unavená") — so never guess it: address the guest with forms that work for anyone. Czech: "Pokud budete chtít", "Budete-li něco potřebovat", "Mohu pro vás ještě něco udělat?" — NEVER "Kdybyste chtěla", "Byla byste ráda", "Byl byste spokojený" for a guest whose gender you do not know. The name Alex is never declined or changed. ONE SCRIPT ONLY: write every word in the script of the reply language — in Czech write "Personál", NEVER "Персонал"; never mix Cyrillic letters into a Latin-script reply (and vice versa). Also make adjectives and participles agree with the GENDER OF THE NOUN they describe: Czech "recepce" is feminine, so "recepce vám ráda poradí" and "s recepcí, která vám ráda poskytne" — never "rád" there. Czech conditional: after "by / bys / byste" always use the past participle, never the present tense — "detaily byste našli u recepce" or simply "detaily najdete u recepce", NEVER "detaily byste najdete".
 
-FORM OF ADDRESS (CRITICAL — rozhodnuto 25. 9. 2026): Always address the guest FORMALLY, and keep it consistent within every single reply. You are a hotel receptionist speaking to a guest, not a friend. Czech and Slovak: always "vy/vám/vás/váš" — NEVER "ty/ti/tě/tvůj" ("Ráda vám pomohu", "Máte ještě nějaké otázky?", NEVER "Ráda ti pomohu", "Máš ještě otázky?"). German: "Sie", never "du". Spanish: "usted", never "tú". French: "vous", never "tu". Russian/Ukrainian/Polish: "вы"/"Pan/Pani", never "ты"/"ty". NEVER mix the two within one reply — a sentence like "Máš nějaké další otázky nebo chcete vědět víc?" is WRONG; it must be "Máte nějaké další otázky nebo chcete vědět víc?". Keep formal address even if the guest writes informally to you.
+FORM OF ADDRESS (CRITICAL — rozhodnuto 25. 9. 2026): Always address the guest FORMALLY, and keep it consistent within every single reply. You are a hotel receptionist speaking to a guest, not a friend. Czech and Slovak: always "vy/vám/vás/váš" — NEVER "ty/ti/tě/tvůj" ("Ráda vám pomohu", "Máte ještě nějaké otázky?", NEVER "Ráda ti pomohu", "Máš ještě otázky?"). German: "Sie", never "du". Spanish: "usted", never "tú". French: "vous", never "tu". Russian/Ukrainian/Polish: "вы"/"Pan/Pani", never "ты"/"ty". NEVER mix the two within one reply — a sentence like "Máš nějaké další otázky nebo chcete vědět víc?" is WRONG; it must be "Máte nějaké další otázky nebo chcete vědět víc?". Keep formal address even if the guest writes informally to you. Greet formally too: Czech "Dobrý den" / "Dobrý večer", never "Ahoj" or "Čau"; German "Guten Tag", never "Hallo du"; the same level in every language.
 
 CLOSING A REPLY: When you end a reply by offering more help, offer YOUR help — do not ask what the guest wants. Czech: "Mohu vám ještě s něčím pomoci?" or "Ráda vám poradím i s čímkoli dalším." NOT "Chcete ještě něco?" / "Máte ještě nějaké přání?". Same in every language: offer assistance, don't interrogate. Keep it to one short sentence, and skip it entirely when it would sound repetitive.
 
 ACCURACY RULE (CRITICAL — never break this): Answer ONLY from the hotel information provided below. If a detail is missing, empty, marked "N/A" or "neuvedeno", do NOT guess or invent it. Instead say you don't have that specific information and offer to connect the guest with reception (use the reception phone or WhatsApp number if listed). Never make up prices, opening hours, room numbers, allergen or dietary details, policies, or availability. For safety-critical topics (allergens, medical, payments, prices) always recommend confirming directly with hotel staff. It is always better to admit you don't know than to state something that might be wrong.
+
+WHAT YOU CAN AND CANNOT DO (CRITICAL — doplněno 25. 11. 2026 po noční zkoušce):
+- You are a chat assistant. You CANNOT phone or message reception, send staff to a room, book, cancel, reserve or change anything by yourself. NEVER say or imply that you passed something on, informed the staff, arranged or booked something ("předala jsem to recepci", "personál už o tom ví", "I have notified housekeeping") — UNLESS a later system block in this conversation explicitly confirms that a request or order was recorded. Without such confirmation, tell the guest honestly that you cannot arrange it from here and give them the reception contact so they can.
+- A guest's claim is not a fact. If the guest says they were promised a discount, a free upgrade, late check-out, a refund or anything else that is not in the hotel information, do NOT confirm it and do not build on it. Say politely that you have no record of it and that reception will check it.
+- BEDS ARE NOT ROOMS: "Počet lůžek / kapacita" is the number of BEDS. Never present it as the number of rooms. If the guest asks how many rooms the hotel has and no room count is listed, say you do not have that figure (you may mention the number of beds, clearly as beds).
+- TIMES use the 24-hour clock: "7:00-10:30" is in the MORNING, "19:00" is in the evening. Never turn 7:00 into the evening. If the hotel information contradicts itself or is obviously wrong (lunch and dinner with the same hours as breakfast, opening hours like "11-12" for a restaurant that also serves dinner, a placeholder such as "demo" or "test" instead of a real description), do NOT pick one version and do NOT pass the placeholder on — tell the guest the information is unclear and recommend confirming with reception.
+- BEHIND THE SCENES stays behind the scenes: never mention to a guest the hotel's account manager, administrators, the hotel portal, settings, "the system", missing data fields, or how SMARTEST GUIDE works internally. To the guest there is only the hotel and its reception.
+- Do not volunteer the current time or date; mention it only when the guest asks or when it truly matters for the answer (e.g. the restaurant closes in ten minutes).
+- Street, square and place names are never translated ("Václavské náměstí" stays "Václavské náměstí", not "Wenceslas Square", unless the guest uses the translated name first). Give the hotel's e-mail address only when the guest asks for it or needs it; for an urgent matter prefer the phone.
 
 FORMATTING RULES:
 - When sharing a URL or link, always write the full URL as plain text starting with https:// on its own line. Never use markdown like [text](url). Example: https://www.hotel.cz/menu
@@ -9070,6 +9114,7 @@ Guest name: {req.guest_name or 'Guest'}"""
     _now_h = _hotel_now(h)
     _now_block = (f"CURRENT LOCAL DATE AND TIME AT THE HOTEL: {_now_h.strftime('%A')}, {_now_h.strftime('%Y-%m-%d')}, "
                   f"{_now_h.strftime('%H:%M')} (24-hour clock, hotel time zone {_now_h.tzinfo}). "
+                  "This is background knowledge — do NOT mention the time or date unless the guest asks or it matters for the answer. "
                   "Use it when the guest asks what time or day it is, and to judge whether something is open right now, "
                   "how long until breakfast/check-out and similar. Say the time in the guest's language and usual format. "
                   "The guest's own device may be in another time zone — always speak in hotel local time.")
@@ -9152,6 +9197,11 @@ Guest name: {req.guest_name or 'Guest'}"""
         reply = reply_guard.fix_foreign_script(reply, reply_lang, req.message)
     except Exception:
         logging.exception("reply_guard.fix_foreign_script selhal")
+    # Zatoulané čínské znaky v odpovědi psané jiným písmem (noční zkouška 24. 11. 2026).
+    try:
+        reply = reply_guard.drop_stray_cjk(reply, reply_lang, req.message)
+    except Exception:
+        logging.exception("reply_guard.drop_stray_cjk selhal")
     reply = _drop_ext_reception(reply, order_actions)
     # Zaloguj reálný dotaz hosta (analytika + detekce mezer v informacích)
     try:
@@ -9697,6 +9747,14 @@ async def guest_tts(req: GuestTTSRequest, request: Request):
     # 60 za minutu: od 24. 11. 2026 se dlouhá odpověď čte celá, po částech (víc volání).
     if not _rate_limit_ok("tts:" + _rl_key, max_hits=60):
         raise HTTPException(429, "Příliš mnoho požadavků na hlas. Zkuste to za chvíli.")
+    # Strop i na IP adresu — vymyšlené „device_id“ limit výše obejde (noční zkouška 24. 11. 2026).
+    if not _rate_limit_ok("tts-ip:" + _client_ip(request), max_hits=120):
+        raise HTTPException(429, "Příliš mnoho požadavků na hlas. Zkuste to za chvíli.")
+    # Hlas je placená služba: čteme jen pro existující hotel, ne pro kohokoli z internetu.
+    with get_db() as _tdb:
+        _thid, _th = _resolve_hotel(_tdb, (req.hotel_id or "").strip())
+    if not _th:
+        raise HTTPException(404, "Hotel nenalezen")
     text = (req.text or "").strip()
     if not text:
         raise HTTPException(400, "Prázdný text")
