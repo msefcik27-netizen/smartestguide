@@ -95,6 +95,12 @@ def test_azbuka_se_nechava(lang, zprava):
     assert rg.fix_foreign_script(text, lang, zprava) == text
 
 
+def test_rad_s_lomitkem():
+    assert rg.feminine_fix("rád/a vám ji popíšu") == "ráda vám ji popíšu"
+    assert rg.feminine_fix("Rád(a) pomohu.") == "Ráda pomohu."
+    assert rg.feminine_fix("Ráda vám poradím.") == "Ráda vám poradím."
+
+
 def test_azbuka_souvisly_kus_ve_slove():
     # noční zkouška 24. 11. 2026: dřív „ictopií“ a „mectní“
     assert rg.fix_foreign_script("seznámení se s историí", "cs", "") == "seznámení se s istorií"

@@ -246,6 +246,8 @@ def feminine_rad(text: str) -> str:
     """„Rád ti pomůžu“ → „Ráda ti pomůžu“."""
     if not text or "ád" not in text:
         return text
+    # „rád/a vám ji popíšu“, „rád(a)“ — Alex je žena, žádné lomítko (25. 11. 2026).
+    text = re.sub(r"\b([Rr])ád\s*(?:/\s*a\b|\(a\))", r"\1áda", text)
     return _RAD_SLOVESO_RE.sub(lambda m: m.group(1) + "áda" + m.group(2), text)
 
 
