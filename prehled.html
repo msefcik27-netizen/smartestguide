@@ -115,7 +115,7 @@ cs:{title:'Přehled & statistiky',sub:'Jak Alex slouží vašim hostům',back:'�
   l_in:'v provozu recepce',l_off:'mimo provoz recepce',wd:['Po','Út','St','Čt','Pá','So','Ne'],wd_t:'Dny v týdnu',
   since:(a,b)=>`Tento údaj sbíráme nově — zachycuje ${a} z ${b} dotazů v období.`,nodata_new:'Tento údaj sbíráme nově. Zobrazí se po prvních dotazech hostů.',
   lang_t:'Jazyky hostů',lang_d:'V jakém jazyce hosté s Alexem mluví.',
-  top_t:'Na co se ptají',top_d:'Témata dotazů.',un_tag:n=>`${n}× bez odpovědi`,
+  top_t:'Na co se ptají',top_d:'Témata dotazů.',un_tag:n=>`${n}× bez odpovědi`,un_tip:'Tolikrát Alex neznala odpověď a odkázala hosta na recepci. Kliknutím otevřete seznam těchto dotazů a doplníte odpověď.',
   gap_t:'Mezery ve znalostech',gap_d:d=>`Dotazy, na které Alex neměl dost informací (posledních ${d} dní). Stačí k nim v portálu dopsat odpověď a Alex je příště zodpoví sám.`,
   rate:'dotazů Alex zodpověděl',gap_n:n=>pl(n,'dotaz bez odpovědi','dotazy bez odpovědi','dotazů bez odpovědi'),gap_none:'Žádné dotazy bez odpovědi. 👍',gap_csv:'⬇ Seznam do CSV',gap_fill:'Odpovědět na dotazy →',
   g_date:'Datum',g_topic:'Téma',g_q:'Dotaz hosta',more:n=>`Zobrazit dalších ${n}`,
@@ -141,7 +141,7 @@ en:{title:'Overview & statistics',sub:'How Alex serves your guests',back:'← Ba
   l_in:'reception open',l_off:'reception closed',wd:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],wd_t:'Days of the week',
   since:(a,b)=>`This is newly collected — it covers ${a} of ${b} questions in the period.`,nodata_new:'This is newly collected. It appears after the first guest questions.',
   lang_t:'Guest languages',lang_d:'Languages guests use with Alex.',
-  top_t:'What they ask about',top_d:'Question topics.',un_tag:n=>`${n}× unanswered`,
+  top_t:'What they ask about',top_d:'Question topics.',un_tag:n=>`${n}× unanswered`,un_tip:'How many times Alex did not know the answer and referred the guest to reception. Click to open these questions and add an answer.',
   gap_t:'Knowledge gaps',gap_d:d=>`Questions Alex lacked information for (last ${d} days). Just add the answer in the portal and Alex will handle them next time.`,
   rate:'of questions answered',gap_n:n=>n===1?'unanswered question':'unanswered questions',gap_none:'No unanswered questions. 👍',gap_csv:'⬇ List as CSV',gap_fill:'Answer the questions →',
   g_date:'Date',g_topic:'Topic',g_q:'Guest question',more:n=>`Show ${n} more`,
@@ -174,7 +174,7 @@ function cols(vals, opt){
 }
 function hbars(rows){
   const max = Math.max(1, ...rows.map(r => r.count));
-  return rows.map(r => `<div class="hb"><div class="t"><b>${esc(r.name)}${r.tag?`<span class="tag">${esc(r.tag)}</span>`:''}</b><span>${nf(r.count)} · ${r.pct} %</span></div><div class="tr"><div style="width:${r.count/max*100}%"></div></div></div>`).join('');
+  return rows.map(r => `<div class="hb"><div class="t"><b>${esc(r.name)}${r.tag?`<a class="tag" style="text-decoration:none;cursor:pointer" title="${esc(L('un_tip'))}" href="/portal?token=${TQ}&blok=learn#alex" target="_top" onclick="try{if(EMBED&&parent.openLearnBlock){parent.openLearnBlock();return false}}catch(e){}">${esc(r.tag)} ›</a>`:''}</b><span>${nf(r.count)} · ${r.pct} %</span></div><div class="tr"><div style="width:${r.count/max*100}%"></div></div></div>`).join('');
 }
 const kpi = (v,l,extra) => `<div class="kpi"><div class="v">${v}</div><div class="l">${esc(l)}</div>${extra||''}</div>`;
 const card = (cls,t,d,body) => `<div class="card ${cls}"><h2>${esc(t)}</h2><div class="desc">${esc(d)}</div>${body}</div>`;

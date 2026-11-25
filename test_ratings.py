@@ -75,6 +75,9 @@ def test_hotel_verdict_removes_item_and_counts():
     assert ratings.down_list(a) == []
     assert a["ratings_hotel"] == {"ok": 0, "bad": 1}
     assert ratings.hotel_verdict(a, item_id, "ok") is None
+    # posouzená odpověď zůstává k nahlédnutí mezi „už posouzenými“
+    d = ratings.done_list(a)
+    assert len(d) == 1 and d[0]["verdict"] == "bad" and d[0]["q"] == "Kde je bazén?" and "sig" not in d[0]
     with pytest.raises(ValueError):
         ratings.hotel_verdict(a, item_id, "x")
 

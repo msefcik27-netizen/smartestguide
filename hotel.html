@@ -2799,6 +2799,9 @@ const RT_T = {
       q:'Host se ptal', a:'Alex odpověděl', ok:'Odpověď je v pořádku', bad:'Je špatně', fixPh:'Správná odpověď (nepovinné) — Alex ji příště použije',
       okDone:'Označeno jako správná odpověď', badDone:'Uloženo — Alex už zná správnou odpověď', badNoFix:'Označeno jako špatná odpověď',
       times:n=>n+'× palec dolů', full:'Seznam naučených odpovědí je plný. Smažte některou starší v bloku „Alex se učí“.', err:'Uložení se nepovedlo, zkuste to znovu.',
+      unans:'Dotazy bez odpovědi', fixed:'Vaše oprava', doneH:'Už posouzené odpovědi', doneNone:'Zatím jste žádnou odpověď neposoudili.',
+      upTip:'U kladně hodnocených odpovědí text neukládáme — není co opravovat.', downTip:'Ukázat odpovědi s palcem dolů — čekající i už posouzené',
+      satTip:'Ukázat odpovědi, které spokojenost snižují', waitTip:'Ukázat odpovědi, které čekají na vaše posouzení', unansTip:'Otevřít dotazy, na které Alex neznala odpověď',
       you:(o,b)=>`Vy jste posoudili: ${o}× v pořádku, ${b}× špatně`},
   en:{title:'Answer ratings', desc:'how guests rate Alex\'s answers — and which ones did not help',
       up:'Thumbs up', down:'Thumbs down', sat:'Satisfaction', wait:'Waiting for you',
@@ -2807,9 +2810,18 @@ const RT_T = {
       q:'Guest asked', a:'Alex answered', ok:'The answer is fine', bad:'It is wrong', fixPh:'Correct answer (optional) — Alex will use it next time',
       okDone:'Marked as a correct answer', badDone:'Saved — Alex now knows the correct answer', badNoFix:'Marked as a wrong answer',
       times:n=>n+'× thumbs down', full:'The list of learned answers is full. Delete an older one in the “Alex learns” block.', err:'Saving failed, please try again.',
+      unans:'Unanswered questions', fixed:'Your correction', doneH:'Answers you already reviewed', doneNone:'You have not reviewed any answer yet.',
+      upTip:'We do not store the text of positively rated answers — there is nothing to fix.', downTip:'Show thumbs-down answers — waiting and already reviewed',
+      satTip:'Show the answers that lower satisfaction', waitTip:'Show answers waiting for your review', unansTip:'Open the questions Alex could not answer',
       you:(o,b)=>`Your review: ${o}× fine, ${b}× wrong`}
 };
 let _rtData=null;
+// klik na dlaždici s číslem: sjede na příslušný seznam a krátce ho zvýrazní
+function rtGo(id){
+  const e=document.getElementById(id); if(!e) return;
+  e.scrollIntoView({behavior:'smooth',block:'start'});
+  const o=e.style.color; e.style.color='var(--accent)'; setTimeout(()=>{ e.style.color=o; },1600);
+}
 async function rtResolve(i, verdict){
   const x=_rtData.down[i], L=RT_T[portalLang==='en'?'en':'cs'];
   const fix=verdict==='bad'?(document.getElementById('rt-fix-'+i).value||'').trim():'';
@@ -2831,7 +2843,14 @@ async function loadRatingsSection(data){
   const L=RT_T[portalLang==='en'?'en':'cs'], s=d.summary||{};
   const inp='width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 10px;font-family:inherit';
   const btnS='background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text);padding:7px 12px;font-size:12.5px;cursor:pointer';
-  const chip=(label,n,color)=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;min-width:110px;text-align:center"><div style="font-size:22px;font-weight:800;color:${color}">${n}</div><div style="font-size:11px;color:var(--muted)">${label}</div></div>`;
+  const chip=(label,n,color,go,tip)=>`<button type="button" onclick="${go}" title="${hdEsc(tip||'')}" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;min-width:110px;text-align:center;cursor:pointer;font-family:inherit"><div style="font-size:22px;font-weight:800;color:${color}">${n}</div><div style="font-size:11px;color:var(--muted)">${label} ›</div></button>`;
+  const unans=(_learnData&&_learnData.pending||[]).length;
+  const doneRows=(d.done||[]).map(x=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:8px">
+      <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><div style="font-weight:700;font-size:13.5px;overflow-wrap:anywhere">${hdEsc(x.q)}</div>
+        <span style="margin-left:auto;font-size:11.5px;font-weight:700;color:${x.verdict==='bad'?'#ff4f6a':'#2ecc87'};white-space:nowrap">${x.verdict==='bad'?'👎 '+L.bad:'👍 '+L.ok}</span></div>
+      <div style="font-size:12.5px;color:var(--muted);overflow-wrap:anywhere;margin-top:4px">${L.a}: ${hdEsc(x.a)}</div>
+      ${x.fix?`<div style="font-size:12.5px;overflow-wrap:anywhere;margin-top:4px">${L.fixed}: ${hdEsc(x.fix)}</div>`:''}
+    </div>`).join('');
   const rows=(d.down||[]).map((x,i)=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px">
       <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">${L.q}</div>
         <span style="margin-left:auto;font-size:11.5px;color:var(--muted);white-space:nowrap">${x.lang?hdEsc(String(x.lang).toUpperCase())+' · ':''}${x.n>1?L.times(x.n)+' · ':''}${fmtReqTime(x.at)}</span></div>
@@ -2854,10 +2873,12 @@ async function loadRatingsSection(data){
       <span class="section-toggle-lbl">${tr(openNow?'Sbalit':'Rozbalit')}</span><div class="section-chevron ${oc}">▼</div>
     </div>
     <div class="section-body ${oc}">
-      ${s.total?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">${chip('👍 '+L.up,s.up||0,'#2ecc87')}${chip('👎 '+L.down,s.down||0,'#ff4f6a')}${chip(L.sat,(s.satisfied_pct==null?'–':s.satisfied_pct+' %'),'var(--accent)')}${chip(L.wait,s.waiting||0,'#ffaa33')}</div>
+      ${s.total?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">${chip('👍 '+L.up,s.up||0,'#2ecc87',"toast(RT_T[portalLang==='en'?'en':'cs'].upTip)",L.upTip)}${chip('👎 '+L.down,s.down||0,'#ff4f6a',"rtGo('rt-wait')",L.downTip)}${chip(L.sat,(s.satisfied_pct==null?'–':s.satisfied_pct+' %'),'var(--accent)',"rtGo('rt-wait')",L.satTip)}${chip(L.wait,s.waiting||0,'#ffaa33',"rtGo('rt-wait')",L.waitTip)}${chip('🎓 '+L.unans,unans,'#ffaa33',"openLearnBlock()",L.unansTip)}</div>
         ${(s.hotel_ok||s.hotel_bad)?`<div style="font-size:12px;color:var(--muted);margin-bottom:14px">${L.you(s.hotel_ok||0,s.hotel_bad||0)}</div>`:'<div style="margin-bottom:14px"></div>'}
-        <div style="${h4}">${L.waitH}</div>
-        ${rows||`<div style="font-size:13px;color:var(--muted)">${L.waitNone}</div>`}`
+        <div id="rt-wait" style="${h4};scroll-margin-top:80px">${L.waitH}</div>
+        ${rows||`<div style="font-size:13px;color:var(--muted)">${L.waitNone}</div>`}
+        <div id="rt-done" style="${h4};margin-top:18px;scroll-margin-top:80px">${L.doneH}</div>
+        ${doneRows||`<div style="font-size:13px;color:var(--muted)">${L.doneNone}</div>`}`
         :`<div style="font-size:13px;color:var(--muted)">${L.none}</div>`}
     </div>
   </div>`;

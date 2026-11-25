@@ -728,7 +728,7 @@ app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan,
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), check_dir=False), name="static")  # self-host fotek, fontů a log (GDPR — nic z Google/Pexels CDN)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.35"
+APP_VERSION = "0.5.36"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -2755,7 +2755,7 @@ def hotel_portal_learn_delete(token: str, data: dict = Body(default={})):
 
 # ── Hodnocení odpovědí: hotel posoudí odpovědi, které hostům nepomohly ──────────────────────
 def _ratings_state(a: dict) -> dict:
-    return {"status": "ok", "summary": ratings.summary(a), "down": ratings.down_list(a)}
+    return {"status": "ok", "summary": ratings.summary(a), "down": ratings.down_list(a), "done": ratings.done_list(a)}
 
 @app.get("/api/hotel-portal/ratings")
 def hotel_portal_ratings(token: str):
@@ -2772,7 +2772,7 @@ def hotel_portal_ratings_resolve(token: str, data: dict = Body(default={})):
     if data.get("verdict") == "bad" and fix and len(alex_learn.learned(hotel)) >= alex_learn.MAX_ANSWERS:
         raise HTTPException(400, "full")
     try:
-        item = ratings.hotel_verdict(a, str(data.get("id") or ""), str(data.get("verdict") or ""))
+        item = ratings.hotel_verdict(a, str(data.get("id") or ""), str(data.get("verdict") or ""), fix)
     except ValueError:
         raise HTTPException(400, "verdict")
     if item:

@@ -19,7 +19,8 @@ VALUES = ("up", "down")
 Q_MAX = 300
 A_MAX = 700
 DOWN_MAX = 40          # strop seznamu čekajícího na hotel
-VOTES_MAX = 600        # strop paměti hlasů (nejstarší vypadnou)
+DONE_MAX = 40          # kolik už posouzených odpovědí si pamatujeme
+VOTES_MAX = 600       # strop paměti hlasů (nejstarší vypadnou)
 
 
 def _clean(s, limit: int) -> str:
@@ -95,8 +96,9 @@ def down_list(a: dict) -> list:
             for x in (a.get("rating_down") or []) if isinstance(x, dict) and x.get("id")]
 
 
-def hotel_verdict(a: dict, item_id: str, verdict: str):
-    """Hotel posoudil odpověď: ok (odpověď byla správně) | bad (byla špatně). Položka zmizí ze seznamu.
+def hotel_verdict(a: dict, item_id: str, verdict: str, fix: str = ""):
+    """Hotel posoudil odpověď: ok (odpověď byla správně) | bad (byla špatně). Položka zmizí ze seznamu
+    čekajících a přesune se mezi posouzené (rating_done), aby se k ní hotel mohl vrátit.
     Vrací položku (kvůli případné opravě do znalostí), nebo None, když neexistuje.
     Vyhazuje ValueError('verdict')."""
     if verdict not in ("ok", "bad"):
@@ -107,8 +109,17 @@ def hotel_verdict(a: dict, item_id: str, verdict: str):
             items.remove(x)
             h = a.setdefault("ratings_hotel", {"ok": 0, "bad": 0})
             h[verdict] = int(h.get(verdict, 0)) + 1
+            done = a.setdefault("rating_done", [])
+            done.insert(0, {"id": x.get("id", ""), "q": x.get("q", ""), "a": x.get("a", ""), "lang": x.get("lang", ""),
+                            "at": x.get("at", ""), "n": int(x.get("n", 1)), "verdict": verdict, "fix": _clean(fix, A_MAX)})
+            del done[DONE_MAX:]
             return x
     return None
+
+
+def done_list(a: dict) -> list:
+    """Už posouzené odpovědi s palcem dolů (nejnovější první)."""
+    return [dict(x) for x in (a.get("rating_done") or []) if isinstance(x, dict) and x.get("id")]
 
 
 def _pct(up: int, down: int):
