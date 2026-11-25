@@ -728,7 +728,7 @@ app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan,
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), check_dir=False), name="static")  # self-host fotek, fontů a log (GDPR — nic z Google/Pexels CDN)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.38"
+APP_VERSION = "0.5.39"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -7051,7 +7051,7 @@ class GuestChatRequest(BaseModel):
     arrival: Optional[str] = None    # datum příjezdu zadané hostem (znalostní ověření, bez útraty)
     test_model: Optional[str] = None  # JEN zkušební verze: srovnání modelů (viz _CHAT_TEST_MODELS)
 
-_CHAT_MODEL = "claude-haiku-4-5-20251001"
+_CHAT_MODEL = "claude-haiku-5-5"   # od 25. 11. 2026 (srovnání: asi 6× levnější než Haiku 4.5, rychlejší, kvalita stejná nebo lepší)
 # Modely, které smí zkušební verze na požádání použít místo výchozího (srovnání kvality a ceny).
 _CHAT_TEST_MODELS = ("claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5")
 
@@ -9133,8 +9133,7 @@ Guest name: {req.guest_name or 'Guest'}"""
     _test_model = req.test_model if (_SEO_IS_STAGING and req.test_model in _CHAT_TEST_MODELS) else ""
     _test_usages: list = []
     # Novější modely před odpovědí přemýšlejí (počítá se do výstupu) → vyšší strop a nízké úsilí.
-    _model_args = ({"model": _test_model, "max_tokens": 2000, "output_config": {"effort": "low"}} if _test_model
-                   else {"model": _CHAT_MODEL, "max_tokens": 500})
+    _model_args = {"model": _test_model or _CHAT_MODEL, "max_tokens": 2000, "output_config": {"effort": "low"}}
 
     async def _alex(extra_blocks: list, msgs: list):
         async with httpx.AsyncClient() as client:
@@ -9152,7 +9151,7 @@ Guest name: {req.guest_name or 'Guest'}"""
                                + [{"type": "text", "text": b} for b in extra_blocks if b]),
                     "messages": msgs,
                 },
-                timeout=60.0 if _test_model else 30.0,
+                timeout=60.0,
             )
         if _r.status_code != 200:
             raise HTTPException(500, f"AI chyba: {_r.text[:200]}")
