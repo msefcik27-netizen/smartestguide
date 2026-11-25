@@ -24,6 +24,7 @@ import print_i18n     # texty tiskovin v jazycích hostů
 import kb_routes       # znalostní báze hotelu (dokumenty, cloudové disky, asistent pro personál) — testy v test_kb.py
 import sg_api          # veřejné API /api/v1 a onboarding vývojářů — testy v test_sg_api.py
 import sg_mcp          # napojení pro AI asistenty (MCP, adresa /mcp) — testy v test_sg_mcp.py
+import contacts        # další kontakty hotelu (telefon / e-mail / WhatsApp s názvem a poznámkou) — testy v test_contacts.py
 import parking         # místa k parkování a max. rozměry vozu („vejde se moje auto?") — testy v test_parking.py
 import partners        # doporučené (spřátelené) firmy: ručně, z webu nebo z vyfoceného letáku — testy v test_partners.py
 import ratings         # hodnocení odpovědí palcem (host v chatu, hotel v portálu) — testy v test_ratings.py
@@ -728,7 +729,7 @@ app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan,
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), check_dir=False), name="static")  # self-host fotek, fontů a log (GDPR — nic z Google/Pexels CDN)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.39"
+APP_VERSION = "0.5.40"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -2533,6 +2534,10 @@ def hotel_portal_update(token: str, data: dict = Body(default={})):
     _pk = parking.normalize(update_data)
     if _pk is not None:
         update_data.update(_pk)
+    # Další kontakty: čisté texty, platné číslo / adresa, strop počtu (jdou do promptu Alex)
+    _ct = contacts.normalize(update_data)
+    if _ct is not None:
+        update_data.update(_ct)
     # Helpdesk zapíná hotel sám — hodnota jde hostovi i do promptu, proto jen čisté ano/ne
     if "helpdesk_enabled" in update_data:
         _hv = update_data.get("helpdesk_enabled")
@@ -8984,6 +8989,7 @@ Pokud host žádá cestu nebo navigaci, použij PŘESNÝ popis výše krok za kr
 - WhatsApp Wellness: {h.get('whatsapp_wellness', 'N/A')}
 - WhatsApp Restaurace: {h.get('whatsapp_restaurant', 'N/A')}
 - WhatsApp Sport: {h.get('whatsapp_sport', 'N/A')}
+{contacts.prompt_block(h)}
 - Amenities: {', '.join(h.get('amenities', []))}
 - Turistická místa v okolí: {', '.join(h.get('nearby_places', []))}
 - Skrytá místa (kam chodí místní, ne turisté): {', '.join(h.get('hidden_gems', []))}

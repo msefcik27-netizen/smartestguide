@@ -428,6 +428,14 @@ const EN_MAP = {
   "např. Vjezd do garáže je z ulice Kněžská, zazvoňte u vrat na recepci.":"e.g. The garage entrance is from Kněžská street, ring reception at the gate.",
   "např. Jen 6 míst, velká auta na místa č. 1 a 2":"e.g. Only 6 spaces, large cars to spaces 1 and 2",
   "Nejvýše 8 parkovacích míst.":"At most 8 parking places.",
+  "Další kontakty":"More contacts","+ Přidat kontakt":"+ Add contact","Zatím žádný další kontakt.":"No extra contact yet.",
+  "Přidejte libovolný další kontakt a pojmenujte si ho po svém: Recepce 2, Masáže, Půjčovna kol… Do poznámky napište, co tam host vyřídí (například druhy masáží, ceny a jak se platí). Alex to hostům řekne.":"Add any extra contact and name it your way: Reception 2, Massages, Bike rental… In the note, write what guests can arrange there (for example massage types, prices and how to pay). Alex will tell the guests.",
+  "Typ":"Type","📞 Telefon":"📞 Phone","✉️ E-mail":"✉️ E-mail","💬 WhatsApp":"💬 WhatsApp",
+  "Název (vyberte nebo napište vlastní)":"Name (choose or type your own)","Číslo nebo adresa":"Number or address","např. Masáže":"e.g. Massages",
+  "Poznámka pro hosty (co tu vyřídí, ceny, způsob platby)":"Note for guests (what they can arrange, prices, how to pay)",
+  "např. Klasická masáž 60 min 900 Kč, thajská 90 min 1 500 Kč. Platba kartou na místě nebo na hotelový účet.":"e.g. Classic massage 60 min CZK 900, Thai massage 90 min CZK 1,500. Pay by card on the spot or charge it to the room.",
+  "Nejvýše 20 dalších kontaktů.":"At most 20 extra contacts.",
+  "Kontakt bez platného čísla nebo e-mailu se neuloží — doplňte ho prosím.":"A contact without a valid number or e-mail will not be saved — please complete it.",
   "Cesta z parkoviště do hotelu (pěšky, s kufry)":"Way from the car park to the hotel (on foot, with luggage)",
   "Návod k parkovacímu automatu (Alex ho hostovi přeloží)":"Pay machine instructions (Alex translates them for the guest)",
   "Auta na LPG":"LPG cars","Auta na CNG":"CNG cars","nevyplněno":"not filled in","Vjezd povolen":"Entry allowed","Vjezd zakázán":"Entry not allowed",
@@ -938,6 +946,13 @@ function renderPortal() {
         ${row('Adresa', 'address', 'text', h.address, 'Václavské náměstí 1, Praha')}
         ${row('Kód země (CZ/SK/AT/DE...)', 'country', 'text', h.country, 'CZ')}
       </table>
+      <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px">Další kontakty</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:12px">Přidejte libovolný další kontakt a pojmenujte si ho po svém: Recepce 2, Masáže, Půjčovna kol… Do poznámky napište, co tam host vyřídí (například druhy masáží, ceny a jak se platí). Alex to hostům řekne.</div>
+        <datalist id="ct-presets">${CT_PRESETS.map(p => `<option value="${p}"></option>`).join('')}</datalist>
+        <div id="ct-list">${renderContacts(h.extra_contacts||[])}</div>
+        <button type="button" onclick="addContact()" class="btn btn-secondary" style="margin-top:4px;font-size:12px;padding:6px 14px">+ Přidat kontakt</button>
+      </div>
     `, ['phone','email','address'])}
 
     ${renderSection('🍽️', 'Restaurace', 'Restaurace hotelu, jídelníky a jak se k nim dostat', `
@@ -1762,6 +1777,75 @@ function addParking() {
   if (el) el.focus();
 }
 
+// ── Další kontakty hotelu (telefon / e-mail / WhatsApp s vlastním názvem a poznámkou) ──
+const CT_TYPES = [['phone','📞 Telefon'],['email','✉️ E-mail'],['whatsapp','💬 WhatsApp']];
+const CT_PRESETS = ['Recepce','Recepce 2','Wellness','Masáže','Restaurace','Bar','Room service','Rezervace','Sport','Půjčovna','Concierge','Údržba'];
+const CT_PH = {phone:'+420 123 456 789', email:'wellness@hotel.cz', whatsapp:'+420 123 456 789'};
+
+function renderContacts(items) {
+  if (!items || !items.length) return '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Zatím žádný další kontakt.</div>';
+  const lab = t => `<div style="font-size:11px;color:var(--muted);margin-bottom:3px">${t}</div>`;
+  return items.map((c, i) => {
+    const type = CT_PH[c.type] ? c.type : 'phone';
+    return `
+    <div id="ct-row-${i}" style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2)">
+      <div style="display:grid;grid-template-columns:150px 1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:end">
+        <div>${lab('Typ')}<select id="ct-type-${i}" onchange="ctTypeChanged(${i})" style="${PK_IN}">${CT_TYPES.map(([v, t]) => `<option value="${v}"${v === type ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
+        <div>${lab('Název (vyberte nebo napište vlastní)')}<input type="text" id="ct-label-${i}" list="ct-presets" maxlength="60" placeholder="např. Masáže" value="${esc(c.label||'')}" oninput="markChanged()" style="${PK_IN}"/></div>
+        <div>${lab('Číslo nebo adresa')}<input type="text" id="ct-value-${i}" maxlength="120" placeholder="${CT_PH[type]}" value="${esc(c.value||'')}" oninput="markChanged()" style="${PK_IN}"/></div>
+        <button type="button" onclick="removeContact(${i})" title="Odebrat" style="background:rgba(255,80,80,.15);border:1px solid rgba(255,80,80,.3);color:#ff5050;border-radius:6px;padding:8px 10px;cursor:pointer;font-size:14px">✕</button>
+      </div>
+      <div>${lab('Poznámka pro hosty (co tu vyřídí, ceny, způsob platby)')}<textarea id="ct-note-${i}" maxlength="600" placeholder="např. Klasická masáž 60 min 900 Kč, thajská 90 min 1 500 Kč. Platba kartou na místě nebo na hotelový účet." oninput="markChanged()" style="${PK_IN};resize:vertical;min-height:52px">${esc(c.note||'')}</textarea></div>
+    </div>`;
+  }).join('');
+}
+
+function getContactItems() {
+  const items = [];
+  for (let i = 0; document.getElementById('ct-type-'+i) !== null; i++) {
+    const g = k => document.getElementById('ct-'+k+'-'+i).value.trim();
+    items.push({type: g('type'), label: g('label'), value: g('value'), note: g('note')});
+  }
+  return items;
+}
+
+function ctRerender(items) {
+  const list = document.getElementById('ct-list');
+  list.innerHTML = renderContacts(items);
+  translateDom(list);
+  markChanged();
+}
+
+function ctTypeChanged(i) {
+  const el = document.getElementById('ct-value-'+i);
+  if (el) el.placeholder = CT_PH[document.getElementById('ct-type-'+i).value] || '';
+  markChanged();
+}
+
+function addContact() {
+  const cur = getContactItems();
+  if (cur.length >= 20) { toast(tr('Nejvýše 20 dalších kontaktů.'), 'warn'); return; }
+  cur.push({type: 'phone'});
+  ctRerender(cur);
+  const el = document.getElementById('ct-label-'+(cur.length-1));
+  if (el) el.focus();
+}
+
+function removeContact(i) {
+  const cur = getContactItems();
+  cur.splice(i, 1);
+  ctRerender(cur);
+}
+
+// Kontakty, které server neuloží (chybí číslo, e-mail bez zavináče…) — ať o ně hotel nepřijde mlčky.
+function ctInvalid(items) {
+  return items.filter(c => {
+    if (!c.value) return true;
+    if (c.type === 'email') return !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.value);
+    return !/^[+\d][\d\s\-()\/.]*$/.test(c.value) || c.value.replace(/\D/g, '').length < 5;
+  });
+}
+
 // ── Doporučené firmy: ručně, z webu nebo z vyfoceného letáku ──────────────────
 // Pole mají id „pt-…" (ne „f-…"), aby je obecný sběr v saveAll() neukládal jako samostatná pole hotelu.
 const PT_TEXT = ['name','category','web','description','offer','address','phone','email','hours','price','details'];
@@ -2222,6 +2306,12 @@ async function saveAll(auto) {
 
   // Parkování: místa a rozměry (server převede rozměry na centimetry a zahodí prázdná místa)
   if (document.getElementById('pk-list')) data.parking_places = getParkingItems();
+
+  // Další kontakty (server zahodí řádky bez platného čísla / adresy — upozorni na ně)
+  if (document.getElementById('ct-list')) {
+    data.extra_contacts = getContactItems();
+    if (!auto && ctInvalid(data.extra_contacts).length) toast(tr('Kontakt bez platného čísla nebo e-mailu se neuloží — doplňte ho prosím.'), 'warn');
+  }
 
   // Doporučené firmy (server zahodí prázdné; bez potvrzení „z vlastní vůle" je Alex nedoporučí)
   if (document.getElementById('pt-list')) {
