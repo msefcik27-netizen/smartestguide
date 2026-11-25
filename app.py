@@ -728,7 +728,7 @@ app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan,
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), check_dir=False), name="static")  # self-host fotek, fontů a log (GDPR — nic z Google/Pexels CDN)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.34"
+APP_VERSION = "0.5.35"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -2888,6 +2888,18 @@ def generate_token(hotel_id: str, request: Request):
     token = db["hotels"][hotel_id]["hotel_token"]
     base = get_base_url(request)
     return {"status": "ok", "token": token, "portal_url": f"{base}/portal?token={token}"}
+
+@app.post("/api/hotels/{hotel_id}/rotate-token")
+def rotate_token(hotel_id: str, request: Request):
+    """Výměna odkazu do portálu (admin): starý odkaz okamžitě přestane platit.
+    Pro případ, že se odkaz dostal do nepovolaných rukou."""
+    db = db_load()
+    if hotel_id not in db["hotels"]:
+        raise HTTPException(404, "Hotel nenalezen")
+    token = str(uuid.uuid4()).replace("-", "")
+    db["hotels"][hotel_id]["hotel_token"] = token
+    db_save(db)
+    return {"status": "ok", "portal_url": f"{get_base_url(request)}/portal?token={token}"}
 
 def _admin_safe_hotel(h: dict) -> dict:
     """Kopie hotelu bez PMS credentials — refresh tokeny nepatří ani do admin API.

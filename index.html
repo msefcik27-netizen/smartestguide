@@ -2352,9 +2352,26 @@ async function showPortalLink(id, name){
           <a class="btn btn-secondary" href="${esc(url)}" target="_blank" onclick="document.getElementById('portal-modal').remove()">↗ Otevřít portál</a>
           <button class="btn btn-secondary" onclick="document.getElementById('portal-modal').remove()">Zavřít</button>
         </div>
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);line-height:1.6">
+          Dostal se odkaz k někomu cizímu? Vyměň ho — starý okamžitě přestane platit a hotelu je třeba poslat nový.
+          <div style="margin-top:8px"><button class="btn btn-secondary" id="portal-rotate-btn" data-id="${esc(id)}" data-name="${esc(name)}" onclick="rotatePortalLink(this)">🔄 Vyměnit odkaz</button></div>
+        </div>
       </div>`;
     addLog('info',`Portal link zobrazen: ${name}`,'portal');
   }catch(e){toast('Chyba: '+e.message,'err');}
+}
+
+// Výměna odkazu do portálu: první klik se jen zeptá, druhý provede
+async function rotatePortalLink(btn){
+  if(!btn.dataset.armed){ btn.dataset.armed='1'; btn.textContent='Opravdu vyměnit? Starý odkaz přestane platit'; return; }
+  btn.disabled=true;
+  try{
+    const r=await fetch(`${API}/api/hotels/${btn.dataset.id}/rotate-token`,{method:'POST'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    addLog('warn',`Odkaz do portálu vyměněn: ${btn.dataset.name}`,'portal');
+    toast('Odkaz vyměněn ✅');
+    showPortalLink(btn.dataset.id, btn.dataset.name);
+  }catch(e){ btn.disabled=false; toast('Chyba: '+e.message,'err'); }
 }
 
 // ══ PROVIZE ══════════════════════════════════
