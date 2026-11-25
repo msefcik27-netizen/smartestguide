@@ -570,7 +570,7 @@ const EN_MAP = {
   "— aby Alex mohl hostům rovnou objednat služby a prodloužit pobyt, musí hotel udělit souhlas znovu (jedno kliknutí, nastavení zůstane).":"— so that Alex can book services and extend stays for your guests directly, the hotel has to grant consent again (one click, your settings stay).",
   "Udělit oprávnění →":"Grant permission →",
   "Objednávky v chatu":"Orders in chat",
-  "📊 Přehled":"📊 Overview","📈 Analytika":"📈 Analytics","📚 Znalostní báze":"📚 Knowledge base","🎓 Alex se učí":"🎓 Alex learns","čeká na vaši odpověď":"waiting for your answer","Dotazy, na které Alex neznal odpověď — doplňte ji":"Questions Alex could not answer — add the answer","🏨 Profil hotelu":"🏨 Hotel profile","✦ Alex & objednávky":"✦ Alex & orders","🧾 Nasazení & účet":"🧾 Setup & account",
+  "📊 Přehled":"📊 Overview","📈 Analytika":"📈 Analytics","📚 Znalostní báze":"📚 Knowledge base","🎓 Alex se učí":"🎓 Alex learns","čeká na vaši odpověď":"waiting for your answer","čeká na reakci":"waiting for a response","Dotazy, na které Alex neznal odpověď — doplňte ji":"Questions Alex could not answer — add the answer","🏨 Profil hotelu":"🏨 Hotel profile","✦ Alex & objednávky":"✦ Alex & orders","🧾 Nasazení & účet":"🧾 Setup & account",
   "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem.":"Alex can book a service to the guest's room account or send a request to reception. Nothing is ordered until the guest confirms with a button.",
   "Alex přijme objednávku v chatu a pošle ji recepci e-mailem jako požadavek — host nemusí nikam volat. Recepce v e-mailu klikne Potvrdit nebo Nelze vyřídit (může připsat vzkaz) a host odpověď uvidí v chatu. Nic se nikam nezapisuje.":"Alex takes the order in chat and e-mails it to reception as a request — the guest doesn't have to call anyone. Reception clicks Confirm or Cannot arrange in the e-mail (optionally with a note) and the guest sees the answer in chat. Nothing is written anywhere.",
   "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem. U požadavku recepce v e-mailu klikne Potvrdit / Nelze vyřídit a host odpověď uvidí v chatu.":"Alex can book a service straight to the room account or send reception a request. Nothing is booked without the guest confirming with a button. For a request, reception clicks Confirm / Cannot arrange in the e-mail and the guest sees the answer in chat.",
@@ -1312,6 +1312,9 @@ function buildPortalTiles(){
         // Alex se učí: počet dotazů bez odpovědi jako výrazný štítek, celá dlaždice zvýrazněná
         const n = el.id === 'learn-section' && pend ? parseInt((pend.textContent||'').replace(/\D/g,'')) : 0;
         if (n > 0) { hot = true; scoreHtml = `<span class="ptile-pill">${n} ${tr('čeká na vaši odpověď')}</span>`; }
+        // Helpdesk: nové požadavky hostů, na které ještě nikdo nereagoval
+        let hn = 0; try { if (el.id === 'helpdesk-section' && _hdData) hn = parseInt((_hdData.counts||{}).new) || 0; } catch(e) {}
+        if (hn > 0) { hot = true; scoreHtml = `<span class="ptile-pill">${hn} ${tr('čeká na reakci')}</span>`; }
       }
       return `<button type="button" class="ptile${hot?' ptile-hot':''}" data-sec="${el.id}" onclick="openPortalBlock('${tab}','${el.id}')" aria-current="${String(PORTAL_SOLO[tab]===el.id)}">
         <div class="ptile-ico">${icon}</div><div class="ptile-t">${title}</div><div class="ptile-d">${desc}</div><div class="ptile-s">${scoreHtml}</div></button>`;

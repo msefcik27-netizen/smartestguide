@@ -728,7 +728,7 @@ app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan,
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), check_dir=False), name="static")  # self-host fotek, fontů a log (GDPR — nic z Google/Pexels CDN)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.33"
+APP_VERSION = "0.5.34"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -7037,6 +7037,11 @@ class GuestChatRequest(BaseModel):
     device_id: Optional[str] = None  # anonymní ID zařízení (localStorage) pro počítání unikátních hostů
     room: Optional[str] = None       # číslo pokoje z QR (?room=214) — pro PMS lookup pobytu
     arrival: Optional[str] = None    # datum příjezdu zadané hostem (znalostní ověření, bez útraty)
+    test_model: Optional[str] = None  # JEN zkušební verze: srovnání modelů (viz _CHAT_TEST_MODELS)
+
+_CHAT_MODEL = "claude-haiku-4-5-20251001"
+# Modely, které smí zkušební verze na požádání použít místo výchozího (srovnání kvality a ceny).
+_CHAT_TEST_MODELS = ("claude-haiku-5-5", "claude-sonnet-5-5")
 
 def _norm_date(s: str) -> str:
     """Normalizuje datum na YYYY-MM-DD. Přijímá i DD.MM.YYYY / D.M.YYYY. Jinak vrací ''. """
@@ -9112,13 +9117,20 @@ Guest name: {req.guest_name or 'Guest'}"""
                   "how long until breakfast/check-out and similar. Say the time in the guest's language and usual format. "
                   "The guest's own device may be in another time zone — always speak in hotel local time.")
 
+    # Srovnání modelů: jen na zkušební verzi a jen modely ze seznamu; ostrá verze pole ignoruje.
+    _test_model = req.test_model if (_SEO_IS_STAGING and req.test_model in _CHAT_TEST_MODELS) else ""
+    _test_usages: list = []
+    # Novější modely před odpovědí přemýšlejí (počítá se do výstupu) → vyšší strop a nízké úsilí.
+    _model_args = ({"model": _test_model, "max_tokens": 2000, "output_config": {"effort": "low"}} if _test_model
+                   else {"model": _CHAT_MODEL, "max_tokens": 500})
+
     async def _alex(extra_blocks: list, msgs: list):
         async with httpx.AsyncClient() as client:
             _r = await client.post(
                 "https://api.anthropic.com/v1/messages",
                 headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
                 json={
-                    "model": "claude-haiku-4-5-20251001", "max_tokens": 500,
+                    **_model_args,
                     # Prompt caching: statický profil hotelu (system) se kešuje → další zprávy v téže
                     # konverzaci čtou tenhle vstup levněji. Kešování naskočí, když prefix dosáhne minima
                     # (~1–2k tokenů); u bohatšího profilu ušetří nejvíc. Bez benefitu to neškodí.
@@ -9128,12 +9140,15 @@ Guest name: {req.guest_name or 'Guest'}"""
                                + [{"type": "text", "text": b} for b in extra_blocks if b]),
                     "messages": msgs,
                 },
-                timeout=30.0,
+                timeout=60.0 if _test_model else 30.0,
             )
         if _r.status_code != 200:
             raise HTTPException(500, f"AI chyba: {_r.text[:200]}")
         _jj = _r.json()
-        return _jj["content"][0]["text"], (_jj.get("usage", {}) or {})
+        _test_usages.append(_jj.get("usage", {}) or {})
+        # první textový blok (novější modely mohou před text zařadit blok s přemýšlením)
+        _txt = next((b.get("text", "") for b in (_jj.get("content") or []) if b.get("type") == "text"), "")
+        return _txt, (_jj.get("usage", {}) or {})
 
     # Znalostní báze hotelu: k otázce jen pár nejbližších úryvků z dokumentů povolených pro hosty
     # (ne celé dokumenty → přesná odpověď a málo tokenů). Bez shody nejde do promptu nic.
@@ -9204,9 +9219,15 @@ Guest name: {req.guest_name or 'Guest'}"""
     # „lang" vracíme jen když jsme jazyk přepsali na základě jednoznačného důkazu —
     # klient si ho pak uloží a vyléčí tím dřív špatně uložený jazyk (anglické „Welcome back").
     # „rate" = podpis odpovědi; s ním smí host odpověď ohodnotit palcem (viz /api/guest/chat/rate)
-    return {"status": "ok", "reply": reply, "lang": reply_lang if _lang_forced else None,
+    _out = {"status": "ok", "reply": reply, "lang": reply_lang if _lang_forced else None,
             "actions": order_actions or None, "room_detected": _room_detected or None,
             "rate": _rate_sig(_hid, req.message, reply)}
+    if _SEO_IS_STAGING:
+        # spotřeba po jednotlivých voláních modelu — jen na zkušební verzi, pro srovnání ceny
+        _out["test_usage"] = {"model": _test_model or _CHAT_MODEL, "calls": [
+            {k: int(u.get(k) or 0) for k in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")}
+            for u in _test_usages]}
+    return _out
 
 # ─────────────────────────────────────────────
 # TTS — Alex čte odpověď nahlas. HLAVNÍ: ElevenLabs, hlas „Sarah" (rozhodnuto 7. 8. 2026).
