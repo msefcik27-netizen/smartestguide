@@ -29,6 +29,29 @@ def norm(q: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[?!.,;:…]+", " ", str(q or "").lower())).strip()
 
 
+# ── Poznání odpovědi, ve které Alex něco nevěděla ─────────────────────────────
+# „Nevím“ stačí samo. Odkaz na recepci sám nestačí: Alex ho přidává i k úplné odpovědi
+# („Check-in je od 15:00, dřívější příjezd domluvte s recepcí“). Počítá se jen tehdy,
+# když odpověď mimo telefonní čísla neobsahuje žádný konkrétní údaj (čas, cenu, číslo).
+_NEVIM = (
+    "i don't have", "i do not have", "i'm not sure", "i am not sure", "no information", "not sure",
+    "nemám", "nemam", "bohužel nevím", "bohuzel nevim", "nevím", "nemáme tu informaci",
+    "žádné informace", "zadne informace", "leider", "désolé je n'ai pas", "no tengo esa información",
+)
+_NA_RECEPCI = ("kontaktujte recepci", "contact the reception", "ask the reception", "ask at reception")
+_TELEFON = re.compile(r"\+?\d[\d  ().-]{7,}\d")
+
+
+def looks_unanswered(reply: str) -> bool:
+    """True, když odpověď vypadá, že Alex informaci neměla (dotaz pak jde do „Alex se učí“)."""
+    low = str(reply or "").lower()
+    if any(m in low for m in _NEVIM):
+        return True
+    if any(m in low for m in _NA_RECEPCI):
+        return not re.search(r"\d", _TELEFON.sub(" ", low))
+    return False
+
+
 def _ensure_unanswered(a: dict, utc_now: datetime) -> list:
     """Hotel z doby před novým sběrem nemá seznam `unanswered` — založí ho z označených
     posledních dotazů, aby vyřízený dotaz nezůstal viset v přehledu."""

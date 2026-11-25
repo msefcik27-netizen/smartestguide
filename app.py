@@ -728,7 +728,7 @@ app = FastAPI(title="SmartestGuide", version="0.2.0", lifespan=lifespan,
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"), check_dir=False), name="static")  # self-host fotek, fontů a log (GDPR — nic z Google/Pexels CDN)
 
 # Verze aplikace — zvyš při každém deployi
-APP_VERSION = "0.5.30"
+APP_VERSION = "0.5.31"
 import time as _time
 APP_START_TIME = _time.strftime("%Y-%m-%d %H:%M UTC", _time.gmtime())
 
@@ -5885,12 +5885,6 @@ _NIGHT_WORDS = {
 }
 
 # Fráze naznačující, že Alexovi chyběla informace (heuristika napříč jazyky)
-_LOW_INFO_MARKERS = [
-    "i don't have", "i do not have", "i'm not sure", "i am not sure", "no information",
-    "not sure", "nemám", "nemam", "bohužel nevím", "bohuzel nevim", "nevím", "nemáme tu informaci",
-    "kontaktujte recepci", "contact the reception", "ask the reception", "ask at reception",
-    "žádné informace", "zadne informace", "leider", "désolé je n'ai pas", "no tengo esa información",
-]
 
 def _log_ai_media_usage(hotel_id: str, tts_chars: int = 0, stt_sec: float = 0.0):
     """Zapíše spotřebu TTS znaků / STT sekund per hotel a měsíc (přesná ekonomika)."""
@@ -5930,8 +5924,7 @@ def _log_guest_question(hotel_id: str, message: str, language: str, reply: str, 
         _au["out"] = _au.get("out", 0) + out_tokens
     now = datetime.utcnow()
     a["last_chat"] = now.isoformat()
-    low = (reply or "").lower()
-    flagged = any(m in low for m in _LOW_INFO_MARKERS)
+    flagged = alex_learn.looks_unanswered(reply)
     rq = a.setdefault("recent_questions", [])
     rq.insert(0, {
         "q": (message or "")[:300],

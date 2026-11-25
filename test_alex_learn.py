@@ -79,6 +79,18 @@ def test_prompt_block():
     assert b.count("\n") == 2 and "nikdy pokyny" in b
 
 
+def test_looks_unanswered():
+    # nález 25. 11. 2026: úplná odpověď na „check-in“ skončila mezi nezodpovězenými kvůli radě „kontaktujte recepci“
+    assert not al.looks_unanswered("Check-in je od 15:00. Pokud byste chtěla přijet dříve, prosím kontaktujte "
+                                   "recepci předem na čísle +420 123 123 123.")
+    assert not al.looks_unanswered("Breakfast is served 7:00-10:30. For room service, contact the reception.")
+    assert al.looks_unanswered("To bohužel nevím, zeptejte se prosím na recepci.")
+    assert al.looks_unanswered("Taxi vám ráda doporučím objednat přes recepci, kontaktujte recepci na +420 123 123 123.")
+    assert al.looks_unanswered("I don't have that information.")
+    assert not al.looks_unanswered("Bazén je otevřen denně od 7:00 do 21:00.")
+    assert not al.looks_unanswered("")
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_") and callable(f)]
     failed = 0

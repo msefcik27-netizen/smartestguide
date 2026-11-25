@@ -201,6 +201,10 @@ html{color-scheme:light}
   .ptile-t{font-family:var(--font-head);font-size:14px;font-weight:700;line-height:1.3}
   .ptile-d{font-size:12px;color:var(--muted);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .ptile-s{margin-top:auto;font-size:12px}
+  /* Dlaždice, která čeká na hotel (Alex se učí s dotazy bez odpovědi) — má být vidět na první pohled */
+  .ptile.ptile-hot{border:2px solid var(--accent);background:color-mix(in srgb,var(--accent) 9%,var(--surface));padding:13px 13px 11px}
+  .ptile-pill{display:inline-block;background:var(--accent);color:#fff;font-weight:700;font-size:12.5px;line-height:1.3;padding:4px 11px;border-radius:999px}
+  .cnt-pill{display:inline-block;background:var(--accent);color:#fff;font-weight:700;font-size:12px;line-height:1.3;padding:2px 9px;border-radius:999px;margin-left:6px;vertical-align:middle}
 </style>
 <div id="portal-sidebar" style="width:280px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:20px 0;position:sticky;top:60px;height:calc(100vh - 60px);overflow-y:auto">
   <div style="padding:0 16px;margin-bottom:8px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:600">Sekce</div>
@@ -566,7 +570,7 @@ const EN_MAP = {
   "— aby Alex mohl hostům rovnou objednat služby a prodloužit pobyt, musí hotel udělit souhlas znovu (jedno kliknutí, nastavení zůstane).":"— so that Alex can book services and extend stays for your guests directly, the hotel has to grant consent again (one click, your settings stay).",
   "Udělit oprávnění →":"Grant permission →",
   "Objednávky v chatu":"Orders in chat",
-  "📊 Přehled":"📊 Overview","📈 Analytika":"📈 Analytics","📚 Znalostní báze":"📚 Knowledge base","🎓 Alex se učí":"🎓 Alex learns","Dotazy, na které Alex neznal odpověď — doplňte ji":"Questions Alex could not answer — add the answer","🏨 Profil hotelu":"🏨 Hotel profile","✦ Alex & objednávky":"✦ Alex & orders","🧾 Nasazení & účet":"🧾 Setup & account",
+  "📊 Přehled":"📊 Overview","📈 Analytika":"📈 Analytics","📚 Znalostní báze":"📚 Knowledge base","🎓 Alex se učí":"🎓 Alex learns","čeká na vaši odpověď":"waiting for your answer","Dotazy, na které Alex neznal odpověď — doplňte ji":"Questions Alex could not answer — add the answer","🏨 Profil hotelu":"🏨 Hotel profile","✦ Alex & objednávky":"✦ Alex & orders","🧾 Nasazení & účet":"🧾 Setup & account",
   "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem.":"Alex can book a service to the guest's room account or send a request to reception. Nothing is ordered until the guest confirms with a button.",
   "Alex přijme objednávku v chatu a pošle ji recepci e-mailem jako požadavek — host nemusí nikam volat. Recepce v e-mailu klikne Potvrdit nebo Nelze vyřídit (může připsat vzkaz) a host odpověď uvidí v chatu. Nic se nikam nezapisuje.":"Alex takes the order in chat and e-mails it to reception as a request — the guest doesn't have to call anyone. Reception clicks Confirm or Cannot arrange in the e-mail (optionally with a note) and the guest sees the answer in chat. Nothing is written anywhere.",
   "Alex může hostovi rovnou objednat službu na účet pokoje nebo poslat požadavek recepci. Nic se neobjedná bez potvrzení hosta tlačítkem. U požadavku recepce v e-mailu klikne Potvrdit / Nelze vyřídit a host odpověď uvidí v chatu.":"Alex can book a service straight to the room account or send reception a request. Nothing is booked without the guest confirming with a button. For a request, reception clicks Confirm / Cannot arrange in the e-mail and the guest sees the answer in chat.",
@@ -1294,7 +1298,7 @@ function buildPortalTiles(){
     if (!grid) { grid = document.createElement('div'); grid.className = 'ptiles'; grid.dataset.tab = tab; }
     if (grid.nextElementSibling !== blocks[0]) blocks[0].parentNode.insertBefore(grid, blocks[0]);
     grid.innerHTML = blocks.map(el => {
-      let icon = '', title = '', desc = '', scoreHtml = '';
+      let icon = '', title = '', desc = '', scoreHtml = '', hot = false;
       if (el.classList.contains('section')) {
         icon = (el.querySelector('.section-icon')||{}).innerHTML || '';
         title = ((el.querySelector('.section-title')||{}).textContent || '').replace(/\(\d+\)/,'').trim();
@@ -1305,12 +1309,22 @@ function buildPortalTiles(){
         const m = lbl.match(/^(\S+)\s+(.*)$/); icon = m ? m[1] : '▪'; title = m ? m[2] : lbl;
         desc = tr(PORTAL_FIXED_DESC[el.id] || '');
         const pend = el.querySelector('.section-title span'); if (pend) scoreHtml = pend.outerHTML;   // (3) čekajících
+        // Alex se učí: počet dotazů bez odpovědi jako výrazný štítek, celá dlaždice zvýrazněná
+        const n = el.id === 'learn-section' && pend ? parseInt((pend.textContent||'').replace(/\D/g,'')) : 0;
+        if (n > 0) { hot = true; scoreHtml = `<span class="ptile-pill">${n} ${tr('čeká na vaši odpověď')}</span>`; }
       }
-      return `<button type="button" class="ptile" data-sec="${el.id}" onclick="openPortalBlock('${tab}','${el.id}')" aria-current="${String(PORTAL_SOLO[tab]===el.id)}">
+      return `<button type="button" class="ptile${hot?' ptile-hot':''}" data-sec="${el.id}" onclick="openPortalBlock('${tab}','${el.id}')" aria-current="${String(PORTAL_SOLO[tab]===el.id)}">
         <div class="ptile-ico">${icon}</div><div class="ptile-t">${title}</div><div class="ptile-d">${desc}</div><div class="ptile-s">${scoreHtml}</div></button>`;
     }).join('');
     translateDom(grid);
   });
+  // Počet dotazů bez odpovědi i v levém menu u „Alex & objednávky“ — je vidět z každé záložky
+  const lp = document.querySelector('#learn-section .section-title .cnt-pill'), ab = document.querySelector('.ptab-btn[data-tab="alex"]');
+  if (ab) {
+    let bd = ab.querySelector('.cnt-pill'); const n = lp ? lp.textContent.trim() : '';
+    if (n) { if (!bd) { bd = document.createElement('span'); bd.className = 'cnt-pill'; ab.appendChild(bd); } if (bd.textContent !== n) bd.textContent = n; bd.title = tr('Alex se učí') + ': ' + n + ' ' + tr('čeká na vaši odpověď'); }
+    else if (bd) bd.remove();
+  }
   applyPortalTab(currentPortalTab());
 }
 function buildProfileTiles(){ buildPortalTiles(); }
@@ -2660,7 +2674,7 @@ async function loadLearnSection(data){
   el.innerHTML=`<div class="section ${openNow?'section-open':''}" id="sec-learn" style="margin-bottom:24px">
     <div class="section-head ${oc}" onclick="toggleSection('sec-learn')">
       <div class="section-icon">🎓</div>
-      <div style="flex:1;min-width:0"><div class="section-title">${L.title}${(d.pending||[]).length?` <span style="color:#ffaa33">(${d.pending.length})</span>`:''}</div>
+      <div style="flex:1;min-width:0"><div class="section-title">${L.title}${(d.pending||[]).length?` <span class="cnt-pill">${d.pending.length}</span>`:''}</div>
       <div class="section-desc">${L.desc}</div></div>
       <span class="section-toggle-lbl">${tr(openNow?'Sbalit':'Rozbalit')}</span><div class="section-chevron ${oc}">▼</div>
     </div>
