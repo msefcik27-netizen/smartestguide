@@ -969,6 +969,7 @@ async function loadHotel(){
     // (nález Martina 7. 8. 2026). startChat() ho pak u nového hosta nastaví znovu (neškodí).
     const _hdrName=document.getElementById('hdr-hotel-name');
     if(_hdrName) _hdrName.textContent=hotelData.name||'Hotel';
+    showHdrButtons();
 
     // Pokud host byl tu dříve — přeskoč onboarding
     if(_savedName || _onboarded || guestName !== ''){
@@ -1322,6 +1323,18 @@ function showInstallTip(){
   if(!isPwaInstalled()) addBot(INSTALL_TIP[guestLang] || INSTALL_TIP['en']);
 }
 
+// Tlačítka v hlavičce podle nastavení hotelu. Volá se u nového i vracejícího se hosta —
+// dřív jen ve startChat(), takže vracející se host helpdesk ani WhatsApp neviděl (nález 25. 11. 2026).
+function showHdrButtons(){
+  if(!hotelData) return;
+  const waNum = hotelData.whatsapp_number || hotelData.whatsapp_wellness || hotelData.whatsapp_restaurant || hotelData.whatsapp_sport || hotelData.phone || '';
+  const waHdrBtn = document.getElementById('wa-hdr-btn');
+  if(waHdrBtn && waNum) waHdrBtn.style.display='';
+  // Helpdesk (závada / úklid / přání) — jen když ho hotel zapnul
+  const hdBtn = document.getElementById('hd-hdr-btn');
+  if(hdBtn && hotelData.helpdesk_enabled){ hdBtn.style.display=''; hdBtn.title=xT('hd_title'); }
+}
+
 function startChat(){
   if(!hotelData)return;
   guestName=document.getElementById('ob-name').value.trim();
@@ -1341,13 +1354,7 @@ function startChat(){
   },300);
 
   document.getElementById('hdr-hotel-name').textContent=hotelData.name||'Hotel';
-  // WhatsApp tlačítko v headeru — zobraz jen pokud hotel má číslo
-  const waNum = hotelData.whatsapp_number || hotelData.whatsapp_wellness || hotelData.whatsapp_restaurant || hotelData.whatsapp_sport || hotelData.phone || '';
-  const waHdrBtn = document.getElementById('wa-hdr-btn');
-  if(waHdrBtn && waNum) waHdrBtn.style.display='';
-  // Helpdesk (závada / úklid / přání) — jen když ho hotel zapnul
-  const hdBtn = document.getElementById('hd-hdr-btn');
-  if(hdBtn && hotelData.helpdesk_enabled){ hdBtn.style.display=''; hdBtn.title=xT('hd_title'); }
+  showHdrButtons();
 
   // Přidej WhatsApp tlačítko do quick replies pokud je nastaveno
   if(hotelData.whatsapp_reception || hotelData.whatsapp_number){
