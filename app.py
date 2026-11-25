@@ -9751,8 +9751,7 @@ async def guest_tts(req: GuestTTSRequest, request: Request):
     if not _rate_limit_ok("tts-ip:" + _client_ip(request), max_hits=120):
         raise HTTPException(429, "Příliš mnoho požadavků na hlas. Zkuste to za chvíli.")
     # Hlas je placená služba: čteme jen pro existující hotel, ne pro kohokoli z internetu.
-    with get_db() as _tdb:
-        _thid, _th = _resolve_hotel(_tdb, (req.hotel_id or "").strip())
+    _thid, _th = _resolve_hotel(db_load(), (req.hotel_id or "").strip())
     if not _th:
         raise HTTPException(404, "Hotel nenalezen")
     text = (req.text or "").strip()
