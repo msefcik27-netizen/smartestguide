@@ -1,0 +1,26 @@
+# Pravidla pro hledání tajemství (gitleaks / betterleaks).
+# Platí všechna standardní pravidla; každá výjimka níže má napsaný důvod.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Cizí knihovny v prostředí a výsledky kontrol, ne náš kód"
+paths = [
+  '''(^|[\/])\.venv[^\/]*[\/]''',
+  '''(^|[\/])node_modules[\/]''',
+  '''(^|[\/])\.git[\/]''',
+  '''(^|[\/])sca_vysledky[\/]''',
+]
+
+[[allowlists]]
+description = "data.json je místní soubor s ukázkovými daty pro vývoj; je v .gitignore a do repozitáře se neposílá"
+paths = [
+  '''(^|[\/])data\.json$''',
+]
+
+[[allowlists]]
+description = "Popisek pole ve formuláři (text 'WiFi heslo'), ne heslo"
+regexTarget = "line"
+regexes = [
+  '''"wifi_password":\s*"WiFi heslo"''',
+]

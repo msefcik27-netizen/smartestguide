@@ -1606,7 +1606,7 @@ window.updateFlagsRow=function(){
   let guard=0;
   const tpl=(TRANSLATIONS[currentLang]&&TRANSLATIONS[currentLang].flags_more)||TRANSLATIONS.en.flags_more;
   chip.textContent=tpl.replace('{n}',TOTAL_APP_LANGS-visible);
-  while(row.scrollWidth>row.clientWidth+1 && visible>6 && guard<100){
+  while(row.scrollWidth>row.clientWidth+1 && visible>2 && guard<100){
     guard++; visible--;
     imgs[visible].style.display='none';
     chip.textContent=tpl.replace('{n}',TOTAL_APP_LANGS-visible);
@@ -1614,6 +1614,9 @@ window.updateFlagsRow=function(){
 };
 window.addEventListener('resize',()=>{clearTimeout(window._frT);window._frT=setTimeout(window.updateFlagsRow,150);});
 setTimeout(window.updateFlagsRow,100);
+// po načtení písma je štítek širší – přepočítat, jinak se na mobilu ořízne
+if(document.fonts&&document.fonts.ready){document.fonts.ready.then(()=>window.updateFlagsRow());}
+window.addEventListener('load',()=>window.updateFlagsRow());
 
 // ── Redesign 25.7.2026: scroll reveal + progress bary + chat demo smyčka ──
 (function(){
@@ -1655,6 +1658,15 @@ setTimeout(window.updateFlagsRow,100);
 </script>
 
 <!-- GDPR Cookies Banner (jeden blok; výchozí skrytý, ukáže se jen bez uloženého souhlasu) -->
+<style>
+/* Na mobilu úzký pruh v jedné řadě, ať nezakrývá velkou část obrazovky */
+@media(max-width:600px){
+  #cookie-banner{padding:8px 12px !important;gap:10px !important;flex-wrap:nowrap !important}
+  #cookie-banner>div:first-child{font-size:11px !important;line-height:1.35 !important}
+  #cookie-banner button{padding:7px 10px !important;font-size:12px !important}
+  #cookie-banner>div:last-child{gap:6px !important}
+}
+</style>
 <div id="cookie-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:999;background:#faf9f5;border-top:1px solid var(--border);padding:16px 5vw;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
   <div style="font-size:13px;color:var(--dim);max-width:700px;line-height:1.6">
     🍪 We use cookies to improve your experience. By continuing, you agree to our <a href="/privacy" style="color:var(--teal)">Privacy Policy</a>.

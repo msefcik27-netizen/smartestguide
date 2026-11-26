@@ -310,15 +310,16 @@ def test_hotels():
     except Exception as e:
         fail("Portal link", str(e))
 
-    # Leták PDF (starý endpoint)
+    # Leták (od 0.5.2x tisková stránka HTML v libovolném jazyce; dřív PDF)
     try:
         r = S.get(f"{BASE}/api/hotels/{hotel_id}/flyer", timeout=30)
-        if r.status_code == 200 and "pdf" in r.headers.get("content-type", ""):
-            ok("Leták PDF (starý endpoint)", f"{len(r.content)} bytes")
+        ctype = r.headers.get("content-type", "")
+        if r.status_code == 200 and ("html" in ctype or "pdf" in ctype) and len(r.content) > 1000:
+            ok("Leták", f"{len(r.content)} bytes")
         else:
-            fail("Leták PDF", f"status {r.status_code}")
+            fail("Leták", f"status {r.status_code}, typ {ctype}")
     except Exception as e:
-        fail("Leták PDF", str(e))
+        fail("Leták", str(e))
 
     return hotel_id, token
 
@@ -996,11 +997,13 @@ def test_wifi(hotel_id, token):
     if not token:
         skip("WiFi testy", "token chybí")
         return
+    # Zkušební hodnota se generuje při každém běhu, v kódu žádná pevná není
+    WIFI_TEST = "wifi-" + os.urandom(6).hex()
     # Ulož WiFi přes portál
     try:
         r = S.patch(f"{BASE}/api/hotel-portal/update?token={token}", json={
             "wifi_name": "Hotel_Test_Guest",
-            "wifi_password": "testpass2024"
+            "wifi_password": WIFI_TEST
         }, timeout=10)
         d = r.json()
         hotel = d.get("hotel", {})
@@ -1008,7 +1011,7 @@ def test_wifi(hotel_id, token):
             ok("WiFi název uložen přes portál")
         else:
             fail("WiFi název", f"vráceno: {str(d)[:80]}")
-        if hotel.get("wifi_password") == "testpass2024":
+        if hotel.get("wifi_password") == WIFI_TEST:
             ok("WiFi heslo uloženo přes portál")
         else:
             fail("WiFi heslo", f"vráceno: {str(d)[:80]}")
