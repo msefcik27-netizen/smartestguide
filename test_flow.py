@@ -997,11 +997,13 @@ def test_wifi(hotel_id, token):
     if not token:
         skip("WiFi testy", "token chybí")
         return
+    # Zkušební hodnota se generuje při každém běhu, v kódu žádná pevná není
+    WIFI_TEST = "wifi-" + os.urandom(6).hex()
     # Ulož WiFi přes portál
     try:
         r = S.patch(f"{BASE}/api/hotel-portal/update?token={token}", json={
             "wifi_name": "Hotel_Test_Guest",
-            "wifi_password": "testpass2024"
+            "wifi_password": WIFI_TEST
         }, timeout=10)
         d = r.json()
         hotel = d.get("hotel", {})
@@ -1009,7 +1011,7 @@ def test_wifi(hotel_id, token):
             ok("WiFi název uložen přes portál")
         else:
             fail("WiFi název", f"vráceno: {str(d)[:80]}")
-        if hotel.get("wifi_password") == "testpass2024":
+        if hotel.get("wifi_password") == WIFI_TEST:
             ok("WiFi heslo uloženo přes portál")
         else:
             fail("WiFi heslo", f"vráceno: {str(d)[:80]}")
