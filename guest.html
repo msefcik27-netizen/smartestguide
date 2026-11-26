@@ -2063,9 +2063,11 @@ async function fetchWeather(){
     ].filter(Boolean);
 
     let gd = [];
+    // Název města v jazyce hosta (česky „Praha“, anglicky „Prague“)
+    const geoLang=encodeURIComponent(String(guestLang||'cs').split('-')[0]);
     for(const q of queries){
       const addr=encodeURIComponent(q);
-      const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${addr}&format=json&limit=1&addressdetails=1`,
+      const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${addr}&format=json&limit=1&addressdetails=1&accept-language=${geoLang}`,
         {headers:{'User-Agent':'SmartestGuide/1.0 support@smartestguide.com'}});
       gd=await geo.json();
       if(gd.length) break;
